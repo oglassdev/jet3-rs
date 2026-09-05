@@ -11242,6 +11242,96 @@ DAO control continuation; first/later images 57,344 bytes, last-page images 59,3
 - last-page-sole replica 2: `150e8937655b6f8aa2e0ca387c45778be08c1453b2bf99f91629563039f872f6`, `906b17069e3ec96f3f2accfe898290043848d593858eca0949c2ba333f614a07`, `9437209032548134abc6e4a77dfe560eceaae9097171037fb98167d3efcf4e6e`, `41a98cbe019a6583a7abb21b0b3c96d7874956c97d17a413a7ad5fb5e52abc14`, `1d1bc67decd97490bfcd84e6c6644e6d973f7c15824d84346032f1f7f44ec806`.
 - last-page-sole replica 3: `b6d428cb96642cb43cd6ab382a1e22a844bebbb3c996040842b7bec6faed0eb7`, `02968c3c96066d562cf328be94e6d5610083d0745203b48289e4efbacfb2e26f`, `108517677faa595eea3370c84faaca7f7d39a774387c15e9a541f10e9436e80a`, `f7acaf6a1c5f52a4564c99e08342c4496d5c352addc514db12527d9bf4ffb81b`, `cec4190d3befe417c5633113b4a104bc50acecb3f8485b7f17720416566cdce5`.
 
+## EXP-0207 — Named Memo AllowZeroLength property framing discovery
+
+- Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0208.
+  Plan `oracle/windows-dao/acquisition/memo-property.plan.json`, SHA-256
+  `58ae4d566d55b02747430d70fa97577552e82d8d9fed81d8a203d503711ee82e`. Six source inputs pinned; commit and independent review precede
+  one local dispatch with no retry or resume.
+- Three empty schemas, three replicas: Rows(Id,M), Ledger7(Id,Memo42Long),
+  Table9(Id,First2,SecondMemo7), with Long Id and Memo columns. Capture default
+  false, then true and false for each Memo column individually; complete each
+  column cycle before touching the next. Thirty-three closed checkpoint images,
+  twenty-four native property setters and nine final working images retained.
+- Reopen each checkpoint read-only. Require exact requested properties, complete
+  field metadata/property inventories, empty rows/indexes/relations/queries and
+  unchanged image identities. Capture catalog row and LvProp descriptor,
+  exact bounded external payload/backing page, raw column metadata and table/
+  long-column maps. Existing single-external-value framing only; unsupported
+  framing refuses analysis instead of inventing a property grammar.
+- Retain complete file-byte differences and payload-relative differences between
+  checkpoints. Across replicas compare requested metadata, column bindings and
+  exact property payload/transitions; physical locators, catalog timestamps and
+  backing-page slack remain recorded without requiring equality. No guessed
+  property offset, name dictionary or block-length hypothesis gates the answer.
+- EXP-0200 establishes present empty Memo only when AllowZeroLength is true;
+  current creation emits null catalog LvProp and has no property writer. This
+  discovery supplies a bounded prerequisite for a dedicated opt-in, not a
+  broad property framework. Empty OLE remains refused; explicit Null unchanged.
+- All planned captures/operations and replica signatures must pass for answered.
+  Any unexpected failure gives no_outcome with retained diagnostics. No DAO
+  acquisition yet, parser changes, candidate acceptance or support movement.
+
+## EXP-0200 — Empty Memo and OLE operations have distinct retained outcomes
+
+- Single local discovery run `20260905T104500Z-empty-long-values`, acquired
+  from frozen `a0e7126` under EXP-0199 plan SHA-256
+  `fa2b22d683b3d2f15a9c9849f55ffe9b2ae2349ddd9ed1d1f497e1dadc738b4e`.
+  Outcome **answered**,12complete observations, no reasons or acquisition error.
+  Stable planned native empty rejection is part of this answered discovery.
+- Report52485bytes SHA-256
+  `3d790ef5f25d56880ef5df66cd266e12519cd36b177e5ed1a41f61b45ab47b08`;
+  result396906bytes SHA-256
+  `462ff42d47e44c89e3a8642b91b9b9fd4a94ec79df38581b9886b3d18e3fbdec`.
+  Pinned analysis reproduced the exact report on temporary copies. All17retained
+  files and12MDB identity chains remained unchanged. Files remain externally
+  under the local VM shared outbox; no redispatch or corrected analysis.
+- Four arms×3replicas each agree in operations, reopened schema/field properties,
+  IsNull/FieldSize/payload and raw row/span/map observations. Every Id1Null and
+  Id3one-byte control succeeded. Twelve empty attempts produced the following
+  finite results, with each outcome repeating in all three replicas.
+- Memo default AllowZeroLengthFalse: assigning the empty string reaches Update,
+  which rejects with DAO3315, HRESULT-2146824973, COMException at empty/update,
+  message "Field 'Rows.Payload' cannot be a zero-length string." Cancellation
+  completes; reopened rows contain only Id1Null and Id3A. No partial empty row
+  persists. The property is recorded as False both directly and in Properties.
+- Memo explicit AllowZeroLengthTrue: empty Id2 succeeds and reopens as present
+  empty string, IsNullFalse and FieldSize0, distinct from the Null row. At root20,
+  page23/slot1, presence mask03 and field span[5,17) contain exactly the12bytes
+  `000000800000000000000000`: zero declared length, inline flag80000000,
+  eight reserved zero bytes and no payload. Its complete row is
+  `020200000000000080000000000000000011050103`.
+- OLE Value assignment and AppendChunk of a true CLR byte[0] both succeed,
+  but empty Id2 reopens as Null, IsNullTrue and FieldSize0. Both have presence
+  mask01, empty field span[5,5) and no descriptor. Complete row bytes are
+  `020200000005050101`; neither operation establishes a distinct empty OLE
+  value. Recorded OLE AllowZeroLength property is False in Properties.
+- Null Id1 is always mask01 with no descriptor and row
+  `020100000005050101`. One-byte Id3 is mask03, field span[5,18), exact header
+  `010000800000000000000000` and payload41; Memo reopens as A/FieldSize2,
+  OLE as byte41/FieldSize1. No external LVAL page is allocated; long-column
+  owned/available sets remain empty, while table owned/available sets are[23].
+- These facts establish the finite present-empty Memo header and the two tested
+  OLE-empty-to-Null operations. They do not establish an AllowZeroLength
+  property serialization grammar, candidate writer acceptance, other provider
+  conversion behavior, general update policy or hosted support. No production
+  refusal was removed during discovery and no compatibility claim is made.
+
+Retained MDB identities (filename: bytes, SHA-256):
+
+- `memo-allow-empty-r1.mdb`: 49152, `6d9e2a16fbe4dfa647a8adb2ca8d025d290607e70628f395893bf5b8d371195a`.
+- `memo-allow-empty-r2.mdb`: 49152, `5e82f0b5dfa5642102c9c5b6fc93b374d082c990074d3b36f9a8ba73e6602018`.
+- `memo-allow-empty-r3.mdb`: 49152, `a912ec775801998ab34d1779a9541b2f129bfe33f43ae933be0a91c290ce9d85`.
+- `memo-default-r1.mdb`: 49152, `4d53215fa90d6d8e20988f46c1e7f2cda2e8fb3bb38edf9ec3f96638de95d48b`.
+- `memo-default-r2.mdb`: 49152, `33940f82250aa66058624efe175dffc7818dd5cb06eafa180c622e2de4177303`.
+- `memo-default-r3.mdb`: 49152, `023a6f124f9290a0195d027125e1925a82525e8e3ee98572981a075694425f64`.
+- `ole-append-r1.mdb`: 49152, `3abe98fd4a2083f2f0bf2733c567c2e9c440d4c3c4dec1b63bb038b3facbd99a`.
+- `ole-append-r2.mdb`: 49152, `d5269fefbcc759a985ab53b08d96b4779dd8c5d45944c3275329fe6492e59511`.
+- `ole-append-r3.mdb`: 49152, `8658598b98f34d24c1b1a04df463d6cb508c9b2f074b53662f7aa0326eabb6e3`.
+- `ole-value-r1.mdb`: 49152, `441c5188ec726168d3b8568683311e7957fb314bb8ef5b4b51c9261bc40e6f77`.
+- `ole-value-r2.mdb`: 49152, `c69e50f3090f80625ae45c0ae333f978e3a7d7e63433fce888cac342e1e3bf82`.
+- `ole-value-r3.mdb`: 49152, `d07e3b385befa3b4be7a4f9d406b472b27af21fff39c785ff7f5c9e8f78e36aa`.
+
 ## EXP-0199 — Empty Memo/OLE layout discovery plan
 
 - Preregistered2026-09-05; no acquisition. Result reserved as EXP-0200.
@@ -11314,6 +11404,153 @@ DAO control continuation; first/later images 57,344 bytes, last-page images 59,3
   no bookkeeping meaning, general release policy or hosted support is claimed.
   Sole-live pages with other tombstones, indirect maps, map growth, truncation,
   indexed/related/AutoIncrement/LVAL deletion and public reuse are excluded.
+
+## EXP-0202 — Retained multiple-index comparisons accepted under explicit count-residue accounting
+
+- Secondary preregistration EXP-0201, reviewed runtime revision `49a4038`, plan
+  SHA-256 `649e8dba0aa8d0d3bf875231a2c0bebeb0b4de6bd34e397a8f658875bdefae65`.
+  This is post-acquisition read-only evaluation of EXP-0193's retained data;
+  original EXP-0194 remains no_outcome with zero promoted observations.
+  No DAO redispatch, new mutation, source rewrite or original artifact change.
+- Secondary report: **observed_accepted**, six comparisons, no reasons;
+  32255bytes SHA-256
+  `5e22d89a22c2c7153b6e25f41710d3bf8e9c12e518f6887d78d30307c799922d`,
+  retained as `20260905T103000Z-multiple-index-secondary/report.json` in the
+  external VM shared outbox. Exact report bytes reproduced on temporary copies.
+  All35 original files,30 captured MDB identities and the retained secondary
+  report remained unchanged. Original report/result pins match EXP-0194.
+- Both finite arms, three pairs each, pass complete schema/rows, every index's
+  logical/physical name and column binding, flags, directed traversal and every
+  distinct non-null full-key Seek. Complete keys and row locators match each
+  image's separate tree/map inventory. Equal-key ordering and duplicate Seek
+  choices are normalized only after complete row/payload coverage.
+- Three-long has201rows, ascending primary Id, ordinary descending Group and
+  unique descending Group/ascending Value. Candidate roots23/24/25 each have
+  depth2 with maps `[23,28,29]`, `[24,30,31]`, `[25,32,33]`; control roots23/24
+  are leaves with maps `[23]`/`[24]`, while root25 has depth2 and map
+  `[25,28,29,30]`. All have201entries per index and distinct counts201/3/201.
+  Physical order ZPrimary/AGroup/MMixed differs from logical name order and
+  remains correctly bound. These observed layouts do not define packing policy.
+- Mixed-null has30rows, primary Id and ordinary descending Currency/ascending
+  Group with repeated/null keys. Both images use roots23/24, leaf maps `[23]`
+  and `[24]`,30entries per tree and30/15distinct keys. Complete null-bearing
+  rows remain in traversal/raw validation; no null Seek claim is made.
+- All18 independent duplicate probes reject with DAO3022. The six three-long
+  secondary-duplicate probe images, including controls, retain primary stored
+  count202 at absolute byte41007 despite201 actual entries/distinct keys.
+  The separate analysis verifies their exact native rejection/image/role/count
+  bindings, normalizes only those four in-memory prefix bytes for the complete
+  original validator, and explicitly returns the original202/actual201 residue.
+  No retained MDB is patched. Baseline and all other index/count gates are
+  unchanged, including ordinary3 and secondary-unique201 in these probes.
+- Finite local candidate evidence only, including the explicitly declared
+  failed-secondary-insert residue. No general count, rollback, index-maintenance
+  or broader multi-table indexing rule is established. Original failed result
+  is not relabeled; no hosted compatibility or support-matrix movement.
+
+## EXP-0201 — Retained multiple-index count-residue secondary plan
+
+- Committed before secondary evaluation,2026-09-05; result reserved as EXP-0202.
+  This is post-acquisition reanalysis of EXP-0193 data, not a new preregistered
+  acquisition. Original EXP-0194 no_outcome/report and all consumed inputs stay
+  unchanged. No DAO, new MDB, mutation or corrected evaluation has run.
+- Plan `oracle/windows-dao/acquisition/multiple-index-reanalysis.plan.json`,
+  SHA-256 `649e8dba0aa8d0d3bf875231a2c0bebeb0b4de6bd34e397a8f658875bdefae65`; pins all35 retained files,
+  including30 MDBs and original result/report, plus29 runtime/plan inputs.
+  Source directory remains `20260905T094500Z-multiple-index` under the external
+  local VM shared outbox. Hash-only preflight validates all retained artifacts.
+- Exactly six pinned three-long secondary-duplicate images, both candidate and
+  control for each replica, carry primary stored count202 but201 actual entries/
+  distinct keys. Require their original native3022 rejection and image/capture
+  bindings. Normalize only the four private in-memory prefix bytes at their
+  decoder-derived offset to201 for the unchanged complete raw validator.
+  Every other original count gate remains in force, including all baselines.
+- The original validator checks all rows, complete keys/locators, logical/physical
+  names, flags, disjoint maps and every snapshot/traversal/Seek/error/identity
+  gate. Each normalized report additionally retains stored202 versus actual201
+  as an explicit observed failed-insert residue. No count gate is silently
+  omitted and no general counter or rollback semantics are inferred.
+- The six-pair result can be observed_accepted only under these exact secondary
+  conditions; discrepancies remain no_outcome. Original reports and images are
+  never written. A fresh exclusive output must be outside the original outbox
+  tree, after input/retention checks; no reuse or replacement of an existing
+  output. Four focused synthetic gate/normalization/preservation tests pass.
+- Local development evidence only; no hosted support, broad multiple-index
+  mutation result or compatibility claim. Independent review precedes execution.
+
+## EXP-0194 — Multiple-index candidate validation has no outcome
+
+- Single local run `20260905T094500Z-multiple-index`, preregistered by
+  EXP-0193 under plan SHA-256
+  `7dab38a9298a978e998ea940cfa995eb8cf2f5ef4a28f5bd5d62589cc81a1451`.
+  Frozen acquisition/analyzer revision `dfaaccddf2fe2ee22160f5a442c1e745b582f8eb`;
+  candidate library source `e514de11962f6a3b089e43a8d04a24e78520c21d`.
+- Original report: **no_outcome**, reason `Distinct full-key count`, zero
+  promoted observations;373bytes SHA-256
+  `668727c71b44f8a00e814a33533a1fc889d3a0cdc5d040fdde032c526401ff92`.
+  Result:21235080bytes SHA-256
+  `0479a5f20723011c0f083e6b12eb5c3189bd2152a09a356ab064ca7f924933ef`.
+  The original pinned analyzer reproduced these exact report bytes on temporary
+  copies. All35retained files and all30captured MDB identities remained
+  unchanged. Raw images/results stay in the external VM shared outbox.
+- Acquisition completed both arms and all six pairs, with no top-level error or
+  retention failure. All30read-only captures report pass and unchanged before/
+  after identities:12baseline images and18independent rejection-probe images.
+  All18probe attempts report rejection with DAO3022. These are retained guest
+  diagnostics; the preregistered all-pairs analyzer did not accept a subset.
+- Read-only diagnosis identifies the first rejected role as three-long replica1
+  candidate-duplicate-secondary. Its primary ZPrimary stored prefix count is202
+  although the complete tree contains201entries and201distinct keys. This same
+  discrepancy occurs in all six three-long secondary-duplicate probe images,
+  including the independent DAO controls. The attempted secondary-unique
+  duplicate had a fresh primary Id999 and failed during DAO Update.
+- Baseline and primary-duplicate three-long images retain primary201/201/201,
+  ordinary AGroup3/201/3 and unique MMixed201/201/201, where each triple is
+  stored count / actual entries / actual distinct keys. Secondary-duplicate
+  images differ only in the diagnosed primary count among these triples:
+  202/201/201; the other two counts remain3and201. All mixed-null images have
+  primary30/30/30 and ordinary AGroup15/30/15. These finite raw-count facts
+  explain the failed gate; they do not establish a general count-maintenance
+  rule, rollback behavior, successful candidate validation or compatibility.
+- No source, consumed plan, original report or retained image was corrected;
+  no redispatch or corrected evaluation occurred. A distinct pinned secondary
+  analysis could compare complete captured semantics and tree inventories while
+  retaining and comparing this same candidate/control post-rejection count
+  discrepancy separately. Such analysis requires its own reviewed plan and
+  cannot replace this no_outcome. No hosted or support-matrix movement.
+
+Retained MDB identities (filename: bytes, SHA-256):
+
+- `mixed-null-r1-candidate-duplicate-primary.mdb`: 53248, `10870c57fe5cc84af0ab16063cf83ac648cad208b6310b0076c342bd98b85c10`.
+- `mixed-null-r1-candidate.mdb`: 53248, `10870c57fe5cc84af0ab16063cf83ac648cad208b6310b0076c342bd98b85c10`.
+- `mixed-null-r1-control-duplicate-primary.mdb`: 53248, `5738a2bad5fdede6a7c9185854e7b32da3636db0081b073982587bfd0c1fd05f`.
+- `mixed-null-r1-control.mdb`: 53248, `5738a2bad5fdede6a7c9185854e7b32da3636db0081b073982587bfd0c1fd05f`.
+- `mixed-null-r2-candidate-duplicate-primary.mdb`: 53248, `10870c57fe5cc84af0ab16063cf83ac648cad208b6310b0076c342bd98b85c10`.
+- `mixed-null-r2-candidate.mdb`: 53248, `10870c57fe5cc84af0ab16063cf83ac648cad208b6310b0076c342bd98b85c10`.
+- `mixed-null-r2-control-duplicate-primary.mdb`: 53248, `cbfad4b964a3e021575c2a5382bab87f68fb0754c809cafe3f41b3fa0b4b95f8`.
+- `mixed-null-r2-control.mdb`: 53248, `cbfad4b964a3e021575c2a5382bab87f68fb0754c809cafe3f41b3fa0b4b95f8`.
+- `mixed-null-r3-candidate-duplicate-primary.mdb`: 53248, `10870c57fe5cc84af0ab16063cf83ac648cad208b6310b0076c342bd98b85c10`.
+- `mixed-null-r3-candidate.mdb`: 53248, `10870c57fe5cc84af0ab16063cf83ac648cad208b6310b0076c342bd98b85c10`.
+- `mixed-null-r3-control-duplicate-primary.mdb`: 53248, `440f9d3ddb870700d7318eea0419467dc358cce6686962b8780035bf5487d0ce`.
+- `mixed-null-r3-control.mdb`: 53248, `440f9d3ddb870700d7318eea0419467dc358cce6686962b8780035bf5487d0ce`.
+- `three-long-r1-candidate-duplicate-primary.mdb`: 69632, `f2dee542a56a29d62f9cdc9a02970a4f778e3f227e95d45478dec8f553ef7418`.
+- `three-long-r1-candidate-duplicate-secondary.mdb`: 69632, `d65a7cc3b28e09af64a9d22103180bb682220fba718cf3e0fd868fce20b93be1`.
+- `three-long-r1-candidate.mdb`: 69632, `f2dee542a56a29d62f9cdc9a02970a4f778e3f227e95d45478dec8f553ef7418`.
+- `three-long-r1-control-duplicate-primary.mdb`: 63488, `9d166f223eefdb617964cf0068816ac9ce47a594ba1b0fbb5019e0289d4d9c05`.
+- `three-long-r1-control-duplicate-secondary.mdb`: 63488, `f9ee45b46117e3c6c92fdb1ab8c577639b16fb8bab3ce2278a5925be0272c23c`.
+- `three-long-r1-control.mdb`: 63488, `9d166f223eefdb617964cf0068816ac9ce47a594ba1b0fbb5019e0289d4d9c05`.
+- `three-long-r2-candidate-duplicate-primary.mdb`: 69632, `f2dee542a56a29d62f9cdc9a02970a4f778e3f227e95d45478dec8f553ef7418`.
+- `three-long-r2-candidate-duplicate-secondary.mdb`: 69632, `d65a7cc3b28e09af64a9d22103180bb682220fba718cf3e0fd868fce20b93be1`.
+- `three-long-r2-candidate.mdb`: 69632, `f2dee542a56a29d62f9cdc9a02970a4f778e3f227e95d45478dec8f553ef7418`.
+- `three-long-r2-control-duplicate-primary.mdb`: 63488, `5a834aeccc88edf778765a541c657819219559ea78e3ed90f18c7c837b69a07b`.
+- `three-long-r2-control-duplicate-secondary.mdb`: 63488, `0fd02244a5a8bf43b6489d3700f211ea6908b006063c357c576796a293969fd5`.
+- `three-long-r2-control.mdb`: 63488, `5a834aeccc88edf778765a541c657819219559ea78e3ed90f18c7c837b69a07b`.
+- `three-long-r3-candidate-duplicate-primary.mdb`: 69632, `f2dee542a56a29d62f9cdc9a02970a4f778e3f227e95d45478dec8f553ef7418`.
+- `three-long-r3-candidate-duplicate-secondary.mdb`: 69632, `d65a7cc3b28e09af64a9d22103180bb682220fba718cf3e0fd868fce20b93be1`.
+- `three-long-r3-candidate.mdb`: 69632, `f2dee542a56a29d62f9cdc9a02970a4f778e3f227e95d45478dec8f553ef7418`.
+- `three-long-r3-control-duplicate-primary.mdb`: 63488, `554fab16aac0cba26121bcd9e1ee37aee9c0783b79d9c729726c68b756002437`.
+- `three-long-r3-control-duplicate-secondary.mdb`: 63488, `1395e5604d34f4147e8268af5e51bd42bfcbfb3450ad69bbb6e6bb4ea7b21fc5`.
+- `three-long-r3-control.mdb`: 63488, `554fab16aac0cba26121bcd9e1ee37aee9c0783b79d9c729726c68b756002437`.
 
 ## EXP-0193 — Multiple populated numeric indexes candidate plan
 
@@ -13632,6 +13869,75 @@ Retained original→updated MDB SHA-256 identities by scenario:
 - Pre-acquisition verification: implementation independent review and root
   checks passed; exact integrated five-case public preparation and committed
   plan/input checks precede dispatch. Independent plan review is required.
+
+## EXP-0206 — Retained-original full-row replacement successor accepted
+
+- Outcome: **observed_accepted**, all twelve cases, no reasons, from the single
+  local run `20260905T110000Z-row-update-successor`. EXP-0205 plan SHA-256
+  `fcfc99ffde4bc05d2eb7d7729ea318000131a8e59f08a49c84a4bf7950fc2b06`;
+  corrected library source `b66396d2163b8208b3c300268219dff1209c281b`,
+  acquisition revision `a0c8eea6d86a548be2b99268c2eb3e8ce2e872c2`.
+- Retained under `/home/alex/development/vms/jet3-windows/shared/outbox/`,
+  coordinated directory `20260905T110000Z-row-update-successor` and its
+  `-observe` phase directory. Report: 42,484 bytes, SHA-256
+  `3c23188581fa0bb2cf764f539386bcc269f5914cccca8232f6144816e7d1e16a`;
+  result: 5,215 bytes, SHA-256
+  `47120bd6201e73ef028d862b0fa78adbce08950c960befcd7cb7dd469b5f2842`;
+  fresh observe receipt: 1,387,352 bytes, SHA-256
+  `5b872d0a6be604296fd56a2cbe0e075c79ceb6f501a94f21ad4e170e31fc7037`.
+- The original create receipt remains 548,830 bytes, SHA-256
+  `8f8e2d5f4d3e355e3cf5eb88ac7571f08098808aafca3e79c786a50e9cecc31d`.
+  Both coordinated phase identity and copied receipt bytes equal that pinned
+  original. Original EXP-0198 `no_outcome` report remains unchanged, SHA-256
+  `1ebad1af860d484fa4f7a6b687eaa1437fa296f1e0d37146b79192903c4d9bf8`.
+  Original baseline/control receipts bind the original plan; fresh observation
+  receipts bind EXP-0205. This successor does not rewrite the original failure.
+- The unchanged pinned successor analyzer reproduced its report byte-for-byte
+  on temporary copies. All 197 files across original and successor coordinated/
+  phase directories remained unchanged: 57 original, 140 successor (77/63).
+  Every one of the 60 final MDB identities passed; twelve candidates matched
+  their predetermined hashes. Twelve retained originals and twelve retained
+  controls were reused exactly; no baseline recreation or new control edit.
+- Twelve public replacements completed, followed by 60 fresh read-only captures
+  and 24 separate DAO continuation inserts. The original 24 captures remain
+  prior inputs. Complete expected schema/rows/KeepQuery metadata and SQL matched
+  the independent controls, with all unrelated table values preserved. Every
+  read-only identity remained unchanged; no phase or retention failure occurred.
+- In all three replicas, `grow-first` retained root 20/page 23/slot 0 and five
+  rows, changed encoded width 19→82 and free bytes 1846→1783; `shrink-middle`
+  retained root 20/page 23/slot 1 and five rows, width 104→16, free 1846→1934.
+  `null-later` retained root 24/page 26/slot 1 and three rows, width 14→26,
+  free 1979→1967. `tombstone` retained root 20/page 23/slot 2 and four rows,
+  width 21→14, free 1950→1957, with the known empty adjacent tombstone retained.
+- Exact full-image checks admitted only the complete replacement row, shifted
+  later-row bytes, affected directory offsets and free-byte count. Physical row
+  slots, table/slot counts, inline owned/available memberships (`[23]` or `[26]`),
+  vacated slack, page zero, file length and all other bytes remained exact.
+  The declared scalar null transitions, Text/Binary growth/shrink and Boolean
+  changes matched DAO. Separate inserts `[99,-9900,"next","00ff",true]` into
+  Rust and control copies matched complete semantics, giving counts 6/6/4/5.
+- Finite local acceptance only for the four narrow Long/Text/Binary/Boolean
+  profiles and their declared continuation. No arbitrary wide multivariable
+  layout, ignored scalar offsets, index/relationship/Auto/LVAL/overflow targets,
+  allocation/map transition or general DAO row-update policy is established.
+  Development-only; no hosted compatibility claim or support-matrix movement.
+  Independent outcome review follows this record.
+
+Retained SHA-256 identities (original, Rust, DAO control, Rust continuation,
+DAO control continuation; all 57,344 bytes):
+
+- `grow-first` replica 1: `29e3b33b21611493fe43746f655d0c8b8aebfdcea3e4fe4e49b5f46911cdd049`, `fede154278d629da7333adc5c10b26a621e8fb4037a405cd8076c0396bd915d3`, `c88f71047a681ac60570cd5d323d01fce71217d9e536e10de8f004d9f8a1908d`, `3c6c40b38f81e3ba3a65d4e82a07ced9d085bb6e58a5dc3b28e1b9b03fabd0d1`, `6005ed3215028a3111d62d5b6bd5e435b0d8bf3ad5b257a5e632aef1f54d6945`.
+- `grow-first` replica 2: `42481e7fdc3aabaf4424926751b7bcb6491607524c66567c44040b1e52e3859a`, `0fe62f05743d828e5f34ddf25284eb86781a8e9dec33e3457174624b46f40b98`, `f90d9bee09103d8387dbea3b8713f46b028ca6ea34cd25545bba101ceae9d85d`, `799fdb5704b0b03ab571196ac10a2499ba98270c8ba176d965b055388ef438b8`, `85aad8229d2725571233550d263e13354a5d7ebb2030509ba922daedcdbebe72`.
+- `grow-first` replica 3: `41a6c8535bb0886fe6e33012cbb17f50550450d01813e90a0c02765dd304dba7`, `c6fd080c144898a31227d643f34f7ef6007ce57917064840b3bf494dab2f9735`, `186d9e50b26684111042c40e11a6ce263adc090c628467db371cb2571cf70643`, `f175b8caa94f9a5cc67112d42bc4e6aaba38ae206ae358b1f7dd1d9a9a537565`, `20247d75222ed3b119e1e7fd149b3535bd7b268370fbf1a69e64dc3ca4c36ca5`.
+- `shrink-middle` replica 1: `7cda1cf3bf7d42f60e3f482bfbf1c91aaeb57ccc9a0ee0d1d1145f6204b6e9a6`, `31d04a405645e4d6da8430e7ef37b89f5293cc90e18a1b4d0bc3f79c5fbb776e`, `828f5266c6c01a79a74a0ad0bb5fdb1123e7988aed375a781ea561075562d6e0`, `2a92491f19f2333adbcf1cc619c51f9a11290d5d98f84aea2500a3637136573f`, `6e133c5ce03f90fc1f4d0e7f8eeb2e8a5372e29128582b440244e6fc16e6c74b`.
+- `shrink-middle` replica 2: `a5a6ee9a5ead3c68542bba256666e254299577dce3c190cc018155ad6ba4036f`, `4c410a170a755ca4555f4ff2b75e45e3b9baea62d5cfd37aaf8a3e0ae2ee5e67`, `2ddc1ba6a79d7b43f8ac368040e733357ad0c6cdffa0efc6e39b7f6c0965b7b4`, `8293f2f4e12ac3ad942ece3aa3c9ea5610e5772248d8f2c7e500fde7d140b6fa`, `93b19ca5b85afdb8663a5bacd95bb699bb1dac9609d9ed892d79f6d878b0c39f`.
+- `shrink-middle` replica 3: `60223a4027026a4a7a15fcb6788650777f5f1951640704670b9d54b5f77d079a`, `c2fa411e39948d1ef0a37c85c44441832bf0923dca91bc3496e527e20f767a90`, `9bcedce06cdedd1342ac08f8adb2ae48be7ec2899d923db0e7778a4bc203bb8d`, `c0e803ba0b51d59443c98b10f8b2891601ecd47622e92f90f8817dd84082041a`, `ff88171ab9dcbf34d5b998e2382346929e60a8d79464f719dc53c0c96cc00dfd`.
+- `null-later` replica 1: `e2b2c4a7f2c9d015fec4cfe0ff387e9894a41b2df34c7e2f711fef32ee1872ad`, `f5d324e105b4f8b6b40f23a0a984e7737daf45a9de158af741e80eb645a4f001`, `d4dfc11c463942658feafae856a05a086f0e5c80a7405f6dcfd954a2792f678b`, `66029241913dda251edbabc19d1261a3df46799a46da91a74452c086fc399b83`, `df650812d5408bb37b156c32cc09e70a640b29ecf3accdc634556f23ac130c82`.
+- `null-later` replica 2: `ca85ed18af66df277c6942acf3905b9ed26cc12b5edbd7e463e0aa7417952b46`, `d887ac0bdc6c9c36f074c9c042e801b57dbc8f55424e38bfe927a5de39d1f6de`, `215f18fece173031dd5419ed21002142066bceeee9377c0290edf99ec3deace4`, `8b78a10ac43dfd35c327cd1abcb063a1fee1a8d06e0448c27e7cf2df9f4f4acb`, `0bf0f640f8abb36c825087dc61135b7f5133c67ff7e4b78c6bca740747b9eaef`.
+- `null-later` replica 3: `32f306ad0a7d87825308eece0742483e5fd3ae2cd0699649250ca434b2ad1b70`, `2502312b76e540145dd8f9b4e19297e3856020a7374676ac219fe058d4b973be`, `1b3f474357429dc115b606d790ff5b600523cde0fd9e68e3634d7135f3aa2052`, `db5230a73bb6e3715d02fce32bfd7886ad9d0e49dc5843003883feafc652c3ab`, `839542aad64c12f721063d172e3a8fb143d43891d1e1993eab5f2064ec94b51b`.
+- `tombstone` replica 1: `29e44eaae8ff3ba419de15d98fdf0ad70b224d4a71cb78404bc7a15dc4cf0b48`, `b76bb483f78351217293611eb7a32245156b163e18fcd1697113c67254198a67`, `a44433a3b56e3cd3673bcfa98cfd63565f28a39cee34844f3e4eed7f6ac3b89c`, `ce59f8bf51c16fad31912ab366a17bf9c6accfd4415d50804d0adb23875d401b`, `a5ea01b78dfa500970d36d0b5f2eb45e76c4845ea0d0fdc9bcba947ea8564816`.
+- `tombstone` replica 2: `dd5c1c33cfe511ab71c508a4ccbeff58b74bc0f5cbcfae4112df6ef4b9381439`, `7d60f7287e539b23e615ce4104562744e709f9bc0da380a8a714118bdccbc824`, `e560044aeb36f15e2efe5f1ef78e9d7c581b9e6058813e5a4e4ea057b9c971f9`, `54e170eea72ff89d3d40ae9c655518526882dc53f5428b7409ef38108a882427`, `888701d9072b39edd79fc763767244728b8eaaadfaf3c0ed5bd841d4e92e40ed`.
+- `tombstone` replica 3: `165daba8c9b43211cc946e4500884279e28b1c4b2969c7c84e1bad7644b9412d`, `ccc7841324fb146f5df996dcac1dc091d598634363fdf0b600cfb774cef19ebc`, `3b6053aed5eb8fba2666b448d70329fce09557d2fe341ac70b5aedb548063ca1`, `a4fa6cb58de0ae60a321dcb9c72f18aa2525e14bb98507a0116211aa74b8679e`, `4b0830b696430c2e15ee5dedd48a4093cff5576422eb46d699ff6689dd3a379c`.
 
 ## EXP-0205 — Retained-original full-row replacement successor preregistration
 
