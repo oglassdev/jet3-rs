@@ -12610,6 +12610,54 @@ Copy this block under the appropriate section and remove this instruction:
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
 
+## EXP-0174 — Hosted finite field updates, insertion and tail deletion matched
+
+- Outcome: `matched`, recorded 2026-09-05 from GitHub Actions run
+  `33954439667`, attempt 1, workflow `windows-dao-row-update.yml`, source
+  `9823c68cf382d13581ea2294e5de33de31d3a6b8`. The run completed successfully.
+  Consumed EXP-0173 plan SHA-256 remains
+  `8c2fc480c987326f06192f7a61cc648759f374d4ee34b455d33eb5ac1d0107d3`.
+- Retained artifacts are `generated-row-update-9823c68cf382d13581ea2294e5de33de31d3a6b8`
+  and `windows-dao-row-update-9823c68cf382d13581ea2294e5de33de31d3a6b8-1`,
+  under local outbox `20260905T080700Z-hosted-row-update-33954439667`.
+  Validated `dao-row-update-v1_2/report.json`: 5849 bytes, SHA-256
+  `14111c696b552c52b984b960952509120af145acd38b1657c28168ccdee0d393`.
+  The unchanged pinned evaluator reproduced it byte-identically on temporary
+  copies; all 177 original retained files remained unchanged.
+- Preparation receipt: 2893 bytes, SHA-256
+  `12b46f72c21c066ef66f0426f3daf5f35cf46636a3635bb395718953d967a702`.
+  Independent Windows reader receipt: 2366 bytes, SHA-256
+  `64907816d19fcf5956f3e7b81ba938ffea586165418e87a9666233ea9cac0cf7`.
+  DAO manifest: 2675 bytes, SHA-256
+  `d0ed7f12c765fee7d0386bfeed29527b0cec8ae71791e1e358175ca46701b576`.
+  All ten generated MDBs are identical to their Windows-retained counterparts;
+  every DAO before/after identity matches, with complete source/inventory binding.
+- The retained environment is 4264 bytes, SHA-256
+  `cf329f8aee24fbf36dd38940f32c1751ea82c8a66588cc7a93e339bf708d7c80`.
+  Both producer and evaluator require protocol 1.2 ready x86
+  `DAO.DBEngine.36` / `dbVersion30`, and the manifest binds these exact bytes.
+  No provider installation or license acceptance occurred.
+- All ten before/after DAO/Rust snapshot comparisons matched; all five independent
+  Windows/Unix preservation receipts agree and report `preserved: true`. Complete
+  declared schemas, rows, Text/Binary/Memo payloads, absence of indexes/relations
+  and per-image coverage pass. The three Long update spans remain offsets
+  48935, 54211 and 55387, each four bytes, for the declared first-field,
+  later-row and later-table requests.
+- Insertion adds Items `[88,-8800,"inserted"]` at root20/page23/slot3,
+  storing 21 bytes at offset49083. The only patch spans are that new row,
+  the appended directory word, page slot/free counts and table count 3 to 4.
+  Tail deletion removes Items Id3 at root20/page23/slot2, a 16-byte row at
+  offset49104. It changes only the tail tombstone, free-byte field and table
+  count 3 to 2. The unrelated Later table remains exact in both cases.
+  Every byte outside the validated patches remains unchanged, including page0,
+  maps, deleted payload and other unused bytes. No header counter meaning follows.
+- This hosted result covers the five exact public mutation requests only. It
+  does not cover page allocation, empty-table insertion, non-tail/sole-row deletion,
+  slot reuse, indexed/related row mutation, null transitions, variable-width
+  updates, stored-query preservation or general rollback. Previous local/hosted
+  outcomes and consumed plans remain unchanged. The report's support-matrix
+  movement remains false; any scoped support checkpoint is a separate change.
+
 ## EXP-0173 — Hosted five-case public row mutation preregistration
 
 - Preregistered only; no acquisition. Outcome reserved as EXP-0174.
