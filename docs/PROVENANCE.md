@@ -12641,6 +12641,41 @@ Copy this block under the appropriate section and remove this instruction:
   needs a separately declared analysis; any new DAO acquisition requires a
   separately reviewed successor plan and the repository's human retry decision.
 
+## EXP-0183 — Finite numeric initial-index candidate validation plan
+
+- Preregistered: 2026-09-05, OpenAI Codex; no acquisition yet.
+- Plan: `oracle/windows-dao/acquisition/numeric-index.plan.json`, SHA-256
+  `ba39dfe4d9815d55377ac6c6a5e598d950ef9736a95c33f31d94b2b6aeb22d63`. Inputs pin the reviewed
+  `16e6d57` numeric writer, deterministic public-API exporter, eight external
+  candidate identities, producer, analyzer, transport and reused pure helpers.
+  Candidate MDBs remain external; none are committed.
+- One dispatch covers eight declared arms with three fresh matching DAO controls
+  each: Boolean ascending, Byte descending, Integer ascending, Currency descending,
+  Single ascending, Double descending IgnoreAllNull, nullable Currency/Double
+  mixed-direction Include, and Integer/Single mixed-direction Required.
+  Exact saved-bit rows include signed extrema, finite float subnormal/normal
+  boundaries and selected null compositions. The 126-row mixed arm exercises a
+  two-level candidate tree; the remaining arms contain two through nine rows.
+- For every pair, closed originals are observed read-only. Independent copies
+  receive duplicate probes expecting DAO 3022; the Required arm also receives
+  null probes expecting DAO 3058. All 24 pairs and 102 retained MDB identities,
+  complete schema/typed rows, directed traversal, declared non-null full-key Seek,
+  and post-rejection state must pass. Complete raw keys/locators, distinct counts,
+  ownership maps and tree graph are checked independently for both roles.
+  Equal-key traversal ties may reorder; physical layout need not equal controls.
+- The producer reuses the pinned EXP-0171 dedicated typed setters, including its
+  local Decimal Currency assignment. Three classifier tests and an actual x86
+  parser/pure mock preflight passed: 463 typed conversions/Seek variants and exact
+  row JSON, without DAO. The public exporter and independent raw candidate checks
+  passed, including the declared dense arm. Decoder bounds are 256 slots per page
+  and 64 pages; the single transport timeout is 600 seconds.
+- Any unexpected error, incomplete capture, identity change or semantic/raw
+  mismatch yields `no_outcome`; there is no retry or subset promotion. EXP-0184
+  is reserved for the result. Non-Long null/composite transforms remain explicit
+  candidate hypotheses; Boolean null, negative zero, nonfinite, Date, Binary,
+  Text, GUID and LVAL keys are excluded. This is local development validation,
+  with no general grammar, compatibility or support-matrix claim.
+
 ## EXP-0150 — Selected completed numeric scalar index observations answered
 
 - Recorded: 2026-09-05, OpenAI Codex; validated post-acquisition selected
