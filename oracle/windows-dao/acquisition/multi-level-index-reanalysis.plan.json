@@ -1,0 +1,118 @@
+{
+  "experiment_id": "multi-level-index-reanalysis",
+  "provenance": "EXP-0145",
+  "outcome_provenance": "EXP-0146",
+  "development_only": true,
+  "compatibility_claim": false,
+  "support_movement": false,
+  "mode": "post-acquisition read-only reanalysis; no DAO execution or new acquisition",
+  "source_run": "20260905T054000Z-multi-level-index",
+  "original_plan_sha256": "7d0f368b31e2295b826118cea4e290b8ddc6661d108aea99eb870db84e13ccc2",
+  "original_outcome": "EXP-0140: all three arms no_outcome; preserved without amendment",
+  "source_commit": "5cd9e5a49888013059dfb88e8ab0a6ef942a91cd",
+  "replicas": 3,
+  "prior_information": "Read-only diagnosis after the original report found branch header byte 21 equal to 2 in primary/composite control roots; original decoder allowed only 1. Candidate writer emits 1 for every branch. This motivated the secondary analysis and is not a blind hypothesis.",
+  "hypothesis": "Retained DAO control branch header byte 21 may equal actual subtree height (leaves 0, branch heights 1 or 2). Record raw byte and independently derived height for every node; separately test exact candidate semantic acceptance under an expanded finite header decoder without requiring candidate bytes to equal control height classes.",
+  "decoder_policy": "Allow branch byte 21 only 1 or 2, leaf 0; all previous owner, compressed boundary, free-space, complete key/locator child-maximum separator, sibling, uniform leaf depth, map membership and row binding checks remain. Derive height recursively from children. No general arbitrary-height grammar or writer split policy inferred.",
+  "semantic_endpoints": "Reuse the pinned original complete schema/index/relationship metadata, full typed row multiset, full ordered traversal including duplicate payloads, and finite boundary/missing Seek queries. Keep semantic comparison independent of structural decoding failure; physical placement/compression need not match controls.",
+  "classification": "Exact nine-pair inventory and retained/input pins required. All nine controls must pass semantics and structure, original acquisition must have no error and mutation_started true, all eighteen original identities unchanged. Three agreeing candidate observations per arm yield observed_accepted or not_observed_accepted; disagreement or failed completeness/control gates gives no_outcome. Original outcomes are carried unchanged in the new report.",
+  "header_height_classification": "Report every node raw byte 21 and derived subtree height, with count summaries per index. For each arm and role all three replicas must agree on table names, class-height pair sets and equality relation (physical addresses and node counts may differ). All structures and acquisition/control gates must complete to answer this finite question. Candidate equality is not an acceptance gate; any observed candidate/control policy difference is retained.",
+  "retention": "Read the same eighteen retained MDBs and original result/report JSON. Verify all identities before and after analysis. Write one fresh secondary report outside the original outbox; refuse overwrite. Never edit original plan/scripts/results or redispatch DAO. Subsequent evidence-backed parser changes are a separate deliverable.",
+  "limits": {
+    "image_pages": 8192,
+    "rows_per_page": 1019,
+    "tree_depth": 32
+  },
+  "inputs": {
+    "oracle/windows-dao/scripts/multi_level_index.py": "a159a7630725f8d8a82dd781a07e551aee2840f07cc52887781d25bb106a3314",
+    "oracle/windows-dao/scripts/multi_level_index.ps1": "503d6f906bc9e1f58354d362246a8f66d1b15f343cee63f0b3de3e4d6d3b50ec",
+    "oracle/windows-dao/scripts/multi_level_index_structure.py": "a4291fd040cb6a90fb68dfbb5dfe75f9f5990caa1d3cec6893577b118191d928",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9",
+    "crates/jet3/examples/multi_level_index_candidate.rs": "e852d949354eb4ce694589a19d8dd3ef2114340522c694f89230fd5cfbc15eb4",
+    "oracle/windows-dao/acquisition/multi-level-index.plan.json": "7d0f368b31e2295b826118cea4e290b8ddc6661d108aea99eb870db84e13ccc2",
+    "oracle/windows-dao/scripts/multi_level_index_reanalysis.py": "1420a5af9bfa069ab299fa0bffc4b80875d586c2a95c740978b4f9c365aaa9c5"
+  },
+  "retained": {
+    "result.json": {
+      "size": 9682811,
+      "sha256": "4adee25ea2276ea8b080441ac6eadf293869a7d5cee881145d82ab602f612718"
+    },
+    "report.json": {
+      "size": 150657,
+      "sha256": "8c665dccb340155c3998022305cefbaa2b590c687167236abb2f18b2dcaf23cb"
+    },
+    "primary-candidate-r1.mdb": {
+      "size": 677888,
+      "sha256": "319337d779bfeceb7971ff133794ef738b5dcf44f3c55885d1c2591b5af15593"
+    },
+    "primary-candidate-r2.mdb": {
+      "size": 677888,
+      "sha256": "319337d779bfeceb7971ff133794ef738b5dcf44f3c55885d1c2591b5af15593"
+    },
+    "primary-candidate-r3.mdb": {
+      "size": 677888,
+      "sha256": "319337d779bfeceb7971ff133794ef738b5dcf44f3c55885d1c2591b5af15593"
+    },
+    "primary-control-r1.mdb": {
+      "size": 839680,
+      "sha256": "23828c3ebaf78bdf15f924ce069c246df2e1d54a864a3f972ed808b3316b6a89"
+    },
+    "primary-control-r2.mdb": {
+      "size": 839680,
+      "sha256": "6bdbd1d45fb084befa3711063bc17a53174f794ac128e2da87daa2e090d0d138"
+    },
+    "primary-control-r3.mdb": {
+      "size": 839680,
+      "sha256": "cf3131459fe08d6cd028da27932e5dba00588c1ef38211b88498f69c38f613f1"
+    },
+    "composite-candidate-r1.mdb": {
+      "size": 475136,
+      "sha256": "249529faf1161a6a7ceb255794fb65d6fd5080d66c0e8fefdae88a2eba2ae035"
+    },
+    "composite-candidate-r2.mdb": {
+      "size": 475136,
+      "sha256": "249529faf1161a6a7ceb255794fb65d6fd5080d66c0e8fefdae88a2eba2ae035"
+    },
+    "composite-candidate-r3.mdb": {
+      "size": 475136,
+      "sha256": "249529faf1161a6a7ceb255794fb65d6fd5080d66c0e8fefdae88a2eba2ae035"
+    },
+    "composite-control-r1.mdb": {
+      "size": 577536,
+      "sha256": "7ba5500bf8b8484472ae45e977cacbe3ffa7139f959207badedb3fea07710d26"
+    },
+    "composite-control-r2.mdb": {
+      "size": 577536,
+      "sha256": "9c48cc94f82ca93ee179e0bf4c4d01d346994e2264e33c799d7d0b066fe326ab"
+    },
+    "composite-control-r3.mdb": {
+      "size": 577536,
+      "sha256": "909f2dfb034c5d84637eaf0edbbf21f2b9249b9b213c507eade150b439ef96c1"
+    },
+    "relationship-candidate-r1.mdb": {
+      "size": 694272,
+      "sha256": "beec4f2af1e0a84396053ef39ac9b76b5465db822f759cc7c35c1d11a9342147"
+    },
+    "relationship-candidate-r2.mdb": {
+      "size": 694272,
+      "sha256": "beec4f2af1e0a84396053ef39ac9b76b5465db822f759cc7c35c1d11a9342147"
+    },
+    "relationship-candidate-r3.mdb": {
+      "size": 694272,
+      "sha256": "beec4f2af1e0a84396053ef39ac9b76b5465db822f759cc7c35c1d11a9342147"
+    },
+    "relationship-control-r1.mdb": {
+      "size": 481280,
+      "sha256": "5275c7c0a7b072e00c77860dd79d5d3b191629f15004625d521a3909c0d6c2a9"
+    },
+    "relationship-control-r2.mdb": {
+      "size": 481280,
+      "sha256": "caedbb7cfe2e7fa8855ef1f93972516957ddf0c966e5f545de2493caf7dfd22b"
+    },
+    "relationship-control-r3.mdb": {
+      "size": 481280,
+      "sha256": "5169e8a825568533c3d8319ea4a3cf1cc50d998ca5ee9354448bcb1c5d2cdea5"
+    }
+  }
+}

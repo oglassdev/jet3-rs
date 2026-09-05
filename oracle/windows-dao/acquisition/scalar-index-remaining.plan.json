@@ -1,0 +1,180 @@
+{
+  "document_type": "dao_scalar_index_remaining_plan",
+  "experiment_id": "scalar-index-remaining",
+  "issue": 100,
+  "development_only": true,
+  "replicas": 3,
+  "preregistration": {
+    "acquisition_started": false,
+    "question": "What raw ascending/descending Date and four-byte Binary keys bind to the declared saved values, and how do nullable Long ordinary/unique one/two-component indexes encode or omit nulls and accept/reject duplicate nulls under Required and IgnoreNulls?",
+    "prior_evidence": "EXP-0062 supplies leaf framing and locators; EXP-0073 supplies fixed row/layout and index count observations; EXP-0126 supplies non-null Long direction/composition observations. No non-Long transform or nullable uniqueness/omission policy is presumed. EXP-0144 is the preserved no_outcome:36 completed scalar controls failed array-wrapper correlation; acquisition stopped during first Date attempt with an unlocalized InvalidCastException. This successor covers only the remaining Date/Binary/null arms, not the completed36.",
+    "authorization": "Standing user authorization covers any DAO experiments/mutations, including this distinct successor. Commit and independently review this new pinned plan before root dispatches once. Do not redispatch consumed EXP-0143 or edit its inputs/results. Each tag is attempted once; declared Update rejection is recorded/cancelled before the next tag."
+  },
+  "arms": [
+    {
+      "name": "date-ascending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 8,"size": 8}],
+      "directions": [false],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["000000000088c3c0"],["000000000000f0bf"],["0000000000000000"],["000000000000f03f"],["00000000c0d5e140"],["0000008040924641"]]
+    },
+    {
+      "name": "date-descending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 8,"size": 8}],
+      "directions": [true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["000000000088c3c0"],["000000000000f0bf"],["0000000000000000"],["000000000000f03f"],["00000000c0d5e140"],["0000008040924641"]]
+    },
+    {
+      "name": "binary-ascending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 9,"size": 4}],
+      "directions": [false],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["ffffffff"],["00000000"],["00000001"],["01000000"],["7fffffff"],["80000000"]]
+    },
+    {
+      "name": "binary-descending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 9,"size": 4}],
+      "directions": [true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["ffffffff"],["00000000"],["00000001"],["01000000"],["7fffffff"],["80000000"]]
+    },
+    {
+      "name": "null-ordinary",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4}],
+      "directions": [false],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [[null],["00000000"],["ffffffff"],["01000000"],[null],["00000000"],["ffffff7f"],["00000080"]]
+    },
+    {
+      "name": "null-descending",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4}],
+      "directions": [true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [[null],["00000000"],["ffffffff"],["01000000"],[null],["00000000"],["ffffff7f"],["00000080"]]
+    },
+    {
+      "name": "null-unique",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4}],
+      "directions": [false],
+      "unique": true,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [[null],["00000000"],["ffffffff"],["01000000"],[null],["00000000"],["ffffff7f"],["00000080"]]
+    },
+    {
+      "name": "null-unique-ignore",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4}],
+      "directions": [false],
+      "unique": true,
+      "required": false,
+      "ignore_nulls": true,
+      "rows": [[null],["00000000"],["ffffffff"],["01000000"],[null],["00000000"],["ffffff7f"],["00000080"]]
+    },
+    {
+      "name": "null-ignore",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4}],
+      "directions": [false],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": true,
+      "rows": [[null],["00000000"],["ffffffff"],["01000000"],[null],["00000000"],["ffffff7f"],["00000080"]]
+    },
+    {
+      "name": "null-required",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4}],
+      "directions": [false],
+      "unique": false,
+      "required": true,
+      "ignore_nulls": false,
+      "rows": [[null],["00000000"],["ffffffff"],["01000000"],[null],["00000000"],["ffffff7f"],["00000080"]]
+    },
+    {
+      "name": "composite-null-ordinary",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4},{"name": "B","type": 4,"size": 4}],
+      "directions": [false,true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],["ffffffff","01000000"],["01000000","ffffffff"],["00000080","ffffff7f"],["ffffff7f","00000080"]]
+    },
+    {
+      "name": "composite-null-unique",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4},{"name": "B","type": 4,"size": 4}],
+      "directions": [false,true],
+      "unique": true,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],["ffffffff","01000000"],["01000000","ffffffff"],["00000080","ffffff7f"],["ffffff7f","00000080"]]
+    },
+    {
+      "name": "composite-null-ignore",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4},{"name": "B","type": 4,"size": 4}],
+      "directions": [false,true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": true,
+      "rows": [[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],["ffffffff","01000000"],["01000000","ffffffff"],["00000080","ffffff7f"],["ffffff7f","00000080"]]
+    },
+    {
+      "name": "composite-null-required",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4},{"name": "B","type": 4,"size": 4}],
+      "directions": [false,true],
+      "unique": false,
+      "required": true,
+      "ignore_nulls": false,
+      "rows": [[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],["ffffffff","01000000"],["01000000","ffffffff"],["00000080","ffffff7f"],["ffffff7f","00000080"]]
+    }
+  ],
+  "execution": {
+    "environment": "Private local VM, x86 PowerShell, DAO.DBEngine.36, Jet3 options32, LANGID0x0409/CP1252; development discovery only.",
+    "per_replica": "Create fresh Rows with declared typed fields plus Long Tag, then declared ByKey. Assign each listed row once and record Update success or actual DAO error numbers/HRESULT. Assignment/setup/cleanup failures abort the run. Close and reopen read-only for complete rows, schema/index flags and ordered traversal; retain original closed MDB and result. Use plain CLR object[] arrays for values JSON. Date assignment explicitly casts a precomputed DateTime, matching the existing original read producer. Record operation endpoint and PowerShell stack for unexpected failure; the original Date fault location was not captured, so the correction makes no proven DAO Date acceptance claim.",
+    "values": "Values are little-endian physical value hex or null. Date uses finite integer OA day doubles; Binary is exactly four bytes; Long includes signed endpoints and repeated null/full keys. Each attempt has Tag=one-based position. Readback is normalized to physical value bytes, never a guessed index encoding. requested_payloads_match separately exposes provider value normalization; stable normalization remains an observation.",
+    "analysis": "Verify inputs, retained identities and unchanged read-only bytes. Decode original rows and prefix-expanded leaf keys using pinned existing original decoders; resolve each key locator exactly once. Correlate all saved rows with successful attempts and DAO readback and every bound key with DAO traversal. Non-null rows cannot be omitted. Null omissions and duplicate-null Update rejection codes are observations, not assumed flags policy. Check scalar semantic direction (Boolean True=-1 and False=0, consistent with retained EXP-0062 ascending leaf order); compare exact saved value/raw-key bindings, omitted rows, index key records/flags/counts, operation statuses/native codes/HRESULT and metadata across three replicas. Keep raw addresses/prefix and diagnostic fields without requiring allocator addresses equal.",
+    "decoder_bounds": "Unmodified shared decoder limits:64 rows per page,64 columns/items,64-page TDEF chain bound. Each arm has at most12 attempted rows,3 fields,one index andone leaf; unsupported layouts produce no_outcome, with raw MDB retained. No Text collation, GUID, Memo/OLE indexes or multilevel construction in this slice.",
+    "attempts": 1,
+    "run": "python3 oracle/windows-dao/scripts/scalar_index_remaining.py run --shared-root VM_SHARED_ROOT --run-id UTC-scalar-index-remaining",
+    "analysis_command": "python3 oracle/windows-dao/scripts/scalar_index_remaining.py analyze OUTBOX",
+    "host_language_preflight": "Before committing pins, execute only extracted helper functions against in-memory fake fields: every declared Date conversion and every row including Binary/nulls roundtrips through ConvertTo-Json/ConvertFrom-Json with exact array shape and bytes. ParseFile validates the producer separately. Neither check instantiates DAO or executes acquisition."
+  },
+  "decision_rule": {
+    "answered": "All42 closed captures are unchanged and completely decoded/correlated, all declared attempts recorded, and each arm repeats question-bearing observations three times. Stable Update rejection or provider normalization is answered only for its actual saved values/errors; it supplies no key bytes for rejected values.",
+    "no_outcome": "Any unexpected setup/assignment/cleanup/capture failure, incomplete capture, changed image, unsupported decoder shape, metadata/row/traversal mismatch, or within-arm disagreement. Preserve partial operations and images; no redispatch.",
+    "rejection": "Plan/environment/inventory/input-pin or retained identity mismatch rejects validation."
+  },
+  "boundary": "Finite discovery only: no transform promotion, candidate acceptance, general null/flag policy, arbitrary Binary lengths, float NaN/infinity, Text/GUID/Memo/OLE index grammar, existing-row updates, or hosted support movement.",
+  "retention": "Keep result/report and all MDBs externally; commit no MDB/provider bytes. Record one additive EXP-0148 outcome derived from validated report JSON.",
+  "inputs": {
+    "oracle/windows-dao/scripts/scalar_index_remaining.py": "abadc28e64e1641150e18c198e9ba0b993b34516529fa4aba0c5cabc185d4933",
+    "oracle/windows-dao/scripts/scalar_index_remaining.ps1": "059264fc87653cb838c82486d3ee16b4e98be155d00e8f37657a7e8d251db2e2",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "oracle/windows-dao/scripts/relationship_create.py": "aa267ca957815ecf49abc155bd081dfb7d02d609b414e0efa68600161f3f7740",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9"
+  }
+}

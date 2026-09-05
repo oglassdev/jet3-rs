@@ -11324,6 +11324,34 @@ Copy this block under the appropriate section and remove this instruction:
   or hosted support claim. Retain all MDBs externally and record one validated
   additive outcome as `EXP-0128`.
 
+### EXP-0145 — Retained multi-level index secondary-analysis preregistration
+
+- Plan: `oracle/windows-dao/acquisition/multi-level-index-reanalysis.plan.json`,
+  SHA-256 `a27b80e7745ea2dca35f78053a1b43d29ebb73d4db56d84bd6bd5ab814c454e4`; outcome reserved as EXP-0146.
+- This is explicitly post-acquisition analysis of EXP-0139 run
+  `20260905T054000Z-multi-level-index`, with no DAO execution or new acquisition.
+  EXP-0140 and its original three `no_outcome` classifications remain unchanged.
+  The plan pins the original result/report, all eighteen retained MDB identities,
+  the original plan and consumed inputs, and the separate secondary analyzer.
+- Prior read-only diagnosis identified branch header byte 21 equal to 2 in
+  primary/composite control roots where the original decoder admitted only 1.
+  The secondary decoder admits branch values 1/2 and leaf value 0, retaining
+  existing graph, separator, sibling, locator, map, and full semantic checks.
+  It records each raw byte and independently derived subtree height. The finite
+  byte/height relation is reported separately from candidate acceptance; the
+  candidate's all-branches-1 policy is not rewritten to match controls.
+- All nine original controls must pass and all eighteen source identities remain
+  unchanged. Three agreeing candidate observations per arm classify the separate
+  secondary result. Complete metadata, rows, traversal and original finite Seek
+  probes remain required. Changed pins reject analysis; incomplete observations
+  yield `no_outcome`. The new report must be outside the original outbox and
+  cannot overwrite an existing file.
+- Four focused synthetic tests cover header values and independently computed
+  three-level heights, retained original outcomes and failed-control/error gates,
+  input drift, and refusal to write into the source directory. Independent review
+  is pending before execution. No secondary observation is recorded in this entry;
+  no parser fact, general compatibility, or support-matrix movement is claimed.
+
 ### EXP-0140 — Multi-level candidate run retained as no_outcome
 
 - Recorded: 2026-09-05, OpenAI Codex
@@ -11741,6 +11769,85 @@ Copy this block under the appropriate section and remove this instruction:
   passed; Windows `Parser.ParseFile` accepted the producer without executing
   it or DAO. Independent experiment review precedes acquisition. Retain all
   raw files externally; record one additive validated EXP-0144 outcome.
+
+## EXP-0144 — Scalar/null discovery stopped with no outcome
+
+- Recorded: 2026-09-05, OpenAI Codex; validated development-only `no_outcome`.
+- Consumed EXP-0143 plan SHA-256:
+  `c692ca69614f176b3391d3dd8020de1109e30957a9aaaf65abd5b09ac20de863`,
+  analyzer/producer source `bfb19ef`. Their bytes and earlier entries remain
+  unchanged. One acquisition ran; no retry or successor acquisition occurred.
+- Retained local run: `20260905T054700Z-scalar-index-layout` under the external
+  VM shared outbox. Result: 703682 bytes, SHA-256
+  `47e9be13836af6bb67b6007bcd731c73c96f871744b7998cb22734f0cb562624`.
+  Validated report: 3284 bytes, SHA-256
+  `e338265e299b875b0a8de0426fd2f2c285d675822ed84919b1bfbdb061b3242d`.
+  The pinned analyzer reproduced the report byte-for-byte on a temporary
+  copy; all original retained files stayed unchanged.
+- Acquisition: 36 completed captures of the planned 78, covering both
+  directions for Boolean, Byte, Integer, Currency, Single and Double, three
+  replicas each. Every completed capture reports `pass` and all 36 retained
+  image hashes/sizes equal their recorded before/after identities.
+- The 37th attempt is `date-ascending`, replica 1, with no recorded Update
+  operation. `mutation_started` is true and acquisition stopped with
+  `System.InvalidCastException: Specified cast is not valid.` The additional
+  partial Date image is 49152 bytes, SHA-256
+  `b13a0441901bbdd876433a48fe5007c6529626dfbb111b8a2336155ec99c6c2e`;
+  read-only decoding finds zero saved rows. The empty guest log and result
+  provide no statement/stack location, so they do not identify the precise
+  failed cast or establish a DAO Date rejection. Remaining Date/Binary/null
+  captures were not completed.
+- Analysis: zero validated observations. All 36 captures fail the planned
+  saved-row correlation: DAO `values` are serialized as an object containing
+  `value` and `Count`, while the frozen classifier expects an array. The
+  report records these 36 reasons plus the incomplete acquisition error.
+  This is a producer/contract mismatch, not an established scalar encoding
+  disagreement. No corrected normalization or expanded analysis was applied
+  to the consumed run.
+- Boundary: no key transforms, null policies, Date/Binary acceptance, general
+  compatibility or hosted support movement follow from this `no_outcome`.
+  Retain all 37 raw images externally. Any secondary read-only interpretation
+  needs a separately declared analysis; any new DAO acquisition requires a
+  separately reviewed successor plan and the repository's human retry decision.
+
+## EXP-0147 — Remaining Date/Binary/null index discovery successor plan
+
+- Recorded: 2026-09-05, OpenAI Codex; unacquired development-only successor.
+  EXP-0143 inputs and EXP-0144 `no_outcome` remain unchanged. Standing user
+  authorization covers DAO experiments/mutations; root dispatches this distinct
+  plan once only after independent review and final checks.
+- Plan: `oracle/windows-dao/acquisition/scalar-index-remaining.plan.json`,
+  SHA-256 `c0378eca7d65ae58bd8d4a5b124b476ea1bc51989de75d579cfebd7a3d7555ae`.
+  New producer/analyzer files have separate input pins, checked before dispatch
+  and analysis; dispatch requires the exact committed plan. Existing original
+  catalog/leaf decoders and local one-dispatch transport stay unchanged.
+- Scope: exactly the fourteen remaining arms, three fresh controls each:
+  ascending/descending Date and four-byte Binary, plus ten nullable Long
+  ordinary/unique/Required/IgnoreNulls one/two-component arms. Each control
+  has at most twelve attempts. The 36 completed scalar captures from EXP-0143
+  are neither reacquired nor reinterpreted by this plan.
+- Corrections: values use plain CLR arrays instead of PowerShell's decorated
+  `New-Object` array wrapper. Date conversion is precomputed and assigned with
+  the explicit `[datetime]` cast used by the original read producer. Original
+  artifacts do not identify the precise failing cast; this change does not
+  prove DAO Date acceptance. Unexpected errors now retain endpoint and script
+  stack alongside the original error text and completed attempt records.
+- Gates: retain actual Update outcomes, null omissions, complete saved rows,
+  exact raw key-to-row-locator bindings, schema/flag/direction metadata and
+  full DAO traversal. Compare three replicas per arm without guessing nullable
+  uniqueness/omission policies or index transforms. All 42 captures must be
+  complete, unchanged and correlated for `answered`; otherwise preserve an
+  honest `no_outcome`. Binding/pin failures reject validation; no automatic retry.
+- Validation: four focused Python classifier/binding/pin tests and compilation
+  passed. Windows x86 PowerShell parsed the new producer and ran only extracted
+  helper functions against in-memory fake fields: all 120 declared Date/Binary/
+  nullable row conversions and JSON array roundtrips matched exact planned
+  values. The retained test is `tests/check_scalar_index_remaining.ps1` under
+  `oracle/windows-dao`; it instantiates no DAO and executes no acquisition.
+- Boundary: no scalar encoding promotion, completed-capture reanalysis, Text
+  collation, GUID/Memo/OLE indexes, arbitrary Binary lengths, existing-row
+  updates, candidate acceptance, general compatibility or hosted support claim.
+  Retain raw images/results externally and record one validated EXP-0148 outcome.
 
 ## EXP-0142 — Hosted write comparison ended with no outcome
 
