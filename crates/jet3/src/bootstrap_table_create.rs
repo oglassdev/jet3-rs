@@ -55,6 +55,7 @@ pub(super) struct PlannedCreate<'a> {
     initial_long_values: Option<InitialLongValues>,
     initial_row_count: u32,
     initial_index: Option<InitialLongIndex>,
+    initial_autoincrement: Option<InitialAutoIncrement>,
 }
 
 #[derive(Debug, Clone)]
@@ -91,6 +92,7 @@ impl<'a> PlannedCreate<'a> {
             initial_long_values: None,
             initial_row_count: 0,
             initial_index: None,
+            initial_autoincrement: None,
         })
     }
 
@@ -103,15 +105,11 @@ impl<'a> PlannedCreate<'a> {
         rows: &[&[RowValue<'_>]],
         budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
-        if self.plan.continuation_page().is_some()
-            || self
-                .spec
-                .columns
-                .iter()
-                .any(|column| column.column_type() == ColumnType::AutoIncrement)
-        {
+        if self.plan.continuation_page().is_some() {
             return Err(ComposeError::UnsupportedInitialRowSchema);
         }
+        let generated = InitialAutoIncrement::new(self.spec, rows.len())?;
+        self.initial_autoincrement = generated;
         self.initial_index = InitialLongIndex::new(self.spec, rows.len(), budget)?;
         if rows.is_empty() {
             return Ok(self);
@@ -135,6 +133,13 @@ impl<'a> PlannedCreate<'a> {
         let mut builder = DataPageBuilder::new(self.plan.definition_root(), budget)?;
         let mut encoded = [0_u8; PAGE_BYTES];
         for (ordinal, row) in rows.iter().enumerate() {
+            let mut lowered = [RowValue::Null; u8::MAX as usize];
+            let row = if let Some(generated) = generated {
+                generated.lower(row, ordinal, &mut lowered, budget)?;
+                &lowered[..row.len()]
+            } else {
+                *row
+            };
             let length = encode_initial_row(
                 &layout,
                 row,
@@ -331,6 +336,9 @@ impl<'a> PlannedCreate<'a> {
         }
         let mut root = [0_u8; PAGE_BYTES];
         root.copy_from_slice(&logical[..PAGE_BYTES]);
+        if let Some(generated) = self.initial_autoincrement {
+            generated.write(&mut root, budget)?;
+        }
         let Some(continuation_page) = self.plan.continuation_page() else {
             return Ok((PageImage::from_bytes(root), None));
         };

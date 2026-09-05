@@ -46,8 +46,10 @@ delivered in this order:
 Continue database creation under #100. Initial-row creation accepts up to
 four tables with scalar rows across data pages, bounded Long indexes, and
 one unindexed Memo/OLE column per table. Existing schema, single-leaf and
-inline-map bounds still apply. AutoIncrement values and empty long payloads
-remain refused in this creation path.
+inline-map bounds still apply. One AutoIncrement column per table accepts
+explicit generation requests and persists its last generated ID, including
+when indexed; explicit IDs and empty long payloads remain refused. EXP-0136
+records the underlying DAO state observations.
 
 `create_database_with_relationship_rows` adds two populated scalar tables
 with one non-null Long relationship, a parent primary index and a child
@@ -59,7 +61,7 @@ pinned candidates and finite probes, with no general compatibility claim
 or hosted support movement.
 
 Next, broaden creation index keys, null semantics and allocation beyond a
-single leaf; AutoIncrement state is a separate work item. After creation is
-complete, run the hosted write differential (#102), implement updates
-preserving unrelated data (#112), then run the hosted update differential
-(#113). Keep module cleanup (#182) until the creation API settles.
+single leaf. After creation is complete, run the hosted write differential
+(#102), implement updates preserving unrelated data (#112), then run the
+hosted update differential (#113). Keep module cleanup (#182) until the
+creation API settles.
