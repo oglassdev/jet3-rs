@@ -13004,6 +13004,69 @@ Copy this block under the appropriate section and remove this instruction:
   Free-page reuse, map growth/indirection, indexed/related/Auto/LVAL insertion,
   compaction and slot reuse remain outside this one-EOF-page validation.
 
+## EXP-0196 — Hosted allocation and compaction matrix matched
+
+- Outcome: **matched** from GitHub Actions run
+  [33957957482](https://github.com/oglassdev/jet3-rs/actions/runs/33957957482), attempt 1,
+  source `56aa2c4e00794be2540e0937e51d9db8347a99ae`. Both hosted jobs succeeded.
+  Preregistration EXP-0195 plan SHA-256
+  `e7e69071956deb9eaa31c5576b04fe599864894cccdebfc32d444e7f08808294`;
+  reviewed tooling `4887818`, integrated source `e93879a572dd4dc0e068085c59ca0f970b17cc68`.
+- Retained root:
+  `/home/alex/development/vms/jet3-windows/shared/outbox/20260905T100000Z-hosted-row-allocation-33957957482`.
+  Artifact groups `generated-row-allocation-56aa2c4e00794be2540e0937e51d9db8347a99ae`
+  and `windows-dao-row-allocation-56aa2c4e00794be2540e0937e51d9db8347a99ae-1`.
+  Windows `dao-row-allocation-v1_2/report.json`: 10,167 bytes, SHA-256
+  `a3bb928a77572b241f35218c715f2d54b84a917fc23054ee889e7129f54de9f3`.
+- Preparation receipt: 5,057 bytes, SHA-256
+  `17d7f29661f40cb03c384b359423588f103c8d2691913dc700e5abef0a699d4b`;
+  Windows reader receipt: 4,223 bytes, SHA-256
+  `0153500368a4f0ca1f98ac106d5fe0d8e7568866d5defe9637baa55a9bca3d24`;
+  DAO manifest: 4,573 bytes, SHA-256
+  `52dda57c60fa39c48d9db82132a42ff5123d8475684c40eab70b793df4fc09db`;
+  environment: 4,264 bytes, SHA-256
+  `5dbbc3b9519d94902b0e488842f64455bf21f896f0bc29d5ff5fc84833867dd3`.
+- The unchanged pinned `dao_row_allocation_diff` evaluator reproduced the report
+  byte-for-byte on temporary copies. All 313 retained files (127 generated,
+  186 Windows) remained unchanged. All eighteen generated MDBs matched their
+  downloaded, independently verified and read-only DAO-observed identities.
+  Source/platform/provider, requested recipe, coverage and all eighteen full
+  canonical DAO/Rust semantic comparisons passed; nine preservation receipts
+  agreed between Unix and Windows. Stock x86 DAO.DBEngine.36/dbVersion30 was used.
+- Nine public creations and eleven public mutations exercised the original five
+  hosted cases plus four additions. The first five retain the exact field,
+  existing-page insert and tail-delete scope of EXP-0174. New empty Items EOF
+  insertion appended page 26/slot 0, growing 53,248→55,296 bytes; full-page EOF
+  insertion appended page 27/slot 0, growing 55,296→57,344 bytes. Both target
+  root 20 and change only their specified appended page, table row count and
+  three existing inline-map bits. Earlier rows, maps outside those bits and
+  the entire other original prefix, including page zero, remained exact.
+- Unequal middle deletion removed Id 2 on page 23/slot 1, span [1851,2034),
+  retaining three rows. Repeated deletion removed IDs 2, 4, 1 on page 23 at
+  slots 1, 3, 0, with successive spans [2019,2034), [2001,2018), [2034,2048),
+  retaining two rows. Exact final-image checks preserved physical slots and
+  empty tombstones, moved surviving rows, updated offsets/free/table counts,
+  and preserved vacated slack, map memberships, page zero and unrelated bytes.
+- Complete requested schema/rows and unrelated Later payloads matched. No
+  stored-query preservation, DAO mutation controls or follow-on DAO operations
+  were part of this hosted run. The result establishes these finite recipes,
+  not general allocation/compaction policy, sole-row release, free-page reuse,
+  indirect maps, indexed/related/Auto/LVAL mutation or null/variable replacement.
+  The validated report makes no automatic support movement; any bounded support
+  checkpoint change is reviewed separately. Independent outcome review follows.
+
+Retained original→updated MDB SHA-256 identities by scenario:
+
+- `DAO-UPDATE-FIRST-FIELD`: `3b2785ef6886f8729fa23f4b3bcc8648e3ff36a3bbddb89015a5e2899376ab64` → `d4749712bf5325c98bb9274d01dc9f5d5785c1c0231ddb9fabae458779d5de6a`.
+- `DAO-UPDATE-LATER-ROW`: `3b2785ef6886f8729fa23f4b3bcc8648e3ff36a3bbddb89015a5e2899376ab64` → `6d01fe9612ea77e5716fbdae3ef91f78c98f20dc7b775ee01f3d471799a3438e`.
+- `DAO-UPDATE-LATER-TABLE`: `1229db656f04fc91e00eca0268329c3d38716c790b4f5238a8d910f0c019728b` → `d73c8faed6147c70bb9ebb58dfa72d149556cebd249e2b608455510acba8e543`.
+- `DAO-UPDATE-INSERT-ROW`: `658acf459fcf5e4e3578fd477e6a9853447c4571449aedf774558a67830c97bb` → `70a75caff93308f5d92976070fd95ce6cdafce534d2425a81f5963aa7e3e6e10`.
+- `DAO-UPDATE-DELETE-TAIL`: `658acf459fcf5e4e3578fd477e6a9853447c4571449aedf774558a67830c97bb` → `bf2b5b2c171bcbb1fddf3e5a9f0e11e94199754dfe16dd613f2a5e8324331661`.
+- `DAO-UPDATE-EMPTY-EOF`: `de60354c3da772eae3b52980fbf80b5a9463b46aa80feef2a04113ca3cf063cd` → `759563a04e9ee307508207f0a2168cf8c9b99b0288500088e1134cb0c752f4bb`.
+- `DAO-UPDATE-FULL-EOF`: `69d6a30c14d533350d8755cbce0e4dc27ee24fa43cb49cf5d4cbac418d9e8c5d` → `d6b61c64df55b7aa0129d5856420d54cb1b6ce42215171d852cd003ce0210b71`.
+- `DAO-UPDATE-MIDDLE-COMPACT`: `df4fb064879caff68ce0bf550c75ea5c76883abf5a9685c1948b30638a3de73e` → `76b0bb52bc49ceb3b1ea732d54d30f9f84be44e2e7d09e9495daee007ebd7bbb`.
+- `DAO-UPDATE-REPEATED-COMPACT`: `0c790e03e72ad2cb6040f8e0465ebc0089a7081baf85c591f26cfd2ff1edd461` → `d08a8b6ecedd6e552be9f7a641b4e76a125d01ea40c3be8269342c1d83ed0a4f`.
+
 ## EXP-0195 — Hosted nine-case allocation and compaction preregistration
 
 - Preregistered: 2026-09-05, OpenAI Codex; no acquisition yet. Reviewed tooling
