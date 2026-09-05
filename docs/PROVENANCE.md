@@ -11024,6 +11024,47 @@ Copy this block under the appropriate section and remove this instruction:
   Neither this plan nor self-validation establishes general compatibility,
   completion of #100 or support-matrix movement.
 
+## EXP-0158 — Deletion acquisition retained with replica-disagreement no outcome
+
+- Recorded: 2026-09-05, OpenAI Codex; validated `no_outcome` from the single
+  local run `20260905T064000Z-row-delete-layout`. Consumed EXP-0157 plan
+  SHA-256 `18c24390fc6429d839139719ccc11ae6049a236f77e42062592ee7f315355e7a`
+  and producer/analyzer source `fdb270a` remain unchanged. No retry occurred.
+- Retained result: 130713 bytes, SHA-256
+  `669248d038f9a910d0ec5870cf45f33587a1c3cc400823bdea388e56e0342bc4`.
+  Original report: 537270 bytes, SHA-256
+  `4ae900dea9a46d5400855698a09a6097ec0e3dec2a57f46251ab78ec6755b9a6`.
+  Pinned analysis reproduced it byte-for-byte on temporary copies. All forty
+  files in the original outbox, including working MDBs/logs, remained unchanged.
+- Acquisition completed all 27 planned captures without an acquisition error;
+  `mutation_started=true`. Every capture passed the unchanged read-only
+  identity and full DAO schema/row/raw correlation gates. All retained capture
+  identities match their before/after hashes. The report holds nine per-case/
+  replica observations but does not satisfy its overall answer rule.
+- Its sole reason is `tail: question-bearing replica disagreement`.
+  `replica_agreement` is false for tail, true for middle and sole. No successful
+  arm overrides that required gate. The independently recorded tombstone
+  hypothesis is true for all tail/middle replicas and false for all sole
+  replicas; false is not itself a failure under this plan.
+- Read-only diagnosis of the original signature: the only differing fields
+  are tail `page_bytes_without_owner` in both before/after states of both
+  transitions. After restoring the removed four owner bytes, all differences
+  lie within data-page 23 offsets `[53,90)` or `[1920,1923)`. They already differ
+  at the before checkpoint and each replica retains its own bytes through
+  both deletion and insertion. Header, directories, row payloads/counts and
+  map-membership signature fields do not differ across tail replicas.
+- These offsets are outside every decoded directory and row span in the three
+  checkpoints. The directory ends at 18 bytes before/deleted and 20 inserted;
+  the earliest row starts at 2008 before/inserted and 2018 deleted. Thus the
+  gate compared opaque unused bytes as well as the question-bearing records.
+  This explains the disagreement; it does not reinterpret the original result,
+  establish a deletion algorithm or promote selected format observations.
+- A separately pinned, reviewed post-acquisition analysis may distinguish
+  structurally unused bytes from header/directory/row comparisons while
+  retaining all raw bytes, exact transitions and their real variability.
+  No such correction or new DAO acquisition is part of EXP-0158. Original
+  `no_outcome`, compatibility=false and support-movement=false remain intact.
+
 ## EXP-0157 — Ordinary-row deletion transitions preregistered
 
 - Recorded: 2026-09-05, OpenAI Codex; local development discovery plan,
