@@ -199,3 +199,34 @@ fn data_and_all_index_levels_share_the_exact_inline_map_limit() -> TestResult {
     assert_eq!(fs::read(directory.target())?, original);
     Ok(())
 }
+
+#[test]
+fn generated_keys_keep_their_counter_and_locators_across_index_leaves() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let indexes = one_index(IndexKind::Primary);
+    let table = TableSpec {
+        name: b"Items",
+        columns: &[ColumnSpec::new(b"Id", ColumnType::AutoIncrement)],
+        indexes: &indexes,
+    };
+    let value = [RowValue::AutoIncrement];
+    let rows = vec![value.as_slice(); 401];
+    create_database_with_rows(directory.target(), &table, &rows, &mut budget())?;
+    let bytes = fs::read(directory.target())?;
+    assert_eq!(
+        &bytes[20 * crate::PAGE_BYTES + 16..20 * crate::PAGE_BYTES + 20],
+        &401_i32.to_le_bytes()
+    );
+    let index = tree(&directory.target())?;
+    assert_eq!(index.nodes().len(), 4);
+    for (ordinal, entry) in index.entries().iter().enumerate() {
+        assert_eq!(
+            entry.row(),
+            crate::RowLocator::new(
+                PageNumber::new(24 + ordinal as u64 / 254),
+                (ordinal % 254) as u8
+            )
+        );
+    }
+    Ok(())
+}
