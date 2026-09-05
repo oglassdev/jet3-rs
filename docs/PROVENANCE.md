@@ -11024,6 +11024,55 @@ Copy this block under the appropriate section and remove this instruction:
   Neither this plan nor self-validation establishes general compatibility,
   completion of #100 or support-matrix movement.
 
+## EXP-0152 — Existing DAO files accept the bounded Long field updates
+
+- Recorded: 2026-09-05, OpenAI Codex; validated local development outcome
+  `observed_accepted`, nine observations with no report reasons. Consumed
+  EXP-0151 plan SHA-256
+  `d989a40b80cdfa2f885693cab46765738ef5f02287ca1f040d3a380e756eb326`,
+  acquisition source `b803f42`, public-update source `40ba58c` remain unchanged.
+- Retained coordinated run `20260905T063500Z-field-update`: result 4162 bytes,
+  SHA-256 `fa6111fc8a303c00b6fe478c104b1121d51f46fce77eb09000ef1a818845e545`;
+  report 14464 bytes, SHA-256
+  `a5838137337a6cf836a3f913f92092eb5c588e1f9476b26907bca1eb7d9c09a6`.
+  Pinned analysis reproduced the report byte-for-byte on temporary copies;
+  all 33 files in the retained coordinated outbox remained unchanged.
+- Windows DAO created and closed all nine original files before Linux copied
+  and updated them. The final Windows phase opened originals and updated
+  copies read-only. Both phase documents pass their identity/completion gates:
+  create 138659 bytes, SHA-256
+  `1ec03af6bafee63be51267476c1c304515198a60f1d252041382a95dd29191f8`;
+  observe 276840 bytes, SHA-256
+  `14249d767077ee953fcd99ff53fae756d3be654cd3d235ed72ad131a242f3477`.
+  The receipt records POSIX production through the public update API.
+- Each case has three accepted replicas. All eighteen retained original/updated
+  images are 57344 bytes; every original hash remains unchanged through Linux
+  copying/updating and the final read-only DAO observation. Updated hashes match
+  the Unix output and both read-only DAO identities. Individual hashes remain
+  in the validated report; no MDB or provider bytes are committed.
+- Independently decoded row/column spans match the requested replacements:
+
+  | Case | Table and original Id | Column | Before → after | Span offset | Changed bytes |
+  | --- | --- | --- | --- | ---: | ---: |
+  | first-field | Items / 1 | Id | 1 → -2147483648 | 49135 | 2 |
+  | later-row | Items / 3 | Value | 303 → 2147483647 | 49102 | 4 |
+  | later-table | Later / 12 | Value | 1202 → -123456789 | 55257 | 4 |
+
+  Each span is four bytes; unchanged bytes within the first span explain its
+  two differing bytes. Offsets repeat across the three replicas of each case.
+  Every byte outside the intended span remains identical to its original.
+- Complete DAO schema, field attributes/properties, empty index/relationship
+  inventories and all six user rows match the declared request. Only the
+  selected Long changes; both tables' Text payloads and all other row values
+  remain unchanged. Stored `KeepQuery` retains type 0 and exact SQL bytes
+  represented as `SELECT [Id], [Value]\r\nFROM Items;\r\n`; no query execution or
+  interpretation was needed for preservation.
+- This is finite local evidence for present ordinary Long replacements in
+  these unindexed, relationship-free existing files, including a later row
+  and later table. It does not establish null/Auto/index/relationship/overflow
+  updates, deletion/insertion, arbitrary existing-file compatibility or
+  hosted update support. Report compatibility/support flags remain false.
+
 ## EXP-0151 — Existing-file Long field update validation preregistered
 
 - Recorded: 2026-09-05, OpenAI Codex; local development acquisition plan,
