@@ -11024,6 +11024,52 @@ Copy this block under the appropriate section and remove this instruction:
   Neither this plan nor self-validation establishes general compatibility,
   completion of #100 or support-matrix movement.
 
+## EXP-0162 — Retained deletion transitions agree under the pinned secondary comparison
+
+- Date: 2026-09-05. Outcome: `answered`, no reasons; all three tail, middle
+  and sole replica groups agree. This is secondary analysis of the existing
+  EXP-0157 acquisition under reviewed EXP-0161, not a new DAO acquisition.
+- Source revision: `da85776`; plan SHA-256
+  `cc9b9ac21f6910dbaf696540a3e5f0b2007fcb80b56506f70c9e4e3aec1c48a5`.
+- Retained secondary report: shared outbox
+  `20260905T065000Z-row-delete-secondary/report.json`, 586751 bytes, SHA-256
+  `e78eed441f9e977d4fbc7502326acd4c530e08fa9c41a74b8c2ad33ba4171322`.
+  Reproduced byte-identically using temporary source copies; input and all 40
+  source artifact pins verified before and after. Original EXP-0158 remains
+  `no_outcome` with its tail replica-disagreement reason and unchanged report.
+- All nine observations and all 27 checkpoint identities are identical to the
+  original report. Full raw images and whole-file changed ranges remain in the
+  secondary report, together with the omitted unchanged unused-byte spans.
+  Only the preregistered secondary comparison differs; changed unused bytes,
+  active rows, directory and header bytes remain comparison-bearing.
+- Each image has 24 pages, Rows definition page 20 and data page 23. Tail and
+  middle deletion change row count 4 to 3; insertion of `(99, -9900)` returns
+  it to 4. Owned and available maps both remain `{23}`, with no global free
+  pages added or removed. Both transitions change only pages 0, 20 and 23.
+- Tail deletion retains four directory slots, changing slot 3 from `07d8`
+  (span `[2008,2018)`) to `c7e2` (empty span `[2018,2018)`). Slots 0 through
+  2 and their stored rows remain unchanged. The free-byte field rises from
+  1990 to 2000. Follow-on insertion appends slot 4 `07d8`, retains the empty
+  slot 3 and stores the new ten-byte row at `[2008,2018)`; free bytes become
+  1988 after the added row and directory entry.
+- Middle deletion retains four slots: `07f6,c7f6,07ec,07e2`. Slot 1 becomes
+  empty at 2038; rows for Id 3 and 4 move upward ten bytes without changing
+  their stored values. Free bytes again change 1990 to 2000. Insertion adds
+  slot 4 `07d8` and preserves the tombstone; free bytes become 1988. These
+  observations do not establish an arbitrary row-compaction algorithm.
+- Sole deletion changes count 1 to 0, removes page 23 from both maps and adds
+  it to the global free map. Tracked page 23 changes tag `01` to `09`, its
+  directory word `07f6` to `c800`, and free bytes 2026 to 2036. Follow-on
+  insertion reuses page 23, reverses these map memberships, restores tag `01`
+  and slot `07f6`, and stores the new row; count returns to 1. Both transitions
+  change only pages 0, 1, 20, 21 and 23.
+- Raw page-0 byte 1538 changes `00→01→02` for tail/middle and `00→02→04`
+  for sole. This records the observed bytes without assigning header semantics.
+- Scope remains exactly two present Long columns, ordinary unindexed rows,
+  three finite deletion positions and one subsequent insert per replica.
+  No general allocation/header rule, indexed or relationship deletion,
+  compatibility claim or support-matrix movement is established.
+
 ## EXP-0161 — Pinned post-acquisition deletion comparison plan
 
 - Date: 2026-09-05.
@@ -11126,6 +11172,13 @@ Copy this block under the appropriate section and remove this instruction:
 - Insert/delete, indexed or related targets, null and variable-width transitions,
   hosted stored-query preservation and general update compatibility are deferred.
   All earlier outcomes and consumed inputs remain unchanged.
+
+- Pre-acquisition integration refresh: main `ea34a10` adds the independently
+  reviewed fixed-field extension `37bd817`. Only the `update.rs` and
+  `row_writer.rs` input hashes change; the three hosted Long requests and all
+  harness bytes remain unchanged. The unconsumed plan now has SHA-256
+  `0f88f5c8c4b940e7699a779a844a9ba6e31849bb6911e8186965cbf1ed607d04`, superseding
+  the initial plan hash above before any acquisition.
 
 ## EXP-0157 — Ordinary-row deletion transitions preregistered
 
@@ -12223,6 +12276,53 @@ Copy this block under the appropriate section and remove this instruction:
   collation, GUID/Memo/OLE indexes, arbitrary Binary lengths, existing-row
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
+
+## EXP-0156 — Nullable index acquisition and retention failure, no outcome
+
+- Recorded 2026-09-05 from the single local run
+  `20260905T065000Z-nullable-index`, consumed EXP-0155 source `57ec033`, plan
+  SHA-256 `8caa3cc7417004fedd745dcce28681b21f01c9776361bc73a199fe6764f98829`.
+  No retry or additional DAO operation was performed for this outcome.
+- Original result: 34918 bytes, SHA-256
+  `178a11fc50ef4f7aa4027834ba877268ccb9bda63f73fd808946292a6ccf7426`.
+  It records `mutation_started=true`, six complete pairs (unique/ignore, three
+  each), and `System.Runtime.InteropServices.COMException: Operation not
+  supported in transactions.` No required/composite/composite-ignore/auto pair
+  completed. The initiating statement is unknown: no stack/operation endpoint
+  was recorded, and unguarded cleanup can replace an initiating exception.
+- Retention also failed: the log identifies `Copy-Item` at script line 239,
+  unable to copy `required-control-r1.mdb` because another process used it.
+  Log: 2066 bytes, SHA-256
+  `a79ef14306cb5a00195e29aecd6ecaba627295e7426bdc71b0aac2c819db7a02`.
+  The original outbox contains 27 files (24 MDBs plus result/log/exit), no
+  report. Original analysis stopped on missing `unique-control-r1.mdb`.
+- After process closure, read-only filesystem recovery copied 43 guest MDBs
+  into separate `20260905T065000Z-nullable-index-recovered`; no database was
+  opened through DAO. Recovery manifest: 7427 bytes, SHA-256
+  `ed28569b7e2fa7883cda22597291aee2c5c0bdfb0a81b49de71419a90710f0a9`.
+  All manifest identities, overlap with the original outbox, and every retained
+  identity referenced by the original result were verified. Unobserved copies
+  and the incomplete required control are retained, not evaluated as captures.
+- The unchanged pinned original analyzer ran on a temporary union of original
+  and recovered files. Its report is separately retained in
+  `20260905T065000Z-nullable-index-analysis/report.json`: 10903 bytes, SHA-256
+  `ccfa230f8db9443427f49d5754181dea3600cf0c909b5e1eab7676a1f5be1ef0`.
+  All six arm outcomes are `no_outcome`. The original 27 files and all 44
+  recovered files (including manifest) remained unchanged. This is original
+  preregistered analysis after retention recovery, not a corrected classifier.
+- The report retains 12 baseline structural/semantic summaries and 12 probe
+  observations. All baseline read endpoints reported pass, but no complete
+  baseline comparison passed: controls fail raw row equality, while candidate
+  comparisons fail semantic validation. Original control snapshots contain
+  all-null rows instead of planned values; candidate rows retain their planned
+  values but do not pass the declared Seek check. All copy probes report
+  `updated`, empty native-code lists and null HRESULT, adding all-null rows;
+  the planned rejection endpoints were not successfully exercised.
+- These acquisition/semantic/retention failures prevent acceptance of any
+  subset. They do not establish nullable writer rejection or a storage fact.
+  Original inputs remain unchanged; a separately reviewed successor would
+  need corrected assignment/observation diagnostics and preserved initiating
+  errors. No compatibility claim, support movement or new parser fact follows.
 
 ## EXP-0155 — Nullable initial-index candidate preregistration
 

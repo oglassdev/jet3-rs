@@ -1,5 +1,5 @@
 //! Preservation-aware field updates using `EXP-0059` schema, `SRC-0020`/
-//! `EXP-0060` row spans, the signed Long encoding from `EXP-0061`, and
+//! `EXP-0060` row spans, the fixed scalar encodings from `EXP-0061`, and
 //! `EXP-0073`/`EXP-0114` relationship catalog endpoints.
 
 use std::convert::Infallible;
@@ -25,7 +25,7 @@ pub struct FieldUpdate<'a> {
     pub row: RowLocator,
     /// Column ordinal from that table's definition.
     pub column: ColumnOrdinal,
-    /// Replacement value; currently only an ordinary, present Long is supported.
+    /// Replacement value matching the present fixed-width column.
     pub value: RowValue<'a>,
 }
 
@@ -53,6 +53,8 @@ pub enum UpdateError {
     Rows(crate::RowError),
     /// Row directory failure.
     Directory(crate::RowDirectoryError),
+    /// Replacement value or fixed layout failed checked row encoding.
+    Encoding(crate::RowWriteError),
     /// Atomic publication failed; its stage indicates whether publication occurred.
     Publish(crate::PublishError),
 }
@@ -72,6 +74,7 @@ impl StdError for UpdateError {
             Self::Definition(source) => Some(source),
             Self::Rows(source) => Some(source),
             Self::Directory(source) => Some(source),
+            Self::Encoding(source) => Some(source),
             Self::Publish(source) => Some(source),
             Self::NotFound(_) | Self::Unsupported(_) | Self::Mismatch(_) => None,
         }
@@ -94,13 +97,16 @@ conversion!(crate::CatalogError, Catalog);
 conversion!(crate::TableDefinitionError, Definition);
 conversion!(crate::RowError, Rows);
 conversion!(crate::RowDirectoryError, Directory);
+conversion!(crate::RowWriteError, Encoding);
 conversion!(crate::PublishError, Publish);
 
-/// Replaces one present Long field in an unindexed, relationship-free user table.
+/// Replaces one present fixed field in an unindexed, relationship-free user table.
 ///
-/// Null transitions, AutoIncrement columns, hidden/overflow rows and other value
-/// types are unsupported. A missing or unreadable relationship catalog and
-/// unresolved non-ASCII relationship endpoint names are also refused.
+/// Supports Byte, Integer, Long, Currency, Single, Double, DateTime, GUID and
+/// exact-width fixed Text. Null transitions, Boolean presence bits, AutoIncrement,
+/// variable fields and hidden/overflow rows remain unsupported. A missing or
+/// unreadable relationship catalog and unresolved non-ASCII relationship endpoint
+/// names are also refused.
 /// The exact requested field bytes are the only bytes
 /// changed, including when the database contains opaque pages or unused space.
 /// Locators remain valid only while the source is unchanged: callers must exclude
@@ -127,9 +133,9 @@ where
     H: FnMut(PublishStage) -> Result<(), HE>,
     HE: StdError + Send + Sync + 'static,
 {
-    let RowValue::Long(value) = request.value else {
-        return Err(UpdateError::Unsupported("replacement must be Long"));
-    };
+    if matches!(request.value, RowValue::Null) {
+        return Err(UpdateError::Unsupported("null replacement"));
+    }
     let mut database = DatabaseReader::open(path, budget)?;
     let mut root = None;
     let mut relationship_root = None;
@@ -174,9 +180,17 @@ where
         .columns()
         .get(usize::from(request.column.get()))
         .ok_or(UpdateError::NotFound("column"))?;
-    if column.physical_type() != ColumnPhysicalType::Long || column.auto_increment() {
-        return Err(UpdateError::Unsupported("column must be ordinary Long"));
+    if column.auto_increment() || column.physical_type() == ColumnPhysicalType::Boolean {
+        return Err(UpdateError::Unsupported("AutoIncrement or Boolean column"));
     }
+    let mut replacement = [0; u8::MAX as usize];
+    let width = crate::row_writer::encode_present_fixed_field(
+        request.column.get(),
+        column.into(),
+        request.value,
+        &mut replacement,
+        budget,
+    )?;
     let mut original_page = [0; PAGE_BYTES];
     database.read_raw_page(request.row.page(), &mut original_page, budget)?;
     let directory = RowDirectory::validate(
@@ -189,7 +203,8 @@ where
     if entry.hidden() || entry.overflow() {
         return Err(UpdateError::Unsupported("hidden or overflow row"));
     }
-    let (relative, before) = {
+    let mut before = [0; u8::MAX as usize];
+    let relative = {
         let mut rows = database.rows(&definition, budget)?;
         let mut found = None;
         while let Some(row) = rows.next_row()? {
@@ -202,12 +217,13 @@ where
             let range = row
                 .present_fixed_field_range(request.column)
                 .ok_or(UpdateError::Unsupported("null or variable field"))?;
-            let bytes: [u8; 4] = row
+            let bytes = row
                 .field(request.column)
                 .and_then(|field| field.raw_bytes())
-                .and_then(|bytes| bytes.try_into().ok())
-                .ok_or(UpdateError::Mismatch("Long width"))?;
-            found = Some((range, bytes));
+                .filter(|bytes| bytes.len() == width && range.len() == width)
+                .ok_or(UpdateError::Mismatch("fixed field width"))?;
+            before[..width].copy_from_slice(bytes);
+            found = Some(range);
             break;
         }
         found.ok_or(UpdateError::NotFound("row"))?
@@ -221,13 +237,13 @@ where
         .checked_add(relative.start)
         .ok_or(UpdateError::Mismatch("field offset"))?;
     let end = start
-        .checked_add(before.len())
+        .checked_add(width)
         .ok_or(UpdateError::Mismatch("field end"))?;
-    if original_page.get(start..end) != Some(before.as_slice()) {
+    if original_page.get(start..end) != Some(&before[..width]) {
         return Err(UpdateError::Mismatch("source changed during planning"));
     }
     let mut patched = PageImage::from_bytes(original_page);
-    patched.write_at(PageOffset::new(start as u64), &value.to_le_bytes(), budget)?;
+    patched.write_at(PageOffset::new(start as u64), &replacement[..width], budget)?;
     let page_offset = request
         .row
         .page()
@@ -243,7 +259,7 @@ where
         path,
         budget,
         |file, budget| -> Result<(), UpdateError> {
-            budget.charge_work_units(before.len() as u64)?;
+            budget.charge_work_units(width as u64)?;
             file.seek(SeekFrom::Start(offset))?;
             file.write_all(&patched.as_bytes()[start..end])?;
             Ok(())

@@ -267,6 +267,42 @@ pub fn encode_row(
     Ok(ByteCount::new(writer.position().get()))
 }
 
+/// Encodes one present fixed field after the same layout/value checks as a row.
+pub(crate) fn encode_present_fixed_field(
+    ordinal: u16,
+    column: RowColumnLayout,
+    value: RowValue<'_>,
+    output: &mut [u8],
+    budget: &mut ResourceBudget,
+) -> Result<usize, RowWriteError> {
+    budget.charge_items(1).map_err(RowWriteError::Resource)?;
+    let ColumnStorageClass::Fixed { offset } = column.storage else {
+        return Err(RowWriteError::InvalidStorage {
+            ordinal,
+            physical_type: column.physical_type,
+        });
+    };
+    if column.physical_type == ColumnPhysicalType::Boolean || matches!(value, RowValue::Null) {
+        return Err(RowWriteError::TypeMismatch {
+            ordinal,
+            physical_type: column.physical_type,
+        });
+    }
+    let mut next_offset = offset;
+    validate_column_layout(ordinal, column, &mut next_offset)?;
+    let width = value_width(ordinal, column, value)?;
+    let available = output.len();
+    let target = output
+        .get_mut(..width)
+        .ok_or(RowWriteError::OutputTooSmall {
+            needed: width,
+            available,
+        })?;
+    let mut writer = BinaryWriter::new(target, budget).map_err(RowWriteError::Resource)?;
+    write_scalar(&mut writer, value).map_err(RowWriteError::Resource)?;
+    Ok(width)
+}
+
 fn validate(
     columns: &[RowColumnLayout],
     values: &[RowValue<'_>],
