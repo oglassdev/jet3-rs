@@ -13337,6 +13337,73 @@ DAO control continuation; first/later images 57,344 bytes, last-page images 59,3
   Free-page reuse, map growth/indirection, indexed/related/Auto/LVAL insertion,
   compaction and slot reuse remain outside this one-EOF-page validation.
 
+## EXP-0204 — Hosted indexed field update matrix matched
+
+- Outcome **matched** from hosted GitHub Actions run
+  [33959070490](https://github.com/oglassdev/jet3-rs/actions/runs/33959070490),
+  attempt1, source `89a76bf7ff6dba225abf88225e1a41f1b0d597de`.
+  Both jobs succeeded. EXP-0203 plan SHA-256
+  `d814ce1502a5217a648291b22e7fe7accfe11925caf65a16209165cb90519700`;
+  reviewed tooling `dd6bfa0`, integrated runtime `0431cbc3673bc5f7198aa24396f277b26d6635ab`.
+- External retained root:
+  `/home/alex/development/vms/jet3-windows/shared/outbox/20260905T113000Z-hosted-indexed-update-33959070490`.
+  Report14579bytes SHA-256
+  `e28a8b70cae3f7fdbc72f2eb6bd774ac40878dde214d1d0d4aa9cb82dc24ee93`.
+  Frozen evaluator reproduced exact report bytes on temporary copies. All475
+  retained files and26generated/downloaded MDB identity chains remained exact.
+- Preparation7171bytes SHA-256
+  `838ddc32190dac6839555ecb52bfd457bf628acfad2b0826e24d7479c0aa772a`;
+  Windows reader6024bytes SHA-256
+  `469b0a904ea5e8f8d7acca74761ae3be4d2c44ce9b0bbc16e719f162b6aafdba`;
+  manifest6483bytes SHA-256
+  `1a5db9f13b83e75a79e9bd754da726b786ef71e0be41716821799b59a1cf2b2b`;
+  environment4264bytes SHA-256
+  `888d8e29b70b59fca38852a6a22301d34cd5ca35dfb878952b078cfb01890f2b`.
+- Thirteen public creations and fifteen public mutations ran on Ubuntu;
+  Windows independently verified all13preservation receipts and read all26
+  images with stock x86 DAO.DBEngine.36/dbVersion30. Complete requested schema,
+  rows, source/platform/environment/coverage/identity gates and every DAO/Rust
+  snapshot comparison passed. The first nine cases retain EXP-0196's exact
+  allocation/compaction/field recipes. No original experiment is reinterpreted.
+- Four added indexed pairs have table root20 and isolated leaf23, entry bytes
+  starting at47352. Ascending primary Long0→MIN and descending unique0→MAX-1
+  each update page24/slot1 field offset51161 with27entry bytes (three rows).
+  The200-row primary case changes key100→-1 at page25/slot8, field offset53069,
+  with1800entry bytes. The ordinary duplicate-Id case changes Value303→MIN
+  at page24/slot2, offset51145, preserving all54index-entry bytes (six rows).
+- Independent full-image reconstruction permitted only the four data-field
+  bytes and, in key cases, reordered same-width entries. Every other leaf
+  header/bitmap/slack byte, other page, catalog/map/count and file length stayed
+  exact. Sizes remain51200bytes except the200-row pair at55296. Rust also
+  independently correlates all before/after keys and row locators.
+- Twenty-six DAO index sidecars passed: nine unindexed pairs have empty index
+  inventories; four indexed pairs have complete directed full-row traversal and
+  every present full-key Seek. Additional per-image query counts5/5/202/4 cover
+  original/replacement keys and missing999. Removed keys return no match;
+  duplicate ordinary-key Seek returns a complete matching row after full
+  traversal coverage. `index_observations_verified` is true in the report.
+- These finite hosted key/non-key cases establish no compressed/branch/composite
+  or nonunique key maintenance, indexed insertion/deletion, relationship/Auto/
+  LVAL targets, stored-query preservation or follow-on DAO mutation behavior.
+  The report keeps support_matrix_movement false; a separate reviewed support
+  checkpoint may record only this bounded evidence. Independent review follows.
+
+Retained original→updated MDB SHA-256 identities:
+
+- `DAO-UPDATE-FIRST-FIELD`: `3b2785ef6886f8729fa23f4b3bcc8648e3ff36a3bbddb89015a5e2899376ab64` → `d4749712bf5325c98bb9274d01dc9f5d5785c1c0231ddb9fabae458779d5de6a`.
+- `DAO-UPDATE-LATER-ROW`: `3b2785ef6886f8729fa23f4b3bcc8648e3ff36a3bbddb89015a5e2899376ab64` → `6d01fe9612ea77e5716fbdae3ef91f78c98f20dc7b775ee01f3d471799a3438e`.
+- `DAO-UPDATE-LATER-TABLE`: `1229db656f04fc91e00eca0268329c3d38716c790b4f5238a8d910f0c019728b` → `d73c8faed6147c70bb9ebb58dfa72d149556cebd249e2b608455510acba8e543`.
+- `DAO-UPDATE-INSERT-ROW`: `658acf459fcf5e4e3578fd477e6a9853447c4571449aedf774558a67830c97bb` → `70a75caff93308f5d92976070fd95ce6cdafce534d2425a81f5963aa7e3e6e10`.
+- `DAO-UPDATE-DELETE-TAIL`: `658acf459fcf5e4e3578fd477e6a9853447c4571449aedf774558a67830c97bb` → `bf2b5b2c171bcbb1fddf3e5a9f0e11e94199754dfe16dd613f2a5e8324331661`.
+- `DAO-UPDATE-EMPTY-EOF`: `de60354c3da772eae3b52980fbf80b5a9463b46aa80feef2a04113ca3cf063cd` → `759563a04e9ee307508207f0a2168cf8c9b99b0288500088e1134cb0c752f4bb`.
+- `DAO-UPDATE-FULL-EOF`: `69d6a30c14d533350d8755cbce0e4dc27ee24fa43cb49cf5d4cbac418d9e8c5d` → `d6b61c64df55b7aa0129d5856420d54cb1b6ce42215171d852cd003ce0210b71`.
+- `DAO-UPDATE-MIDDLE-COMPACT`: `df4fb064879caff68ce0bf550c75ea5c76883abf5a9685c1948b30638a3de73e` → `76b0bb52bc49ceb3b1ea732d54d30f9f84be44e2e7d09e9495daee007ebd7bbb`.
+- `DAO-UPDATE-REPEATED-COMPACT`: `0c790e03e72ad2cb6040f8e0465ebc0089a7081baf85c591f26cfd2ff1edd461` → `d08a8b6ecedd6e552be9f7a641b4e76a125d01ea40c3be8269342c1d83ed0a4f`.
+- `DAO-UPDATE-PRIMARY-KEY`: `5f29fe662b23c3019aac6d35f0b93ad972e83af405619706e84f6813744f9574` → `461809e005db28de5922f77532185c32540bf1956a1063ef455b4a03cb5552b9`.
+- `DAO-UPDATE-DESCENDING-KEY`: `53708f129bdd33d323152d41f0007016a3cee4ad02778ec61c62653f8ec29b41` → `229ee6d76c285b7aa26ded14b8a385286d49a07b369b4fd935711980b41235b3`.
+- `DAO-UPDATE-FULL-LEAF-KEY`: `a62d3622beb964fc4e0419a5bba6756753c5ff65429b6fa67c8a2ffc8fd4bbf8` → `55a9119fce6f2fff4d2e43edf52b3bdb887900930379548dfe2a65c15d3f066e`.
+- `DAO-UPDATE-INDEXED-PAYLOAD`: `d86299803cc4112436fdab46975d4f014423714009862ec367ce04b3b3443fe9` → `0e14a549d763921543703c60852c4ac59bb82f9a6328547b0b3be8f72f870b90`.
+
 ## EXP-0203 — Hosted thirteen-case indexed update preregistration
 
 - Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0204.
