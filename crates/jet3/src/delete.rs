@@ -1,4 +1,4 @@
-//! Bounded existing-row deletion using the tail transition observed in EXP-0162.
+//! Bounded existing-row deletion using the compaction observed in EXP-0162.
 use crate::{DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget, RowLocator, UpdateError};
 use std::convert::Infallible;
 use std::error::Error as StdError;
@@ -13,14 +13,17 @@ pub struct RowDelete<'a> {
     pub row: RowLocator,
 }
 
-/// Deletes the final physical row slot from a page containing at least two rows.
+/// Deletes one ordinary row from a page containing at least two live rows.
 ///
 /// Supports unindexed, relationship-free tables without AutoIncrement or long
-/// values. All slots on the affected page must be ordinary live rows, and the
-/// page must already appear in its inline available map. Non-tail compaction,
-/// tombstone reuse, page release and inconsistent free/count metadata are refused.
-/// The removed payload remains in unused space; every byte except the directory
-/// word, free-byte count and table row count is preserved, including page zero.
+/// values. Slots must be ordinary live rows or known empty `c000` tombstones;
+/// the page must already appear in its inline available map. Later rows move
+/// upward without changing their physical slot numbers or stored values. The
+/// deleted slot becomes an empty tombstone; existing tombstone flags are retained.
+/// Page release and inconsistent free/count metadata are refused.
+/// Only the shifted row bytes, affected directory offsets, free-byte count and
+/// table row count change. Vacated slack, maps, page zero and unrelated objects
+/// remain exact.
 /// Keeping page zero unchanged is a candidate construction awaiting DAO validation.
 /// This operation makes no DAO compatibility claim.
 ///
@@ -57,7 +60,7 @@ where
     }
     let mut source_page = [0; PAGE_BYTES];
     database.read_raw_page(request.row.page(), &mut source_page, budget)?;
-    let patched_page = crate::row_delete_page::tail(
+    let patched_page = crate::row_delete_page::remove(
         request.row.page(),
         definition.root(),
         &source_page,

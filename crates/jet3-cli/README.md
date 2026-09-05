@@ -108,4 +108,47 @@ foreign index and validates its current relationship bounds. When all rows are
 empty, the CLI uses the schema-only API, including its additional supported
 index layouts; otherwise it uses the initial-row API. This interface
 adds no relationship, index, schema or payload support beyond the linked
-`jet3` library. It provides no update/delete commands or compatibility claim.
+`jet3` library. It makes no compatibility claim beyond the underlying library and its recorded evidence.
+
+`mutate` applies one public row operation to an existing database:
+
+```sh
+jet3-cli mutate example.mdb --input request.json
+```
+
+Use `--input -` for stdin. Requests have one of these shapes:
+
+```json
+{"operation":"insert","table":"Items","values":[{"long":4},{"text":"New"}]}
+```
+
+```json
+{"operation":"update","table":"Items","row":{"page":23,"slot":1},"column":0,"value":{"long":42}}
+```
+
+```json
+{"operation":"delete","table":"Items","row":{"page":23,"slot":1}}
+```
+
+Page/slot locators come from the public row reader; column ordinals come from
+its table definition. They describe the unchanged source, not a primary key or
+row position. The CLI resolves the exact supplied table and locator with that
+reader before an update/delete. Names are ASCII, and values use the same typed
+JSON cells as creation. There is no batch, implicit retry, index maintenance or
+schema conversion. Each accepted request invokes its public mutation API once
+with the default library resource budget.
+
+Success returns JSON with `ok`, `operation`, `file` and `row` (the new locator
+for insertion; the addressed locator for update/deletion). Failures return
+`mutation_failed` JSON on stderr and exit 1; invalid command arguments exit 2.
+`publication_stage`, when present, identifies a library publication failure.
+A sync error after publication can mean the change is already visible: do not
+blindly retry a failed mutation. Exclude concurrent writers for the entire
+operation; publication currently requires Unix.
+
+Current library restrictions apply unchanged: field updates support present
+fixed values, insertion needs room on a populated available page, and deletion
+supports a live tail slot without releasing its page. Indexes, relationships,
+AutoIncrement/LVAL insertion or deletion, null field transitions, page allocation,
+and inconsistent free/count metadata may be refused. Unit tests of command
+dispatch do not establish DAO compatibility for any additional operation.

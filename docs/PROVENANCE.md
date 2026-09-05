@@ -11024,6 +11024,42 @@ Copy this block under the appropriate section and remove this instruction:
   Neither this plan nor self-validation establishes general compatibility,
   completion of #100 or support-matrix movement.
 
+## EXP-0187 — First, middle and repeated row deletion candidate plan
+
+- Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0188.
+  Plan: `oracle/windows-dao/acquisition/row-delete-compaction.plan.json`,
+  SHA-256 `9a91a0a48793b0b7eca764d893508f7e02d1da118be4e22e7765b2bd9a298279`.
+- Reviewed public deletion source: `963d7aa6014bba9f91bb73405f3b16966ad6f5ea`.
+  The plan pins 31 source/exporter/producer/analyzer/transport inputs; shared
+  input verification runs before dispatch and analysis. No prior consumed
+  plan or producer changes.
+- Three natural DAO Long/Long/Text255 profiles, three replicas each: first-row
+  deletion `[1]`; unequal-width middle deletion `[2]`; repeated deletion
+  `[2,4,1]` around newly empty `c000` tombstones. Remaining live counts are
+  three, three and two; sole-row release is excluded. Each original also has
+  an unrelated Later table and stored KeepQuery.
+- DAO controls receive the declared sequence on independent original copies.
+  On Unix the new exporter copies once, resolves each Id through the public
+  reader and invokes public `delete_row`, returning per-step locator receipts.
+  The final image must equal the complete declared compaction sequence:
+  stable physical slots and surviving row bytes, shifted later offsets,
+  changed free/table counts, retained vacated slack and exact maps/page zero.
+  Intermediate candidates are not separate observations.
+- After all nine Unix candidates pass, observe original/control/Rust images
+  read-only and make separate control/Rust copies for `[99,-9900,"next"]`.
+  Require complete schemas, expected rows, index/relationship absence and
+  unchanged stored QuerySQL. Match control map memberships; physical DAO
+  header bookkeeping and unused bytes need not equal the candidate.
+- Retain 45 MDBs and 63 read-only captures. The finite run includes 15 DAO
+  control deletions, 15 public deletions and 18 DAO continuation inserts,
+  in addition to initial profile creation. Any failure after mutation yields
+  one `no_outcome`, partial artifacts retained; no retry/resume or subset
+  promotion. SSH phases are capped at 300 seconds and Unix sequences at 120.
+- Source observations are EXP-0162's finite middle/tail transitions and
+  EXP-0168/0170's known tombstones and continued use. Generalized compaction
+  and unchanged page zero remain candidate choices requiring this comparison.
+  Local development only; no compatibility or hosted support movement.
+
 ## EXP-0168 — Public tail deletion and DAO continuation accepted in three cases
 
 - Outcome: `observed_accepted`, recorded 2026-09-05 from the single local run
@@ -11385,6 +11421,55 @@ Copy this block under the appropriate section and remove this instruction:
   updates, deletion/insertion, arbitrary existing-file compatibility or
   hosted update support. Report compatibility/support flags remain false.
 
+## EXP-0176 — Retained fixed-field updates accepted in separate validation
+
+- Outcome: `observed_accepted`, recorded 2026-09-05 from the single distinct
+  run `20260905T074900Z-fixed-field-reuse`, acquisition revision
+  `3f50a50ea1efa5fe881077e1ef6c8f92889d61b4`. All 30 pairs passed with no
+  report reasons, coordinated error, observation error or retention failure.
+  EXP-0175 plan SHA-256 remains
+  `410084e32005ea98748017d3fbd9850c33e28f9f1f3e5e83f6dcc2935301df11`.
+- Validated report: 65027 bytes, SHA-256
+  `c054ba06916a8c630728e0af0a6eb098d4ac4553589be1789fbaf93719874957`.
+  Coordinated result: 15092 bytes, SHA-256
+  `0aed2dec58584e1f5f487a2ad2b1c61de4588ee033e0691d55c48e71704965e6`.
+  The committed analyzer reproduced the report byte-identically on temporary
+  copies without changing any retained acquisition artifact.
+- Read-only DAO phase: 938582 bytes, SHA-256
+  `381b37b334d2c32db1d058b966bd6d1fb36028b19b0283f509ca934078da589a`.
+  All 60 captures passed with unchanged before/after identities. The provider
+  receipt records 32-bit `DAO.DBEngine.36`, Windows NT 10.0.20348.0 and
+  `mutation_started: false`; every database snapshot reports Jet version 3.0.
+- The report attributes 27 `retained_update` cases to implementation
+  `37bd8175393dccf836b96172f740a28c4be36a60`, retaining their original EXP-0171
+  receipts and images exactly. Only the three `fixed-text-255` cases are
+  `new_public_update`, produced by reviewed implementation
+  `2c99b3dc78a3046837592fdf29e6a8bacaf99b20`. No old candidate is attributed to
+  the corrected reader, and no DAO creation or mutation occurred in this run.
+- Each of the ten arms passed three replicas. Exact saved replacements are
+  Byte 255, Integer -32768, Long -2147483648, Currency scaled -9223372036854775808,
+  Single and Double negative zero, DateTime OA days -1.25, GUID
+  `00112233-4455-6677-8899-aabbccddeeff`, and fixed Text widths 1 and 255
+  containing Windows-1252 byte `e9`. Negative zero remains the exact saved
+  `00000080` / `0000000000000080` bit pattern, without normalization.
+- Exact target offsets/lengths are 49126/1 for Byte and fixed Text 1,
+  49124/2 for Integer, 49120/4 for Long and Single, 49112/8 for Currency,
+  Double and DateTime, 49096/16 for GUID, and 48616/255 for fixed Text 255.
+  Every byte outside the independently selected field span remains identical.
+  All original snapshots match their frozen creation observations. Full schemas,
+  field properties, complete rows and saved values, relation/index absence,
+  unrelated tables and original stored KeepQuery SQL satisfy the exact request.
+- All 60 current images are 57344 bytes and match the guest-retained copies.
+  Verification preserved all 67 files in the coordinated output, 63 in its
+  read-only guest output, and all 89/33 files in the original EXP-0171 combined/
+  create outputs. All 61 pinned original artifacts remain unchanged.
+- This is bounded local acceptance of the declared fixed-field updates on these
+  retained databases, including the three wide-fixed-prefix cases. It does not
+  establish a general wide-offset encoding, null transition, indexed/related
+  update, variable-size update or hosted compatibility. EXP-0172 and EXP-0164
+  remain `no_outcome`; consumed inputs remain frozen. The report is development
+  only with compatibility and support-matrix movement both false.
+
 ## EXP-0175 — Distinct validation of retained fixed-field updates
 
 - Preregistered only; no acquisition. Outcome reserved as EXP-0176. The
@@ -11459,6 +11544,83 @@ Copy this block under the appropriate section and remove this instruction:
   MDB identities. Consumed inputs and the earlier EXP-0164 `no_outcome` remain
   unchanged. No retry, compatibility promotion, or hosted support movement is
   implied; any corrected implementation or retained-data successor is separate.
+
+## EXP-0178 — Indexed non-key Long updates accepted in three layouts
+
+- Outcome: `observed_accepted`, recorded 2026-09-05 from the single local run
+  `20260905T075800Z-indexed-payload-update`. All nine pairs passed with no reasons
+  or coordinated error. Acquisition revision
+  `a607460b23ddc05ece33e608ecc8fe9b2abec997`; source
+  `aaa02d7079772ecd846e58614195c12b3159b206` integrates reviewed implementation
+  `0f06a3a`. Consumed EXP-0177 plan SHA-256 remains
+  `0f471e7449cf50466ee0aa62d7e7fca9debe474e26903cf631a2831e8431ffc7`.
+- Validated report: 18359 bytes, SHA-256
+  `8dc22d2774277dd0f306048f79805954783e4358d5ee93436b9916ef04dc4d21`.
+  Coordinated result: 4217 bytes, SHA-256
+  `319c8e32be51e7393ee05aad54e108f48017fae45e76b99e2bd456400084a9c4`.
+  The unchanged pinned analyzer reproduced the report byte-identically on
+  temporary copies; no new DAO call or corrected analysis occurred.
+- Create-phase result: 267087 bytes, SHA-256
+  `a0e6ccc377125aee27d527c61151ea7894f1874b61b41a401957d1c631b9b77c`.
+  Read-only phase result: 533761 bytes, SHA-256
+  `4be17c13a05f8cdacaf474e5f7506373c25f84377a6cc6753fccc5733587defc`.
+  All nine creation captures and eighteen final captures pass, both error fields
+  are null and both retention-failure lists empty. Receipts record 32-bit
+  DAO.DBEngine.36 on Windows NT 10.0.20348.0; final `mutation_started` is false
+  and every database snapshot reports Jet version 3.0.
+- Each of primary ascending Id, ordinary ascending Group with duplicates, and
+  ordinary Group descending / Id ascending composite passes all three replicas.
+  Each original has six Items rows, two unrelated Later rows and stored KeepQuery.
+  The public update changes only non-key Items Id3 / Value from 303 to -2147483648.
+  In every image the independently selected four-byte span begins at 51167,
+  replacing `2f010000` with `00000080`; actual changed bytes are 51167, 51168
+  and 51170. Every other file byte, including all index bytes, remains identical.
+- Full table/field/index properties and directions, all rows and original stored
+  QueryDef SQL match the precise requested post-state. Every traversal contains
+  all six complete rows in declared key order. Primary and composite cases each
+  check six distinct full keys plus a missing key; the duplicate Group case checks
+  three distinct keys plus a missing key. Any matching complete duplicate row is
+  valid for Seek; wrong payloads or incomplete traversal do not pass.
+- All eighteen original/updated images are 59392 bytes. Original identities
+  remain unchanged across phases; every read-only before/after identity matches
+  both the coordinated and phase-retained image. Verification preserves all
+  33 coordinated, 12 create-phase and 21 observe-phase files (66 total).
+- This is finite local non-key update acceptance, not index-key maintenance,
+  multi-index or relationship mutation, arbitrary payload changes, hosted
+  compatibility or support promotion. Consumed inputs and earlier outcomes
+  remain unchanged. Development-only is true; compatibility and support-matrix
+  movement remain false.
+
+## EXP-0177 — Indexed non-key Long update validation plan
+
+- Preregistered only; no acquisition. Outcome reserved as EXP-0178. Plan
+  `oracle/windows-dao/acquisition/indexed-payload-update.plan.json`, SHA-256
+  `0f471e7449cf50466ee0aa62d7e7fca9debe474e26903cf631a2831e8431ffc7`.
+- Reviewed implementation `0f06a3a` is integrated without conflicts in source
+  `aaa02d7079772ecd846e58614195c12b3159b206`. The existing public
+  `field_update_candidate` exporter remains unchanged and receives the declared
+  table, unique Id, column and replacement; no index-key update is attempted.
+- Three arms times three fresh DAO originals: primary ascending Id, ordinary
+  Group with duplicates, and ordinary Group descending / Id ascending composite.
+  Every original has six indexed Items rows, two unrelated Later rows and stored
+  KeepQuery. Update only Items Id3 / Value Long from 303 to -2147483648.
+- All nine original captures must satisfy full requested schema, exact index
+  flags/directions, rows, complete directed traversal and every distinct key plus
+  a missing-key Seek before Unix updates begin. Each update independently binds
+  its catalog/column/row span and preserves every other file byte, including all
+  original index bytes. Only nine complete updates permit the read-only phase.
+- Capture all eighteen original/updated images in the final DAO phase (27 reads
+  total). Require complete identities, x86 DAO.DBEngine.36 / Jet3.0, full requested
+  rows and original schema/QueryDef SQL, traversal completeness and exact payloads.
+  Duplicate Seek may return any complete matching row; missing rows, wrong payloads
+  or traversal order do not pass. All nine pairs are required for acceptance.
+- Initiating errors, stack/endpoint and partial images are retained; failure is
+  `no_outcome` without retry/resume or subset promotion. Tests include classifier
+  failures, retained input pins and actual x86 pure Read-Row / one- and two-key
+  JSON roundtrips. The pure helper test does not exercise DAO COM calls.
+- Local development only. No index maintenance, actual key updates, multiple-index
+  acceptance, relationship mutation, hosted compatibility or support movement is
+  claimed. Consumed earlier plans and outcomes remain unchanged.
 
 ## EXP-0171 — Distinct fixed-field Currency setter successor
 
@@ -12703,6 +12865,96 @@ Copy this block under the appropriate section and remove this instruction:
   initiating errors and per-file failure artifacts. This finite local experiment
   does not claim general compression/split/null/Auto/relationship maintenance,
   arbitrary existing-file compatibility or hosted support before its outcome.
+
+## EXP-0174 — Hosted finite field updates, insertion and tail deletion matched
+
+- Outcome: `matched`, recorded 2026-09-05 from GitHub Actions run
+  `33954439667`, attempt 1, workflow `windows-dao-row-update.yml`, source
+  `9823c68cf382d13581ea2294e5de33de31d3a6b8`. The run completed successfully.
+  Consumed EXP-0173 plan SHA-256 remains
+  `8c2fc480c987326f06192f7a61cc648759f374d4ee34b455d33eb5ac1d0107d3`.
+- Retained artifacts are `generated-row-update-9823c68cf382d13581ea2294e5de33de31d3a6b8`
+  and `windows-dao-row-update-9823c68cf382d13581ea2294e5de33de31d3a6b8-1`,
+  under local outbox `20260905T080700Z-hosted-row-update-33954439667`.
+  Validated `dao-row-update-v1_2/report.json`: 5849 bytes, SHA-256
+  `14111c696b552c52b984b960952509120af145acd38b1657c28168ccdee0d393`.
+  The unchanged pinned evaluator reproduced it byte-identically on temporary
+  copies; all 177 original retained files remained unchanged.
+- Preparation receipt: 2893 bytes, SHA-256
+  `12b46f72c21c066ef66f0426f3daf5f35cf46636a3635bb395718953d967a702`.
+  Independent Windows reader receipt: 2366 bytes, SHA-256
+  `64907816d19fcf5956f3e7b81ba938ffea586165418e87a9666233ea9cac0cf7`.
+  DAO manifest: 2675 bytes, SHA-256
+  `d0ed7f12c765fee7d0386bfeed29527b0cec8ae71791e1e358175ca46701b576`.
+  All ten generated MDBs are identical to their Windows-retained counterparts;
+  every DAO before/after identity matches, with complete source/inventory binding.
+- The retained environment is 4264 bytes, SHA-256
+  `cf329f8aee24fbf36dd38940f32c1751ea82c8a66588cc7a93e339bf708d7c80`.
+  Both producer and evaluator require protocol 1.2 ready x86
+  `DAO.DBEngine.36` / `dbVersion30`, and the manifest binds these exact bytes.
+  No provider installation or license acceptance occurred.
+- All ten before/after DAO/Rust snapshot comparisons matched; all five independent
+  Windows/Unix preservation receipts agree and report `preserved: true`. Complete
+  declared schemas, rows, Text/Binary/Memo payloads, absence of indexes/relations
+  and per-image coverage pass. The three Long update spans remain offsets
+  48935, 54211 and 55387, each four bytes, for the declared first-field,
+  later-row and later-table requests.
+- Insertion adds Items `[88,-8800,"inserted"]` at root20/page23/slot3,
+  storing 21 bytes at offset49083. The only patch spans are that new row,
+  the appended directory word, page slot/free counts and table count 3 to 4.
+  Tail deletion removes Items Id3 at root20/page23/slot2, a 16-byte row at
+  offset49104. It changes only the tail tombstone, free-byte field and table
+  count 3 to 2. The unrelated Later table remains exact in both cases.
+  Every byte outside the validated patches remains unchanged, including page0,
+  maps, deleted payload and other unused bytes. No header counter meaning follows.
+- This hosted result covers the five exact public mutation requests only. It
+  does not cover page allocation, empty-table insertion, non-tail/sole-row deletion,
+  slot reuse, indexed/related row mutation, null transitions, variable-width
+  updates, stored-query preservation or general rollback. Previous local/hosted
+  outcomes and consumed plans remain unchanged. The report's support-matrix
+  movement remains false; any scoped support checkpoint is a separate change.
+
+## EXP-0173 — Hosted five-case public row mutation preregistration
+
+- Preregistered only; no acquisition. Outcome reserved as EXP-0174.
+  Plan: `oracle/windows-dao/acquisition/row-update-v1_2.plan.json`, SHA-256
+  `8c2fc480c987326f06192f7a61cc648759f374d4ee34b455d33eb5ac1d0107d3`.
+- Independently reviewed tooling `2e7f37af4f4f28b3f25a1e52f2c3f0fbf3c2e953`
+  is integrated in `ead020cdec0c4b12db70d203620f0ac73c71384f`.
+  The plan pins the new workflow, thin isolated evaluator adapter, five-case
+  inventory, reused frozen read-only DAO/evaluation helpers, relevant executable,
+  public mutation/creation/reader sources, protocol schemas and provider probe.
+  Both jobs use the same dispatched committed revision containing this plan;
+  source/image/inventory identities bind all preparation and observation receipts.
+- One `windows-dao-row-update.yml` workflow dispatch, attempt1 only, with
+  `run_acquisition=true` and the exact plan SHA. Ubuntu creates every before
+  image through public APIs and makes one public mutation on its after copy.
+  No testkit raw-format patch is used. Windows independently re-derives each
+  public-reader locator and preservation receipt, then reads both files with
+  Rust and stock x86 DAO.DBEngine.36/dbVersion30 under the retained provider gate.
+- Preserve the original three Long update cases exactly: first field, later row
+  and later table, with unrelated Text/Binary/Memo payloads. Add one Items
+  `[88,-8800,"inserted"]` append and one Items Id3 tail deletion, each with an
+  unrelated Later table and the exact declared Long/Long/Text rows. This gives
+  five before/after pairs, ten retained MDBs and ten read-only DAO captures.
+- Require complete expected schemas, fields, rows, payloads and index/relation
+  absence; full DAO/Rust snapshot equality; complete coverage and all source,
+  provider, image and independent Windows/Unix verifier bindings. Reconstruct
+  each exact patch independently and require all other bytes unchanged, including
+  page zero, maps and unrelated objects. The original three-case inventory,
+  acquisition scripts and consumed EXP-0159 plan remain unchanged and usable.
+- Any incomplete/provider/source/identity/verification/recipe/coverage/semantic
+  failure prevents `matched`. Retain available partial diagnostics; reached
+  evaluation failures record `no_outcome`. Input-pin failures reject dispatch
+  and retained-data analysis. No automatic retry, redispatch or phase resume.
+- Local EXP-0168/0170 motivate these finite row recipes; this separately pinned
+  hosted run supplies its own acceptance result. It does not cover allocation,
+  empty-table insertion, non-tail/sole-row deletion, slot reuse, indexed/related
+  row mutations, null transitions, stored-query preservation or general rollback.
+  Any support-state update is separate from the report.
+- Pre-acquisition verification: implementation independent review and root
+  checks passed; exact integrated five-case public preparation and committed
+  plan/input checks precede dispatch. Independent plan review is required.
 
 ## EXP-0170 — Public row insertion and DAO continuation accepted in three cases
 
