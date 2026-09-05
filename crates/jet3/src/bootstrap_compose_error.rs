@@ -10,12 +10,17 @@ pub enum ComposeError {
         /// Unsupported relationship constraint.
         detail: &'static str,
     },
-    /// Initial rows support at most one ascending, single-Long-column index.
+    /// Initial rows support at most one index on one or two Long columns.
     UnsupportedInitialIndexSchema,
     /// Null indexed keys are outside the bounded initial-index construction.
     NullInitialIndexKey {
         /// Zero-based input row.
         row: usize,
+    },
+    /// A primary or unique initial index repeats a two-Long key.
+    DuplicateInitialCompositeIndexKey {
+        /// Repeated values in declared index-field order.
+        values: [i32; 2],
     },
     /// A primary or unique initial index repeats a key.
     DuplicateInitialIndexKey {
@@ -109,6 +114,7 @@ impl std::error::Error for ComposeError {
             | Self::UnsupportedInitialIndexSchema
             | Self::NullInitialIndexKey { .. }
             | Self::DuplicateInitialIndexKey { .. }
+            | Self::DuplicateInitialCompositeIndexKey { .. }
             | Self::IndexPageFull { .. }
             | Self::UnobservedMapRowLayout
             | Self::UnobservedLongValueColumnCount { .. }
