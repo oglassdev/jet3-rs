@@ -8,17 +8,20 @@ use std::convert::Infallible;
 use std::error::Error as StdError;
 use std::path::Path;
 
-/// Appends an encoded row to an existing populated, owned and available data page.
+/// Inserts an encoded row on a populated available page or one new EOF page.
 ///
 /// Values use the existing checked scalar/Text/Binary row encoder, including null
 /// and Boolean fields. AutoIncrement, long values, indexes and relationships are
-/// refused. Owned/available maps must be inline. No slot reuse, compaction, page
-/// allocation or empty-table insertion is implemented. The selected page must
+/// refused. If no populated page fits, including an empty table, one EOF page is
+/// appended only within existing inline global/owned/available maps. No reuse,
+/// map growth or compaction is implemented. An existing selected page must
 /// retain capacity for one more equal-sized row and representable directory slot;
 /// this is a candidate restriction, not a DAO free-space threshold.
 ///
 /// Only the new row, appended slot, page free/count fields and table row count
-/// change. All other bytes, including page zero and maps, remain exact. This
+/// change on existing-page insertion. EOF insertion also clears its global free
+/// bit and sets owned/available bits, marking available when a minimum encoded
+/// row still fits. All other bytes, including page zero, remain exact. This
 /// construction requires separate DAO validation and makes no compatibility claim.
 /// Callers must exclude external writers throughout this Unix-only operation.
 /// A pre-publication failure preserves the original; publication errors identify
@@ -107,9 +110,6 @@ where
                 .ok_or(UpdateError::Mismatch("row count overflow"))?;
         }
     }
-    if observed_rows == 0 {
-        return Err(UpdateError::Unsupported("empty-table insertion"));
-    }
     let mut source_definition = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut source_definition, budget)?;
     let patched_definition =
@@ -136,9 +136,7 @@ where
             .next_page(budget)
             .map_err(UpdateError::Allocation)?
         else {
-            return Err(UpdateError::Unsupported(
-                "no populated page with retained row capacity",
-            ));
+            break None;
         };
         let mut owned_pages = owned.allocated_pages(geometry);
         let mut member = false;
@@ -159,8 +157,40 @@ where
             &encoded[..length],
             budget,
         )? {
-            break (page, patched, slot);
+            break Some((page, patched, slot));
         }
+    };
+    let Some(selected) = selected else {
+        let mut minimum = [0; PAGE_BYTES];
+        let nulls = [RowValue::Null; u8::MAX as usize];
+        let minimum_length = crate::encode_row(
+            &layout[..columns.len()],
+            &nulls[..columns.len()],
+            &mut minimum,
+            budget,
+        )?
+        .get() as usize;
+        let plan = crate::row_insert_eof::plan(
+            &mut database,
+            &definition,
+            &encoded[..length],
+            &minimum[..minimum_length],
+            budget,
+        )?;
+        let (changes, count) = plan.changes(crate::update_pages::PageChange {
+            page: definition.root(),
+            before: &source_definition,
+            after: patched_definition.as_bytes(),
+        });
+        crate::update_pages::publish_changes_with_append(
+            path,
+            database.into_source(),
+            &changes[..count],
+            Some(plan.image.as_bytes()),
+            budget,
+            hook,
+        )?;
+        return Ok(RowLocator::new(plan.page, 0));
     };
     crate::update_pages::publish_changes(
         path,

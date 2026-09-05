@@ -334,18 +334,6 @@ fn unsupported_tables_and_available_map_membership_are_refused() -> TestResult {
         ));
         assert_eq!(fs::read(f.path())?, original);
     }
-    let empty = Fixture::longs(0)?;
-    let original = fs::read(empty.path())?;
-    assert!(matches!(
-        insert_row(
-            empty.path(),
-            b"Rows",
-            &[RowValue::Long(1), RowValue::Long(2)],
-            &mut budget()
-        ),
-        Err(UpdateError::Unsupported("empty-table insertion"))
-    ));
-    assert_eq!(fs::read(empty.path())?, original);
     let f = Fixture::longs(4)?;
     let mut b = budget();
     let mut db = DatabaseReader::open(f.path(), &mut b)?;
@@ -356,14 +344,12 @@ fn unsupported_tables_and_available_map_membership_are_refused() -> TestResult {
     let range = crate::locate_usage_map(page, locator, &mut b)?.range();
     drop(db);
     let original = fs::read(f.path())?;
-    for foreign in [false, true] {
+    {
         let mut bad = original.clone();
         let base = locator.page().get() as usize * PAGE_BYTES;
-        // EXP-0057 inline bitmap: either empty or an unowned in-file page.
+        // EXP-0057 inline bitmap: an unowned in-file page.
         bad[base + range.start + 5..base + range.end].fill(0);
-        if foreign {
-            bad[base + range.start + 5] = 1;
-        }
+        bad[base + range.start + 5] = 1;
         fs::write(f.path(), &bad)?;
         assert!(
             insert_row(
@@ -410,3 +396,6 @@ fn physical_slot_limit_and_table_count_overflow_are_structured() -> TestResult {
     ));
     Ok(())
 }
+
+#[path = "insert_eof_tests.rs"]
+mod eof;
