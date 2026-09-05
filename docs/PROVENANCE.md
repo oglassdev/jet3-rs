@@ -10509,3 +10509,6 @@ Copy this block under the appropriate section and remove this instruction:
   differently indexed construction, second relationship, populated table,
   cascade behavior, public relationship API, existing-database update, or
   hosted support-matrix claim.
+- Review: independent outcome review verified input and retained-image
+  identities, byte-identical report reconstruction, all recorded metadata
+  claims, and the exact-candidate evidence boundary; no findings.
