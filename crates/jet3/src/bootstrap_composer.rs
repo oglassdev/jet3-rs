@@ -174,15 +174,47 @@ fn compose_planned_creates(
     Ok(plan)
 }
 
-/// Composes one unindexed table with scalar initial rows in inline-mapped pages.
-pub(crate) fn compose_database_with_rows(
-    spec: &TableSpec<'_>,
-    rows: &[&[RowValue<'_>]],
+/// Composes sequential table creates with their initial rows. EXP-0087 supplies
+/// later-create page roles; EXP-0065 supplies row append placement. Combining
+/// the existing per-table writers is a candidate construction.
+pub(crate) fn compose_database_with_table_rows(
+    requests: &[crate::TableRows<'_>],
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, ComposeError> {
-    let planned =
-        PlannedCreate::new(spec, EMPTY_DATABASE_PAGE_COUNT, true)?.with_rows(rows, budget)?;
-    compose_planned_creates(&[planned], budget)
+    if requests.len() > MAX_OBSERVED_TABLES {
+        return Err(ComposeError::UnobservedTableCount {
+            count: requests.len(),
+            observed: MAX_OBSERVED_TABLES,
+        });
+    }
+    budget.charge_allocation(ByteCount::new(
+        (requests.len() * size_of::<PlannedCreate<'_>>()) as u64,
+    ))?;
+    let mut creates = Vec::new();
+    creates
+        .try_reserve_exact(requests.len())
+        .map_err(|_| Error::Io {
+            operation: "reserve initial table plans",
+            kind: std::io::ErrorKind::OutOfMemory,
+        })?;
+    let mut next_page = EMPTY_DATABASE_PAGE_COUNT;
+    for (position, request) in requests.iter().enumerate() {
+        budget.charge_items(1)?;
+        if let Some(first) = requests[..position]
+            .iter()
+            .position(|earlier| earlier.table.name.eq_ignore_ascii_case(request.table.name))
+        {
+            return Err(ComposeError::DuplicateTableName {
+                first,
+                second: position,
+            });
+        }
+        let planned = PlannedCreate::new(&request.table, next_page, position == 0)?
+            .with_rows(request.rows, budget)?;
+        next_page = planned.page_count();
+        creates.push(planned);
+    }
+    compose_planned_creates(&creates, budget)
 }
 
 /// Resolves precisely the same column placements as the definition encoder.

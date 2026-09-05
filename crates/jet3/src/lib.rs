@@ -129,8 +129,8 @@ pub use commit_state::{
     read_commit_region_into,
 };
 pub use create::{
-    CandidateCheckError, CreateDatabaseError, create_database, create_database_with_relationship,
-    create_database_with_rows,
+    CandidateCheckError, CreateDatabaseError, TableRows, create_database,
+    create_database_with_relationship, create_database_with_rows, create_database_with_table_rows,
 };
 pub use database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 pub use database_header::{
