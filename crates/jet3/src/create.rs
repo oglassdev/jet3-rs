@@ -1,4 +1,4 @@
-//! Creation of a fresh Jet 3 database holding empty user tables.
+//! Creation of a fresh Jet 3 database holding user tables.
 //!
 //! [`create_database`] composes the complete image in memory, writes every
 //! page in physical order to a private file beside the destination, reopens
@@ -10,7 +10,8 @@
 //! The structural reopen is a publication prerequisite, not compatibility
 //! evidence. Only a recorded DAO differential can establish that Microsoft
 //! Access or DAO consume a created database; none has been run for schemas
-//! other than the exact `EXP-0091`, `EXP-0107`, and `EXP-0110` constructions.
+//! other than the exact `EXP-0091`, `EXP-0107`, `EXP-0110`, and `EXP-0112`
+//! constructions.
 //! `EXP-0110` observed DAO read one composed four-table image built from the
 //! `EXP-0087` later-create pattern; it does not establish other table counts,
 //! orders, names, or schemas.
@@ -159,8 +160,10 @@ pub fn create_database(
 /// [`create_database`] apply. Composition and the structural row comparison
 /// are charged to `budget`. Unsupported schemas and rows fail before writing.
 ///
-/// This is an unvalidated candidate construction. No DAO differential has
-/// established compatibility for databases created with initial rows.
+/// `EXP-0112` observed DAO read one exact `Rows(Id Long, Code Text 8)` image
+/// containing `(1, "one")`, `(-2, "two")`, and `(null, null)` unchanged in three
+/// local replicas. This establishes only that candidate, not other schemas or
+/// values, general compatibility, or hosted write-differential coverage.
 pub fn create_database_with_rows(
     path: impl AsRef<Path>,
     table: &TableSpec<'_>,

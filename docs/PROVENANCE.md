@@ -10041,6 +10041,58 @@ Use `not applicable` explicitly rather than omitting a field.
   findings; five focused analyzer tests and PowerShell syntax check passed.
 
 
+### EXP-0112 — Accepted initial-row creation result
+
+- Recorded: 2026-09-04, OpenAI Codex (run timestamp is 2026-09-05 UTC)
+- Kind: validated SHA-256-pinned, development-only local DAO result
+- Question: does DAO read the exact `EXP-0111` initial-row candidate unchanged
+  with the expected schema and row multiset in all three replicas?
+- Origin and binding: `EXP-0111`, committed before acquisition as
+  `6778b9209b8e569a71ba265bc3f7e5129e6f6498`; plan
+  `oracle/windows-dao/acquisition/initial-rows.plan.json`, SHA-256
+  `0fb2a14ec8d4e73b881f72b543233599733ef57f2edc78deb12b74c4897be291`.
+  Candidate source commit is `df7c42e6e67803703d8814a27f71a9251f9fccd6`.
+  The plan pins the PowerShell producer, Python analyzer, imported transport,
+  and Rust candidate example; those inputs remain unchanged.
+- Authorization and dispatch: the user's standing authorization covered the
+  single local run `20260905T030500Z-initial-rows`. It was dispatched once,
+  after preregistration was committed and reviewed; no retry occurred.
+- Environment: result records a 32-bit process, `DAO.DBEngine.36`, and
+  `Microsoft Windows NT 10.0.20348.0`.
+- Protocol and validation: the analyzer validated the plan/result binding,
+  pinned candidate starting identities, retained image identities, unchanged
+  before/after sizes and hashes, control schema and rows, and agreement across
+  three replicas. Running the unchanged analyzer on temporary copies of the
+  retained artifacts reproduced `report.json` byte for byte without modifying
+  the originals.
+- Artifacts: retained under local outbox `20260905T030500Z-initial-rows`:
+  `result.json`, 24,291 bytes, SHA-256
+  `888e4dacdc3f161af330c0c87f976da94623512c3c9e299c0cc64e601c436812`;
+  canonical `report.json`, 378 bytes, SHA-256
+  `476645a252e22f6ef1e0d9ac2cef3581128326815f88874f3477623e6d7aef04`.
+- Retained candidates: all three remained 49,152 bytes, SHA-256
+  `5d1dc9148f58d5a3c19c75b86368d7ee9deacf6a95c0fa6746944f8cc3b322f4`.
+  Controls also remained 49,152 bytes, with replica hashes respectively
+  `073b0ad2cc21aea6201486e729c9ebbfd6719fd167129146f798b7690b7b26b8`,
+  `872d0f5d9c43681a9d03516152b1f52e4cc0051d4e9cc27994a5f3a1068f0b82`, and
+  `fe2a358cae1b52210c5ddc91051ef0934f91ba3b9466ee255872db66877062c9`.
+- Observation: the validated canonical report records `observed_accepted` for
+  three replicas. All candidates and controls completed the read-only schema
+  and row endpoints: version `3.0`, exactly `Rows` plus the four expected
+  system tables, ordered fields `Id` Long size 4 and `Code` Text size 8,
+  no indexes, and row multiset `(1, "one")`, `(-2, "two")`, `(null, null)`.
+- Interpretation: DAO consumed the exact composed one-table, one-data-page
+  image unchanged while it retained the composed page-zero header without
+  insertion counter updates. This establishes no general header-update rule,
+  other schemas or values, multiple data pages, indexed inserts, long values,
+  existing-database mutation, general compatibility, or hosted write
+  differential coverage. The support matrix does not move.
+- Usage: issue `#100`; `create_database_with_rows` exact-candidate caveat.
+- Rights: MDB bytes and provider binaries remain outside the repository.
+- Review: independent outcome, report reproduction, artifact identity,
+  additive-provenance, and evidence-boundary review completed without findings.
+
+
 ## Fixtures and black-box results
 
 ### FIX-0001 — January 2026 controller backup
