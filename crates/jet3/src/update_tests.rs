@@ -418,3 +418,90 @@ fn a_valid_locator_from_another_table_is_rejected() -> TestResult {
     assert_eq!(fs::read(fixture.path())?, original);
     fixture.assert_only_original()
 }
+
+#[test]
+fn relationship_catalog_rows_are_checked_without_user_indexes() -> TestResult {
+    let fixture = simple()?;
+    let row = fixture.locator(0)?;
+    let original = fs::read(fixture.path())?;
+    let mut b = budget();
+    let mut database = DatabaseReader::open(fixture.path(), &mut b)?;
+    let root = {
+        let mut catalog = database.catalog(&mut b)?;
+        let mut found = None;
+        while let Some(record) = catalog.next_record()? {
+            if record.name().raw_bytes() == b"MSysRelationships" {
+                found = record.table_definition();
+            }
+        }
+        found.ok_or("relationship catalog absent")?
+    };
+    let definition = database.table_definition(root, &mut b)?;
+    let columns: Vec<_> = definition
+        .columns()
+        .iter()
+        .map(crate::RowColumnLayout::from)
+        .collect();
+    let map = definition.maps().owned();
+    let mut map_page = [0; PAGE_BYTES];
+    database.read_raw_page(map.page(), &mut map_page, &mut b)?;
+    let directory = crate::data_page_directory::DataPageDirectory::validate(&map_page, &mut b)
+        .map_err(|_| "invalid fixture map directory")?;
+    let map_range = directory
+        .entry(&map_page, u16::from(map.row()))
+        .ok_or("map row absent")?
+        .range();
+    assert_eq!(&map_page[map_range.start..map_range.start + 5], &[0; 5]);
+    let page = crate::PageNumber::new((original.len() / PAGE_BYTES) as u64);
+    for (object, referenced, refused) in [
+        (Some(b"iTeMs".as_slice()), Some(b"Other".as_slice()), true),
+        (Some(b"Other".as_slice()), Some(b"Items".as_slice()), true),
+        (None, Some(b"Other".as_slice()), true),
+        (Some(b"\x80".as_slice()), Some(b"Other".as_slice()), true),
+        (
+            Some(b"Other".as_slice()),
+            Some(b"Elsewhere".as_slice()),
+            false,
+        ),
+    ] {
+        let mut raw = [0; 256];
+        let length = crate::encode_row(
+            &columns,
+            &[
+                RowValue::Text(b"MetadataOnly"),
+                RowValue::Long(0),
+                RowValue::Long(1),
+                RowValue::Long(0),
+                object.map_or(RowValue::Null, RowValue::Text),
+                RowValue::Text(b"Id"),
+                referenced.map_or(RowValue::Null, RowValue::Text),
+                RowValue::Text(b"Id"),
+            ],
+            &mut raw,
+            &mut b,
+        )?;
+        let mut data = crate::DataPageBuilder::new(root, &mut b)?;
+        data.append_row(&raw[..length.get() as usize], &mut b)?;
+        let mut input = original.clone();
+        input.extend_from_slice(data.finish().as_bytes());
+        let bit = page.get() as usize;
+        input[map.page().get() as usize * PAGE_BYTES + map_range.start + 5 + bit / 8] |=
+            1 << (bit % 8);
+        let count = root.get() as usize * PAGE_BYTES + 12;
+        input[count..count + 4].copy_from_slice(&1_u32.to_le_bytes());
+        fs::write(fixture.path(), &input)?;
+        let result = update_field(
+            fixture.path(),
+            request(row, RowValue::Long(3)),
+            &mut budget(),
+        );
+        if refused {
+            assert!(matches!(result, Err(UpdateError::Unsupported(_))));
+            assert_eq!(fs::read(fixture.path())?, input);
+        } else {
+            result?;
+        }
+        fixture.assert_only_original()?;
+    }
+    Ok(())
+}
