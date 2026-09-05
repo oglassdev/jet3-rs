@@ -54,7 +54,7 @@ pub(super) struct PlannedCreate<'a> {
     initial_data: Vec<InitialDataPage>,
     initial_long_values: Option<InitialLongValues>,
     initial_row_count: u32,
-    initial_index: Option<InitialLongIndex>,
+    initial_indexes: Vec<InitialLongIndex>,
     initial_autoincrement: Option<InitialAutoIncrement>,
 }
 
@@ -91,7 +91,7 @@ impl<'a> PlannedCreate<'a> {
             initial_data: Vec::new(),
             initial_long_values: None,
             initial_row_count: 0,
-            initial_index: None,
+            initial_indexes: Vec::new(),
             initial_autoincrement: None,
         })
     }
@@ -110,7 +110,7 @@ impl<'a> PlannedCreate<'a> {
         }
         let generated = InitialAutoIncrement::new(self.spec, rows.len())?;
         self.initial_autoincrement = generated;
-        self.initial_index = InitialLongIndex::new(self.spec, rows.len(), budget)?;
+        self.initial_indexes = InitialLongIndex::for_table(self.spec, rows.len(), budget)?;
         if rows.is_empty() {
             return Ok(self);
         }
@@ -162,11 +162,11 @@ impl<'a> PlannedCreate<'a> {
                 Err(error) => return Err(error.into()),
             };
             let locator = crate::RowLocator::new(PageNumber::new(self.data_end()), slot);
-            if let Some(index) = &mut self.initial_index {
+            for index in &mut self.initial_indexes {
                 index.push(row, locator, budget)?;
             }
         }
-        if let Some(index) = &mut self.initial_index {
+        for index in &mut self.initial_indexes {
             index.sort(budget)?;
         }
         self.push_initial_page(builder, minimum, budget)?;
@@ -232,9 +232,22 @@ impl<'a> PlannedCreate<'a> {
     pub(super) fn page_count(&self) -> u64 {
         self.data_end()
             + self
-                .initial_index
-                .as_ref()
-                .map_or(0, InitialLongIndex::extra_page_count)
+                .initial_indexes
+                .iter()
+                .map(InitialLongIndex::extra_page_count)
+                .sum::<u64>()
+    }
+
+    // EXP-0093 gives each index its own root/map. Extra tree pages are grouped
+    // by physical index after the shared data pages (EXP-0062 tree grammar).
+    fn index_extra_start(&self, ordinal: usize) -> u64 {
+        self.data_end()
+            + self
+                .initial_indexes
+                .iter()
+                .take(ordinal)
+                .map(InitialLongIndex::extra_page_count)
+                .sum::<u64>()
     }
 
     fn data_end(&self) -> u64 {
@@ -252,8 +265,8 @@ impl<'a> PlannedCreate<'a> {
     }
 
     pub(super) fn index_distinct_count(&self) -> u32 {
-        self.initial_index
-            .as_ref()
+        self.initial_indexes
+            .first()
             .map_or(0, InitialLongIndex::distinct_count)
     }
 
@@ -275,8 +288,8 @@ impl<'a> PlannedCreate<'a> {
         value: i32,
         budget: &mut ResourceBudget,
     ) -> Result<bool, ComposeError> {
-        self.initial_index
-            .as_ref()
+        self.initial_indexes
+            .first()
             .ok_or(ComposeError::UnsupportedInitialIndexSchema)?
             .contains_single_long(value, budget)
     }
@@ -322,12 +335,12 @@ impl<'a> PlannedCreate<'a> {
             plan.append(continuation, append_map, budget)?;
         }
         let owner = self.plan.definition_root().get();
-        for (root, _) in self.plan.index_placements() {
-            let image = if let Some(index) = &self.initial_index {
+        for (ordinal, (root, _)) in self.plan.index_placements().enumerate() {
+            let image = if let Some(index) = self.initial_indexes.get(ordinal) {
                 index.image(
                     self.plan.definition_root(),
                     root,
-                    self.data_end(),
+                    self.index_extra_start(ordinal),
                     None,
                     budget,
                 )?
@@ -342,19 +355,18 @@ impl<'a> PlannedCreate<'a> {
         for data in &self.initial_data {
             plan.append(data.image.clone(), append_map, budget)?;
         }
-        if let Some(index) = &self.initial_index {
-            let root = self
-                .plan
-                .index_placements()
-                .next()
-                .ok_or(ComposeError::UnsupportedInitialIndexSchema)?
-                .0;
+        for (position, (index, (root, _))) in self
+            .initial_indexes
+            .iter()
+            .zip(self.plan.index_placements())
+            .enumerate()
+        {
             for ordinal in 0..index.extra_page_count() {
                 plan.append(
                     index.image(
                         self.plan.definition_root(),
                         root,
-                        self.data_end(),
+                        self.index_extra_start(position),
                         Some(ordinal as usize),
                         budget,
                     )?,
@@ -417,18 +429,21 @@ impl<'a> PlannedCreate<'a> {
             .index_placements()
             .zip(spec.indexes)
             .zip(self.plan.index_fields())
-            .map(|(((root, row), index), fields)| PhysicalIndexSpec {
-                fields,
-                usage_map_page: map,
-                usage_map_row: row,
-                root,
-                flags: index.kind.flags(),
-                // EXP-0073: the prefix counts distinct keys, not leaf entries.
-                entry_count: self
-                    .initial_index
-                    .as_ref()
-                    .map_or(0, InitialLongIndex::distinct_count),
-            })
+            .enumerate()
+            .map(
+                |(ordinal, (((root, row), index), fields))| PhysicalIndexSpec {
+                    fields,
+                    usage_map_page: map,
+                    usage_map_row: row,
+                    root,
+                    flags: index.kind.flags(),
+                    // EXP-0073: the prefix counts distinct keys, not leaf entries.
+                    entry_count: self
+                        .initial_indexes
+                        .get(ordinal)
+                        .map_or(0, InitialLongIndex::distinct_count),
+                },
+            )
             .collect::<Vec<_>>();
         let logical = logical_index_order(spec.indexes)
             .into_iter()
@@ -511,12 +526,12 @@ impl<'a> PlannedCreate<'a> {
         owned.encode_into(&mut owned_row, budget)?;
         available.encode_into(&mut available_row, budget)?;
         let mut rows: Vec<[u8; 133]> = vec![owned_row, available_row];
-        for (root, _) in self.plan.index_placements() {
+        for (ordinal, (root, _)) in self.plan.index_placements().enumerate() {
             rows.push(initial_index_map(
                 root,
-                self.data_end(),
-                self.initial_index
-                    .as_ref()
+                self.index_extra_start(ordinal),
+                self.initial_indexes
+                    .get(ordinal)
                     .map_or(0, InitialLongIndex::extra_page_count),
                 budget,
             )?);
