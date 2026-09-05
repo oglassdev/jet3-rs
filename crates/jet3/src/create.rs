@@ -566,4 +566,4 @@ mod tests;
 
 #[path = "create_relationship.rs"]
 mod relationship;
-pub use relationship::create_database_with_relationship;
+pub use relationship::{create_database_with_relationship, create_database_with_relationship_rows};

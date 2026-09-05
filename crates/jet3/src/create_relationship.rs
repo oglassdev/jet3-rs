@@ -1,8 +1,11 @@
 //! Atomic publication of the bounded EXP-0118/0122 relationship construction.
 
 use super::*;
-use crate::bootstrap_composer::compose_relationship;
-use crate::{CatalogObjectKind, RelationshipSide, RelationshipSpec};
+use crate::bootstrap_composer::{compose_relationship, compose_relationship_with_rows};
+use crate::{
+    CatalogObjectKind, IndexColumnSpec, IndexDirection, IndexSpec, RelationshipSide,
+    RelationshipSpec,
+};
 
 /// Creates two empty tables with one non-cascading Long-to-Long relationship.
 ///
@@ -46,6 +49,57 @@ pub fn create_database_with_relationship(
     .map_err(CreateDatabaseError::Publish)
 }
 
+/// Creates two tables with initial rows and one non-cascading Long relationship.
+///
+/// Requests must contain parent then child. The parent has exactly one
+/// ascending Long primary index on its relationship column; the child starts
+/// unindexed and receives an ordinary foreign index. Both relationship keys
+/// must be non-null Long values, every child key must occur in the parent,
+/// and each table is limited to 200 rows by its single index leaf. Repeated
+/// child keys are allowed. Other scalar columns may span data pages under
+/// the existing row bounds. AutoIncrement and long-value columns are refused.
+///
+/// Existing destinations are preserved, and complete written pages,
+/// reciprocal relationship metadata, rows and both index trees are checked
+/// before atomic publication. This bounded candidate construction does not
+/// establish general DAO compatibility or subsequent integrity enforcement.
+pub fn create_database_with_relationship_rows(
+    path: impl AsRef<Path>,
+    requests: &[TableRows<'_>],
+    relationship: &RelationshipSpec<'_>,
+    budget: &mut ResourceBudget,
+) -> Result<(), CreateDatabaseError> {
+    let [parent, child] = requests else {
+        return Err(CreateDatabaseError::Compose(
+            ComposeError::UnsupportedRelationship {
+                detail: "exactly two tables required",
+            },
+        ));
+    };
+    let tables = [parent.table, child.table];
+    let pages = compose_relationship_with_rows(requests, relationship, budget)
+        .map_err(CreateDatabaseError::Compose)?
+        .into_pages();
+    budget
+        .charge_work_units((pages.len() as u64).saturating_mul(crate::PAGE_BYTES as u64))
+        .map_err(|error| CreateDatabaseError::Compose(error.into()))?;
+    atomic_create(
+        path,
+        |file| write_pages(file, &pages),
+        |candidate| {
+            check_relationship_contents(
+                candidate,
+                &tables,
+                relationship,
+                &pages,
+                Some(requests),
+                budget,
+            )
+        },
+    )
+    .map_err(CreateDatabaseError::Publish)
+}
+
 fn check_relationship_candidate(
     candidate: &Path,
     tables: &[TableSpec<'_>],
@@ -53,10 +107,24 @@ fn check_relationship_candidate(
     pages: &[PlannedPage],
     budget: &mut ResourceBudget,
 ) -> Result<(), CandidateCheckError> {
+    check_relationship_contents(candidate, tables, relationship, pages, None, budget)
+}
+
+fn check_relationship_contents(
+    candidate: &Path,
+    tables: &[TableSpec<'_>],
+    relationship: &RelationshipSpec<'_>,
+    pages: &[PlannedPage],
+    requests: Option<&[TableRows<'_>]>,
+    budget: &mut ResourceBudget,
+) -> Result<(), CandidateCheckError> {
     let mismatch = |detail| CandidateCheckError::Mismatch { detail };
     let mut database =
         DatabaseReader::open(candidate, budget).map_err(CandidateCheckError::Open)?;
-    if tables.len() != 2 || database.geometry().page_count() != pages.len() as u64 {
+    if tables.len() != 2
+        || requests.is_some_and(|rows| rows.len() != 2)
+        || database.geometry().page_count() != pages.len() as u64
+    {
         return Err(mismatch("relationship geometry"));
     }
     let mut bytes = [0_u8; crate::PAGE_BYTES];
@@ -129,26 +197,47 @@ fn check_relationship_candidate(
         {
             return Err(mismatch("relationship endpoint"));
         }
-        for ordinal in 0..definition.physical_indexes().len() {
-            let ordinal =
-                u16::try_from(ordinal).map_err(|_| mismatch("relationship index count"))?;
-            if !database
-                .index_tree(&definition, ordinal, budget)
-                .map_err(CandidateCheckError::Index)?
-                .entries()
-                .is_empty()
-            {
-                return Err(mismatch("relationship index not empty"));
+        if let Some(requests) = requests {
+            let fields = [IndexColumnSpec {
+                column: relationship.child.column,
+                direction: IndexDirection::Ascending,
+            }];
+            let indexes = [IndexSpec {
+                name: relationship.name,
+                fields: &fields,
+                kind: IndexKind::Ordinary,
+            }];
+            let child = TableRows {
+                table: TableSpec {
+                    indexes: &indexes,
+                    ..requests[1].table
+                },
+                rows: requests[1].rows,
+            };
+            let request = if position == 0 { &requests[0] } else { &child };
+            check_initial_table_rows(&mut database, request, root, position == 0, budget)?;
+        } else {
+            for ordinal in 0..definition.physical_indexes().len() {
+                let ordinal =
+                    u16::try_from(ordinal).map_err(|_| mismatch("relationship index count"))?;
+                if !database
+                    .index_tree(&definition, ordinal, budget)
+                    .map_err(CandidateCheckError::Index)?
+                    .entries()
+                    .is_empty()
+                {
+                    return Err(mismatch("relationship index not empty"));
+                }
             }
-        }
-        if database
-            .rows(&definition, budget)
-            .map_err(CandidateCheckError::Rows)?
-            .next_row()
-            .map_err(CandidateCheckError::Rows)?
-            .is_some()
-        {
-            return Err(mismatch("relationship rows not empty"));
+            if database
+                .rows(&definition, budget)
+                .map_err(CandidateCheckError::Rows)?
+                .next_row()
+                .map_err(CandidateCheckError::Rows)?
+                .is_some()
+            {
+                return Err(mismatch("relationship rows not empty"));
+            }
         }
     }
     Ok(())

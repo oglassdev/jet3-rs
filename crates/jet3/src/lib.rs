@@ -130,7 +130,8 @@ pub use commit_state::{
 };
 pub use create::{
     CandidateCheckError, CreateDatabaseError, TableRows, create_database,
-    create_database_with_relationship, create_database_with_rows, create_database_with_table_rows,
+    create_database_with_relationship, create_database_with_relationship_rows,
+    create_database_with_rows, create_database_with_table_rows,
 };
 pub use database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 pub use database_header::{
