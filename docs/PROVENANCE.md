@@ -10457,3 +10457,43 @@ Copy this block under the appropriate section and remove this instruction:
 - Review: independent outcome review checked the retained JSON, input and
   artifact hashes, byte-identical report reconstruction, raw record fields,
   catalog values, index keys/maps, and scope boundaries; no findings.
+
+
+### EXP-0117 — Preregistered first-relationship candidate DAO validation
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: SHA-256-pinned local development preregistration; no acquisition
+  or acceptance observation has occurred under this plan
+- Question: Does DAO read the exact composed first `ParentChild` candidate
+  with the same table/field/index metadata, relation fields/options, and
+  empty user rows as three fresh same-schema DAO controls, without changing
+  either image during read-only opens?
+- Basis: `EXP-0114` supplies the exact relationship records, map placements,
+  IDs/ACEs, and index keys; the candidate retains the existing null-`LvProp`
+  bootstrap construction. This combination has no prior DAO acceptance.
+- Candidate: 59,392 bytes, SHA-256
+  `9afa3647fc3619cad95002eebdddf0dd14a9fe067a9621dcd0a3635b3582609d`,
+  exported from reviewed composer commit `1afb82de04dbe343dd55c14b974997b72ac364e3`
+  by the ignored `export_relationship_candidate` test. MDB bytes remain
+  outside the repository.
+- Plan: `oracle/windows-dao/acquisition/relationship-candidate.plan.json`,
+  SHA-256 `01357b430a038a450f88fef8e88e1c8477e99979d52f603eceb4763378af41f0`. The plan pins
+  acquisition/analyzer/transport inputs and the bounded candidate module
+  and exporter; the image hash itself binds the acquisition candidate.
+- Protocol: three fresh controls, each with `Parent(Id Long, Alternate Long)`
+  and primary `ById`, unique `ByAlternate`, then `Child(ParentId Long,
+  Alternate Long)` and zero-attribute `ParentChild` from `Id` to `ParentId`.
+  Read each control and candidate separately read-only; capture user-table
+  and field attributes, every index's flags and ordered field bindings,
+  relation fields/options, and complete empty-row snapshots. Rehash after
+  closing; no physical-byte equality with the controls is required.
+- Decision: unchanged complete candidate/control agreement across all three
+  replicas is `observed_accepted`; identical candidate failures/differences
+  with valid unchanged controls are `not_observed_accepted`; incomplete
+  acquisition, changed bytes, control failure, or replica disagreement is
+  `no_outcome`. Invalid identities reject validation. Standalone analysis
+  verifies input pins. No redispatch after first mutation without another
+  human decision.
+- Boundary: only this exact image and read-only endpoints; no generalized
+  relationship API, second relation, populated tables, cascades, integrity
+  enforcement, existing-database updates, or hosted support-matrix claim.
