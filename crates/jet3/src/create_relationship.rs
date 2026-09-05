@@ -55,8 +55,8 @@ pub fn create_database_with_relationship(
 /// ascending Long primary index on its relationship column; the child starts
 /// unindexed and receives an ordinary foreign index. Both relationship keys
 /// must be non-null Long values, every child key must occur in the parent,
-/// and each table is limited to 200 rows by its single index leaf. Repeated
-/// child keys are allowed. Other scalar columns may span data pages under
+/// and both index trees grow within the existing inline-map and resource
+/// limits. Repeated child keys are allowed. Other scalar columns may span data pages under
 /// the existing row bounds. AutoIncrement and long-value columns are refused.
 ///
 /// Existing destinations are preserved, and complete written pages,
