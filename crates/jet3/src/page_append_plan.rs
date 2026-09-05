@@ -36,6 +36,11 @@ impl PlannedPage {
         &self.image
     }
 
+    /// Replaces this slot's complete image without changing its number.
+    pub(crate) fn replace_image(&mut self, image: PageImage) {
+        self.image = image;
+    }
+
     /// Splits the planned page into its number and complete image.
     pub(crate) fn into_parts(self) -> (PageNumber, PageImage) {
         (self.number, self.image)

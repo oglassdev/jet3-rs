@@ -22,6 +22,11 @@ const EXISTING_PAGE_COUNT: usize = EMPTY_DATABASE_PAGE_COUNT as usize;
 /// Structured failure while aggregating a whole-file page plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WholeFilePlanError {
+    /// A requested replacement has no planned slot.
+    MissingPage {
+        /// Requested page number.
+        page: PageNumber,
+    },
     /// Resource accounting or allocation failed while retaining page plans.
     Resource(Error),
     /// A fresh image could not be appended.
@@ -31,6 +36,9 @@ pub enum WholeFilePlanError {
 impl fmt::Display for WholeFilePlanError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::MissingPage { page } => {
+                write!(formatter, "no planned page {} to replace", page.get())
+            }
             Self::Resource(source) => {
                 write!(formatter, "whole-file plan resource failure: {source}")
             }
@@ -42,6 +50,7 @@ impl fmt::Display for WholeFilePlanError {
 impl std::error::Error for WholeFilePlanError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::MissingPage { .. } => None,
             Self::Resource(source) => Some(source),
             Self::Append(source) => Some(source),
         }
@@ -120,6 +129,21 @@ impl WholeFileImagePlan {
         let number = planned.number();
         self.pages.push(planned);
         Ok(number)
+    }
+
+    /// Replaces one retained complete image without changing page numbering.
+    /// The caller remains responsible for references and allocation maps.
+    pub(crate) fn replace(
+        &mut self,
+        page: PageNumber,
+        image: PageImage,
+    ) -> Result<(), WholeFilePlanError> {
+        let slot = usize::try_from(page.get())
+            .ok()
+            .and_then(|slot| self.pages.get_mut(slot))
+            .ok_or(WholeFilePlanError::MissingPage { page })?;
+        slot.replace_image(image);
+        Ok(())
     }
 
     /// Consumes the aggregate and returns its ordered page plans.
