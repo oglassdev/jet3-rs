@@ -102,6 +102,16 @@ impl PhysicalIndexDefinition {
         &self.sourced_prefix
     }
 
+    /// EXP-0073: the prefix count records distinct full keys, not leaf entries.
+    pub(crate) const fn distinct_key_count(&self) -> u32 {
+        u32::from_le_bytes([
+            self.sourced_prefix[4],
+            self.sourced_prefix[5],
+            self.sourced_prefix[6],
+            self.sourced_prefix[7],
+        ])
+    }
+
     /// Returns the ordered physical key fields.
     #[must_use]
     pub fn fields(&self) -> &[IndexField] {

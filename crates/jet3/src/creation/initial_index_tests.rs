@@ -195,13 +195,6 @@ fn required_null_keys_and_unsupported_key_schemas_fail_before_publication() -> T
             ))
         ));
     }
-    let multiple = [
-        one_index(IndexKind::Ordinary)[0],
-        IndexSpec {
-            name: b"Other",
-            ..one_index(IndexKind::Ordinary)[0]
-        },
-    ];
     let composite = [IndexSpec {
         fields: &[
             field(0, IndexDirection::Ascending),
@@ -213,7 +206,7 @@ fn required_null_keys_and_unsupported_key_schemas_fail_before_publication() -> T
         fields: &[IndexColumnSpec::ascending(b"Code")],
         ..one_index(IndexKind::Ordinary)[0]
     }];
-    for indexes in [&multiple[..], &composite, &text] {
+    for indexes in [&composite, &text] {
         let table = TableSpec {
             name: b"Items",
             columns: &[ID, CODE],
@@ -305,3 +298,6 @@ mod nullable;
 
 #[path = "numeric_index_tests.rs"]
 mod numeric;
+
+#[path = "multiple_index_tests.rs"]
+mod multiple;
