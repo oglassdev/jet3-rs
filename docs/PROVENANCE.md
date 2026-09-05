@@ -11024,6 +11024,210 @@ Copy this block under the appropriate section and remove this instruction:
   Neither this plan nor self-validation establishes general compatibility,
   completion of #100 or support-matrix movement.
 
+## EXP-0161 — Pinned post-acquisition deletion comparison plan
+
+- Date: 2026-09-05.
+- Status: committed secondary-analysis plan; independent review and execution pending.
+- Plan: `oracle/windows-dao/acquisition/row-delete-reanalysis.plan.json`,
+  SHA-256 `cc9b9ac21f6910dbaf696540a3e5f0b2007fcb80b56506f70c9e4e3aec1c48a5`.
+- Source: EXP-0157 run `20260905T064000Z-row-delete-layout`, whose original
+  EXP-0158 outcome remains `no_outcome`. This is explicitly post-acquisition
+  secondary analysis, not preregistration of another acquisition.
+- Inputs: the plan pins the unchanged original plan, analyzer, decoder and
+  acquisition inputs, the new secondary analyzer, and all 40 retained files,
+  including the original result/report and all 27 checkpoint MDB identities.
+- Question: do the three replica transitions agree when unused bytes that
+  remain unchanged within each transition are retained as diagnostics rather
+  than required to have the same initial contents across fresh databases?
+- Finite comparison change: for decoded data-page pairs, compare exact header,
+  directory and stored-row spans from both states plus every changed byte.
+  Validate directory/row boundaries before deriving these spans. Preserve the
+  original exclusion of owner-address bytes `[4, 8)`; leave non-data images
+  and every other signature component unchanged. Changed unused bytes remain
+  comparison-bearing. Retain full original page images and whole-file change
+  ranges and enumerate every omitted unchanged unused span with its raw bytes.
+- Execution: reproduce the original report byte-identically first on temporary
+  copies, then use an isolated analyzer instance with only the comparison
+  function replaced. Require identical raw observations and preserve all
+  original acquisition/schema/row/identity/map/classification gates. Verify
+  input and artifact pins before and after; output must be new and outside
+  the source outbox. No DAO, new captures, redispatch or original-file edits.
+- Review must precede secondary execution. Record its outcome separately as
+  EXP-0162. No deletion implementation, compatibility or support claim follows
+  from this plan.
+
+## EXP-0158 — Deletion acquisition retained with replica-disagreement no outcome
+
+- Recorded: 2026-09-05, OpenAI Codex; validated `no_outcome` from the single
+  local run `20260905T064000Z-row-delete-layout`. Consumed EXP-0157 plan
+  SHA-256 `18c24390fc6429d839139719ccc11ae6049a236f77e42062592ee7f315355e7a`
+  and producer/analyzer source `fdb270a` remain unchanged. No retry occurred.
+- Retained result: 130713 bytes, SHA-256
+  `669248d038f9a910d0ec5870cf45f33587a1c3cc400823bdea388e56e0342bc4`.
+  Original report: 537270 bytes, SHA-256
+  `4ae900dea9a46d5400855698a09a6097ec0e3dec2a57f46251ab78ec6755b9a6`.
+  Pinned analysis reproduced it byte-for-byte on temporary copies. All forty
+  files in the original outbox, including working MDBs/logs, remained unchanged.
+- Acquisition completed all 27 planned captures without an acquisition error;
+  `mutation_started=true`. Every capture passed the unchanged read-only
+  identity and full DAO schema/row/raw correlation gates. All retained capture
+  identities match their before/after hashes. The report holds nine per-case/
+  replica observations but does not satisfy its overall answer rule.
+- Its sole reason is `tail: question-bearing replica disagreement`.
+  `replica_agreement` is false for tail, true for middle and sole. No successful
+  arm overrides that required gate. The independently recorded tombstone
+  hypothesis is true for all tail/middle replicas and false for all sole
+  replicas; false is not itself a failure under this plan.
+- Read-only diagnosis of the original signature: the only differing fields
+  are tail `page_bytes_without_owner` in both before/after states of both
+  transitions. After restoring the removed four owner bytes, all differences
+  lie within data-page 23 offsets `[53,90)` or `[1920,1923)`. They already differ
+  at the before checkpoint and each replica retains its own bytes through
+  both deletion and insertion. Header, directories, row payloads/counts and
+  map-membership signature fields do not differ across tail replicas.
+- These offsets are outside every decoded directory and row span in the three
+  checkpoints. The directory ends at 18 bytes before/deleted and 20 inserted;
+  the earliest row starts at 2008 before/inserted and 2018 deleted. Thus the
+  gate compared opaque unused bytes as well as the question-bearing records.
+  This explains the disagreement; it does not reinterpret the original result,
+  establish a deletion algorithm or promote selected format observations.
+- A separately pinned, reviewed post-acquisition analysis may distinguish
+  structurally unused bytes from header/directory/row comparisons while
+  retaining all raw bytes, exact transitions and their real variability.
+  No such correction or new DAO acquisition is part of EXP-0158. Original
+  `no_outcome`, compatibility=false and support-movement=false remain intact.
+
+## EXP-0157 — Ordinary-row deletion transitions preregistered
+
+- Recorded: 2026-09-05, OpenAI Codex; local development discovery plan,
+  not an acquisition or writer acceptance result. Plan
+  `oracle/windows-dao/acquisition/row-delete-layout.plan.json`, SHA-256
+  `18c24390fc6429d839139719ccc11ae6049a236f77e42062592ee7f315355e7a`, pins the single DAO
+  producer, analyzer, unchanged structural decoder and ordinary SSH transport.
+- Three fresh replicas each cover tail, middle and sole-row deletion from
+  unindexed `Rows(Id Long, Value Long)`. Tail/middle start with four declared
+  rows and delete Id 4/2 respectively; sole starts with Id 1 and deletes it.
+  Each database closes before the `before` checkpoint, reopens for exactly one
+  FindFirst/Delete, closes for `deleted`, then reopens for one explicit
+  `(99,-9900)` insert and closes for `inserted`. Retained checkpoint copies
+  are observed read-only with before/after hashes: 27 planned captures.
+- Correlate complete DAO schema and exact surviving values with typed raw rows,
+  row locators, active table counts, complete data pages/directories, definition
+  pages, header page and owned/available/global-map observations. Retain every
+  whole-file changed byte range and its old/new bytes, including opaque catalog
+  differences; no changed range is discarded or assigned guessed semantics.
+- `answered` requires all captures, unchanged identities and correlations plus
+  stable question-bearing directory/payload/page-header-with-owner-removed and
+  per-data-page owned/available/global-free transitions across replicas. Do not
+  demand identical absolute allocator addresses or opaque timestamp/catalog
+  bytes. Record the zero-length `0xc000` tombstone hypothesis independently;
+  stable disagreement still answers the planned question.
+- Existing facts are `SRC-0020`/EXP-0060 directory/row grammar, EXP-0063's
+  page-end tombstone diagnosis, EXP-0057 map roles, and EXP-0136 ordinary table
+  count/state changes. The unchanged decoder keeps its 64-row-per-page bound;
+  this finite experiment has at most four user rows and no Auto/index/LVAL/
+  relationship/variable-width data, compaction, or implicit counter generation.
+- Commit and independently review before the first DAO mutation. One dispatch,
+  no automatic retry/resume; failed or incomplete acquisition is `no_outcome`,
+  with partial working MDBs and logs retained externally. A new attempt after
+  mutation needs a human decision. Record one additive EXP-0158 outcome.
+  No generalized deletion/reuse/free-space/allocator policy, Rust deletion
+  acceptance, compatibility or hosted support claim follows from this plan.
+
+## EXP-0152 — Existing DAO files accept the bounded Long field updates
+
+- Recorded: 2026-09-05, OpenAI Codex; validated local development outcome
+  `observed_accepted`, nine observations with no report reasons. Consumed
+  EXP-0151 plan SHA-256
+  `d989a40b80cdfa2f885693cab46765738ef5f02287ca1f040d3a380e756eb326`,
+  acquisition source `b803f42`, public-update source `40ba58c` remain unchanged.
+- Retained coordinated run `20260905T063500Z-field-update`: result 4162 bytes,
+  SHA-256 `fa6111fc8a303c00b6fe478c104b1121d51f46fce77eb09000ef1a818845e545`;
+  report 14464 bytes, SHA-256
+  `a5838137337a6cf836a3f913f92092eb5c588e1f9476b26907bca1eb7d9c09a6`.
+  Pinned analysis reproduced the report byte-for-byte on temporary copies;
+  all 33 files in the retained coordinated outbox remained unchanged.
+- Windows DAO created and closed all nine original files before Linux copied
+  and updated them. The final Windows phase opened originals and updated
+  copies read-only. Both phase documents pass their identity/completion gates:
+  create 138659 bytes, SHA-256
+  `1ec03af6bafee63be51267476c1c304515198a60f1d252041382a95dd29191f8`;
+  observe 276840 bytes, SHA-256
+  `14249d767077ee953fcd99ff53fae756d3be654cd3d235ed72ad131a242f3477`.
+  The receipt records POSIX production through the public update API.
+- Each case has three accepted replicas. All eighteen retained original/updated
+  images are 57344 bytes; every original hash remains unchanged through Linux
+  copying/updating and the final read-only DAO observation. Updated hashes match
+  the Unix output and both read-only DAO identities. Individual hashes remain
+  in the validated report; no MDB or provider bytes are committed.
+- Independently decoded row/column spans match the requested replacements:
+
+  | Case | Table and original Id | Column | Before → after | Span offset | Changed bytes |
+  | --- | --- | --- | --- | ---: | ---: |
+  | first-field | Items / 1 | Id | 1 → -2147483648 | 49135 | 2 |
+  | later-row | Items / 3 | Value | 303 → 2147483647 | 49102 | 4 |
+  | later-table | Later / 12 | Value | 1202 → -123456789 | 55257 | 4 |
+
+  Each span is four bytes; unchanged bytes within the first span explain its
+  two differing bytes. Offsets repeat across the three replicas of each case.
+  Every byte outside the intended span remains identical to its original.
+- Complete DAO schema, field attributes/properties, empty index/relationship
+  inventories and all six user rows match the declared request. Only the
+  selected Long changes; both tables' Text payloads and all other row values
+  remain unchanged. Stored `KeepQuery` retains type 0 and exact SQL bytes
+  represented as `SELECT [Id], [Value]\r\nFROM Items;\r\n`; no query execution or
+  interpretation was needed for preservation.
+- This is finite local evidence for present ordinary Long replacements in
+  these unindexed, relationship-free existing files, including a later row
+  and later table. It does not establish null/Auto/index/relationship/overflow
+  updates, deletion/insertion, arbitrary existing-file compatibility or
+  hosted update support. Report compatibility/support flags remain false.
+
+## EXP-0151 — Existing-file Long field update validation preregistered
+
+- Recorded: 2026-09-05, OpenAI Codex; local development acquisition plan,
+  no acquisition or compatibility outcome yet. Plan
+  `oracle/windows-dao/acquisition/field-update.plan.json`, SHA-256
+  `26ae94929c64304a9cee320846fe441292d781108b982e683385cb4d125085ad`, pins the phased
+  producer/analyzer, transport, decoder, public exporter and relevant source
+  inputs. Reviewed field-update implementation is `7ee3b4a`.
+- One coordinated acquisition has three finite cases and three replicas each.
+  Windows DAO first creates nine originals, each with `Items` and `Later`
+  unindexed tables containing `Id`/`Value` Long and `Payload` Text(20), three
+  declared non-null rows each, plus stored `KeepQuery` SQL. It closes every
+  writable handle before read-only baseline capture and before guest exit.
+- Linux then preserves each original and invokes the public `update_field`
+  API once on a separate copy, using reader-selected row/column references:
+  `Items` Id 1 changes Id to -2147483648; `Items` Id 3 changes Value to
+  2147483647; `Later` Id 12 changes Value to -123456789. No Windows publication
+  workaround or private page-composer bypass is used.
+- Only after successful baseline/request checks and all Unix updates does the
+  second Windows phase open transferred original/updated copies read-only.
+  Compare complete captured table/field/index/relationship metadata and rows,
+  preserve uninterpreted query name/SQL/type, and bind every file to its
+  arm/replica/role and before/after/transfer identity. Independently decode the
+  original catalog, row locator and present Long span; require exact updated
+  bytes in that four-byte span and byte-for-byte preservation everywhere else.
+  Decoder's existing 64-row bound remains unchanged for these three-row tables.
+- Commit and independently review this plan before the first DAO mutation.
+  Neither phase retries or resumes after failure. Missing/failed acquisition,
+  transfer, update, schema/row comparison or preservation checks produce an
+  honest `no_outcome`; retain partial files/results and phase logs externally.
+  A new attempt after mutation requires a human decision. EXP-0152 is reserved
+  for the single validated result; no MDB/provider bytes are committed.
+- This tests only the declared present Long replacements in unindexed,
+  relationship-free tables. No null/Auto/index/relationship/overflow update,
+  insert/delete behavior, arbitrary existing-file compatibility or hosted
+  support claim follows from this plan or structural self-verification.
+
+- Pre-acquisition review resolved the Unix result-envelope/source-receipt check
+  and strengthened the public updater's independent relationship-catalog guard.
+  Final reviewed implementation is `40ba58c`; the still-unconsumed EXP-0151
+  plan now has SHA-256
+  `d989a40b80cdfa2f885693cab46765738ef5f02287ca1f040d3a380e756eb326`. Source/input pins
+  were refreshed before acquisition. The result requires the declared reviewed
+  source and POSIX producer, with the harness checkout recorded separately.
+
 ## EXP-0138 — Generated AutoIncrement candidates and subsequent inserts accepted locally
 
 - Status: validated `observed_accepted` for all three EXP-0137 arms and all
@@ -11989,6 +12193,45 @@ Copy this block under the appropriate section and remove this instruction:
   collation, GUID/Memo/OLE indexes, arbitrary Binary lengths, existing-row
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
+
+## EXP-0155 — Nullable initial-index candidate preregistration
+
+- Date: 2026-09-05. Development-only local DAO validation; no acquisition yet.
+- Plan: `oracle/windows-dao/acquisition/nullable-index.plan.json`, SHA-256
+  `8caa3cc7417004fedd745dcce28681b21f01c9776361bc73a199fe6764f98829`. Outcome reserved as EXP-0156.
+- Candidate source: reviewed `6a0e4537e7986a4b04db7616f5537cb306f17e2c`,
+  exporter `crates/jet3/examples/nullable_index_candidate.rs`. Plan pins exporter,
+  new producer/analyzer, reused bounded tree/catalog decoders and transport.
+- Six arms each have an empty first table and indexed later table. `unique`,
+  `ignore` and `required` contain 12 rows; `composite` contains 30,000;
+  `composite-ignore` and `auto` contain 1,200. Every row has a distinct Long
+  payload. Auto generates B from 1; other modes retain the exact null/non-null
+  formula and insertion order in the plan. The two-field key is A ascending,
+  B descending. Candidate tree depths are 1/1/1/3/2/2 respectively.
+- Three fresh matched DAO controls per arm; full field/Auto/index/relation
+  metadata and null-preserving row multisets, complete ordered traversal,
+  and the finite non-null Seek inventory must match. Seek may return any
+  actual matching duplicate row; all duplicates remain covered by traversal.
+  Raw decoding binds every complete variable-width key to its actual row
+  locator, distinct count, graph, separators, siblings and allocation maps.
+- Unique/ignore/composite copies attempt one duplicate fully-present key;
+  required copies attempt one null key. Each control and candidate gets its
+  own writable copy. Capture actual Update rejection codes/HRESULT, match
+  them to controls and require the complete original logical post-state.
+  Read-only originals stay unchanged. Null Seek and nullable relationships
+  are outside this finite experiment.
+- All 18 baseline controls and 12 control probes gate classification. Three
+  agreeing candidate observations per arm can yield observed acceptance;
+  incomplete jobs, failed controls, disagreement or unexpected failures give
+  `no_outcome`. Retain 60 MDBs and the result externally. Every mutation is
+  attempted once; no automatic retry or resume. Timeout is 3,600 seconds.
+- Format inputs are EXP-0148 null components/flags/uniqueness/omission,
+  EXP-0146 finite branch-marker acceptance, EXP-0062 tree grammar, EXP-0073
+  distinct counts and EXP-0057/EXP-0065 map roles. This tests the writer's
+  bounded policy, not DAO allocation thresholds or general index updates.
+- Focused classifier/null/Seek/input tests and candidate structural preflight
+  pass. Windows PowerShell parser-only check passes without DAO execution.
+  Independent review pending; no compatibility claim or support movement.
 
 ## EXP-0148 — Remaining Date/Binary/null index observations answered
 

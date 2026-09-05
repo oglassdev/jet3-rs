@@ -1,0 +1,200 @@
+{
+  "experiment": "EXP-0161",
+  "outcome": "EXP-0162",
+  "kind": "post-acquisition retained-artifact secondary analysis",
+  "source_commit": "df987adb3b445e3c59e0f7b4f251bb92fdd83100",
+  "source_run": "20260905T064000Z-row-delete-layout",
+  "source_outcome": "no_outcome",
+  "comparison_change": "For pairs of decoded data pages only, replace whole-page bytes excluding owner with exact header/directory/stored-row bytes from both states plus every byte changed within the transition. Omit only unchanged bytes outside both active spans. Owner bytes 4..8 remain excluded exactly as in the original signature. Non-data pages and all other signature fields unchanged.",
+  "gates": "Reproduce original report exactly first; original acquisition, schema, identity, row, map, structural and classification checks unchanged. Require raw observations identical. Retain complete raw pages and whole-file changed ranges, and explicitly enumerate omitted unchanged unused spans including their raw bytes. Replica disagreement remains no_outcome. Original result and report never overwritten.",
+  "execution": "Commit and independently review this secondary plan before analysis. Preflight only hashes inputs/artifacts. Analyze on temporary copies with output outside source outbox and no overwrite; no DAO, redispatch, new capture, or retry. This plan is post-acquisition, not a preregistration of new acquisition.",
+  "scope": "Only the three tail/middle/sole arms and three replicas captured in EXP-0157. No deletion API, compatibility or support claim.",
+  "inputs": {
+    "oracle/windows-dao/scripts/row_delete_reanalysis.py": {
+      "size": 6799,
+      "sha256": "81a1d83905a92c371380a5b5dbe0af11dfe1ab8cbec40a141bd9a6150c176d1c"
+    },
+    "oracle/windows-dao/scripts/row_delete_layout.py": {
+      "size": 13471,
+      "sha256": "74c30a55148ec5efe4c04a154917e8780c06a63442d28c0d0b3453b968142088"
+    },
+    "oracle/windows-dao/scripts/system_catalog.py": {
+      "size": 74849,
+      "sha256": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9"
+    },
+    "oracle/windows-dao/acquisition/row-delete-layout.plan.json": {
+      "size": 3670,
+      "sha256": "18c24390fc6429d839139719ccc11ae6049a236f77e42062592ee7f315355e7a"
+    },
+    "oracle/windows-dao/scripts/row_delete_layout.ps1": {
+      "size": 5797,
+      "sha256": "0d7507eefe0e4ecc76e87c57e79f6b8667a9b35533bffebb38ab6845a6a16a5f"
+    },
+    "scripts/windows-dao-ps.py": {
+      "size": 5676,
+      "sha256": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9"
+    }
+  },
+  "artifacts": {
+    "exit.txt": {
+      "size": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    "log.txt": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "middle-r1-before.mdb": {
+      "size": 49152,
+      "sha256": "b992dc77b3ac2516514d7d3dbf9e665997eb917249ae96ef31730d5a34748597"
+    },
+    "middle-r1-deleted.mdb": {
+      "size": 49152,
+      "sha256": "2e54fff7084cb44b019771b7c8529de7fb683c2cb192e633faa79ddb4f00bb59"
+    },
+    "middle-r1-inserted.mdb": {
+      "size": 49152,
+      "sha256": "9487a40c2e0a89762970ce5e18d7d70a6d5322decf49069c6171fdb850214974"
+    },
+    "middle-r1-working.mdb": {
+      "size": 49152,
+      "sha256": "9487a40c2e0a89762970ce5e18d7d70a6d5322decf49069c6171fdb850214974"
+    },
+    "middle-r2-before.mdb": {
+      "size": 49152,
+      "sha256": "f34dcc03fdb8c0f8f5abf53f34c5a077804735675ae55bd3a634fe68614fb009"
+    },
+    "middle-r2-deleted.mdb": {
+      "size": 49152,
+      "sha256": "27a3dcd694d3739a3eb8d3355e408d6969331a827c897c0a502b016e698643b6"
+    },
+    "middle-r2-inserted.mdb": {
+      "size": 49152,
+      "sha256": "9776f310104991a996b16b4742b3bebe0eaaff069912c2beb27856c595d6c91c"
+    },
+    "middle-r2-working.mdb": {
+      "size": 49152,
+      "sha256": "9776f310104991a996b16b4742b3bebe0eaaff069912c2beb27856c595d6c91c"
+    },
+    "middle-r3-before.mdb": {
+      "size": 49152,
+      "sha256": "38eb1d22e5617fd4e67b4ea3d963edcb688f34c3f659a5bb1179ce00feb5d546"
+    },
+    "middle-r3-deleted.mdb": {
+      "size": 49152,
+      "sha256": "76ed5fa0f24b73803d2307a989f5e57b1a84e183bd6dc044ed6cce2ae40fe62e"
+    },
+    "middle-r3-inserted.mdb": {
+      "size": 49152,
+      "sha256": "b983087d66ca42717507f8a84389073cf73726ab62fb40e2d032af1549a11865"
+    },
+    "middle-r3-working.mdb": {
+      "size": 49152,
+      "sha256": "b983087d66ca42717507f8a84389073cf73726ab62fb40e2d032af1549a11865"
+    },
+    "report.json": {
+      "size": 537270,
+      "sha256": "4ae900dea9a46d5400855698a09a6097ec0e3dec2a57f46251ab78ec6755b9a6"
+    },
+    "result.json": {
+      "size": 130713,
+      "sha256": "669248d038f9a910d0ec5870cf45f33587a1c3cc400823bdea388e56e0342bc4"
+    },
+    "sole-r1-before.mdb": {
+      "size": 49152,
+      "sha256": "9498b3fad5b202b238dd537b523337bf024387b5954524cd5db096649f23ddcc"
+    },
+    "sole-r1-deleted.mdb": {
+      "size": 49152,
+      "sha256": "8ba62799344e3794dbca59bcdcb55e068629b7daf8bd1f5f9c1abd540f26d080"
+    },
+    "sole-r1-inserted.mdb": {
+      "size": 49152,
+      "sha256": "9cd22d0eba942cad7cc463e30e9031d43a3353cb02856cb752a58683fa51fa4f"
+    },
+    "sole-r1-working.mdb": {
+      "size": 49152,
+      "sha256": "9cd22d0eba942cad7cc463e30e9031d43a3353cb02856cb752a58683fa51fa4f"
+    },
+    "sole-r2-before.mdb": {
+      "size": 49152,
+      "sha256": "7c3413b1c19781c62f2b3153ae415b37bed39ee7dbad01274f56da079d2aac2c"
+    },
+    "sole-r2-deleted.mdb": {
+      "size": 49152,
+      "sha256": "a641ef85ab99c091d1acc377df3593a9792a093c68dbfdcd813ff2463db6eb24"
+    },
+    "sole-r2-inserted.mdb": {
+      "size": 49152,
+      "sha256": "1d449c652891723eb0d992714ddb2e99312905e1ff7b482b39c07ba3d0ea5777"
+    },
+    "sole-r2-working.mdb": {
+      "size": 49152,
+      "sha256": "1d449c652891723eb0d992714ddb2e99312905e1ff7b482b39c07ba3d0ea5777"
+    },
+    "sole-r3-before.mdb": {
+      "size": 49152,
+      "sha256": "da83ed50150ecf8f079dd1cf6e9e80a267cd469481a1dd8218c58e5f85d1d35f"
+    },
+    "sole-r3-deleted.mdb": {
+      "size": 49152,
+      "sha256": "4b6a47c40670243bf65a4c049868069afd4caf39c5851ce8fb11a46aae6dad16"
+    },
+    "sole-r3-inserted.mdb": {
+      "size": 49152,
+      "sha256": "67f676fc50fa31d39df749d9e37dc127716d68a2e5aa5df4300bc164a7c83e99"
+    },
+    "sole-r3-working.mdb": {
+      "size": 49152,
+      "sha256": "67f676fc50fa31d39df749d9e37dc127716d68a2e5aa5df4300bc164a7c83e99"
+    },
+    "tail-r1-before.mdb": {
+      "size": 49152,
+      "sha256": "f274a501b440e5bf323bbee9801350b4e6519e1ed1f9d208f1431bc688c12563"
+    },
+    "tail-r1-deleted.mdb": {
+      "size": 49152,
+      "sha256": "877f9769323caedbfa7f15f22b23e512328ef7089511ab3b7d03c2ab30b39f2f"
+    },
+    "tail-r1-inserted.mdb": {
+      "size": 49152,
+      "sha256": "c3e2b325b7ca8b014b7a59076bf423dd84b3d6f49208dd45079372b48eacf3f1"
+    },
+    "tail-r1-working.mdb": {
+      "size": 49152,
+      "sha256": "c3e2b325b7ca8b014b7a59076bf423dd84b3d6f49208dd45079372b48eacf3f1"
+    },
+    "tail-r2-before.mdb": {
+      "size": 49152,
+      "sha256": "2b2bfe4f1c17971046cd2ea4ff974e9efb6a364e2af3833843c446da84b1dc0d"
+    },
+    "tail-r2-deleted.mdb": {
+      "size": 49152,
+      "sha256": "1935d21bf8fcf8223fb051f48af11d3e232198cb088b156d0069102be39a51ef"
+    },
+    "tail-r2-inserted.mdb": {
+      "size": 49152,
+      "sha256": "754ed876e8f30567c0f6a74b411d029297bf566fcce1839ace635e13af18d4e9"
+    },
+    "tail-r2-working.mdb": {
+      "size": 49152,
+      "sha256": "754ed876e8f30567c0f6a74b411d029297bf566fcce1839ace635e13af18d4e9"
+    },
+    "tail-r3-before.mdb": {
+      "size": 49152,
+      "sha256": "19640771b4ec7ec13a17181d27ea457520cac730502bd34c56e4942463d36a13"
+    },
+    "tail-r3-deleted.mdb": {
+      "size": 49152,
+      "sha256": "176524ca2a2f04a116c9aea2b6726ad8ecadf43c5e499966eb3777ceed31fb6d"
+    },
+    "tail-r3-inserted.mdb": {
+      "size": 49152,
+      "sha256": "6064ba76f3d974246ea8e377c99d1310332f7399586ad2d728412709b554b3bf"
+    },
+    "tail-r3-working.mdb": {
+      "size": 49152,
+      "sha256": "6064ba76f3d974246ea8e377c99d1310332f7399586ad2d728412709b554b3bf"
+    }
+  }
+}
