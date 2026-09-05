@@ -24,7 +24,7 @@ pub struct RelationshipColumn<'a> {
     pub column: ColumnRef<'a>,
 }
 
-/// One non-cascading relationship between two empty tables.
+/// One non-cascading relationship between two tables.
 ///
 /// Names are database-encoded bytes, subject to the bounded creation name
 /// encoder. See [`crate::create_database_with_relationship`] for schema limits.
@@ -63,6 +63,7 @@ pub(super) struct RelationshipPlan<'a> {
     pub(super) child_column: u16,
     pub(super) hidden_name: &'static [u8],
     pub(super) selector: u32,
+    pub(super) end_of_tables: u64,
 }
 
 fn invalid(detail: &'static str) -> ComposeError {
@@ -89,6 +90,12 @@ impl<'a> RelationshipPlan<'a> {
         let parent = plan_table_schema(&tables[0], EMPTY_DATABASE_PAGE_COUNT, true)?;
         let child_root = parent.definition_root().get() + parent.appended_page_count();
         let child = plan_table_schema(&tables[1], child_root, false)?;
+        if tables[0].name.eq_ignore_ascii_case(tables[1].name) {
+            return Err(ComposeError::DuplicateTableName {
+                first: 0,
+                second: 1,
+            });
+        }
         if parent.continuation_page().is_some() || child.continuation_page().is_some() {
             return Err(invalid("definition continuations are unsupported"));
         }
@@ -162,6 +169,7 @@ impl<'a> RelationshipPlan<'a> {
                 "additional parent index must be ascending unique on one Long column",
             ));
         }
+        let end_of_tables = child.definition_root().get() + child.appended_page_count();
         Ok(Self {
             tables,
             spec,
@@ -171,11 +179,12 @@ impl<'a> RelationshipPlan<'a> {
             child_column,
             hidden_name,
             selector,
+            end_of_tables,
         })
     }
 
     pub(super) fn data_page(&self) -> u64 {
-        self.child.definition_root().get() + self.child.appended_page_count()
+        self.end_of_tables
     }
     pub(super) fn index_page(&self) -> u64 {
         self.data_page() + 1

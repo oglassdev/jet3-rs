@@ -100,11 +100,23 @@ pub(crate) fn compose_relationship(
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, ComposeError> {
     let relation = RelationshipPlan::new(tables, relationship)?;
-    let mut plan = compose_database(tables, budget)?;
+    let plan = compose_database(tables, budget)?;
     let creates = [
         PlannedCreate::new(&tables[0], relation.parent.definition_root().get(), true)?,
         PlannedCreate::new(&tables[1], relation.child.definition_root().get(), false)?,
     ];
+    assemble_relationship(&relation, &creates, plan, None, budget)
+}
+
+fn assemble_relationship(
+    relation: &RelationshipPlan<'_>,
+    creates: &[PlannedCreate<'_>],
+    mut plan: WholeFileImagePlan,
+    child_index: Option<&InitialLongIndex>,
+    budget: &mut ResourceBudget,
+) -> Result<WholeFileImagePlan, ComposeError> {
+    let tables = relation.tables;
+    let relationship = relation.spec;
     let seed = CatalogSeed {
         name: relationship.name,
         ..RELATION
@@ -138,11 +150,11 @@ pub(crate) fn compose_relationship(
         ),
         (
             OBJECTS_PARENT_NAME_ROOT,
-            objects_parent_name_index(&creates, Some(seed), budget)?,
+            objects_parent_name_index(creates, Some(seed), budget)?,
         ),
         (
             OBJECTS_ID_ROOT,
-            objects_id_index(&creates, Some(seed), budget)?,
+            objects_id_index(creates, Some(seed), budget)?,
         ),
         (
             SHARED_MAP_PAGE,
@@ -150,15 +162,15 @@ pub(crate) fn compose_relationship(
         ),
         (
             ACES_OBJECT_ID_ROOT,
-            aces_index(&creates, &RELATION_ACES, budget)?,
+            aces_index(creates, &RELATION_ACES, budget)?,
         ),
         (
             MSYS_OBJECTS_DATA_PAGE,
-            objects_data_page(&creates, Some(seed), budget)?,
+            objects_data_page(creates, Some(seed), budget)?,
         ),
         (
             MSYS_ACES_DATA_PAGE,
-            aces_data_page(&creates, &RELATION_ACES, budget)?,
+            aces_data_page(creates, &RELATION_ACES, budget)?,
         ),
         (
             RELATIONSHIPS_NAME_ROOT,
@@ -174,15 +186,27 @@ pub(crate) fn compose_relationship(
         ),
         (
             relation.parent.definition_root().get(),
-            user_definition(&relation, true, budget)?,
+            user_definition(
+                relation,
+                true,
+                creates[0].row_count(),
+                creates[0].index_distinct_count(),
+                budget,
+            )?,
         ),
         (
             relation.child.definition_root().get(),
-            user_definition(&relation, false, budget)?,
+            user_definition(
+                relation,
+                false,
+                creates[1].row_count(),
+                child_index.map_or(0, InitialLongIndex::distinct_count),
+                budget,
+            )?,
         ),
         (
             relation.child.map_page().get(),
-            child_map(relation.index_page(), budget)?,
+            creates[1].map_page(Some(PageNumber::new(relation.index_page())), budget)?,
         ),
     ];
     for (page, image) in replacements {
@@ -190,12 +214,15 @@ pub(crate) fn compose_relationship(
     }
     let mut global_free = global_map(relation.data_page(), budget)?;
     plan.append(
-        relationship_data(&relation, budget)?,
+        relationship_data(relation, budget)?,
         &mut global_free,
         budget,
     )?;
     plan.append(
-        empty_index_page(relation.child.definition_root().get(), budget)?,
+        match child_index {
+            Some(index) => index.image(relation.child.definition_root(), budget)?,
+            None => empty_index_page(relation.child.definition_root().get(), budget)?,
+        },
         &mut global_free,
         budget,
     )?;
@@ -205,6 +232,8 @@ pub(crate) fn compose_relationship(
 fn user_definition(
     relation: &RelationshipPlan<'_>,
     parent: bool,
+    row_count: u32,
+    entry_count: u32,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
     let child_fields = [IndexFieldSpec {
@@ -217,7 +246,7 @@ fn user_definition(
         usage_map_row: 2,
         root: PageNumber::new(relation.index_page()),
         flags: PhysicalIndexFlagsSpec::Ordinary,
-        entry_count: 0,
+        entry_count,
     }];
     let mut parent_physical = [child_physical[0]; 2];
     for (slot, (((root, row), index), fields)) in parent_physical.iter_mut().zip(
@@ -233,7 +262,7 @@ fn user_definition(
             usage_map_row: row,
             root,
             flags: index.kind.flags(),
-            entry_count: 0,
+            entry_count,
         };
     }
     let relationship_index = LogicalIndexSpec {
@@ -299,17 +328,11 @@ fn user_definition(
             indexes: &logical[..logical_count],
             owned_map: MapRowLocator::new(map, 0),
             available_map: MapRowLocator::new(map, 1),
-            row_count: 0,
+            row_count,
             long_value_maps: &[],
         },
         budget,
     )
-}
-
-fn child_map(index_page: u64, budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
-    let empty = inline_map_row(&[], budget)?;
-    let index = inline_map_row(&[index_page], budget)?;
-    data_page(HEADER_PAGE, &[&empty, &empty, &index], budget)
 }
 
 fn relationship_data(
@@ -364,3 +387,7 @@ mod tests;
 #[cfg(test)]
 #[path = "bootstrap_relationship_parameterized_tests.rs"]
 mod parameterized_tests;
+
+#[path = "bootstrap_relationship_rows.rs"]
+mod initial_rows;
+pub(crate) use initial_rows::compose_relationship_with_rows;

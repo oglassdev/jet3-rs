@@ -61,6 +61,7 @@ pub(super) struct PlannedCreate<'a> {
 struct InitialDataPage {
     image: PageImage,
     available: bool,
+    rows: u16,
 }
 
 impl<'a> PlannedCreate<'a> {
@@ -207,9 +208,11 @@ impl<'a> PlannedCreate<'a> {
                     kind: std::io::ErrorKind::OutOfMemory,
                 })?;
         }
+        let rows = builder.row_count();
         self.initial_data.push(InitialDataPage {
             image: finish_data_builder(builder, budget)?,
             available,
+            rows,
         });
         Ok(())
     }
@@ -229,6 +232,29 @@ impl<'a> PlannedCreate<'a> {
                 .as_ref()
                 .map_or(0, InitialLongValues::page_count)
             + self.initial_data.len() as u64
+    }
+
+    pub(super) const fn row_count(&self) -> u32 {
+        self.initial_row_count
+    }
+
+    pub(super) fn index_distinct_count(&self) -> u32 {
+        self.initial_index
+            .as_ref()
+            .map_or(0, InitialLongIndex::distinct_count)
+    }
+
+    /// Logical row locations in the same order used while packing initial data.
+    pub(super) fn initial_row_locators(&self) -> impl Iterator<Item = crate::RowLocator> + '_ {
+        let first = self.page_count() - self.initial_data.len() as u64;
+        self.initial_data
+            .iter()
+            .enumerate()
+            .flat_map(move |(page, data)| {
+                (0..data.rows).map(move |slot| {
+                    crate::RowLocator::new(PageNumber::new(first + page as u64), slot as u8)
+                })
+            })
     }
 
     /// Returns the catalog row the create adds (`EXP-0087`).
@@ -263,7 +289,7 @@ impl<'a> PlannedCreate<'a> {
     ) -> Result<(), ComposeError> {
         let (root, continuation) = self.definition_pages(budget)?;
         plan.append(root, append_map, budget)?;
-        plan.append(self.map_page(budget)?, append_map, budget)?;
+        plan.append(self.map_page(None, budget)?, append_map, budget)?;
         if self.plan.property_page().is_some() {
             let lval = DataPageBuilder::new_long_value(budget)?;
             plan.append(finish_data_builder(lval, budget)?, append_map, budget)?;
@@ -394,7 +420,14 @@ impl<'a> PlannedCreate<'a> {
     }
 
     /// Builds the map page with the rows the definition names.
-    fn map_page(&self, budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
+    pub(super) fn map_page(
+        &self,
+        foreign_index: Option<PageNumber>,
+        budget: &mut ResourceBudget,
+    ) -> Result<PageImage, ComposeError> {
+        if foreign_index.is_some() && (!self.spec.indexes.is_empty() || self.long_value.is_some()) {
+            return Err(ComposeError::UnobservedMapRowLayout);
+        }
         let empty = inline_map_row(&[], budget)?;
         let mut owned = InlineUsageMapEncoder::new(
             PageNumber::new(0),
@@ -426,6 +459,9 @@ impl<'a> PlannedCreate<'a> {
         let mut rows: Vec<[u8; 133]> = vec![owned_row, available_row];
         for (root, _) in self.plan.index_placements() {
             rows.push(inline_map_row(&[root.get()], budget)?);
+        }
+        if let Some(index) = foreign_index {
+            rows.push(inline_map_row(&[index.get()], budget)?);
         }
         if self.long_value.is_some() {
             let maps = match &self.initial_long_values {

@@ -766,5 +766,5 @@ mod tests;
 #[path = "bootstrap_relationship_candidate.rs"]
 mod relationship_candidate;
 
-pub(crate) use relationship_candidate::compose_relationship;
 pub use relationship_candidate::{RelationshipColumn, RelationshipSpec, TableRef};
+pub(crate) use relationship_candidate::{compose_relationship, compose_relationship_with_rows};
