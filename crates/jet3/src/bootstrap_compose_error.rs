@@ -5,6 +5,9 @@ use super::*;
 /// Structured failure while composing a database image.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ComposeError {
+    /// Initial rows require an unindexed, single-page definition without
+    /// AutoIncrement or long-value columns.
+    UnsupportedInitialRowSchema,
     /// A table definition could not be encoded.
     Definition(TableDefinitionWriteError),
     /// A usage map could not be encoded.
@@ -77,7 +80,8 @@ impl std::error::Error for ComposeError {
             Self::Encoding(source) => Some(source),
             Self::NameKey(source) => Some(source),
             Self::Schema(source) => Some(source),
-            Self::IndexPageFull { .. }
+            Self::UnsupportedInitialRowSchema
+            | Self::IndexPageFull { .. }
             | Self::UnobservedMapRowLayout
             | Self::UnobservedLongValueColumnCount { .. }
             | Self::UnobservedTableCount { .. }

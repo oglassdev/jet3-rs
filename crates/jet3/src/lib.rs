@@ -128,7 +128,9 @@ pub use commit_state::{
     CommitSlotRole, CommitStateClass, SHARED_COMMIT_SLOT_COUNT, read_commit_region,
     read_commit_region_into,
 };
-pub use create::{CandidateCheckError, CreateDatabaseError, create_database};
+pub use create::{
+    CandidateCheckError, CreateDatabaseError, create_database, create_database_with_rows,
+};
 pub use database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 pub use database_header::{
     DATABASE_HEADER_PAGE_NUMBER, DatabaseFormatError, DatabaseHeaderPage, DatabaseHeaderPageError,

@@ -51,6 +51,8 @@ pub(super) struct PlannedCreate<'a> {
     /// The long-value column's ordinal; its owned map takes the first free
     /// map-page row and its available map the next.
     long_value: Option<u16>,
+    initial_data: Option<PageImage>,
+    initial_row_count: u32,
 }
 
 impl<'a> PlannedCreate<'a> {
@@ -76,7 +78,55 @@ impl<'a> PlannedCreate<'a> {
             spec,
             plan,
             long_value,
+            initial_data: None,
+            initial_row_count: 0,
         })
+    }
+
+    /// Adds a single data page using EXP-0060/0061 row encoding and EXP-0065
+    /// Q2 append placement. EXP-0057 supplies the owned/available map roles;
+    /// EXP-0073 supplies the definition row count. This is a candidate
+    /// construction, without a generalized page-zero insertion transition.
+    pub(super) fn with_rows(
+        mut self,
+        rows: &[&[RowValue<'_>]],
+        budget: &mut ResourceBudget,
+    ) -> Result<Self, ComposeError> {
+        if !self.spec.indexes.is_empty()
+            || self.plan.continuation_page().is_some()
+            || self.spec.columns.iter().any(|column| {
+                column.column_type().is_long_value()
+                    || column.column_type() == ColumnType::AutoIncrement
+            })
+        {
+            return Err(ComposeError::UnsupportedInitialRowSchema);
+        }
+        if rows.is_empty() {
+            return Ok(self);
+        }
+        let layout = initial_row_layout(self.spec, budget)?;
+        let mut builder = DataPageBuilder::new(self.plan.definition_root(), budget)?;
+        let mut encoded = [0_u8; PAGE_BYTES];
+        for row in rows {
+            let length = encode_row(&layout, row, &mut encoded, budget)?.get() as usize;
+            builder.append_row(&encoded[..length], budget)?;
+        }
+        // EXP-0057 establishes available-page maps, but not the transition
+        // for exhausted pages. Refuse those candidates: the page must still
+        // have a slot and room for its smallest row, with every field null.
+        // This is a construction bound, not a DAO free-space threshold.
+        // EXP-0060 bounds the one-byte column count to 255.
+        let nulls = [RowValue::Null; u8::MAX as usize];
+        let minimum =
+            encode_row(&layout, &nulls[..layout.len()], &mut encoded, budget)?.get() as usize;
+        builder.clone().append_row(&encoded[..minimum], budget)?;
+        self.initial_row_count =
+            u32::try_from(rows.len()).map_err(|_| Error::IntegerConversion {
+                value: rows.len() as u128,
+                target: "u32",
+            })?;
+        self.initial_data = Some(finish_data_builder(builder, budget)?);
+        Ok(self)
     }
 
     /// Returns the page holding the catalog row's `LvProp` long value, present
@@ -87,7 +137,9 @@ impl<'a> PlannedCreate<'a> {
 
     /// Returns the page count once every appended page is in place.
     pub(super) fn page_count(&self) -> u64 {
-        self.plan.definition_root().get() + self.plan.appended_page_count()
+        self.plan.definition_root().get()
+            + self.plan.appended_page_count()
+            + u64::from(self.initial_data.is_some())
     }
 
     /// Returns the catalog row the create adds (`EXP-0087`).
@@ -133,6 +185,9 @@ impl<'a> PlannedCreate<'a> {
         let owner = self.plan.definition_root().get();
         for _ in self.plan.index_placements() {
             plan.append(empty_index_page(owner, budget)?, append_map, budget)?;
+        }
+        if let Some(image) = &self.initial_data {
+            plan.append(image.clone(), append_map, budget)?;
         }
         Ok(())
     }
@@ -228,7 +283,7 @@ impl<'a> PlannedCreate<'a> {
                 indexes: &logical,
                 owned_map: MapRowLocator::new(map, OWNED_MAP_ROW),
                 available_map: MapRowLocator::new(map, AVAILABLE_MAP_ROW),
-                row_count: 0,
+                row_count: self.initial_row_count,
                 long_value_maps: &long_value_maps,
             },
             output,
@@ -240,7 +295,9 @@ impl<'a> PlannedCreate<'a> {
     /// Builds the map page with the rows the definition names.
     fn map_page(&self, budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
         let empty = inline_map_row(&[], budget)?;
-        let mut rows: Vec<[u8; 133]> = vec![empty, empty];
+        let data_pages = self.initial_data.as_ref().map(|_| self.page_count() - 1);
+        let data_map = inline_map_row(data_pages.as_slice(), budget)?;
+        let mut rows: Vec<[u8; 133]> = vec![data_map, data_map];
         for (root, _) in self.plan.index_placements() {
             rows.push(inline_map_row(&[root.get()], budget)?);
         }
