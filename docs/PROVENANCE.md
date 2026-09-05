@@ -11101,6 +11101,36 @@ Copy this block under the appropriate section and remove this instruction:
   additive EXP-0168 outcome. No general deletion grammar, sole-row page release,
   arbitrary compaction, hosted compatibility or support-state movement is claimed.
 
+## EXP-0201 — Retained multiple-index count-residue secondary plan
+
+- Committed before secondary evaluation,2026-09-05; result reserved as EXP-0202.
+  This is post-acquisition reanalysis of EXP-0193 data, not a new preregistered
+  acquisition. Original EXP-0194 no_outcome/report and all consumed inputs stay
+  unchanged. No DAO, new MDB, mutation or corrected evaluation has run.
+- Plan `oracle/windows-dao/acquisition/multiple-index-reanalysis.plan.json`,
+  SHA-256 `72f151df95dfdd8a6a2396e0a1ebddcf53aee9db72a36b7fdd10edab728aa1f1`; pins all35 retained files,
+  including30 MDBs and original result/report, plus29 runtime/plan inputs.
+  Source directory remains `20260905T094500Z-multiple-index` under the external
+  local VM shared outbox. Hash-only preflight validates all retained artifacts.
+- Exactly six pinned three-long secondary-duplicate images, both candidate and
+  control for each replica, carry primary stored count202 but201 actual entries/
+  distinct keys. Require their original native3022 rejection and image/capture
+  bindings. Normalize only the four private in-memory prefix bytes at their
+  decoder-derived offset to201 for the unchanged complete raw validator.
+  Every other original count gate remains in force, including all baselines.
+- The original validator checks all rows, complete keys/locators, logical/physical
+  names, flags, disjoint maps and every snapshot/traversal/Seek/error/identity
+  gate. Each normalized report additionally retains stored202 versus actual201
+  as an explicit observed failed-insert residue. No count gate is silently
+  omitted and no general counter or rollback semantics are inferred.
+- The six-pair result can be observed_accepted only under these exact secondary
+  conditions; discrepancies remain no_outcome. Original reports and images are
+  never written. A fresh exclusive output must be outside the original outbox
+  tree, after input/retention checks; no reuse or replacement of an existing
+  output. Three focused synthetic gate/normalization/preservation tests pass.
+- Local development evidence only; no hosted support, broad multiple-index
+  mutation result or compatibility claim. Independent review precedes execution.
+
 ## EXP-0194 — Multiple-index candidate validation has no outcome
 
 - Single local run `20260905T094500Z-multiple-index`, preregistered by
