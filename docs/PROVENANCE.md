@@ -11484,3 +11484,43 @@ Copy this block under the appropriate section and remove this instruction:
   passed; Windows `Parser.ParseFile` accepted the producer without executing
   it or DAO. Independent experiment review precedes acquisition. Retain all
   raw files externally; record one additive validated EXP-0144 outcome.
+
+## EXP-0144 — Scalar/null discovery stopped with no outcome
+
+- Recorded: 2026-09-05, OpenAI Codex; validated development-only `no_outcome`.
+- Consumed EXP-0143 plan SHA-256:
+  `c692ca69614f176b3391d3dd8020de1109e30957a9aaaf65abd5b09ac20de863`,
+  analyzer/producer source `bfb19ef`. Their bytes and earlier entries remain
+  unchanged. One acquisition ran; no retry or successor acquisition occurred.
+- Retained local run: `20260905T054700Z-scalar-index-layout` under the external
+  VM shared outbox. Result: 703682 bytes, SHA-256
+  `47e9be13836af6bb67b6007bcd731c73c96f871744b7998cb22734f0cb562624`.
+  Validated report: 3284 bytes, SHA-256
+  `e338265e299b875b0a8de0426fd2f2c285d675822ed84919b1bfbdb061b3242d`.
+  The pinned analyzer reproduced the report byte-for-byte on a temporary
+  copy; all original retained files stayed unchanged.
+- Acquisition: 36 completed captures of the planned 78, covering both
+  directions for Boolean, Byte, Integer, Currency, Single and Double, three
+  replicas each. Every completed capture reports `pass` and all 36 retained
+  image hashes/sizes equal their recorded before/after identities.
+- The 37th attempt is `date-ascending`, replica 1, with no recorded Update
+  operation. `mutation_started` is true and acquisition stopped with
+  `System.InvalidCastException: Specified cast is not valid.` The additional
+  partial Date image is 49152 bytes, SHA-256
+  `b13a0441901bbdd876433a48fe5007c6529626dfbb111b8a2336155ec99c6c2e`;
+  read-only decoding finds zero saved rows. The empty guest log and result
+  provide no statement/stack location, so they do not identify the precise
+  failed cast or establish a DAO Date rejection. Remaining Date/Binary/null
+  captures were not completed.
+- Analysis: zero validated observations. All 36 captures fail the planned
+  saved-row correlation: DAO `values` are serialized as an object containing
+  `value` and `Count`, while the frozen classifier expects an array. The
+  report records these 36 reasons plus the incomplete acquisition error.
+  This is a producer/contract mismatch, not an established scalar encoding
+  disagreement. No corrected normalization or expanded analysis was applied
+  to the consumed run.
+- Boundary: no key transforms, null policies, Date/Binary acceptance, general
+  compatibility or hosted support movement follow from this `no_outcome`.
+  Retain all 37 raw images externally. Any secondary read-only interpretation
+  needs a separately declared analysis; any new DAO acquisition requires a
+  separately reviewed successor plan and the repository's human retry decision.
