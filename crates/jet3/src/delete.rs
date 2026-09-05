@@ -1,4 +1,4 @@
-//! Bounded existing-row deletion using the tail transition observed in EXP-0162.
+//! Bounded existing-row deletion using the compaction observed in EXP-0162.
 use crate::{DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget, RowLocator, UpdateError};
 use std::convert::Infallible;
 use std::error::Error as StdError;
@@ -13,14 +13,21 @@ pub struct RowDelete<'a> {
     pub row: RowLocator,
 }
 
-/// Deletes the final physical row slot from a page containing at least two rows.
+/// Deletes one ordinary row, compacting its page or releasing a single-slot page.
 ///
 /// Supports unindexed, relationship-free tables without AutoIncrement or long
-/// values. All slots on the affected page must be ordinary live rows, and the
-/// page must already appear in its inline available map. Non-tail compaction,
-/// tombstone reuse, page release and inconsistent free/count metadata are refused.
-/// The removed payload remains in unused space; every byte except the directory
-/// word, free-byte count and table row count is preserved, including page zero.
+/// values. Slots must be ordinary live rows or known empty `c000` tombstones;
+/// the page must already appear in its inline available map. Later rows move
+/// upward without changing their physical slot numbers or stored values. The
+/// deleted slot becomes an empty tombstone; existing tombstone flags are retained.
+/// A page containing exactly one physical row is released through its existing
+/// inline global/owned/available maps. A sole live row alongside tombstones and
+/// inconsistent free/count metadata are refused.
+/// Only the shifted row bytes, affected directory offsets, free-byte count and
+/// table row count change. Vacated slack, maps, page zero and unrelated objects
+/// remain exact for retained pages. Released pages change their tag, directory
+/// word and free count, and their three map bits; payload/slack and file length
+/// remain exact.
 /// Keeping page zero unchanged is a candidate construction awaiting DAO validation.
 /// This operation makes no DAO compatibility claim.
 ///
@@ -57,7 +64,7 @@ where
     }
     let mut source_page = [0; PAGE_BYTES];
     database.read_raw_page(request.row.page(), &mut source_page, budget)?;
-    let patched_page = crate::row_delete_page::tail(
+    let patched_page = crate::row_delete_page::remove(
         request.row.page(),
         definition.root(),
         &source_page,
@@ -110,6 +117,46 @@ where
     database.read_raw_page(definition.root(), &mut source_definition, budget)?;
     let patched_definition =
         crate::row_delete_page::decrement_count(&source_definition, observed_rows, budget)?;
+    if matches!(patched_page, crate::row_delete_page::Deletion::Released(_)) {
+        if definition.columns().iter().any(|column| {
+            matches!(
+                column.physical_type(),
+                crate::ColumnPhysicalType::Memo | crate::ColumnPhysicalType::LongBinary
+            )
+        }) {
+            return Err(UpdateError::Unsupported("long-value page release"));
+        }
+        let maps = crate::allocation_patch::plan(
+            &mut database,
+            &definition,
+            request.row.page(),
+            crate::allocation_patch::AllocationChange::Release,
+            budget,
+        )?;
+        let definition_change = crate::update_pages::PageChange {
+            page: definition.root(),
+            before: &source_definition,
+            after: patched_definition.as_bytes(),
+        };
+        let mut changes = [definition_change; 5];
+        changes[0] = crate::update_pages::PageChange {
+            page: request.row.page(),
+            before: &source_page,
+            after: patched_page.image().as_bytes(),
+        };
+        let map_changes = maps.changes();
+        let count = 2 + map_changes.len();
+        for (change, map) in changes.iter_mut().skip(2).zip(map_changes) {
+            *change = map;
+        }
+        return crate::update_pages::publish_changes(
+            path,
+            database.into_source(),
+            &changes[..count],
+            budget,
+            hook,
+        );
+    }
     crate::update_pages::publish_changes(
         path,
         database.into_source(),
@@ -117,7 +164,7 @@ where
             crate::update_pages::PageChange {
                 page: request.row.page(),
                 before: &source_page,
-                after: patched_page.as_bytes(),
+                after: patched_page.image().as_bytes(),
             },
             crate::update_pages::PageChange {
                 page: definition.root(),
