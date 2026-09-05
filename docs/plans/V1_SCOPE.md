@@ -43,26 +43,27 @@ delivered in this order:
 
 ## Current next step
 
-Continue database creation under #100. The public API creates up to four empty
-user tables within its bounded schema restrictions. Initial-row creation now
-accepts one unindexed table with a one-page definition and scalar rows packed
-across data pages within the existing inline-map capacity. AutoIncrement,
-Memo, and OLE values remain refused by that entry point.
+Continue database creation under #100. Public creation supports up to four
+empty user tables within bounded schema restrictions. Initial-row creation
+currently accepts one table, with scalar rows across data pages, one bounded
+ascending Long index, or one unindexed Memo/OLE column. Empty long payloads,
+AutoIncrement values, and multi-table initial rows remain refused.
 
-`EXP-0116` records three accepted local replicas of the exact 26-page
-`Rows(Id Long)` candidate containing integers -254 through 254 across three
-data pages. Earlier exact empty-table and one-page observations remain in the
-provenance ledger. These results establish only the pinned candidates, with no
-general allocation policy, compatibility claim, or support-matrix movement.
+`EXP-0120` records exact local primary/unique/ordinary-duplicate indexed
+candidate acceptance. `EXP-0124` records exact Memo/OLE candidates with
+inline, single-page, chained and null payloads. These validate only the pinned
+candidates; no general allocation policy, compatibility claim or hosted
+support movement follows.
 
 `create_database_with_relationship` creates two empty tables with one
 Long-to-Long relationship, a parent primary index and optional additional
 unique Long index, and an initially unindexed child. `EXP-0118` and `EXP-0122`
-record exact local original/renamed candidate acceptance; cascades and
+record exact local candidate acceptance; populated relationships and
 referential-integrity mutations remain unvalidated.
 
-Next, broaden initial-row creation in focused implementation and preregistered
-DAO experiment slices, including indexes and long values.
-After creation is complete, run the hosted write differential (#102), implement
-updates that preserve unrelated data (#112), then run the hosted update
-differential (#113). Keep module cleanup (#182) until the creation API settles.
+Next, compose initial rows for multiple tables using the existing bounded
+per-table writers, then validate those exact candidates. AutoIncrement state
+and populated relationships still need separate work. After creation is
+complete, run the hosted write differential (#102), implement updates that
+preserve unrelated data (#112), then run the hosted update differential
+(#113). Keep module cleanup (#182) until the creation API settles.
