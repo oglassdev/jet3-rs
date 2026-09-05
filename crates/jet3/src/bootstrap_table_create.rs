@@ -111,6 +111,15 @@ impl<'a> PlannedCreate<'a> {
             let length = encode_row(&layout, row, &mut encoded, budget)?.get() as usize;
             builder.append_row(&encoded[..length], budget)?;
         }
+        // EXP-0057 establishes available-page maps, but not the transition
+        // for exhausted pages. Refuse those candidates: the page must still
+        // have a slot and room for its smallest row, with every field null.
+        // This is a construction bound, not a DAO free-space threshold.
+        // EXP-0060 bounds the one-byte column count to 255.
+        let nulls = [RowValue::Null; u8::MAX as usize];
+        let minimum =
+            encode_row(&layout, &nulls[..layout.len()], &mut encoded, budget)?.get() as usize;
+        builder.clone().append_row(&encoded[..minimum], budget)?;
         self.initial_row_count =
             u32::try_from(rows.len()).map_err(|_| Error::IntegerConversion {
                 value: rows.len() as u128,

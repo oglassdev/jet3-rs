@@ -170,7 +170,7 @@ fn initial_rows_preserve_existing_destination_and_enforce_budget() -> TestResult
 }
 
 #[test]
-fn all_addressable_row_slots_are_supported_and_the_next_is_refused() -> TestResult {
+fn initial_rows_leave_one_available_row_slot() -> TestResult {
     let directory = TestDirectory::create()?;
     let table = TableSpec {
         name: b"Bits",
@@ -178,8 +178,8 @@ fn all_addressable_row_slots_are_supported_and_the_next_is_refused() -> TestResu
         indexes: &[],
     };
     let row = [RowValue::Boolean(true)];
-    let rows = vec![row.as_slice(); 257];
-    create_database_with_rows(directory.target(), &table, &rows[..256], &mut budget())?;
+    let rows = vec![row.as_slice(); 256];
+    create_database_with_rows(directory.target(), &table, &rows[..255], &mut budget())?;
     assert!(matches!(
         create_database_with_rows(
             directory.path.join("overflow.mdb"),
@@ -217,5 +217,31 @@ fn initial_rows_refuse_a_continued_definition() -> TestResult {
         ))
     ));
     assert!(directory.entries()?.is_empty());
+    Ok(())
+}
+
+#[test]
+fn initial_rows_require_space_for_a_minimal_row() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let table = TableSpec {
+        name: b"Numbers",
+        columns: &[ID],
+        indexes: &[],
+    };
+    let row = [RowValue::Long(1)];
+    let rows = vec![row.as_slice(); 254];
+    create_database_with_rows(directory.target(), &table, &rows[..253], &mut budget())?;
+    assert!(matches!(
+        create_database_with_rows(
+            directory.path.join("full.mdb"),
+            &table,
+            &rows,
+            &mut budget()
+        ),
+        Err(CreateDatabaseError::Compose(ComposeError::Page(
+            PageImageError::PageFull { .. }
+        )))
+    ));
+    assert_eq!(directory.entries()?, ["created.mdb"]);
     Ok(())
 }

@@ -151,7 +151,8 @@ pub fn create_database(
 
 /// Creates one unindexed table containing scalar initial rows in caller order.
 ///
-/// All rows must fit one data page; the table definition must fit one page.
+/// All rows must fit one data page, leaving a slot and room for one all-null
+/// row. The table definition must fit one page.
 /// AutoIncrement, Memo, and LongBinary columns are refused. Values use the
 /// same database-code-page and physical scalar representations as [`RowValue`].
 /// The existing-destination and atomic publication guarantees of
@@ -193,9 +194,15 @@ fn check_initial_rows(
     let layout = initial_row_layout(table, budget).map_err(CandidateCheckError::RowEncoding)?;
     let mut database =
         DatabaseReader::open(candidate, budget).map_err(CandidateCheckError::Open)?;
-    // EXP-0065 Q2: first user table definition is page 20.
+    let root = candidate_table_roots(&mut database, std::slice::from_ref(table), budget)?
+        .into_iter()
+        .next()
+        .flatten()
+        .ok_or(CandidateCheckError::Mismatch {
+            detail: "catalog row",
+        })?;
     let definition = database
-        .table_definition(PageNumber::new(20), budget)
+        .table_definition(root, budget)
         .map_err(CandidateCheckError::Definition)?;
     let mut encoded = [0_u8; crate::PAGE_BYTES];
     let mut ends = [0_usize; 256];
@@ -269,6 +276,20 @@ fn check_candidate(
     if database.geometry().page_count() != page_count {
         return Err(mismatch("page count"));
     }
+    let roots = candidate_table_roots(&mut database, tables, budget)?;
+    for (spec, root) in tables.iter().zip(roots) {
+        let root = root.ok_or(mismatch("catalog row"))?;
+        check_table(&mut database, spec, root, budget)?;
+    }
+    Ok(())
+}
+
+fn candidate_table_roots(
+    database: &mut DatabaseReader<crate::FileSource>,
+    tables: &[TableSpec<'_>],
+    budget: &mut ResourceBudget,
+) -> Result<Vec<Option<PageNumber>>, CandidateCheckError> {
+    let mismatch = |detail: &'static str| CandidateCheckError::Mismatch { detail };
     let mut roots: Vec<Option<PageNumber>> = vec![None; tables.len()];
     let mut user_rows = 0_usize;
     {
@@ -296,11 +317,7 @@ fn check_candidate(
     if user_rows != tables.len() {
         return Err(mismatch("catalog row"));
     }
-    for (spec, root) in tables.iter().zip(roots) {
-        let root = root.ok_or(mismatch("catalog row"))?;
-        check_table(&mut database, spec, root, budget)?;
-    }
-    Ok(())
+    Ok(roots)
 }
 
 /// Checks one table's definition at `root` against `spec`.
