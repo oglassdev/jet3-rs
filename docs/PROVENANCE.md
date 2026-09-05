@@ -13260,6 +13260,43 @@ DAO control continuation; first/later images 57,344 bytes, last-page images 59,3
   Free-page reuse, map growth/indirection, indexed/related/Auto/LVAL insertion,
   compaction and slot reuse remain outside this one-EOF-page validation.
 
+## EXP-0203 — Hosted thirteen-case indexed update preregistration
+
+- Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0204.
+  Reviewed hosted tooling `dd6bfa0`, integrated source `0431cbc3673bc5f7198aa24396f277b26d6635ab`
+  includes reviewed current creation/full-row code and Boolean fix `b66396d`.
+  Plan `oracle/windows-dao/acquisition/indexed-update-v1_2.plan.json`, SHA-256
+  `d814ce1502a5217a648291b22e7fe7accfe11925caf65a16209165cb90519700`. Commit and independently review before one hosted dispatch.
+- The exact first nine EXP-0195 recipes are retained. Four additions cover
+  ascending primary Long key 0→MIN, descending unique key 0→MAX-1,
+  key100→-1 in a 200-entry isolated leaf, and Value303→MIN on an ordinary
+  duplicate-Id indexed table. Thirteen public creations and fifteen mutations
+  produce twenty-six original/updated images through public APIs on Ubuntu.
+- Windows2022 downloads the same-source images, rebuilds the reader/verifier,
+  compares all independent preservation receipts, then reads through stock x86
+  DAO.DBEngine.36/dbVersion30. Exact source/platform/provider/image bindings,
+  complete requested schemas/rows and twenty-six DAO/Rust comparisons are
+  mandatory. No provider installation or license acceptance.
+- Each indexed case retains complete directed traversal and every present
+  full-key Seek. Additional pinned queries test replacement, removed and
+  missing keys. Duplicate Seek may return any matching complete row only
+  after complete traversal coverage. Missing sidecars/queries or wrong full
+  rows fail evaluation. Old unindexed cases retain empty index inventories.
+- Independent Rust and Python checks reconstruct allowed bytes from original
+  catalog/row/index metadata. Key changes allow only four field bytes and
+  reordered same-width leaf entries; all leaf header/bitmap/slack, other pages
+  and file length remain exact. Indexed non-key replacement allows only four
+  bytes. Previous EOF/compaction checks retain their full preservation bounds.
+- The plan pins seventy-three meaningful workflow/inventory/producer/parser/
+  reader/evaluator inputs. Both jobs execute the actual dispatched revision
+  containing this plan and require matching pins before acquisition. Only run
+  attempt1; retain partial logs/provider/captures/reports, never retry this
+  consumed plan. Original experiments and outcomes remain unchanged.
+- These finite cases do not cover compressed/branch/composite/nonunique key
+  maintenance, indexed insertion/deletion, relationships, query preservation,
+  follow-on DAO operations, null/variable replacement or general rollback.
+  No compatibility or automatic support movement before validated EXP-0204.
+
 ## EXP-0196 — Hosted allocation and compaction matrix matched
 
 - Outcome: **matched** from GitHub Actions run
