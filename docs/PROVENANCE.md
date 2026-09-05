@@ -10944,3 +10944,49 @@ Copy this block under the appropriate section and remove this instruction:
   payloads, multiple long columns, indexed long columns, subsequent writes,
   general compatibility, or hosted support. All report compatibility and
   support-movement flags are false.
+
+## EXP-0126 — Descending and two-component Long index key bindings
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: validated local development DAO observation under `EXP-0125`
+- Plan: `oracle/windows-dao/acquisition/long-key-layout.plan.json`, SHA-256
+  `a5b107359cc713ecb613826745fea1118084d9c6f0cc482a527cdc6f4a0a9f4a`.
+  Consumed acquisition, analyzer, decoder, transport, and plan inputs remain
+  unchanged. Acquisition ran once from the committed reviewed plan.
+- Artifacts: run `20260905T041200Z-long-key-layout`; external `result.json`
+  SHA-256 `74173d65d5d70cfdc78b717d9ae2dda748f36de790dace6065ee673934b20828`;
+  23,965-byte `report.json` SHA-256
+  `5b74ed896e9c4bf116dd9a52f4bcd39fc3fc6e6494464788dff61e68a9aeedf7`.
+  Analysis of temporary copies verified pinned inputs and every retained
+  identity and reproduced the report byte-identically. MDBs remain external.
+- Result: `answered`, no reasons, all nine captures complete and unchanged.
+  Three fresh replicas per arm agreed on every question-bearing value;
+  every key locator resolved once to a planned row and all rows were covered.
+  DAO snapshot and index traversal agreed with decoded rows and directed
+  semantic order. All nine `hypothesis_matches` values are true. This is
+  format observation, not acceptance of a Rust-created candidate.
+- Observed keys: each non-null ascending Long component is `7f` followed by
+  the four big-endian value bytes with the sign bit flipped. Descending
+  complements all five bytes, including the marker (`80`). Both tested
+  two-Long mixed-direction keys concatenate the components in declared field
+  order. For example, descending `2147483647` is `8000000000`;
+  ascending/descending `(-2147483648,2147483647)` is
+  `7f000000008000000000`; descending/ascending
+  `(2147483647,-2147483648)` is `80000000007f00000000`.
+  Every recorded signed boundary and repeated-leading-component binding in
+  the finite `EXP-0125` input matrix agrees with this construction.
+- Index/row observations: `Rows(A Long,B Long,Tag Long)` has root 20, leaf
+  root 23, data page 24, and index map page 21 row 2 in all captures. Leaf
+  common-prefix length is zero. The descending unique arm has ten rows and
+  ten physical distinct-key entries; the ascending/descending unique arm has
+  twelve of each. The descending/ascending ordinary arm has fourteen rows,
+  fourteen leaf entries, and physical distinct-key count twelve: `(0,0)` and
+  `(-1,0)` each have two entries with different Tag payloads/row locators.
+  Unique physical flags are 1, ordinary flags 0; recorded direction bytes
+  are 0 for descending and 1 for ascending. Locators are retained evidence,
+  not a general allocation rule or duplicate tie-order guarantee.
+- Boundary: these exact non-null one/two-Long cases establish the recorded
+  component construction and full-key distinct counting. Nulls, other types,
+  more components, arbitrary branches, allocator policy, candidate
+  compatibility, updates, and hosted support remain outside this result.
+  Report compatibility and support-matrix flags remain false.

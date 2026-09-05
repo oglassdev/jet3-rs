@@ -169,10 +169,13 @@ pub fn create_database(
 /// capacity. Each row and the table definition must fit one page. Pages with
 /// a slot and room for an all-null row are marked available; this construction
 /// policy has not been established as DAO's allocation policy.
-/// At most one ascending index on one Long column is accepted, with at most
-/// 200 non-null keys in a single leaf. Primary and unique indexes reject
-/// duplicate keys; ordinary indexes retain duplicates. Null keys, descending
-/// indexes, and other key types are refused.
+/// At most one index on one or two Long columns is accepted, with each field
+/// ascending or descending. One leaf holds at most 200 single-column or 128
+/// two-column entries. Primary and unique indexes reject duplicate full keys;
+/// ordinary indexes retain duplicates. Null components and other key types
+/// are refused. `EXP-0126` records the component encoding on exact fresh DAO
+/// controls; composite/descending Rust-created candidates await their own
+/// DAO differential.
 /// AutoIncrement is refused. One unindexed Memo or LongBinary column accepts
 /// nonempty typed payloads or null; raw `RowValue::LongValue` headers are refused.
 /// The candidate policy stores up to 32 bytes inline, up to 2,036 on one LVAL

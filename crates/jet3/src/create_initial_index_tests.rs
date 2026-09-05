@@ -196,10 +196,6 @@ fn null_keys_and_unsupported_key_schemas_fail_before_publication() -> TestResult
             ..one_index(IndexKind::Ordinary)[0]
         },
     ];
-    let descending = [IndexSpec {
-        fields: &[field(0, IndexDirection::Descending)],
-        ..one_index(IndexKind::Ordinary)[0]
-    }];
     let composite = [IndexSpec {
         fields: &[
             field(0, IndexDirection::Ascending),
@@ -211,7 +207,7 @@ fn null_keys_and_unsupported_key_schemas_fail_before_publication() -> TestResult
         fields: &[IndexColumnSpec::ascending(b"Code")],
         ..one_index(IndexKind::Ordinary)[0]
     }];
-    for indexes in [&multiple[..], &descending, &composite, &text] {
+    for indexes in [&multiple[..], &composite, &text] {
         let table = TableSpec {
             name: b"Items",
             columns: &[ID, CODE],
@@ -291,3 +287,6 @@ fn index_storage_budget_and_empty_index_are_handled() -> TestResult {
     assert_eq!(fs::read(directory.target())?, original);
     Ok(())
 }
+
+#[path = "create_composite_index_tests.rs"]
+mod composite;
