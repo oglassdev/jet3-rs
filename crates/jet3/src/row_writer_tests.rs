@@ -512,3 +512,142 @@ fn rejects_mismatches_unsupported_shapes_small_output_and_exhausted_budget() {
         .contains("row encoding failed")
     );
 }
+
+fn wide_prefix_columns() -> [ColumnSpec<'static>; 3] {
+    [
+        ColumnSpec::new(b"Id", ColumnType::Long),
+        ColumnSpec::new(b"Value", ColumnType::FixedText { len: nz(255) }),
+        ColumnSpec::new(b"Payload", ColumnType::Text { max_len: nz(255) }),
+    ]
+}
+
+#[test]
+fn reproduces_exp_0172_wide_fixed_prefix_rows() -> Result<(), Box<dyn std::error::Error>> {
+    let columns = wide_prefix_columns();
+    let layout = layouts(&columns)?;
+    for (id, payload) in [(1_i32, b"first".as_slice()), (2, b"second"), (3, b"third")] {
+        // Independently transcribed EXP-0172 row bytes, including zero jump.
+        let mut raw = vec![3];
+        raw.extend_from_slice(&id.to_le_bytes());
+        raw.extend_from_slice(&[b'a'; 255]);
+        raw.extend_from_slice(payload);
+        raw.extend_from_slice(&[(4 + payload.len()) as u8, 4, 0, 1, 7]);
+        assert_eq!(
+            encode(
+                &layout,
+                &[
+                    RowValue::Long(id),
+                    RowValue::Text(&[b'a'; 255]),
+                    RowValue::Text(payload)
+                ]
+            )?,
+            raw
+        );
+        let bytes = database_bytes(&columns, &[&raw])?;
+        let mut budget = budget_for(&bytes);
+        let source = SliceSource::new(&bytes, budget.read_budget())?;
+        let mut database = DatabaseReader::from_source(source, &mut budget)?;
+        let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
+        let mut rows = database.rows(&definition, &mut budget)?;
+        let row = rows.next_row()?.ok_or("missing row")?;
+        assert_eq!(
+            row.field(ColumnOrdinal::new(1)),
+            Some(crate::RawField::Bytes(&[b'a'; 255]))
+        );
+        assert_eq!(
+            row.field(ColumnOrdinal::new(2)),
+            Some(crate::RawField::Bytes(payload))
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn rejects_wide_fixed_prefix_corruption() -> Result<(), Box<dyn std::error::Error>> {
+    let columns = wide_prefix_columns();
+    let raw = encode(
+        &layouts(&columns)?,
+        &[
+            RowValue::Long(2),
+            RowValue::Text(&[b'a'; 255]),
+            RowValue::Text(b"second"),
+        ],
+    )?;
+    for (from_end, value) in [(3, 1), (3, 3), (4, 3), (5, 3), (5, 11)] {
+        let mut damaged = raw.clone();
+        let offset = damaged.len() - from_end;
+        damaged[offset] = value;
+        let bytes = database_bytes(&columns, &[&damaged])?;
+        let mut budget = budget_for(&bytes);
+        let source = SliceSource::new(&bytes, budget.read_budget())?;
+        let mut database = DatabaseReader::from_source(source, &mut budget)?;
+        let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
+        let mut rows = database.rows(&definition, &mut budget)?;
+        assert!(matches!(
+            rows.next_row(),
+            Err(crate::RowError::UnsupportedWideVariableOffsets { .. }
+                | crate::RowError::InvalidFixedBoundary { .. }
+                | crate::RowError::InvalidVariableBounds { .. })
+        ));
+    }
+    Ok(())
+}
+
+#[test]
+fn wide_fixed_prefix_stays_within_second_boundary_block() -> Result<(), Box<dyn std::error::Error>>
+{
+    let columns = wide_prefix_columns();
+    let layout = layouts(&columns)?;
+    for size in [0, 251] {
+        let payload = vec![b'x'; size];
+        let raw = encode(
+            &layout,
+            &[
+                RowValue::Long(2),
+                RowValue::Text(&[b'a'; 255]),
+                RowValue::Text(&payload),
+            ],
+        )?;
+        assert_eq!(&raw[raw.len() - 5..], &[(260 + size) as u8, 4, 0, 1, 7]);
+        let bytes = database_bytes(&columns, &[&raw])?;
+        let mut budget = budget_for(&bytes);
+        let source = SliceSource::new(&bytes, budget.read_budget())?;
+        let mut database = DatabaseReader::from_source(source, &mut budget)?;
+        let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
+        let mut rows = database.rows(&definition, &mut budget)?;
+        assert_eq!(
+            rows.next_row()?
+                .ok_or("missing row")?
+                .field(ColumnOrdinal::new(2)),
+            Some(crate::RawField::Bytes(payload.as_slice()))
+        );
+    }
+    assert!(matches!(
+        encode(
+            &layout,
+            &[
+                RowValue::Long(2),
+                RowValue::Text(&[b'a'; 255]),
+                RowValue::Text(&[b'x'; 252])
+            ]
+        ),
+        Err(RowWriteError::BoundaryTooLarge { boundary: 512, .. })
+    ));
+    // Refuse the unsupported third block even when low offsets look valid.
+    let mut raw = vec![3];
+    raw.extend_from_slice(&2_i32.to_le_bytes());
+    raw.extend_from_slice(&[b'a'; 255]);
+    raw.extend_from_slice(&[b'x'; 252]);
+    raw.extend_from_slice(&[0, 4, 0, 1, 7]);
+    let bytes = database_bytes(&columns, &[&raw])?;
+    let mut budget = budget_for(&bytes);
+    let source = SliceSource::new(&bytes, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
+    let mut rows = database.rows(&definition, &mut budget)?;
+    assert!(matches!(
+        rows.next_row(),
+        Err(crate::RowError::UnsupportedWideVariableOffsets { .. })
+    ));
+    Ok(())
+}
