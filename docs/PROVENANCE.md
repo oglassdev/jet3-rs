@@ -12556,6 +12556,60 @@ Copy this block under the appropriate section and remove this instruction:
   needs a separately declared analysis; any new DAO acquisition requires a
   separately reviewed successor plan and the repository's human retry decision.
 
+## EXP-0190 — Finite numeric initial indexes observed accepted
+
+- Recorded: 2026-09-05, OpenAI Codex; validated `observed_accepted` from the
+  distinct EXP-0189 acquisition. Original EXP-0183 inputs and EXP-0184
+  `no_outcome` remain unchanged; no subset of the failed run is promoted.
+- Reviewed plan SHA-256
+  `d01233e9a6ba9a9d812fa8953d0be63ef383b3a057380db14dbf32e586cecfe0`,
+  harness `389caaf`, reviewed public numeric writer `16e6d57` and the same eight
+  pinned candidate images. Single run `20260905T091500Z-numeric-successor`:
+  external `result.json` 5260229 bytes, SHA-256
+  `a52968c92b39aa036244c299f140c69da066b7e149f56b8a2750d2b6f8660d05`;
+  `report.json` 71489 bytes, SHA-256
+  `b42be3d9d1972c950ff9d25e68add636080c836abcbd1d27ab3f3849cdac4572`.
+  Frozen analysis reproduced the report exactly on temporary copies; all 108
+  retained files remained unchanged. There are 103 MDBs: 102 complete compared
+  images plus the untouched `mixed-required.mdb` input retained by the wildcard.
+- All 24 pairs pass with no reasons, acquisition error or retention failure.
+  Each role's complete capture has matching before/after and retained identities;
+  baseline candidates also match their immutable public-export pins. Full table,
+  field and index metadata, exact saved-bit/Boolean rows, complete directed
+  traversal and declared non-null full-key Seek agree with the requested recipes
+  and fresh DAO controls. Relation/query inventories are empty.
+- Three replicas each cover Boolean ascending (2 rows), Byte descending (5),
+  Integer ascending (8), Currency descending (7), Single ascending (7), Double
+  descending IgnoreAllNull (9), nullable Currency/Double mixed-direction Include
+  (126), and Integer/Single mixed-direction Required (3). Seek query counts per
+  image are respectively 2/6/9/8/8/8/121/4, including declared missing keys where
+  representable. Currency queries use exact `VT_CY` arguments. This success
+  validates that finite harness choice without proving the original failure cause.
+- Independent raw checks correlate every included row's complete key and physical
+  locator with the tree, using the declared finite numeric transforms and selected
+  null compositions. All table roots are 20 and index roots 23. Non-mixed-include
+  arms have depth 1 and index map `{23}`. Their row/entry/distinct counts are
+  2/2/2, 5/5/5, 8/8/8, 7/7/7, 7/7/7, 9/7/7 and 3/3/3 respectively;
+  physical flags are 1 except IgnoreAllNull 3 and Required 9.
+- Mixed Include has 126 rows/entries but 123 distinct full keys in both roles:
+  its three declared null-containing key shapes each occur twice. Both trees
+  have depth 2. Candidate index maps are `{23,26,27}` and controls
+  `{23,26,27,28}`; candidate/probe images are 57344 bytes and control/probe images
+  59392 bytes. Each map exactly equals its own validated tree pages. Other arms'
+  images are 51200 bytes. Physical layout equality is not a requirement; complete
+  rows are retained when normalizing only equal-key traversal ties.
+- All 48 independent duplicate probes reject the declared fully non-null key
+  with DAO 3022. Six Required-arm null probes reject with DAO 3058. Complete
+  post-rejection schema/rows/traversal/Seek/raw tree state matches baseline
+  semantics; rejected rows are absent and original baselines remain unchanged.
+- Scope is these eight finite public creation candidates, selected directions,
+  finite floating boundaries and selected non-Long null/composite policies.
+  Boolean null, negative zero, nonfinite, Date/Binary/Text/GUID/LVAL keys and
+  existing-file numeric key maintenance remain outside the result. No arbitrary
+  type/direction/null Cartesian rule or hosted support is established. Report
+  `development_only=true`, `compatibility_claim=false` and
+  `support_matrix_movement=false` remain unchanged.
+
 ## EXP-0189 — Distinct numeric Currency Seek successor plan
 
 - Preregistered: 2026-09-05, OpenAI Codex; no acquisition yet. This is a new
