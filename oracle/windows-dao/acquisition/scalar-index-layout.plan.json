@@ -1,0 +1,299 @@
+{
+  "document_type": "dao_scalar_index_layout_plan",
+  "experiment_id": "scalar-index-layout",
+  "issue": 100,
+  "development_only": true,
+  "replicas": 3,
+  "preregistration": {
+    "acquisition_started": false,
+    "question": "What raw ascending/descending scalar keys bind to the declared saved Boolean, Byte, Integer, Currency, Single, Double, Date and four-byte Binary values? How do ordinary/unique one/two-component Long indexes encode or omit null keys and accept/reject duplicate nulls under Required and IgnoreNulls?",
+    "prior_evidence": "EXP-0062 supplies leaf framing and locators; EXP-0073 supplies fixed row/layout and index count observations; EXP-0126 supplies non-null Long direction/composition observations. No non-Long transform or nullable uniqueness/omission policy is presumed.",
+    "authorization": "Commit and independently review pinned plan before one acquisition. After first CreateDatabase, unexpected failure is a scientific result, never automatic retry. Declared Update attempts continue only after recording rejection and cancelling that pending new row; each tag is attempted once."
+  },
+  "arms": [
+    {
+      "name": "boolean-ascending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 1,"size": 1}],
+      "directions": [false],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [[true],[false]]
+    },
+    {
+      "name": "boolean-descending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 1,"size": 1}],
+      "directions": [true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [[true],[false]]
+    },
+    {
+      "name": "byte-ascending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 2,"size": 1}],
+      "directions": [false],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["ff"],["00"],["01"],["7f"],["80"]]
+    },
+    {
+      "name": "byte-descending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 2,"size": 1}],
+      "directions": [true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["ff"],["00"],["01"],["7f"],["80"]]
+    },
+    {
+      "name": "integer-ascending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 3,"size": 2}],
+      "directions": [false],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["ff7f"],["0080"],["ffff"],["0000"],["0100"],["00ff"],["ff00"],["0001"]]
+    },
+    {
+      "name": "integer-descending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 3,"size": 2}],
+      "directions": [true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["ff7f"],["0080"],["ffff"],["0000"],["0100"],["00ff"],["ff00"],["0001"]]
+    },
+    {
+      "name": "currency-ascending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 5,"size": 8}],
+      "directions": [false],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["0000000000000080"],["ffffffffffffff7f"],["f0d8ffffffffffff"],["ffffffffffffffff"],["0000000000000000"],["0100000000000000"],["1027000000000000"]]
+    },
+    {
+      "name": "currency-descending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 5,"size": 8}],
+      "directions": [true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["0000000000000080"],["ffffffffffffff7f"],["f0d8ffffffffffff"],["ffffffffffffffff"],["0000000000000000"],["0100000000000000"],["1027000000000000"]]
+    },
+    {
+      "name": "single-ascending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 6,"size": 4}],
+      "directions": [false],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["ffff7f7f"],["ffff7fff"],["000080bf"],["00000000"],["0000803f"],["00008000"],["01000000"]]
+    },
+    {
+      "name": "single-descending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 6,"size": 4}],
+      "directions": [true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["ffff7f7f"],["ffff7fff"],["000080bf"],["00000000"],["0000803f"],["00008000"],["01000000"]]
+    },
+    {
+      "name": "double-ascending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 7,"size": 8}],
+      "directions": [false],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["ffffffffffffef7f"],["ffffffffffffefff"],["000000000000f0bf"],["0000000000000000"],["000000000000f03f"],["0000000000001000"],["0100000000000000"]]
+    },
+    {
+      "name": "double-descending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 7,"size": 8}],
+      "directions": [true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["ffffffffffffef7f"],["ffffffffffffefff"],["000000000000f0bf"],["0000000000000000"],["000000000000f03f"],["0000000000001000"],["0100000000000000"]]
+    },
+    {
+      "name": "date-ascending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 8,"size": 8}],
+      "directions": [false],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["000000000088c3c0"],["000000000000f0bf"],["0000000000000000"],["000000000000f03f"],["00000000c0d5e140"],["0000008040924641"]]
+    },
+    {
+      "name": "date-descending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 8,"size": 8}],
+      "directions": [true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["000000000088c3c0"],["000000000000f0bf"],["0000000000000000"],["000000000000f03f"],["00000000c0d5e140"],["0000008040924641"]]
+    },
+    {
+      "name": "binary-ascending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 9,"size": 4}],
+      "directions": [false],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["ffffffff"],["00000000"],["00000001"],["01000000"],["7fffffff"],["80000000"]]
+    },
+    {
+      "name": "binary-descending",
+      "family": "scalar",
+      "fields": [{"name": "A","type": 9,"size": 4}],
+      "directions": [true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [["ffffffff"],["00000000"],["00000001"],["01000000"],["7fffffff"],["80000000"]]
+    },
+    {
+      "name": "null-ordinary",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4}],
+      "directions": [false],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [[null],["00000000"],["ffffffff"],["01000000"],[null],["00000000"],["ffffff7f"],["00000080"]]
+    },
+    {
+      "name": "null-descending",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4}],
+      "directions": [true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [[null],["00000000"],["ffffffff"],["01000000"],[null],["00000000"],["ffffff7f"],["00000080"]]
+    },
+    {
+      "name": "null-unique",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4}],
+      "directions": [false],
+      "unique": true,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [[null],["00000000"],["ffffffff"],["01000000"],[null],["00000000"],["ffffff7f"],["00000080"]]
+    },
+    {
+      "name": "null-unique-ignore",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4}],
+      "directions": [false],
+      "unique": true,
+      "required": false,
+      "ignore_nulls": true,
+      "rows": [[null],["00000000"],["ffffffff"],["01000000"],[null],["00000000"],["ffffff7f"],["00000080"]]
+    },
+    {
+      "name": "null-ignore",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4}],
+      "directions": [false],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": true,
+      "rows": [[null],["00000000"],["ffffffff"],["01000000"],[null],["00000000"],["ffffff7f"],["00000080"]]
+    },
+    {
+      "name": "null-required",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4}],
+      "directions": [false],
+      "unique": false,
+      "required": true,
+      "ignore_nulls": false,
+      "rows": [[null],["00000000"],["ffffffff"],["01000000"],[null],["00000000"],["ffffff7f"],["00000080"]]
+    },
+    {
+      "name": "composite-null-ordinary",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4},{"name": "B","type": 4,"size": 4}],
+      "directions": [false,true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],["ffffffff","01000000"],["01000000","ffffffff"],["00000080","ffffff7f"],["ffffff7f","00000080"]]
+    },
+    {
+      "name": "composite-null-unique",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4},{"name": "B","type": 4,"size": 4}],
+      "directions": [false,true],
+      "unique": true,
+      "required": false,
+      "ignore_nulls": false,
+      "rows": [[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],["ffffffff","01000000"],["01000000","ffffffff"],["00000080","ffffff7f"],["ffffff7f","00000080"]]
+    },
+    {
+      "name": "composite-null-ignore",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4},{"name": "B","type": 4,"size": 4}],
+      "directions": [false,true],
+      "unique": false,
+      "required": false,
+      "ignore_nulls": true,
+      "rows": [[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],["ffffffff","01000000"],["01000000","ffffffff"],["00000080","ffffff7f"],["ffffff7f","00000080"]]
+    },
+    {
+      "name": "composite-null-required",
+      "family": "nullable-long",
+      "fields": [{"name": "A","type": 4,"size": 4},{"name": "B","type": 4,"size": 4}],
+      "directions": [false,true],
+      "unique": false,
+      "required": true,
+      "ignore_nulls": false,
+      "rows": [[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],[null,null],[null,"01000000"],["01000000",null],["01000000","01000000"],["ffffffff","01000000"],["01000000","ffffffff"],["00000080","ffffff7f"],["ffffff7f","00000080"]]
+    }
+  ],
+  "execution": {
+    "environment": "Private local VM, x86 PowerShell, DAO.DBEngine.36, Jet3 options32, LANGID0x0409/CP1252; development discovery only.",
+    "per_replica": "Create fresh Rows with declared typed fields plus Long Tag, then declared ByKey. Assign each listed row once and record Update success or actual DAO error numbers/HRESULT. Assignment/setup/cleanup failures abort the run. Close and reopen read-only for complete rows, schema/index flags and ordered traversal; retain original closed MDB and result.",
+    "values": "Plan scalar values are little-endian physical value hex, Boolean booleans, or null. Currency is signed64 scaled by10000; floating values include finite signed endpoints and positive normal/subnormal minima; Date is OA day double; Binary is exactly four bytes. Each attempt has Tag=one-based position. Readback is normalized to physical value bytes, never to a guessed index encoding. requested_payloads_match separately exposes provider value normalization; stable normalization remains an observation.",
+    "analysis": "Verify inputs, retained identities and unchanged read-only bytes. Decode original rows and prefix-expanded leaf keys using pinned existing original decoders; resolve each key locator exactly once. Correlate all saved rows with successful attempts and DAO readback and every bound key with DAO traversal. Non-null rows cannot be omitted. Null omissions and duplicate-null Update rejection codes are observations, not assumed flags policy. Check scalar semantic direction (Boolean True=-1 and False=0, consistent with retained EXP-0062 ascending leaf order); compare exact saved value/raw-key bindings, omitted rows, index key records/flags/counts, operation statuses/native codes/HRESULT and metadata across three replicas. Keep raw addresses/prefix and diagnostic fields without requiring allocator addresses equal.",
+    "decoder_bounds": "Unmodified shared decoder limits:64 rows per page,64 columns/items,64-page TDEF chain bound. Each arm has at most12 attempted rows,3 fields,one index andone leaf; unsupported layouts produce no_outcome, with raw MDB retained. No Text collation, GUID, Memo/OLE indexes or multilevel construction in this slice.",
+    "attempts": 1,
+    "run": "python3 oracle/windows-dao/scripts/scalar_index_layout.py run --shared-root VM_SHARED_ROOT --run-id UTC-scalar-index-layout",
+    "analysis_command": "python3 oracle/windows-dao/scripts/scalar_index_layout.py analyze OUTBOX"
+  },
+  "decision_rule": {
+    "answered": "All78 closed captures are unchanged and completely decoded/correlated, all declared attempts recorded, and each arm repeats question-bearing observations three times. Stable Update rejection or provider normalization is answered only for its actual saved values/errors; it supplies no key bytes for rejected values.",
+    "no_outcome": "Any unexpected setup/assignment/cleanup/capture failure, incomplete capture, changed image, unsupported decoder shape, metadata/row/traversal mismatch, or within-arm disagreement. Preserve partial operations and images; no redispatch.",
+    "rejection": "Plan/environment/inventory/input-pin or retained identity mismatch rejects validation."
+  },
+  "boundary": "Finite discovery only: no transform promotion, candidate acceptance, general null/flag policy, arbitrary Binary lengths, float NaN/infinity, Text/GUID/Memo/OLE index grammar, existing-row updates, or hosted support movement.",
+  "retention": "Keep result/report and all MDBs externally; commit no MDB/provider bytes. Record one additive EXP-0144 outcome derived from validated report JSON.",
+  "inputs": {
+    "oracle/windows-dao/scripts/scalar_index_layout.py": "627080e5d66f4049eb91f9047f7722230c3f0b4c2a971a47dcd988e85f8bb478",
+    "oracle/windows-dao/scripts/scalar_index_layout.ps1": "dd51d5dc4cab58f0d0d043a12c70de404f144f818be97500400a4e2c04fcbe51",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "oracle/windows-dao/scripts/relationship_create.py": "aa267ca957815ecf49abc155bd081dfb7d02d609b414e0efa68600161f3f7740",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9"
+  }
+}
