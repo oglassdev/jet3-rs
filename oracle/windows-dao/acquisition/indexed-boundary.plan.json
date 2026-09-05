@@ -1,0 +1,112 @@
+{
+  "document_type": "dao_indexed_boundary_plan",
+  "provenance": "EXP-0217",
+  "outcome_provenance": "EXP-0218",
+  "source_revision": "53a87df61c944ce971a8662932305ac0338eaef2",
+  "replicas": 1,
+  "arms": [
+    {
+      "name": "space",
+      "count": 3,
+      "id": 101,
+      "expected": "Insert in existing data page, retain file length"
+    },
+    {
+      "name": "eof",
+      "count": 20,
+      "id": 101,
+      "expected": "Append exactly one data page; retain isolated root leaf"
+    },
+    {
+      "name": "duplicate",
+      "count": 20,
+      "id": 0,
+      "expected": "Public duplicate refusal; exact original; DAO error 3022"
+    },
+    {
+      "name": "split",
+      "count": 200,
+      "id": 201,
+      "expected": "Public full root leaf refusal; exact original; control is unchanged baseline, no native split attempted"
+    }
+  ],
+  "schema": {
+    "Items": [
+      "Id Long primary ById ascending",
+      "Name Text(80)",
+      "Price nullable Currency",
+      "Active Boolean"
+    ],
+    "Notes": [
+      "Id Long",
+      "Body nullable Memo"
+    ]
+  },
+  "seed": "Items IDs 0..count-1, Name 80 ASCII x, even Price null/Active false, odd Price -12.3456/Active true. Notes (7,4096 ASCII n), (8,null). No deletion history.",
+  "controls": "Byte-identical copies of each public original; native DAO insertion for space/eof, native duplicate rejection for duplicate; read-only baseline for split. These are not independently DAO-created controls.",
+  "capture": "One x86 DAO.DBEngine.36 pass; original/candidate/control for all four arms: 12 closed images with unchanged read-only hashes. Complete user schema/index/rows, system/user table-name inventory, queries/relations, complete Items index traversal and Seek -1..201. Currency is invariant four-decimal text, Long JSON integer, Boolean JSON boolean, Text/Memo JSON strings, null JSON null.",
+  "acceptance": [
+    "Every capture and operation completes; all retained identities match; no partial acceptance.",
+    "Exact expected schema and all Items/Notes rows; complete ordered traversal and every present/missing Seek; candidate/control full snapshots equal.",
+    "Raw live/table/distinct counts equal for these fresh insertion-only inputs; raw tree key/locator bijection holds. Native tree compression is allowed.",
+    "Independent Python reconstruction matches every candidate byte: row, slot, counts, leaf bitmap/records/free, EOF image and only the three EOF map bits. All unrelated bytes including Notes metadata/Memo payloads and page zero exact.",
+    "EOF source pages physically lack room for the 97-byte incoming row plus 2-byte slot; index 20 -> 21 keys. Split source exactly 200 keys and byte-identical refusal.",
+    "Rust focused grouped matrix and EOF private-page corruption checks pass before acquisition."
+  ],
+  "failure_rule": "Any failure after first DAO mutation is one no_outcome. Retain all available images/result/log externally; do not redispatch, edit the consumed plan, or accept diagnostic subsets. Missing/failed acquisition or comparison is no_outcome.",
+  "evidence_scope": "Local development validation only. No compatibility claim or support-matrix movement; only hosted accepted evidence can move support. Does not complete lifecycle milestone.",
+  "prior_results": "EXP-0214 and EXP-0216 remain no_outcome. Read-only retained diagnosis confirmed Double sidecar strings and native deletion table/live 3 versus distinct 6. No Double or deletion in this matrix; no retained subset is evidence.",
+  "inputs": {
+    "crates/jet3/examples/indexed_boundary_candidate.rs": "5cff370241f4ac0d730a56ff9875f0f5843d896282da94651a4de06a7ec3280c",
+    "crates/jet3/examples/support/indexed_boundary.rs": "1f875c970cfedb7beff6d9e4119e6003a7f775c84afacdcc7a35f6875097ff3c",
+    "crates/jet3/src/allocation_patch.rs": "13f962e9704a3cd7a5bcdd9f132c404e5d6c86c727920ca04da0d162fecd41c1",
+    "crates/jet3/src/index_key_page.rs": "b12d4c19205ad390cd11aa9546e8a5ffc030545b147b79e6c38cc1fa766392be",
+    "crates/jet3/src/insert.rs": "3f6bec3e30c3c237975b655b77c4a6c6feeb556eabb1e749c8e5de8a2db35eae",
+    "crates/jet3/src/row_insert_eof.rs": "2b33c18de09f377bddf91b19431d7af8b7708e872e59bf2775f420b69629b5de",
+    "crates/jet3/src/unique_leaf.rs": "9367160561b9509e37ae2f169d5344c31497f8e697c69b5c62ac0d009e1565f5",
+    "crates/jet3/src/update_pages.rs": "431201c558c17c9a19affd0850ddf9591109a3b2b70a51546cbc155013d6d0b5",
+    "oracle/windows-dao/scripts/field_update.ps1": "9bef9e7e83e6cfd346067e221826937d043d2a31e77ab3df5d9dacd7df29f201",
+    "oracle/windows-dao/scripts/field_update.py": "0c6d6536ad69126b53d596e011a4bede7293fd34a1efa8f313fa7f391212ba76",
+    "oracle/windows-dao/scripts/indexed_boundary.ps1": "15ec9a2aa6ba19f44eafe1fea36f38f2e0d00495fd25a50226fd4ccdd22cbff5",
+    "oracle/windows-dao/scripts/indexed_boundary.py": "e8fe30cd67665cad034f76263bf71b99cd85cee8ea93e0405f6736773d6e9139",
+    "oracle/windows-dao/scripts/multi_level_index_structure.py": "a4291fd040cb6a90fb68dfbb5dfe75f9f5990caa1d3cec6893577b118191d928",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "oracle/windows-dao/tests/check_indexed_boundary.ps1": "144e47e799a3d83530a47e44bedaebe63ebb2181c6db908412e3cda3e897160f",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9",
+    "oracle/windows-dao/tests/test_indexed_boundary.py": "ac5ec17158ef634080925c32e3ab8fc60f58fc11da05ba30941c06d941af43c5"
+  },
+  "images": {
+    "duplicate-candidate.mdb": {
+      "size": 63488,
+      "sha256": "b4a78c165ab24f9a051fea08b9acd5f510910ab09987bf3161595a5a3c65a224"
+    },
+    "duplicate-original.mdb": {
+      "size": 63488,
+      "sha256": "b4a78c165ab24f9a051fea08b9acd5f510910ab09987bf3161595a5a3c65a224"
+    },
+    "eof-candidate.mdb": {
+      "size": 65536,
+      "sha256": "179d526fe20c4f3d8d61de93b17302eb7f00d0d8703a3e58be07af00d29469ff"
+    },
+    "eof-original.mdb": {
+      "size": 63488,
+      "sha256": "b4a78c165ab24f9a051fea08b9acd5f510910ab09987bf3161595a5a3c65a224"
+    },
+    "space-candidate.mdb": {
+      "size": 63488,
+      "sha256": "1067476c6acb589cc5ef88f96071be34ec0f734c52663c91e4e1e7ff95566350"
+    },
+    "space-original.mdb": {
+      "size": 63488,
+      "sha256": "d761fbcf50c29b3958b56ff6714321a082b1f9c0a98d19d8f607ea5f5a270954"
+    },
+    "split-candidate.mdb": {
+      "size": 81920,
+      "sha256": "898549826db150c7f90cf788248db122506d7d7d58fc889c8df8a7a198490278"
+    },
+    "split-original.mdb": {
+      "size": 81920,
+      "sha256": "898549826db150c7f90cf788248db122506d7d7d58fc889c8df8a7a198490278"
+    }
+  }
+}
