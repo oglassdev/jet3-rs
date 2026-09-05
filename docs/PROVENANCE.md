@@ -10497,3 +10497,58 @@ Copy this block under the appropriate section and remove this instruction:
 - Boundary: only this exact image and read-only endpoints; no generalized
   relationship API, second relation, populated tables, cascades, integrity
   enforcement, existing-database updates, or hosted support-matrix claim.
+
+
+### EXP-0118 — Accepted exact first-relationship composer candidate
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: validated local development DAO differential under `EXP-0117`;
+  exact private-candidate acceptance, not generalized or hosted support
+- Plan: `oracle/windows-dao/acquisition/relationship-candidate.plan.json`,
+  SHA-256 `01357b430a038a450f88fef8e88e1c8477e99979d52f603eceb4763378af41f0`.
+  No consumed plan, acquisition script, analyzer, or candidate source was
+  changed after acquisition.
+- Artifacts: run `20260905T033000Z-relation-candidate`, external `result.json`
+  SHA-256 `2b0e5970dea5c04aac236c7aa168e9936d113ae918b597d193fce95072fde5e4`,
+  `report.json` SHA-256
+  `3b87a0c4e44fb974715b2f29bed4482b53532a29e24dd4272855635c686616a6`.
+  Read-only re-analysis verified input pins and retained identities and
+  reproduced the report byte-identically. MDBs remain external.
+- Candidate: exactly 59,392 bytes (29 Jet 3 pages), SHA-256
+  `9afa3647fc3619cad95002eebdddf0dd14a9fe067a9621dcd0a3635b3582609d`,
+  exported from the private first-relationship composer reviewed in
+  `EXP-0117`. This is the candidate combining `EXP-0114`'s first relation
+  records with the existing null-`LvProp` bootstrap construction.
+- Environment and result: x86 `DAO.DBEngine.36` on Windows NT
+  `10.0.20348.0`. All three independent fresh DAO controls and candidate
+  copies reached `complete`, with status `pass`, no endpoint error, and
+  unchanged hashes across read-only opens. Complete candidate/control
+  snapshots agreed in every replica. The report is `observed_accepted`
+  with no reasons, `development_only=true`, `compatibility_claim=false`,
+  and `support_matrix_movement=false`.
+- DAO observations: version `3.0`; exactly user tables `Parent` and `Child`
+  plus `MSysACEs`, `MSysObjects`, `MSysQueries`, and `MSysRelationships`.
+  Parent fields are `Id`, `Alternate`; Child fields are `ParentId`,
+  `Alternate`, in that order. Each field has DAO Type 4, Size 4, Attributes
+  1. Both user-table Attributes are zero and both row snapshots are empty.
+- Index observations: Parent exposes `ByAlternate`, unique and nonprimary
+  on ascending `Alternate`, and `ById`, primary, unique and required on
+  ascending `Id`. Both have `Foreign=false`, `IgnoreNulls=false`;
+  `ByAlternate` has `Required=false`. Child exposes `ParentChild` on
+  ascending `ParentId`, with `Foreign=true` and `Primary`, `Unique`,
+  `Required`, and `IgnoreNulls` all false. Every index field has Attributes
+  zero. These complete metadata snapshots match the controls; no physical
+  byte equality with a DAO-created control was required.
+- Relationship observation: exactly `ParentChild`, Table `Parent`,
+  ForeignTable `Child`, Attributes zero, with one field named `Id` and
+  ForeignName `ParentId`, matching the fresh controls. This establishes the
+  recorded read-only metadata and empty-row endpoints only; no referential
+  integrity mutation or cascade behavior was exercised.
+- Boundary: this result accepts only the exact private image above. It
+  establishes no general hidden-name/selector/text-key formula, renamed or
+  differently indexed construction, second relationship, populated table,
+  cascade behavior, public relationship API, existing-database update, or
+  hosted support-matrix claim.
+- Review: independent outcome review verified input and retained-image
+  identities, byte-identical report reconstruction, all recorded metadata
+  claims, and the exact-candidate evidence boundary; no findings.
