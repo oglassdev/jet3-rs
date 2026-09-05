@@ -41,3 +41,6 @@ pub use row_update_fixture::{ROW_UPDATE_SCENARIOS, row_update_fixture};
 
 mod row_allocation_fixture;
 pub use row_allocation_fixture::{ROW_ALLOCATION_SCENARIOS, row_allocation_fixture};
+
+mod indexed_update_fixture;
+pub use indexed_update_fixture::{INDEXED_UPDATE_SCENARIOS, indexed_update_fixture};
