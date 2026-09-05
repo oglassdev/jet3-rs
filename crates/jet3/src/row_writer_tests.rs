@@ -651,3 +651,74 @@ fn wide_fixed_prefix_stays_within_second_boundary_block() -> Result<(), Box<dyn 
     ));
     Ok(())
 }
+
+#[test]
+fn boolean_zero_placeholder_does_not_relax_scalar_offsets() -> Result<(), Box<dyn std::error::Error>>
+{
+    let mut columns = [
+        RowColumnLayout::new(
+            ColumnPhysicalType::Long,
+            ColumnStorageClass::Fixed { offset: 0 },
+            4,
+        ),
+        RowColumnLayout::new(
+            ColumnPhysicalType::Boolean,
+            ColumnStorageClass::Fixed { offset: 0 },
+            1,
+        ),
+        RowColumnLayout::new(
+            ColumnPhysicalType::Long,
+            ColumnStorageClass::Fixed { offset: 4 },
+            4,
+        ),
+    ];
+    let values = [
+        RowValue::Long(11),
+        RowValue::Boolean(true),
+        RowValue::Long(-22),
+    ];
+    let mut bytes = [0; 64];
+    let mut budget = ResourceBudget::new(ResourceLimits::default());
+    let length = encode_row(&columns, &values, &mut bytes, &mut budget)?.get() as usize;
+    assert_eq!(&bytes[..length], &[3, 11, 0, 0, 0, 234, 255, 255, 255, 7]);
+    columns[1] = RowColumnLayout::new(
+        ColumnPhysicalType::Boolean,
+        ColumnStorageClass::Fixed { offset: 4 },
+        1,
+    );
+    let mut current = [0; 64];
+    encode_row(&columns, &values, &mut current, &mut budget)?;
+    assert_eq!(bytes, current);
+    columns[2] = RowColumnLayout::new(
+        ColumnPhysicalType::Long,
+        ColumnStorageClass::Fixed { offset: 0 },
+        4,
+    );
+    assert!(matches!(
+        encode_row(&columns, &values, &mut current, &mut budget),
+        Err(RowWriteError::InvalidFixedOffset {
+            ordinal: 2,
+            offset: 0,
+            expected: 4
+        })
+    ));
+    columns[2] = RowColumnLayout::new(
+        ColumnPhysicalType::Long,
+        ColumnStorageClass::Fixed { offset: 4 },
+        4,
+    );
+    columns[1] = RowColumnLayout::new(
+        ColumnPhysicalType::Boolean,
+        ColumnStorageClass::Fixed { offset: 2 },
+        1,
+    );
+    assert!(matches!(
+        encode_row(&columns, &values, &mut current, &mut budget),
+        Err(RowWriteError::InvalidFixedOffset {
+            ordinal: 1,
+            offset: 2,
+            expected: 4
+        })
+    ));
+    Ok(())
+}

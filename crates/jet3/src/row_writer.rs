@@ -464,7 +464,11 @@ fn validate_column_layout(
             ) {
                 return Err(storage_error());
             }
-            if offset != *next_fixed_offset {
+            // EXP-0198: DAO Boolean records can use zero instead of the current
+            // fixed offset; the value occupies only its presence bit.
+            let boolean_placeholder =
+                column.physical_type == ColumnPhysicalType::Boolean && offset == 0;
+            if offset != *next_fixed_offset && !boolean_placeholder {
                 return Err(RowWriteError::InvalidFixedOffset {
                     ordinal,
                     offset,

@@ -184,7 +184,13 @@
         "oracle/windows-dao/scripts/dao_row_update_diff.py",
         "crates/jet3-testkit/src/row_update_fixture.rs",
         "crates/jet3/src/insert.rs",
-        "crates/jet3/src/delete.rs"
+        "crates/jet3/src/delete.rs",
+        "oracle/windows-dao/protocol/v1_2/row-allocation-scenarios.json",
+        "oracle/windows-dao/acquisition/row-allocation-v1_2.plan.json",
+        "oracle/windows-dao/scripts/dao_row_allocation_diff.py",
+        "crates/jet3-testkit/src/row_allocation_fixture.rs",
+        "crates/jet3/src/row_insert_eof.rs",
+        "crates/jet3/src/row_delete_page.rs"
       ]
     },
     {
