@@ -11101,6 +11101,47 @@ Copy this block under the appropriate section and remove this instruction:
   additive EXP-0168 outcome. No general deletion grammar, sole-row page release,
   arbitrary compaction, hosted compatibility or support-state movement is claimed.
 
+## EXP-0193 — Multiple populated numeric indexes candidate plan
+
+- Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0194.
+  Plan `oracle/windows-dao/acquisition/multiple-index.plan.json`, SHA-256
+  `7dab38a9298a978e998ea940cfa995eb8cf2f5ef4a28f5bd5d62589cc81a1451`; reviewed source `e514de11962f6a3b089e43a8d04a24e78520c21d`.
+- The plan pins27 scoped library, exporter, producer, analyzer and transport
+  inputs, plus two public-API-generated images. Common validation checks inputs
+  before dispatch and analysis; dispatch additionally requires the committed plan
+  and exact candidate identities and raw row/index inventories.
+- Two arms, three independent fresh DAO controls and candidate copies each.
+  Three-long has201rows, primary ascending Id, ordinary descending Group with
+  duplicates and unique Group descending/Value ascending. Names ZPrimary,
+  AGroup and MMixed exercise physical order differing from logical name order.
+  Mixed-null has30rows, primary ascending Id and ordinary Currency descending/
+  Group ascending with repeated and null full keys. No raw fixture edits.
+- The candidates are three-long69632bytes SHA-256
+  `f2dee542a56a29d62f9cdc9a02970a4f778e3f227e95d45478dec8f553ef7418`
+  and mixed-null53248bytes SHA-256
+  `10870c57fe5cc84af0ab16063cf83ac648cad208b6310b0076c342bd98b85c10`.
+  Independent decoding requires exact rows, each key/locator, distinct counts,
+  logical/physical bindings and disjoint complete per-tree maps. The first
+  candidate has three two-level trees; the second has two leaves. Provider
+  placement may differ while every tree must satisfy the same complete checks.
+- Compare full schema/flags/directions and row payloads, every named index's
+  complete directed traversal and every distinct non-null full-key Seek.
+  Equal-key ordering and valid duplicate Seek choices are normalized only after
+  complete traversal and payload validation; null keys remain in traversal and
+  raw-key checks. No null Seek behavior is claimed.
+- Separate copies test duplicate-primary rejection in both arms and a duplicate
+  secondary-unique key with a fresh primary key in three-long. Require3022 and
+  unchanged full logical contents, raw keys and read-only image identity.
+  Retain30 compared MDBs and30 captures:12baseline and18probe images.
+- Reuse EXP-0189's explicit CurrencyWrapper Seek and EXP-0171's typed field
+  assignment. Pure x86 parser,660 query-component conversions and row-array
+  JSON roundtrips pass without DAO; this does not establish COM acceptance.
+  Any acquisition, eligibility, capture or comparison failure yields no_outcome,
+  preserving partial artifacts without retry or subset promotion.
+- Existing numeric/null grammar and tree allocation are tested only in these
+  first-table profiles. No later-table multiple indexes, new key codec, index
+  mutation, general allocation, hosted compatibility or support movement claim.
+
 ## EXP-0162 — Retained deletion transitions agree under the pinned secondary comparison
 
 - Date: 2026-09-05. Outcome: `answered`, no reasons; all three tail, middle
