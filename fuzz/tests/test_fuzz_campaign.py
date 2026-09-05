@@ -520,12 +520,58 @@ class FuzzCampaignValidationTests(unittest.TestCase):
                 {"PATH": os.environ.get("PATH") or "/usr/bin:/bin"},
             )
         self.assertLess(1024, reported_rss)
-        self.assertGreaterEqual(observer["peak_rss_bytes"], reported_rss)
+        self.assertGreaterEqual(observer["peak_rss_bytes"], 32 * 1024 * 1024)
         self.assertGreaterEqual(
             observer["peak_rss_bytes"],
             fuzz_evidence.parse_reported_rss(log_path.read_text(encoding="utf-8")),
         )
         self.assertEqual(observer["executable"]["path"], str(executable))
+
+    @unittest.skipUnless(sys.platform == "linux", "Linux inherited RSS regression")
+    def test_observer_excludes_parent_peak_and_keeps_target_exit_signal(self) -> None:
+        # Touch a large live coordinator allocation before the intermediary exec.
+        parent = bytearray(160 * 1024 * 1024)
+        for offset in range(0, len(parent), 4096): parent[offset] = 1
+        script = (
+            "import resource,time\n"
+            "print('#1 DONE rss: %dMb' % (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss // 1024), flush=True)\n"
+            "time.sleep(0.1)\n"
+        )
+        observer = fuzz_evidence.observe_producer(
+            self.root, self.bundle / "small.log", [str(Path(sys.executable).resolve()), "-c", script],
+            10, {}, {"PATH": os.environ.get("PATH") or "/usr/bin:/bin"},
+        )
+        self.assertLess(observer["peak_rss_bytes"], 80 * 1024 * 1024)
+        self.assertLess(fuzz_evidence.parse_reported_rss((self.bundle / "small.log").read_text()), 80 * 1024 * 1024)
+        self.assertEqual(observer["exit_code"], 0)
+        del parent
+        for ending, expected in [("raise SystemExit(7)", 7), ("import os,signal; os.kill(os.getpid(), signal.SIGTERM)", -15)]:
+            observer = fuzz_evidence.observe_producer(
+                self.root, self.bundle / "exit.log",
+                [str(Path(sys.executable).resolve()), "-c", "print('#1 DONE rss: 1Mb', flush=True); " + ending],
+                10, {}, {"PATH": os.environ.get("PATH") or "/usr/bin:/bin"},
+            )
+            self.assertEqual(observer["exit_code"], expected)
+
+    @unittest.skipUnless(sys.platform == "linux", "Linux process-group cleanup")
+    def test_observer_timeout_kills_target_descendants(self) -> None:
+        pidfile = self.bundle / "descendant.pid"
+        script = (
+            "import subprocess,sys,time\n"
+            "p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(30)'])\n"
+            f"open({str(pidfile)!r},'w').write(str(p.pid))\n"
+            "print('#1 INITED rss: 1Mb',flush=True)\n"
+            "time.sleep(30)\n"
+        )
+        observer = fuzz_evidence.observe_producer(
+            self.root, self.bundle / "timeout.log", [str(Path(sys.executable).resolve()), "-c", script],
+            0.5, {}, {"PATH": os.environ.get("PATH") or "/usr/bin:/bin"},
+        )
+        self.assertTrue(observer["timed_out"])
+        self.assertIsNone(observer["exit_code"])
+        self.assertEqual(observer["result"], "hang")
+        state = Path('/proc') / pidfile.read_text() / 'stat'
+        if state.exists(): self.assertEqual(state.read_text().split()[2], 'Z')
 
     def test_vacuous_registry_is_rejected(self) -> None:
         self.registry["targets"] = []

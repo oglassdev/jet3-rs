@@ -190,7 +190,14 @@
         "oracle/windows-dao/scripts/dao_row_allocation_diff.py",
         "crates/jet3-testkit/src/row_allocation_fixture.rs",
         "crates/jet3/src/row_insert_eof.rs",
-        "crates/jet3/src/row_delete_page.rs"
+        "crates/jet3/src/row_delete_page.rs",
+        "oracle/windows-dao/protocol/v1_2/indexed-update-scenarios.json",
+        "oracle/windows-dao/acquisition/indexed-update-v1_2.plan.json",
+        "oracle/windows-dao/scripts/dao_indexed_update_diff.py",
+        "oracle/windows-dao/scripts/Invoke-DaoIndexedUpdateV12.ps1",
+        "crates/jet3-testkit/src/indexed_update_fixture.rs",
+        "crates/jet3/src/update_index_key.rs",
+        "crates/jet3/src/index_key_page.rs"
       ]
     },
     {
@@ -225,9 +232,18 @@
     },
     {
       "id": "indexes.crud_maintenance",
-      "implementation": "not_started",
-      "verification": "unverified",
-      "evidence": []
+      "implementation": "partial",
+      "verification": "dao_differential",
+      "evidence": [
+        "docs/PROVENANCE.md",
+        "oracle/windows-dao/protocol/v1_2/indexed-update-scenarios.json",
+        "oracle/windows-dao/acquisition/indexed-update-v1_2.plan.json",
+        "oracle/windows-dao/scripts/dao_indexed_update_diff.py",
+        "oracle/windows-dao/scripts/Invoke-DaoIndexedUpdateV12.ps1",
+        "crates/jet3-testkit/src/indexed_update_fixture.rs",
+        "crates/jet3/src/update_index_key.rs",
+        "crates/jet3/src/index_key_page.rs"
+      ]
     },
     {
       "id": "relationships.create_drop_preserve_metadata",

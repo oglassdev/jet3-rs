@@ -1,0 +1,137 @@
+{
+  "document_type": "dao_memo_property_plan",
+  "provenance": "EXP-0207",
+  "outcome_provenance": "EXP-0208",
+  "replicas": 3,
+  "arms": [
+    {
+      "name": "short",
+      "table": "Rows",
+      "columns": [
+        "M"
+      ],
+      "checkpoints": [
+        {
+          "name": "default",
+          "values": [
+            false
+          ],
+          "target": null
+        },
+        {
+          "name": "column0-true",
+          "values": [
+            true
+          ],
+          "target": 0
+        },
+        {
+          "name": "column0-false",
+          "values": [
+            false
+          ],
+          "target": 0
+        }
+      ]
+    },
+    {
+      "name": "renamed",
+      "table": "Ledger7",
+      "columns": [
+        "Memo42Long"
+      ],
+      "checkpoints": [
+        {
+          "name": "default",
+          "values": [
+            false
+          ],
+          "target": null
+        },
+        {
+          "name": "column0-true",
+          "values": [
+            true
+          ],
+          "target": 0
+        },
+        {
+          "name": "column0-false",
+          "values": [
+            false
+          ],
+          "target": 0
+        }
+      ]
+    },
+    {
+      "name": "two-columns",
+      "table": "Table9",
+      "columns": [
+        "First2",
+        "SecondMemo7"
+      ],
+      "checkpoints": [
+        {
+          "name": "default",
+          "values": [
+            false,
+            false
+          ],
+          "target": null
+        },
+        {
+          "name": "column0-true",
+          "values": [
+            true,
+            false
+          ],
+          "target": 0
+        },
+        {
+          "name": "column0-false",
+          "values": [
+            false,
+            false
+          ],
+          "target": 0
+        },
+        {
+          "name": "column1-true",
+          "values": [
+            false,
+            true
+          ],
+          "target": 1
+        },
+        {
+          "name": "column1-false",
+          "values": [
+            false,
+            false
+          ],
+          "target": 1
+        }
+      ]
+    }
+  ],
+  "inputs": {
+    "oracle/windows-dao/scripts/memo_property.py": "a3f4eb0fc2785bd2dcb51e4a1ba360e716495ec26dde181509126acb8bfc9227",
+    "oracle/windows-dao/scripts/memo_property.ps1": "da1674e4744511c9f11d98293bdc140d5f17b6d2be2a460a936b46d6798f587e",
+    "oracle/windows-dao/scripts/empty_long_values.ps1": "f057ca96ee79c32e8fdca259eaabce60582fc2f95a535db8e9ac1a7b0d249608",
+    "oracle/windows-dao/scripts/field_update.py": "0c6d6536ad69126b53d596e011a4bede7293fd34a1efa8f313fa7f391212ba76",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9"
+  },
+  "question": "Which exact persisted catalog property payload bytes and named column binding change for a single Memo AllowZeroLength false/true/false cycle?",
+  "sequence": [
+    "Commit and independently review before one local acquisition; no retry.",
+    "Three empty schemas, three replicas each: short Memo name, renamed digit-bearing table/column, and two differently named Memo columns. Id Long precedes Memo columns.",
+    "Create empty schema, close, reopen read-only and capture baseline. Reopen writable once per explicit checkpoint, set only the selected Memo AllowZeroLength, close; retain independent closed copies and complete read-only captures. Each column toggles false\u2192true\u2192false before the next column.",
+    "Capture full field metadata/properties, empty rows/indexes/relationships/queries, exact catalog record and LvProp descriptor/payload backing pages, table/long-column maps and complete changed byte ranges.",
+    "Require exact requested property booleans and stable logical snapshots across replicas. Retain all raw bytes and locators; compare property payload and per-transition payload differences, excluding physical locators from replica equality. No assumed payload grammar or byte offset is an acceptance gate.",
+    "Retain33closed checkpoint images/captures plus9final working images, setter outcomes and every partial artifact. Any unexpected mutation/capture/retention/identity/semantic failure yields no_outcome. No production encoding changes."
+  ],
+  "bounds": "One Long Id plus one/two Memo columns, empty tables only. No stored custom properties, inserts, empty OLE normalization or general property format claim. Existing64page decoder; payload capture bounded to known inline/single external LVAL framing, otherwise retain raw descriptor and no_outcome.",
+  "decision_rule": "answered iff all33planned captures and24property setters complete with exact properties/empty data and unchanged capture identities, and the question-bearing property payload/transitions agree across3replicas for each finite schema. Otherwise no_outcome, no retry or subset promotion."
+}
