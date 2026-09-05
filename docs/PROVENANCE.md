@@ -12561,6 +12561,46 @@ Copy this block under the appropriate section and remove this instruction:
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
 
+## EXP-0180 — Unique Long key validation stopped during continuation assignment
+
+- Outcome: `no_outcome`, recorded 2026-09-05 from the single local run
+  `20260905T081800Z-single-leaf-key`. Consumed EXP-0179 plan SHA-256 remains
+  `40a1258ee08926d97df3f3edf8549a752d28b7aaaf58e7b7e9bdc82863c6e656`;
+  acquisition source is `aff2ba7`, reviewed public implementation
+  `d16d0ed735657526c258194f0d7fe0b9622b1878`. No redispatch occurred.
+- Validated report: 378 bytes, SHA-256
+  `34d396546fb00db55587cdd96ed2e14177c379b7b6e680a9a5690a595399bdd2`.
+  Result: 51323 bytes, SHA-256
+  `84bdd9b149a3ded41f0378995bef0ebd8b70a7208690f5c5277c39c68bd88069`.
+  The unchanged pinned analyzer reproduced the report byte-identically on a
+  temporary copy. All nine retained files remained unchanged.
+- The report has zero observations and one reason, `Acquisition/receipt failure`.
+  The result records `mutation_started: true`, no retention failures, and
+  x86 `DAO.DBEngine.36` on Microsoft Windows NT 10.0.20348.0.
+- The initiating exception is `System.InvalidCastException`, message
+  `Specified cast is not valid.`, HRESULT `-2147467262`, endpoint
+  `ascending-primary-r1/candidate/continue`. The retained stack identifies
+  `Set-Field` line29, `Append-Row` line30, `Mutate` line40 and script line73.
+  The generic COM assignment site takes both integer and string values; the
+  result does not identify which field assignment failed or establish the
+  underlying COM binding cause. The failure precedes that append's `Update`.
+- Only ascending-primary replica1 began. Its original, public candidate and
+  DAO-updated control have complete read-only captures with unchanged retained
+  identities. The control update operation completed. The candidate/control
+  captured rows both replace Id0 with -2147483648; this diagnostic partial
+  capture does not override the full-run failure gate.
+- Four 51200-byte images are retained. Original SHA-256:
+  `5f29fe662b23c3019aac6d35f0b93ad972e83af405619706e84f6813744f9574`;
+  candidate: `461809e005db28de5922f77532185c32540bf1956a1063ef455b4a03cb5552b9`;
+  control: `4928643aa319265c1ccec7a3835cab5282a8d96e12ee863f80cce4f49a821029`.
+  The failed continuation copy equals the candidate byte-for-byte, but has no
+  complete continuation capture or operation receipt. No duplicate probe,
+  second replica, descending arm or full-leaf arm completed.
+- This result establishes no key-update or continuation acceptance. Report
+  compatibility and support-matrix flags remain false. Preserve the consumed
+  plan, scripts, raw images and original failure; any corrected experiment is
+  a distinct committed/reviewed successor, never a retry of this acquisition.
+
 ## EXP-0179 — Unique Long root-leaf key update validation preregistration
 
 - Preregistered only; no acquisition. Outcome reserved as EXP-0180. Plan:
