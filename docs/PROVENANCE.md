@@ -11242,6 +11242,42 @@ DAO control continuation; first/later images 57,344 bytes, last-page images 59,3
 - last-page-sole replica 2: `150e8937655b6f8aa2e0ca387c45778be08c1453b2bf99f91629563039f872f6`, `906b17069e3ec96f3f2accfe898290043848d593858eca0949c2ba333f614a07`, `9437209032548134abc6e4a77dfe560eceaae9097171037fb98167d3efcf4e6e`, `41a98cbe019a6583a7abb21b0b3c96d7874956c97d17a413a7ad5fb5e52abc14`, `1d1bc67decd97490bfcd84e6c6644e6d973f7c15824d84346032f1f7f44ec806`.
 - last-page-sole replica 3: `b6d428cb96642cb43cd6ab382a1e22a844bebbb3c996040842b7bec6faed0eb7`, `02968c3c96066d562cf328be94e6d5610083d0745203b48289e4efbacfb2e26f`, `108517677faa595eea3370c84faaca7f7d39a774387c15e9a541f10e9436e80a`, `f7acaf6a1c5f52a4564c99e08342c4496d5c352addc514db12527d9bf4ffb81b`, `cec4190d3befe417c5633113b4a104bc50acecb3f8485b7f17720416566cdce5`.
 
+## EXP-0199 — Empty Memo/OLE layout discovery plan
+
+- Preregistered2026-09-05; no acquisition. Result reserved as EXP-0200.
+  Plan `oracle/windows-dao/acquisition/empty-long-values.plan.json`, SHA-256
+  `fa2b22d683b3d2f15a9c9849f55ffe9b2ae2349ddd9ed1d1f497e1dadc738b4e`; five scoped producer/analyzer/
+  decoder/transport inputs pinned and checked before dispatch and analysis.
+- Four natural DAO arms, three fresh databases each: Memo with default
+  AllowZeroLength, Memo explicitly allowing zero length, OLE Value assignment
+  and OLE AppendChunk. Each Rows table has Long Id and one long Payload column,
+  no indexes, relations or queries. No raw fixture edits or production changes.
+- Attempt Id1 Null, Id2 empty, Id3 one-byte A/41. Empty Memo uses an explicit
+  string; empty OLE a true CLR byte[0], assigned through a local COM field.
+  Only the declared empty assignment/Update can yield an answered negative with
+  a captured native DAO error inventory. Record initiating endpoint, exception
+  type/HRESULT/numbers/stack before cancellation and cleanup. Null/one-byte
+  controls, cancellation, cleanup and complete reopen must succeed.
+- Reopen read-only and retain complete field properties, Memo AllowZeroLength,
+  exact schema/row inventory, IsNull/FieldSize and complete payload. Bind raw
+  Ids and presence bits to saved rows; retain complete small-row bytes, raw
+  field spans/headers, table maps and long-column maps. All12capture identities
+  must stay unchanged and all three replicas of each arm agree.
+- Accepted empty may remain empty or normalize to Null; stable provider refusal
+  is also an answered result. Existing zero-length inline-header construction
+  is a hypothesis, never an acceptance gate. EXP-0061 supplies existing framing,
+  EXP-0077 column-map coverage; EXP-0124 explicitly did not test empty payloads.
+  No empty-payload production refusal is removed before the observed outcome.
+- One dispatch,300second transport bound; retain12images and12reopen captures
+  plus partial artifacts on failure. Any incomplete/unexpected mutation,
+  observation, binding or replica failure remains no_outcome without retry or
+  subset promotion. Three focused classifier/pin tests and actual x86 parser,
+  twelve typed mock assignments and JSON roundtrips pass without DAO; mocks
+  establish host-language marshalling only, not COM/provider acceptance.
+- Finite local discovery only: no general property writer, index/update/delete
+  grammar, hosted compatibility or support movement. Independent review precedes
+  acquisition; original inputs/results will remain immutable.
+
 ## EXP-0191 — Sole physical-row release candidate plan
 
 - Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0192.
@@ -11278,6 +11314,47 @@ DAO control continuation; first/later images 57,344 bytes, last-page images 59,3
   no bookkeeping meaning, general release policy or hosted support is claimed.
   Sole-live pages with other tombstones, indirect maps, map growth, truncation,
   indexed/related/AutoIncrement/LVAL deletion and public reuse are excluded.
+
+## EXP-0193 — Multiple populated numeric indexes candidate plan
+
+- Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0194.
+  Plan `oracle/windows-dao/acquisition/multiple-index.plan.json`, SHA-256
+  `7dab38a9298a978e998ea940cfa995eb8cf2f5ef4a28f5bd5d62589cc81a1451`; reviewed source `e514de11962f6a3b089e43a8d04a24e78520c21d`.
+- The plan pins27 scoped library, exporter, producer, analyzer and transport
+  inputs, plus two public-API-generated images. Common validation checks inputs
+  before dispatch and analysis; dispatch additionally requires the committed plan
+  and exact candidate identities and raw row/index inventories.
+- Two arms, three independent fresh DAO controls and candidate copies each.
+  Three-long has201rows, primary ascending Id, ordinary descending Group with
+  duplicates and unique Group descending/Value ascending. Names ZPrimary,
+  AGroup and MMixed exercise physical order differing from logical name order.
+  Mixed-null has30rows, primary ascending Id and ordinary Currency descending/
+  Group ascending with repeated and null full keys. No raw fixture edits.
+- The candidates are three-long69632bytes SHA-256
+  `f2dee542a56a29d62f9cdc9a02970a4f778e3f227e95d45478dec8f553ef7418`
+  and mixed-null53248bytes SHA-256
+  `10870c57fe5cc84af0ab16063cf83ac648cad208b6310b0076c342bd98b85c10`.
+  Independent decoding requires exact rows, each key/locator, distinct counts,
+  logical/physical bindings and disjoint complete per-tree maps. The first
+  candidate has three two-level trees; the second has two leaves. Provider
+  placement may differ while every tree must satisfy the same complete checks.
+- Compare full schema/flags/directions and row payloads, every named index's
+  complete directed traversal and every distinct non-null full-key Seek.
+  Equal-key ordering and valid duplicate Seek choices are normalized only after
+  complete traversal and payload validation; null keys remain in traversal and
+  raw-key checks. No null Seek behavior is claimed.
+- Separate copies test duplicate-primary rejection in both arms and a duplicate
+  secondary-unique key with a fresh primary key in three-long. Require3022 and
+  unchanged full logical contents, raw keys and read-only image identity.
+  Retain30 compared MDBs and30 captures:12baseline and18probe images.
+- Reuse EXP-0189's explicit CurrencyWrapper Seek and EXP-0171's typed field
+  assignment. Pure x86 parser,660 query-component conversions and row-array
+  JSON roundtrips pass without DAO; this does not establish COM acceptance.
+  Any acquisition, eligibility, capture or comparison failure yields no_outcome,
+  preserving partial artifacts without retry or subset promotion.
+- Existing numeric/null grammar and tree allocation are tested only in these
+  first-table profiles. No later-table multiple indexes, new key codec, index
+  mutation, general allocation, hosted compatibility or support movement claim.
 
 ## EXP-0162 — Retained deletion transitions agree under the pinned secondary comparison
 
