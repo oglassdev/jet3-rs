@@ -11927,3 +11927,59 @@ Copy this block under the appropriate section and remove this instruction:
   files without expanded analysis; independent review precedes execution.
   Record one additive validated EXP-0150 outcome, limited to the selected
   finite saved values and directions, without arbitrary scalar-key grammar.
+
+## EXP-0150 — Selected completed numeric scalar index observations answered
+
+- Recorded: 2026-09-05, OpenAI Codex; validated post-acquisition selected
+  secondary `answered` result. Original EXP-0143 inputs and EXP-0144 full-run
+  `no_outcome` remain unchanged; this is not a successful 78-capture run.
+- Reviewed EXP-0149 plan SHA-256
+  `86264bd70406353e1241e5f5564a54a37ea5b847f8540dd7d44e5b9eec813b20`,
+  analyzer source `cdf44cf`. Secondary report retained externally at
+  `20260905T061800Z-scalar-index-secondary/report.json`: 92129 bytes,
+  SHA-256 `b5d35fcc7191b4276b6ae38c07d507fdd4283fd7f42f3a5c5b80d81ad1dc94dd`.
+- Source run `20260905T054700Z-scalar-index-layout` remains bound to original
+  plan SHA-256 `c692ca69614f176b3391d3dd8020de1109e30957a9aaaf65abd5b09ac20de863`,
+  703682-byte result SHA-256
+  `47e9be13836af6bb67b6007bcd731c73c96f871744b7998cb22734f0cb562624`,
+  and 3284-byte original report SHA-256
+  `e338265e299b875b0a8de0426fd2f2c285d675822ed84919b1bfbdb061b3242d`.
+  The new report explicitly retains the cast error, empty 37th Date attempt,
+  partial Date image identity and original `no_outcome`.
+- All 36 selected captures validate with no reasons: both directions for six
+  scalar types, three replicas each. Strict recorded-wrapper normalization
+  changes only the snapshot container shape. Complete row/key-locator,
+  traversal, schema/flag and three-replica checks pass; every saved payload
+  equals its declared value. No new DAO or Date/Binary/null reinterpretation.
+- Boolean: exact ascending True key `7f00`, False `7fff`; descending True
+  `80ff`, False `8000`. Ascending traversal is True then False, descending
+  False then True, independently repeating retained EXP-0062 ordering.
+- Byte: tested `0,1,127,128,255`; ascending key is `7f` followed by the
+  unchanged byte. Integer: tested `-32768,-256,-1,0,1,255,256,32767`;
+  ascending keys equal `7f` plus two-byte big-endian signed representation
+  with the sign bit flipped. Examples: minimum `7f0000`, -1 `7f7fff`,
+  zero `7f8000`, maximum `7fffff`.
+- Currency: tested scaled integers `i64::MIN,i64::MAX,-10000,-1,0,1,10000`,
+  preserved exactly. For these values ascending keys equal `7f` plus the
+  eight-byte big-endian signed scaled integer with sign bit flipped. Examples:
+  minimum `7f0000000000000000`, zero `7f8000000000000000`, scaled 10000
+  `7f8000000000002710`, maximum `7fffffffffffffffff`.
+- Single and Double: tested positive/negative finite maxima, -1, +0, +1,
+  smallest positive normal and smallest positive subnormal values, all saved
+  with exact planned bits. For these finite inputs ascending keys equal `7f`
+  plus big-endian IEEE bits, complementing all payload bits for negative
+  values and flipping the sign bit for nonnegative values. Single examples:
+  -1 `7f407fffff`, +0 `7f80000000`, smallest subnormal `7f80000001`,
+  smallest normal `7f80800000`, +1 `7fbf800000`. Double examples: -1
+  `7f400fffffffffffff`, +0 `7f8000000000000000`, smallest subnormal
+  `7f8000000000000001`, smallest normal `7f8010000000000000`, +1
+  `7fbff0000000000000`. Full endpoint keys remain in the validated report.
+- For every tested type/value, the descending key complements every ascending
+  byte including marker `7f` to `80`; directed traversal reverses value order.
+  These are observed relations across the finite retained inputs, not a claim
+  about arbitrary scalar values. Negative zero, NaN/infinity, other null/index
+  flag combinations, Text/GUID/Memo/OLE indexing and writer acceptance remain
+  outside this selected analysis.
+- The pinned analyzer reproduced the exact report in a temporary copy; all
+  original retained files and the secondary report remained unchanged. No
+  compatibility or hosted support claim; both report flags remain false.
