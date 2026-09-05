@@ -62,6 +62,39 @@ impl InitialLongIndex {
                 Err(ComposeError::UnsupportedInitialIndexSchema)
             };
         };
+        Self::for_index(spec, index, row_count, budget).map(Some)
+    }
+
+    pub(crate) fn for_table(
+        spec: &TableSpec<'_>,
+        row_count: usize,
+        budget: &mut ResourceBudget,
+    ) -> Result<Vec<Self>, ComposeError> {
+        if spec.indexes.len() > crate::creation::schema_plan::MAX_OBSERVED_INDEXES {
+            return Err(ComposeError::UnsupportedInitialIndexSchema);
+        }
+        budget.charge_allocation(ByteCount::new(
+            (spec.indexes.len() * size_of::<Self>()) as u64,
+        ))?;
+        let mut indexes = Vec::new();
+        indexes
+            .try_reserve_exact(spec.indexes.len())
+            .map_err(|_| Error::Io {
+                operation: "reserve initial indexes",
+                kind: std::io::ErrorKind::OutOfMemory,
+            })?;
+        for index in spec.indexes {
+            indexes.push(Self::for_index(spec, index, row_count, budget)?);
+        }
+        Ok(indexes)
+    }
+
+    fn for_index(
+        spec: &TableSpec<'_>,
+        index: &crate::IndexSpec<'_>,
+        row_count: usize,
+        budget: &mut ResourceBudget,
+    ) -> Result<Self, ComposeError> {
         if !(1..=MAX_FIELDS).contains(&index.fields.len()) {
             return Err(ComposeError::UnsupportedInitialIndexSchema);
         }
@@ -105,7 +138,7 @@ impl InitialLongIndex {
                 operation: "reserve initial Long index entries",
                 kind: std::io::ErrorKind::OutOfMemory,
             })?;
-        Ok(Some(Self {
+        Ok(Self {
             fields,
             field_count: index.fields.len(),
             unique: index.kind.is_unique(),
@@ -114,7 +147,7 @@ impl InitialLongIndex {
             entries,
             distinct: 0,
             pages,
-        }))
+        })
     }
 
     pub(crate) fn push(
@@ -263,8 +296,13 @@ impl InitialLongIndex {
             .is_ok())
     }
 
-    pub(crate) fn matches(&self, tree: &IndexTree) -> bool {
-        self.entries.len() == tree.entries().len()
+    pub(crate) fn matches(
+        &self,
+        tree: &IndexTree,
+        budget: &mut ResourceBudget,
+    ) -> Result<bool, ComposeError> {
+        budget.charge_work_units(self.entries.len() as u64 * ENTRY_CAPACITY as u64)?;
+        Ok(self.entries.len() == tree.entries().len()
             && self
                 .entries
                 .iter()
@@ -280,7 +318,7 @@ impl InitialLongIndex {
                                 expected.bytes[key_bytes + 2],
                             ]))
                         && actual.row().slot() == expected.bytes[key_bytes + 3]
-                })
+                }))
     }
 }
 
