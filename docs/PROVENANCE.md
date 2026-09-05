@@ -11784,3 +11784,36 @@ Copy this block under the appropriate section and remove this instruction:
   honest original result; there is no support-matrix movement or general
   compatibility claim. Any corrected read-only association of retained probes
   requires a separately pinned and independently reviewed secondary plan.
+
+## EXP-0153 — Retained hosted write index-association reanalysis plan
+
+- Recorded: 2026-09-05, OpenAI Codex; post-acquisition read-only secondary
+  plan, not an original blinded decision or a new hosted run. EXP-0141 inputs
+  and EXP-0142 `no_outcome` remain unchanged; corrected evaluation has not run.
+- Plan: `oracle/windows-dao/acquisition/hosted-write-reanalysis.plan.json`,
+  SHA-256 `739c21ca890f48ea88221eb7aa0743d0ad079433d9e49d18b350f86c76beee85`.
+  Pins cover the original plan/runtime dependencies, new secondary analyzer,
+  and all 244 files retained in both hosted run `33948345313` artifacts,
+  including Linux/Windows MDBs, snapshots, receipts and original failure report.
+- Prior diagnosis: both relationship index observations exist but use DAO
+  Parent/Child enumeration order; canonical snapshots use Child/Parent order.
+  Secondary association requires an exact unique set of `(table, index)`
+  identities and reorders whole records before calling the unchanged original
+  index checker. It neither changes data nor synthesizes missing probes.
+- Execution: verify original and secondary runtime/artifact pins, ready stock
+  provider receipt, expected source revision and identical Linux/Windows MDBs.
+  Copy the Windows evaluation directory to a temporary directory, run the
+  original full evaluator with only the association function replaced in memory,
+  restore that function and remove the temporary copy. Verify all retained
+  originals again before exclusively writing a new report outside their tree.
+- Decision: secondary `matched` requires every original twelve-scenario gate,
+  including complete typed rows, schema, relationships, coverage, identities,
+  directed index traversal and complete distinct-key Seek payload checks.
+  Missing/duplicate/unknown index identities still fail. Preserve original
+  `no_outcome` in the new report; failed evaluation remains secondary
+  `no_outcome`. No automatic support-matrix movement or broad compatibility claim.
+- Validation: three focused synthetic association/completeness/pin/containment
+  tests and Python compilation passed. Committed preflight checks retained
+  identities without corrected evaluation. Independent review precedes analysis;
+  no DAO, provider activation, build, installation, retry or workflow dispatch.
+  Record one additive validated EXP-0154 outcome; retain originals externally.
