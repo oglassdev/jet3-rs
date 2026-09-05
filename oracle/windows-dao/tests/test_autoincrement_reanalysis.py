@@ -58,6 +58,11 @@ class SecondaryTests(unittest.TestCase):
             original.write_text('original no_outcome')
             with self.assertRaisesRegex(ValueError, 'outside'):
                 secondary.analyze(outbox, original)
+            nested = outbox / 'nested'
+            nested.mkdir()
+            with self.assertRaisesRegex(ValueError, 'outside'):
+                secondary.analyze(outbox, nested / 'report.json')
+            self.assertFalse((nested / 'report.json').exists())
             self.assertEqual(original.read_text(), 'original no_outcome')
 
 

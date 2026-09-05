@@ -10998,7 +10998,7 @@ Copy this block under the appropriate section and remove this instruction:
   not run. This is not a new preregistered acquisition. EXP-0132 remains an
   unchanged `no_outcome` from the original EXP-0131 experiment.
 - Plan: `oracle/windows-dao/acquisition/autoincrement-reanalysis.plan.json`,
-  SHA-256 `9b1e2247568356ba99725fa867c032b7632c9f8099d1daec18504a8f42624ed4`.
+  SHA-256 `13ab8dab2f129fa8a859545e896fa3376836cde938c14e673a842d1d87b5c96f`.
   It pins the original result/report and all 36 retained MDB captures from
   `20260905T044800Z-autoincrement-layout`, plus the new harness and unchanged
   original analyzer, decoder and acquisition plan.

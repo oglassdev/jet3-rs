@@ -53,7 +53,7 @@ def verify(outbox):
 def analyze(outbox, output):
     plan = verify(outbox)
     # Never replace a source artifact or an existing report.
-    if output.resolve().parent == outbox.resolve():
+    if output.resolve().is_relative_to(outbox.resolve()):
         raise ValueError('Output must be outside the source outbox')
     if output.exists():
         raise ValueError('Output already exists')
