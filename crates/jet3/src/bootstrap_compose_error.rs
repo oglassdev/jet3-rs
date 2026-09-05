@@ -5,6 +5,13 @@ use super::*;
 /// Structured failure while composing a database image.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ComposeError {
+    /// A non-null child key has no matching initial parent row.
+    OrphanInitialRelationshipKey {
+        /// Zero-based child input row.
+        row: usize,
+        /// Unmatched Long key.
+        value: i32,
+    },
     /// The relationship request exceeds the supported schema or references.
     UnsupportedRelationship {
         /// Unsupported relationship constraint.
@@ -111,6 +118,7 @@ impl std::error::Error for ComposeError {
             Self::UnsupportedRelationship { .. }
             | Self::UnsupportedInitialRowSchema
             | Self::InitialLongValue { .. }
+            | Self::OrphanInitialRelationshipKey { .. }
             | Self::UnsupportedInitialIndexSchema
             | Self::NullInitialIndexKey { .. }
             | Self::DuplicateInitialIndexKey { .. }
