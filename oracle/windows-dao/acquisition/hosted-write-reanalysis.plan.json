@@ -18,6 +18,7 @@
   "classification": "Carry original no_outcome unchanged. Secondary matched requires the original all-twelve evaluator gates after only identity-based association; failed evaluation is secondary no_outcome. Original input/retained identity/provider/source mismatches reject analysis. Report records original plan/report identity, hosted run/source and secondary plan hash. No automatic support-matrix movement or general compatibility claim.",
   "retention": "Original generated and Windows artifacts, snapshots, comparison documents, report and environment remain immutable. New report embeds per-scenario comparison identities when reached. No corrected evaluation occurs until this plan is committed and independently reviewed. No DAO execution, provider activation, build, installation, retry or workflow dispatch.",
   "inputs": {
+    "oracle/windows-dao/protocol/v1_2/branch-registry.schema.json": "dc1a126f4f89ae60c78ec2e099938cc0a743dc9b464d85154e9660db056b525c",
     ".github/workflows/windows-dao-write.yml": "4edc8502b3d12e4416f9f0b9502ffef36f67034db847927755a587d963c6c1a0",
     "Cargo.toml": "6d13cd82b6ea190311d8ba28311f23122e4cffa69c02135f465460236e951c60",
     "Cargo.lock": "eb8c67b84f06190369a8de28efe2a1fabdd37b2abf894989a9b076d8fe1ba3c0",
@@ -46,7 +47,7 @@
     "oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json": "1c4ed41a01b45fa2357aa2355c2101958e9196d42532386d2e84b393f40066b9",
     "oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json": "a362c1d63866ed77465e512902c14e8578f1fadda306c8b35dc9e16b5ff809f1",
     "oracle/windows-dao/acquisition/write-v1_2.plan.json": "d5556c11bb1526d3fb067a6fd1c2196fdc4ffd7f52fa8dd03ef4104a5bfbeaf8",
-    "oracle/windows-dao/scripts/hosted_write_reanalysis.py": "5754b768e667bed75ecac57723a812dd4f82f25dc0349f682fc965dfc60a3a10"
+    "oracle/windows-dao/scripts/hosted_write_reanalysis.py": "480fffcbd0a68a4f8bf90e9b9f6c434266cb20626dfd42fec7dc3bfa56a63aa9"
   },
   "retained": {
     "generated-write-4d8e421b0d618482ac0b7a1589c77a94d293e513/DAO-WRITE-AUTO/database.mdb": {"size": 51200,"sha256": "012def63809bfb5ec757f86abf85b41af8fb46daa9341633bb320c1ceeab1702"},

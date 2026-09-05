@@ -47,6 +47,17 @@ class HostedWriteReanalysisTests(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises((secondary.original.ValidationError, KeyError)):
                 secondary.assert_indexes(broken, snapshot)
 
+    def test_environment_uses_its_explicit_contract_not_snapshot_schema_dispatch(self):
+        environment = {'document_type': 'dao_environment', 'protocol_version': '1.2.0',
+                       'status': 'ready', 'host': {'process_architecture': 'x86'},
+                       'accepted_provider': {'prog_id': 'DAO.DBEngine.36', 'database_version': 'dbVersion30'}}
+        secondary.validate_environment(environment)
+        for key, value in [('document_type', 'other'), ('status', 'failed'), ('accepted_provider', None),
+                           ('host', {'process_architecture': 'x64'})]:
+            broken = copy.deepcopy(environment); broken[key] = value
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, 'ready x86'):
+                secondary.validate_environment(broken)
+
     def test_pin_drift_and_retained_output_containment(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); source = root / 'source'; source.mkdir()

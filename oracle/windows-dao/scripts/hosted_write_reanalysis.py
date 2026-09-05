@@ -45,16 +45,27 @@ def verify(source, committed=True):
     return plan
 
 
+
+def validate_environment(environment):
+    provider = environment.get('accepted_provider')
+    if (environment.get('document_type') != 'dao_environment'
+            or environment.get('protocol_version') != '1.2.0'
+            or environment.get('status') != 'ready'
+            or environment.get('host', {}).get('process_architecture') != 'x86'
+            or not isinstance(provider, dict)
+            or provider.get('prog_id') != 'DAO.DBEngine.36'
+            or provider.get('database_version') != 'dbVersion30'):
+        raise ValueError('Retained environment is not the declared ready x86 DAO provider')
+
+
 def build_report(source, plan):
     windows = source / plan['windows_artifact']
     acquired = windows / 'dao-write-v1_2'
     previous = original.load_json(acquired / 'report.json')
     environment = original.load_json(windows / 'environment.json')
-    original.protocol.SCHEMA_SET.validate(environment)
+    validate_environment(environment)
     if previous['outcome'] != 'no_outcome' or previous['error'] != 'Incomplete index observation inventory':
         raise ValueError('Unexpected original outcome')
-    if environment['status'] != 'ready' or environment['accepted_provider'] is None:
-        raise ValueError('Retained provider was not ready')
     preparation = original.load_json(acquired / 'preparation.json')
     if preparation['source_revision'] != plan['source_revision']:
         raise ValueError('Retained source revision mismatch')

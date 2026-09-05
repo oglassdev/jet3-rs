@@ -11791,7 +11791,7 @@ Copy this block under the appropriate section and remove this instruction:
   plan, not an original blinded decision or a new hosted run. EXP-0141 inputs
   and EXP-0142 `no_outcome` remain unchanged; corrected evaluation has not run.
 - Plan: `oracle/windows-dao/acquisition/hosted-write-reanalysis.plan.json`,
-  SHA-256 `739c21ca890f48ea88221eb7aa0743d0ad079433d9e49d18b350f86c76beee85`.
+  SHA-256 `6092f41b7793bdf9f40491f0532d8ab3acfc951e0e30c82ef9f88b25625f8e4b`.
   Pins cover the original plan/runtime dependencies, new secondary analyzer,
   and all 244 files retained in both hosted run `33948345313` artifacts,
   including Linux/Windows MDBs, snapshots, receipts and original failure report.
@@ -11812,7 +11812,7 @@ Copy this block under the appropriate section and remove this instruction:
   Missing/duplicate/unknown index identities still fail. Preserve original
   `no_outcome` in the new report; failed evaluation remains secondary
   `no_outcome`. No automatic support-matrix movement or broad compatibility claim.
-- Validation: three focused synthetic association/completeness/pin/containment
+- Validation: four focused synthetic association/environment/completeness/pin/containment
   tests and Python compilation passed. Committed preflight checks retained
   identities without corrected evaluation. Independent review precedes analysis;
   no DAO, provider activation, build, installation, retry or workflow dispatch.
