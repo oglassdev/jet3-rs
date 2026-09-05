@@ -14796,3 +14796,22 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   and DAO continuation mutations remain outside this inventory. The report's
   `support_matrix_movement` remains false; no general update compatibility is
   claimed. Earlier provenance entries and the consumed plan remain unchanged.
+
+## EXP-0213 — Hosted creation index boundary preregistration
+
+- Plan: `oracle/windows-dao/acquisition/creation-index-v1_2.plan.json`,
+  SHA-256 `1986865162d41394eb6e88d01092c2686fa26f5359a136318c563c49c8aea960`;
+  reviewed runtime `599b9042da97b72828e893bb3b437e5de506b8bf`.
+  Both hosted jobs use one dispatched committed revision and verify the
+  plan's 53 scoped input hashes before acquisition.
+- One grouped matrix covers a 27,801-row three-level Long tree, a 126-row
+  nullable Currency/Double composite tree, and three populated Long indexes
+  over 201 rows. Require full schema/value snapshots, directed traversal,
+  exact tree depths and map membership, and unchanged generated/downloaded MDBs.
+- Seek coverage is nine declared deep-Long boundary keys, all 120 non-null
+  numeric keys, and 201 primary, three ordinary and 201 composite Long keys.
+  Null-bearing rows remain in full traversal and snapshots. No mutation or
+  rejection probe, generalized allocation policy or arbitrary key type is tested.
+- Commit the plan before one authorized `windows-dao-creation-index` dispatch.
+  A failed acquisition is retained without automatic retry. Record EXP-0214
+  once from validated retained JSON; this plan does not move support status.
