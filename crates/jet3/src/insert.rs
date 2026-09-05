@@ -16,14 +16,15 @@ use std::path::Path;
 /// Indexed insertion requires an existing populated data page; its leaf records,
 /// boundary bitmap, free count and physical distinct-key count are updated too.
 /// Other indexes, AutoIncrement, long values and relationships are refused.
-/// For unindexed tables, if no populated page fits, one EOF page is appended
+/// If no populated page fits, one EOF page is appended
 /// only within existing inline global/owned/available maps. No reuse,
 /// map growth or compaction is implemented. An existing selected page must
 /// retain capacity for one more equal-sized row and representable directory slot;
 /// this is a candidate restriction, not a DAO free-space threshold.
 ///
 /// Only the new row, appended slot, page free/count fields and table row count
-/// change on existing-page insertion. EOF insertion also clears its global free
+/// change on unindexed existing-page insertion. Indexed insertion additionally
+/// updates the leaf and physical distinct count. EOF insertion clears its global free
 /// bit and sets owned/available bits, marking available when a minimum encoded
 /// row still fits. All other bytes, including page zero, remain exact. This
 /// construction requires separate DAO validation and makes no compatibility claim.
@@ -172,12 +173,6 @@ where
         }
     };
     let Some(selected) = selected else {
-        if index.is_some() {
-            return Err(UpdateError::Unsupported(
-                "indexed insertion requires populated page capacity",
-            ));
-        }
-
         let mut minimum = [0; PAGE_BYTES];
         let nulls = [RowValue::Null; u8::MAX as usize];
         let minimum_length = crate::encode_row(
@@ -194,11 +189,33 @@ where
             &minimum[..minimum_length],
             budget,
         )?;
-        let (changes, count) = plan.changes(crate::update_pages::PageChange {
+        let leaf_image = if let Some(leaf) = &mut index {
+            let Some(RowValue::Long(value)) = values.get(usize::from(leaf.column.get())) else {
+                return Err(UpdateError::Unsupported("insert requires present Long key"));
+            };
+            let image = leaf.insert(*value, RowLocator::new(plan.page, 0), budget)?;
+            crate::index_key_page::set_distinct_count(&mut patched_definition, leaf.count, budget)?;
+            Some(image)
+        } else {
+            None
+        };
+        let (planned, count) = plan.changes(crate::update_pages::PageChange {
             page: definition.root(),
             before: &source_definition,
             after: patched_definition.as_bytes(),
         });
+        let mut changes = [planned[0]; 5];
+        changes[..count].copy_from_slice(&planned[..count]);
+        let count = if let (Some(leaf), Some(image)) = (&index, &leaf_image) {
+            changes[count] = crate::update_pages::PageChange {
+                page: leaf.page,
+                before: &leaf.before,
+                after: image.as_bytes(),
+            };
+            count + 1
+        } else {
+            count
+        };
         crate::update_pages::publish_changes_with_append(
             path,
             database.into_source(),
