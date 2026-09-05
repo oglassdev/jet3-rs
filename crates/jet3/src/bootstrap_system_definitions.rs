@@ -282,6 +282,8 @@ const RELATIONSHIP_CLASSES: [SystemColumnClassSpec; 8] = {
 };
 
 pub(super) fn msys_relationships_definition(
+    row_count: u32,
+    entry_counts: [u32; 3],
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
     let name_fields = [field(0)];
@@ -294,7 +296,7 @@ pub(super) fn msys_relationships_definition(
             10,
             RELATIONSHIPS_NAME_ROOT,
             PhysicalIndexFlagsSpec::SystemUninterpreted,
-            0,
+            entry_counts[0],
         ),
         physical(
             &object_fields,
@@ -302,7 +304,7 @@ pub(super) fn msys_relationships_definition(
             11,
             RELATIONSHIPS_OBJECT_ROOT,
             PhysicalIndexFlagsSpec::SystemUninterpreted,
-            0,
+            entry_counts[1],
         ),
         physical(
             &referenced_fields,
@@ -310,7 +312,7 @@ pub(super) fn msys_relationships_definition(
             12,
             RELATIONSHIPS_REFERENCED_ROOT,
             PhysicalIndexFlagsSpec::SystemUninterpreted,
-            0,
+            entry_counts[2],
         ),
     ];
     let logical = [
@@ -339,7 +341,7 @@ pub(super) fn msys_relationships_definition(
             indexes: &logical,
             owned_map: locator(SHARED_MAP_PAGE, 8),
             available_map: locator(SHARED_MAP_PAGE, 9),
-            row_count: 0,
+            row_count,
             long_value_maps: &[],
         },
         budget,

@@ -235,21 +235,21 @@ fn compose_existing_pages(
         msys_objects_definition(object_count, budget)?,
         msys_aces_definition(ace_count, object_count, budget)?,
         msys_queries_definition(budget)?,
-        msys_relationships_definition(budget)?,
+        msys_relationships_definition(0, [0; 3], budget)?,
         objects_map_page(creates, budget)?,
         single_map_page(&[], budget)?,
         single_map_page(&[OBJECTS_PARENT_NAME_ROOT], budget)?,
-        objects_parent_name_index(creates, budget)?,
+        objects_parent_name_index(creates, None, budget)?,
         single_map_page(&[OBJECTS_ID_ROOT], budget)?,
-        objects_id_index(creates, budget)?,
-        shared_map_page(budget)?,
-        aces_index(creates, budget)?,
+        objects_id_index(creates, None, budget)?,
+        shared_map_page(&[], budget)?,
+        aces_index(creates, &[], budget)?,
         empty_index_page(MSYS_QUERIES_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
-        objects_data_page(creates, budget)?,
-        aces_data_page(creates, budget)?,
+        objects_data_page(creates, None, budget)?,
+        aces_data_page(creates, &[], budget)?,
     ])
 }
 
@@ -327,12 +327,16 @@ fn objects_map_page(
     data_page(HEADER_PAGE, &rows, budget)
 }
 
-fn shared_map_page(budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
+fn shared_map_page(
+    relationship_pages: &[u64],
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, ComposeError> {
     let ace_owned = inline_map_row(&[MSYS_ACES_DATA_PAGE], budget)?;
     let ace_available = inline_map_row(&[MSYS_ACES_DATA_PAGE], budget)?;
     let ace_index = inline_map_row(&[ACES_OBJECT_ID_ROOT], budget)?;
     let empty = inline_map_row(&[], budget)?;
     let query_index = inline_map_row(&[QUERIES_INDEX_ROOT], budget)?;
+    let relation_data = inline_map_row(relationship_pages, budget)?;
     let relation_name = inline_map_row(&[RELATIONSHIPS_NAME_ROOT], budget)?;
     let relation_object = inline_map_row(&[RELATIONSHIPS_OBJECT_ROOT], budget)?;
     let relation_referenced = inline_map_row(&[RELATIONSHIPS_REFERENCED_ROOT], budget)?;
@@ -345,8 +349,8 @@ fn shared_map_page(budget: &mut ResourceBudget) -> Result<PageImage, ComposeErro
         &empty,
         &empty,
         &query_index,
-        &empty,
-        &empty,
+        &relation_data,
+        &relation_data,
         &relation_name,
         &relation_object,
         &relation_referenced,
@@ -506,10 +510,12 @@ const CATALOG_SEEDS: [CatalogSeed<'static>; 8] = [
 /// Returns the catalog rows the composed image holds, in stored row order.
 fn catalog_seeds<'a>(
     creates: &'a [PlannedCreate<'a>],
+    extra: Option<CatalogSeed<'a>>,
 ) -> impl Iterator<Item = CatalogSeed<'a>> + 'a {
     CATALOG_SEEDS
         .into_iter()
         .chain(creates.iter().map(PlannedCreate::catalog_seed))
+        .chain(extra)
 }
 
 /// Builds the catalog data page. Every `LvProp` is null: the system rows
@@ -518,11 +524,12 @@ fn catalog_seeds<'a>(
 /// any other created table the null form is an unvalidated candidate.
 fn objects_data_page(
     creates: &[PlannedCreate<'_>],
+    extra: Option<CatalogSeed<'_>>,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
     let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_OBJECTS_ROOT), budget)?;
     let mut row = [0_u8; PAGE_BYTES];
-    for seed in catalog_seeds(creates) {
+    for seed in catalog_seeds(creates, extra) {
         let length = encode_catalog_row(seed, &mut row, budget)?;
         builder.append_row(&row[..length], budget)?;
     }
@@ -591,19 +598,24 @@ const fn ace(object: i32, sid: &'static [u8], acm: i32, inheritable: bool) -> Ac
 }
 
 /// Returns the access-control rows the composed image holds, in stored order.
-fn ace_seeds<'a>(creates: &'a [PlannedCreate<'a>]) -> impl Iterator<Item = AceSeed> + 'a {
+fn ace_seeds<'a>(
+    creates: &'a [PlannedCreate<'a>],
+    extra: &'a [AceSeed],
+) -> impl Iterator<Item = AceSeed> + 'a {
     ACE_SEEDS
         .into_iter()
         .chain(creates.iter().flat_map(PlannedCreate::ace_seeds))
+        .chain(extra.iter().copied())
 }
 
 fn aces_data_page(
     creates: &[PlannedCreate<'_>],
+    extra: &[AceSeed],
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
     let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_ACES_ROOT), budget)?;
     let mut row = [0_u8; 64];
-    for seed in ace_seeds(creates) {
+    for seed in ace_seeds(creates, extra) {
         let values = [
             RowValue::Long(seed.object),
             RowValue::Binary(seed.sid),
@@ -662,9 +674,10 @@ impl OwnedIndexEntry {
 
 fn objects_parent_name_index(
     creates: &[PlannedCreate<'_>],
+    extra: Option<CatalogSeed<'_>>,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
-    let mut entries = catalog_seeds(creates)
+    let mut entries = catalog_seeds(creates, extra)
         .enumerate()
         .map(|(row, seed)| OwnedIndexEntry::name(seed.parent, seed.name, row as u8))
         .collect::<Result<Vec<_>, ComposeError>>()?;
@@ -673,9 +686,10 @@ fn objects_parent_name_index(
 }
 fn objects_id_index(
     creates: &[PlannedCreate<'_>],
+    extra: Option<CatalogSeed<'_>>,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
-    let mut entries = catalog_seeds(creates)
+    let mut entries = catalog_seeds(creates, extra)
         .enumerate()
         .map(|(row, seed)| OwnedIndexEntry::long(seed.id, row as u8))
         .collect::<Vec<_>>();
@@ -684,9 +698,10 @@ fn objects_id_index(
 }
 fn aces_index(
     creates: &[PlannedCreate<'_>],
+    extra: &[AceSeed],
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
-    let mut entries = ace_seeds(creates)
+    let mut entries = ace_seeds(creates, extra)
         .enumerate()
         .map(|(row, seed)| OwnedIndexEntry::long(seed.object, row as u8))
         .collect::<Vec<_>>();
@@ -748,3 +763,6 @@ fn index_page(
 #[cfg(test)]
 #[path = "bootstrap_composer_tests.rs"]
 mod tests;
+
+#[path = "bootstrap_relationship_candidate.rs"]
+mod relationship_candidate;

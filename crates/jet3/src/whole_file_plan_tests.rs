@@ -166,3 +166,33 @@ fn append_budget_rejection_preserves_plan_and_global_map() -> TestResult {
     assert_eq!(map, map_before);
     Ok(())
 }
+
+#[test]
+fn replacement_keeps_other_slots_and_refuses_missing_pages() -> TestResult {
+    let original = existing_images();
+    let mut plan = WholeFileImagePlan::from_existing_pages(original.clone(), &mut budget())?;
+    let replacement = PageImage::from_bytes([0x42; crate::PAGE_BYTES]);
+    plan.replace(PageNumber::new(7), replacement.clone())?;
+    for (index, page) in plan.pages().iter().enumerate() {
+        assert_eq!(page.number(), PageNumber::new(index as u64));
+        assert_eq!(
+            page.image(),
+            if index == 7 {
+                &replacement
+            } else {
+                &original[index]
+            }
+        );
+    }
+    for number in [20, u64::MAX] {
+        assert_eq!(
+            plan.replace(PageNumber::new(number), replacement.clone()),
+            Err(WholeFilePlanError::MissingPage {
+                page: PageNumber::new(number)
+            })
+        );
+    }
+    assert_eq!(plan.page_count(), 20);
+    assert_eq!(plan.pages()[7].image(), &replacement);
+    Ok(())
+}
