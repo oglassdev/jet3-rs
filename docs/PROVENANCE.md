@@ -13337,6 +13337,31 @@ DAO control continuation; first/later images 57,344 bytes, last-page images 59,3
   Free-page reuse, map growth/indirection, indexed/related/Auto/LVAL insertion,
   compaction and slot reuse remain outside this one-EOF-page validation.
 
+## EXP-0211 — Hosted seventeen-case row replacement preregistration
+
+- Plan: `oracle/windows-dao/acquisition/row-replacement-v1_2.plan.json`,
+  SHA-256 `f65790c175609db2f8cb9550711cfb1b26257a2ff5713dfa6ff00492f5f7f62e`; reviewed implementation
+  `931032737ca1521697b18ac06d11cf900583dfee`. The actual dispatched commit must satisfy all
+  83 scoped input pins and bind both platform jobs and retained receipts.
+- One hosted run retains the thirteen indexed-update recipes verbatim and adds
+  sole physical-row release, first-row growth, middle-row shrink and later-table
+  replacement beside a known empty tombstone. Exact requests and schemas are in
+  the pinned seventeen-case inventory; Binary recipe strings represent ASCII bytes.
+- Seventeen public creations and twenty public mutation calls are planned:
+  nineteen mutations on final copies plus one deletion preparing the tombstone
+  baseline. Retain thirty-four final images, complete DAO/Rust snapshots and
+  index sidecars, seventeen independent preservation receipts, provider metadata,
+  execution logs and all source/image identities.
+- Acceptance requires every full semantic comparison and exact preservation
+  check, including release map/tag/count/slack changes, replacement slot/free
+  changes, unchanged unrelated bytes, and all historical index traversal/Seek
+  gates. Eight indexed sidecars and twenty-six empty sidecars must match the
+  exact inventory. Neither QueryDef nor continuation behavior is claimed.
+- Tooling independent review and focused checks passed. Commit this exact plan
+  before one authorized dispatch; failure after mutation is a result, without
+  automatic retry. Record EXP-0212 once from the validated retained report.
+  This preregistration moves no support status.
+
 ## EXP-0203 — Hosted thirteen-case indexed update preregistration
 
 - Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0204.

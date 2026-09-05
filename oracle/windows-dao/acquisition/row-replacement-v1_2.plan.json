@@ -1,0 +1,327 @@
+{
+  "document_type": "dao_update_acquisition_plan",
+  "experiment_id": "hosted-row-replacement-v1_2",
+  "provenance": "EXP-0211",
+  "outcome_provenance": "EXP-0212",
+  "protocol_version": "1.2.0",
+  "mode": "dao_open_rust_update",
+  "acquisition_started": false,
+  "source": {
+    "reviewed_implementation_commit": "931032737ca1521697b18ac06d11cf900583dfee",
+    "integrated_implementation_commit": "931032737ca1521697b18ac06d11cf900583dfee",
+    "execution_source": "Both jobs check out the same dispatched committed Git revision containing this plan. Preparation, Windows verification, all DAO/Rust snapshots and coverage bind that source revision; artifact names identify that same run/source. The scoped workflow/producer/parser/evaluator input pins below bind the integrated source before acquisition.",
+    "integration_scope": "Reviewed seventeen-case tooling source; root validates all scoped pins on the actual committed dispatch revision before the single acquisition."
+  },
+  "authorization": "The user authorized DAO experiments and mutations. Independently review and commit this plan before one windows-dao-row-replacement workflow_dispatch with run_acquisition=true and its exact SHA-256. Root dispatches after reviewed tooling merges. No provider installation or license acceptance.",
+  "question": "Do seventeen exact public mutation recipes preserve complete semantics and independently specified unrelated bytes under hosted stock x86 DAO, including sole physical-row page release and narrow full-row null/Text/Binary/Boolean replacement?",
+  "inventory": {
+    "path": "oracle/windows-dao/protocol/v1_2/row-replacement-scenarios.json",
+    "sha256": "2d0b067439eced0d1cc17cf10d469fb6df02cbf9cdfbbbc971caad20f6aa9807",
+    "scenario_ids": [
+      "DAO-UPDATE-FIRST-FIELD",
+      "DAO-UPDATE-LATER-ROW",
+      "DAO-UPDATE-LATER-TABLE",
+      "DAO-UPDATE-INSERT-ROW",
+      "DAO-UPDATE-DELETE-TAIL",
+      "DAO-UPDATE-EMPTY-EOF",
+      "DAO-UPDATE-FULL-EOF",
+      "DAO-UPDATE-MIDDLE-COMPACT",
+      "DAO-UPDATE-REPEATED-COMPACT",
+      "DAO-UPDATE-PRIMARY-KEY",
+      "DAO-UPDATE-DESCENDING-KEY",
+      "DAO-UPDATE-FULL-LEAF-KEY",
+      "DAO-UPDATE-INDEXED-PAYLOAD",
+      "DAO-UPDATE-SOLE-RELEASE",
+      "DAO-UPDATE-ROW-GROW",
+      "DAO-UPDATE-ROW-SHRINK",
+      "DAO-UPDATE-ROW-LATER-TOMBSTONE"
+    ],
+    "scenario_count": 17,
+    "image_count": 34,
+    "contract": "First13cases exactly equal consumed indexed inventory. Four additions: sole Items physical-row release, first-row growth with Long null/Text/Binary/Boolean changes, middle shrink with null transitions, later-table replacement adjacent to an empty tombstone prepared by public deletion. All exact seed/final requests are in the pinned inventory; Binary recipe strings mean ASCII bytes."
+  },
+  "requests": [
+    {
+      "scenario_id": "DAO-UPDATE-FIRST-FIELD",
+      "table": "Items",
+      "column": "Id",
+      "row_index": 0,
+      "before": 0,
+      "after": -42
+    },
+    {
+      "scenario_id": "DAO-UPDATE-LATER-ROW",
+      "table": "Items",
+      "column": "Value",
+      "row_index": 31,
+      "before": 1031,
+      "after": -2147483648
+    },
+    {
+      "scenario_id": "DAO-UPDATE-LATER-TABLE",
+      "table": "Items",
+      "column": "Value",
+      "row_index": 17,
+      "before": 1017,
+      "after": 2147483647
+    },
+    {
+      "scenario_id": "DAO-UPDATE-INSERT-ROW",
+      "kind": "insert",
+      "table": "Items",
+      "row": [
+        88,
+        -8800,
+        "inserted"
+      ]
+    },
+    {
+      "scenario_id": "DAO-UPDATE-DELETE-TAIL",
+      "kind": "delete",
+      "table": "Items",
+      "selected_id": 3
+    },
+    {
+      "scenario_id": "DAO-UPDATE-EMPTY-EOF",
+      "kind": "eof_insert",
+      "row": [
+        88,
+        -8800,
+        "inserted"
+      ],
+      "table": "Items"
+    },
+    {
+      "scenario_id": "DAO-UPDATE-FULL-EOF",
+      "kind": "eof_insert",
+      "row": [
+        88,
+        -8800,
+        "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+      ],
+      "table": "Items"
+    },
+    {
+      "scenario_id": "DAO-UPDATE-MIDDLE-COMPACT",
+      "kind": "compact_delete",
+      "selected_ids": [
+        2
+      ],
+      "table": "Items"
+    },
+    {
+      "scenario_id": "DAO-UPDATE-REPEATED-COMPACT",
+      "kind": "compact_delete",
+      "selected_ids": [
+        2,
+        4,
+        1
+      ],
+      "table": "Items"
+    },
+    {
+      "scenario_id": "DAO-UPDATE-PRIMARY-KEY",
+      "kind": "indexed_field",
+      "table": "Items",
+      "column": 0,
+      "selector_column": 0,
+      "selected": 0,
+      "replacement": -2147483648
+    },
+    {
+      "scenario_id": "DAO-UPDATE-DESCENDING-KEY",
+      "kind": "indexed_field",
+      "table": "Items",
+      "column": 0,
+      "selector_column": 0,
+      "selected": 0,
+      "replacement": 2147483646
+    },
+    {
+      "scenario_id": "DAO-UPDATE-FULL-LEAF-KEY",
+      "kind": "indexed_field",
+      "table": "Items",
+      "column": 0,
+      "selector_column": 0,
+      "selected": 100,
+      "replacement": -1
+    },
+    {
+      "scenario_id": "DAO-UPDATE-INDEXED-PAYLOAD",
+      "kind": "indexed_field",
+      "table": "Items",
+      "column": 1,
+      "selector_column": 1,
+      "selected": 303,
+      "replacement": -2147483648
+    },
+    {
+      "scenario_id": "DAO-UPDATE-SOLE-RELEASE",
+      "kind": "sole_release",
+      "table": "Items",
+      "selected_id": 1
+    },
+    {
+      "scenario_id": "DAO-UPDATE-ROW-GROW",
+      "kind": "row_replace",
+      "table": "Items",
+      "selected_id": 1,
+      "replacement": [
+        1,
+        null,
+        "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
+        "abcdefgh",
+        false
+      ],
+      "tombstone": false
+    },
+    {
+      "scenario_id": "DAO-UPDATE-ROW-SHRINK",
+      "kind": "row_replace",
+      "table": "Items",
+      "selected_id": 2,
+      "replacement": [
+        2,
+        -42,
+        null,
+        "ab",
+        true
+      ],
+      "tombstone": false
+    },
+    {
+      "scenario_id": "DAO-UPDATE-ROW-LATER-TOMBSTONE",
+      "kind": "row_replace",
+      "table": "Later",
+      "selected_id": 13,
+      "replacement": [
+        13,
+        null,
+        null,
+        null,
+        false
+      ],
+      "tombstone": true,
+      "seed_delete": 12
+    }
+  ],
+  "execution": {
+    "workflow": ".github/workflows/windows-dao-row-replacement.yml",
+    "event": "workflow_dispatch",
+    "inputs": {
+      "run_acquisition": true,
+      "plan_sha256": "SHA-256 of these exact committed plan bytes"
+    },
+    "attempts": 1,
+    "producer": "Ubuntu builds locked jet3-row-replacement-fixture and jet3-cli. Seventeen public creations generate originals; later-tombstone preparation additionally deletes one row with the public API before the baseline image. Copies receive19public mutations (three deletes for historical repeated compaction; one otherwise), giving20public mutation calls including preparation. No raw fixture patch. Public reader locators and independent reconstruction verify exact before/after bytes and full recipe snapshots.",
+    "consumer": "Windows2022 downloads exact same-source generated artifacts, rebuilds reader/checker and requires all17independent receipts match Unix. Stock probe must be ready protocol1.2 x86 DAO.DBEngine.36/dbVersion30. Unchanged Invoke-DaoIndexedUpdateV12 captures34full read-only snapshots and34index sidecars, retaining exact environment bytes/hash. No provider installation or license acceptance.",
+    "comparison": "All17recipes,34canonicalDAO/Rust comparisons and independent preservation receipts must pass. Sole release permits only tag01to09, c800slot, free2036, TDEFcountminus1 and global/owned/available map-bit updates; payload/slack/page0 and all other bytes exact. Full-row replacement independently repacks physical slots and preserves empty tombstones, counts/maps/page0 and vacated slack, changing only replacement/moved row bytes, directory offsets and free count. Complete expected null/scalar/Text/Binary/Boolean values and unrelated table rows must match. All13historical key/row/EOF/compaction checks stay unchanged;8indexed sidecars retain complete directed traversal, all present keys and removed/missing Seek probes, while26unindexed sidecars are empty.",
+    "helpers": "Separate adapter configures frozen indexed evaluator and observes the same17cases in every sidecar. New finite public fixture plus unchanged0191/0197 raw byte checkers independently verify release/replacement; no mutation planner shared with checker. CLI selector is additive. Existing PS producer/AST-imported helpers remain unchanged. No hosted stored-query or continuation mutation claims.",
+    "limits": "Seventeen pairs,34images/snapshots/sidecars;17creation calls and20mutation calls including one tombstone preparation. Subprocess120seconds;Ubuntu20minutes;Windows30minutes. Partial failures retained; one run attempt, no retry/resume."
+  },
+  "decision_rule": {
+    "matched": "All17finite recipes/34complete semantic comparisons, full index sidecars/Seek and independent Windows exact-byte checks pass, with every request/source/platform/provider/image/coverage identity bound. support_matrix_movement remains false.",
+    "no_outcome": "Any provider, source, retained identity, verifier, recipe, capture, coverage or semantic failure prevents matched. Reached evaluation failures retain report.json no_outcome; earlier failures retain available preparation/provider/workflow logs without inventing a report. Input-pin mismatches reject dispatch or retained-data analysis.",
+    "retry": "Only GitHub run attempt 1; no rerun or redispatch of this consumed plan. A failure after provider probe or other first DAO mutation is a scientific result. Preserve it; any successor requires a distinct reviewed plan under standing user authorization."
+  },
+  "retention": {
+    "artifact_names": [
+      "generated-row-replacement-SOURCE_REVISION",
+      "windows-dao-row-replacement-SOURCE_REVISION-RUN_ATTEMPT"
+    ],
+    "contents": "All34MDBs, preparation/Windows verifier receipts/logs, exact environment, DAO manifest,34raw index sidecars, raw/canonical full snapshots and coverage, report when reached and workflow failure logs. Never commit MDB/provider bytes.",
+    "outcome": "One additive EXP-0212 from validated retained JSON; historical outcomes unchanged, no automatic support movement."
+  },
+  "coverage_limits": [
+    "free-page or slot reuse, indirect allocation maps",
+    "indexed row insertion/deletion and relationship mutations",
+    "arbitrary wide full-row replacement and Auto/LVAL targets",
+    "hosted stored-query preservation and continuation DAO mutations"
+  ],
+  "claims": "Only these17finite hosted recipes can be accepted. Local EXP0192/0206 motivate added cases but are not substituted for hosted evidence. No arbitrary wide replacement, index/relationship/Auto/LVAL row replacement, indirect allocation, public free-page or slot reuse, stored-query preservation, continuation DAO mutations or general update policy.",
+  "inputs": {
+    ".github/workflows/windows-dao-row-replacement.yml": "cd949bcb5c09d5e112f851146bd314882e32cda92eb62cbf93b835b5b0fa180b",
+    "Cargo.lock": "862e85e19ae578d9ed7be1113041b1053c30500badccd8b88c29233efc2af5a2",
+    "Cargo.toml": "6d13cd82b6ea190311d8ba28311f23122e4cffa69c02135f465460236e951c60",
+    "crates/jet3-cli/Cargo.toml": "027785d6f6755603bf6ee052d3f9df3e56a76f10930fc72d58352c7b29467d32",
+    "crates/jet3-cli/src/main.rs": "73c996d525b7d39d8ad33c4c1a671a4c48b8a7a372ee71af38fe02d3fc1c4c21",
+    "crates/jet3-cli/src/snapshot.rs": "e252f6a1ad1cbe89a6a836904c5d6ebbcc4fd5520c179c1ce679aa6c6e906749",
+    "crates/jet3-testkit/Cargo.toml": "79d8432043f68c1d419d070e5fb5274a015c6010e73e7c72064ca7a29a99509c",
+    "crates/jet3-testkit/src/bin/jet3-indexed-update-fixture.rs": "e14b1e0df25c445c07131b2d09374e78199c99ad44c19023266d851b1f8797eb",
+    "crates/jet3-testkit/src/bin/jet3-row-allocation-fixture.rs": "2a20fa3b5225741dbddc32a0a6431eb073c47f994befe51904ce7a09334ad928",
+    "crates/jet3-testkit/src/bin/jet3-row-replacement-fixture.rs": "d8ace728e2bda72be8551282149e477cc01be5ed66bbfd0a5a577b11e256def1",
+    "crates/jet3-testkit/src/bin/jet3-row-update-fixture.rs": "af92a40519a844e86ce7e8793df66173a1cefd1a9a4a6f427e51b182c5e13a34",
+    "crates/jet3-testkit/src/coverage.rs": "7a99e54d15dd2e49e76137468511be518f961adb84adc12d29353c22859f564b",
+    "crates/jet3-testkit/src/indexed_update_fixture.rs": "c9348d777377ba781503a47004adc06b82866346d9058f3c9c2f65943ef99d1a",
+    "crates/jet3-testkit/src/lib.rs": "b94aa7e5dcc8f5a8fc4afbcddb0e6b90e088aae0ab9767f67feb34f64de6071f",
+    "crates/jet3-testkit/src/row_allocation_fixture.rs": "5b06066709b145f9647db3ca1bd2567e67852fea3ad504bf0fe6536c6e40f9fc",
+    "crates/jet3-testkit/src/row_replacement_fixture.rs": "43caf2c79f9239e85a55911d7f13baa90ba8f1951aa2d9765412e4bfdbea3681",
+    "crates/jet3-testkit/src/row_update_fixture.rs": "c6e05b6fe41a0534a91e3f5521890e8a8fbfaead6a0abb1fb5df3af323340693",
+    "crates/jet3-testkit/src/semantic_reader.rs": "8c75aacfbc8aeb47fc4b79fe99263c645f2690eb9749c64ee902526351907438",
+    "crates/jet3-testkit/src/semantic_snapshot.rs": "55cbc49c7113054a846d9dc5626c45292fa6474a8b9d5e9dfb9eddd696152cae",
+    "crates/jet3-testkit/src/semantic_values.rs": "95e3674e7aec6e6c7953092cd38256715c7607903acd33f161c78caa111d6a1a",
+    "crates/jet3-testkit/src/update_fixture.rs": "ecb91ad458b3cb92b247a7fff10916ecd3392e0f6e8eeb7a2f262fe76265bea3",
+    "crates/jet3/Cargo.toml": "3061aa9102924ee6e74c24752ba1b0a630440dfcc60708f984a4aa238dff4b75",
+    "crates/jet3/src/allocation.rs": "c52b7b405280675b97b9316b6f39019a650a7d7800a0334d7ac000c766a4e82f",
+    "crates/jet3/src/allocation_patch.rs": "13f962e9704a3cd7a5bcdd9f132c404e5d6c86c727920ca04da0d162fecd41c1",
+    "crates/jet3/src/atomic.rs": "450e15e7730150b87f936d0bbb207910e225fd1a512f240c98d96e1dfdf9ed6f",
+    "crates/jet3/src/column_definition.rs": "f3f0741ce47d48f0fd368bca117f13e773326e4b77ee14bbc18e4a44f10861de",
+    "crates/jet3/src/creation/api.rs": "b8bf08eb99dae36180c35f1bdc5158b1e68be091d2bf0069983acf96f9f5a946",
+    "crates/jet3/src/creation/composer/initial_index.rs": "ec8ea416ebec5956b3272c9bee120964c318b456fd239079f3721fce554d99af",
+    "crates/jet3/src/creation/composer/initial_index_pages.rs": "b74c06692d4edee4731a30e449e3068f078b9a4e22f47deccb4884d38c046974",
+    "crates/jet3/src/creation/composer/mod.rs": "e47212b7ddec4d0dfe8114b95343223ea41697b5d3731cef5309169a09814632",
+    "crates/jet3/src/creation/composer/table_create.rs": "d6a81c7b1b92b07d2b3b5346fddb2f16048ff873a18f207dec7f3705c4e4b00e",
+    "crates/jet3/src/delete.rs": "adf9b8a85dc058771820479c195ce1a7f80ee360ee2ea6d2549edc0a96e4d187",
+    "crates/jet3/src/index_key_page.rs": "022827e55e23d4a4572a732929b135cd54cbe9eb3c8c3525053e8c688ff1d0e5",
+    "crates/jet3/src/index_tree.rs": "40f2d099b6416c09e70b51366d51a4555238ab031d94b51ef1fc416085d679bc",
+    "crates/jet3/src/index_tree_page.rs": "feef6c5b3415bb8d3fc105d81da40c4d5a79599211bb33bdff9dd05a41f933cd",
+    "crates/jet3/src/index_tree_rows.rs": "d702307f87223133f7109ae217e463cb99188c8c494ebcd4efbf27231450409e",
+    "crates/jet3/src/insert.rs": "30cc1741973683a121657e634c4af466d1b1a6f6b01df191ff7db311897d5f2c",
+    "crates/jet3/src/lib.rs": "ed12e77dc2c2bd6349e2c4f0f43adb9d407467afb8f4b18b767e5b9a053ac966",
+    "crates/jet3/src/long_index_key.rs": "e036ab5a853cc997571d0fac38dd559edc5203e10e2310fdc89bea11d5202575",
+    "crates/jet3/src/page_image.rs": "a33211ac27927bab6ddaf773af18c2e8a2de4bb7735fa9e5382ee54322a9c093",
+    "crates/jet3/src/physical_index_definition.rs": "920f2d0d2e51307781cc18c27693772e1472186630f1e909c7ab135515e96553",
+    "crates/jet3/src/row.rs": "64647c6c4ed50f88841d6d28fcf170653055e44ec4e3ee61f1ec2aaa50a5d1ae",
+    "crates/jet3/src/row_delete_page.rs": "ab61456a71c46aa6ab8db25afb55dae00a05a915c89ae003b6b129b7d7706de8",
+    "crates/jet3/src/row_directory.rs": "0f683eec5d9d0f13e114de04e6c137bf953ee55c80fe6436508776299169a844",
+    "crates/jet3/src/row_insert_eof.rs": "2b33c18de09f377bddf91b19431d7af8b7708e872e59bf2775f420b69629b5de",
+    "crates/jet3/src/row_insert_page.rs": "c338292a412b187b097defc4a4f88fc17dd2a30549c6ee93ad5ce754b7d44a6a",
+    "crates/jet3/src/row_update.rs": "3463b89159ddd8628be758f78800a78b44808f7ec28333f899c3a74d4434d304",
+    "crates/jet3/src/row_update_page.rs": "91f8b7c07aafa71daaf77abc6c88cfdd6d7db03448b820a42648b1b35a097d86",
+    "crates/jet3/src/row_writer.rs": "35c8310d027db4321a6251b1b68616d9ae0c6c8f4e82af0b1fd5e36b729420fb",
+    "crates/jet3/src/table_definition.rs": "7bc113e3fbd73dbb33d40476feb0e27ef11ddc4fcb9e7ac98dfe8f7dd34793c2",
+    "crates/jet3/src/update.rs": "7804019e1c2b2cbfe0d287f2bdcb6bb40a527b009d28d536f2572d65e4fec534",
+    "crates/jet3/src/update_index_key.rs": "e6bf6adec9a94005fc7f8bcf4e864390cff3c4cf1cc5a13938a039bb7b759e2a",
+    "crates/jet3/src/update_pages.rs": "431201c558c17c9a19affd0850ddf9591109a3b2b70a51546cbc155013d6d0b5",
+    "crates/jet3/src/usage_map.rs": "091f54f1b7f495215d5ff6c9ef07bdef406cf8171bf64f912f808f35b13ad0ec",
+    "oracle/windows-dao/protocol/v1_2/branch-registry.json": "a6010fd5649a9476686c5dc70ba038b667a1daeb279bf5a625123cf1fbd6df8c",
+    "oracle/windows-dao/protocol/v1_2/branch-registry.schema.json": "dc1a126f4f89ae60c78ec2e099938cc0a743dc9b464d85154e9660db056b525c",
+    "oracle/windows-dao/protocol/v1_2/canonical-semantic-snapshot.schema.json": "1c4ed41a01b45fa2357aa2355c2101958e9196d42532386d2e84b393f40066b9",
+    "oracle/windows-dao/protocol/v1_2/coverage-receipt.schema.json": "a362c1d63866ed77465e512902c14e8578f1fadda306c8b35dc9e16b5ff809f1",
+    "oracle/windows-dao/protocol/v1_2/indexed-update-scenarios.json": "d79542b1548e1edf2d436fe6b8286a24be8af677cb23cfec3cddf4a102bda4cb",
+    "oracle/windows-dao/protocol/v1_2/row-allocation-scenarios.json": "37538e96a6caa91207063f91cb1051dea584d7730c1d494587be8e037a76e66e",
+    "oracle/windows-dao/protocol/v1_2/row-replacement-scenarios.json": "2d0b067439eced0d1cc17cf10d469fb6df02cbf9cdfbbbc971caad20f6aa9807",
+    "oracle/windows-dao/protocol/v1_2/row-update-scenarios.json": "5cc0a15d987da928814f013e58a992f210d3ded1f79e7933d7460a97b07433c9",
+    "oracle/windows-dao/protocol/v1_2/update-scenarios.json": "08248cebba898b1209bc980c1c286bfa9922fcc16b25f4b308e4df2710f62657",
+    "oracle/windows-dao/scripts/Invoke-DaoIndexedUpdateV12.ps1": "945ff337f8ca556ce53ced0083f35357d8b7d72801f54b8aa53bbae9060e260d",
+    "oracle/windows-dao/scripts/Invoke-DaoReadV12.ps1": "78fb338668271a23158f0cfc65f0393931e4a04945af0ed84808964b2a073c89",
+    "oracle/windows-dao/scripts/Invoke-DaoWriteV12.ps1": "410d914d401ee8877a974e8c81a8b201b7e63d8f596d4819804b012ce580e9c2",
+    "oracle/windows-dao/scripts/build_v1_2_inventory.py": "f2c928b11b45ae4f2896526c18a6edf8d4b8fdc19f743d9b0cdff180d9a81561",
+    "oracle/windows-dao/scripts/dao_indexed_update_diff.py": "3ffd43804ea2e867ff58e76b97e3671a2f75a51d9fd3a353fcc363c95e0617ca",
+    "oracle/windows-dao/scripts/dao_read_diff.py": "696e3b8192fc8b110b020e00dfdcbf479bd3ca3f83648b7c5a1bb17c4a017d26",
+    "oracle/windows-dao/scripts/dao_row_allocation_diff.py": "bd62c7fd28e9ae9714fda7879d537f37374f28aaa765687a9f2f58cf3d0436d8",
+    "oracle/windows-dao/scripts/dao_row_replacement_diff.py": "105e396bea95714ee12807117598026323dffcd87096af12a94545b62820b86c",
+    "oracle/windows-dao/scripts/dao_row_update_diff.py": "0dd4fc8dc18cffca8707aca20ce82c20de4485f609d8682020382c2629d16d47",
+    "oracle/windows-dao/scripts/dao_update_diff.py": "e398d10ed8ea4de481f79e8231303bd343f041a3e4f848b6448c914eee573a88",
+    "oracle/windows-dao/scripts/dao_write_diff.py": "0d598b570f8f5a3008a51c8bc6743d7166b7e3b4a49432000ff01055f4e133a7",
+    "oracle/windows-dao/scripts/field_update.py": "0c6d6536ad69126b53d596e011a4bede7293fd34a1efa8f313fa7f391212ba76",
+    "oracle/windows-dao/scripts/probe-provider.ps1": "695e357959f7882f2608dfcc32cf9d6bc5d1fd128126552d656daabbfe0b0ebd",
+    "oracle/windows-dao/scripts/protocol_validation.py": "ce857b3f818e2e5298da093e97ef4ceba1e410a77e4f74048af129db504dac50",
+    "oracle/windows-dao/scripts/row_delete_layout.py": "74c30a55148ec5efe4c04a154917e8780c06a63442d28c0d0b3453b968142088",
+    "oracle/windows-dao/scripts/row_delete_release.py": "fd6b24dfb218c445b1864a4fe41d90bbdda6485e21c15941637013b3209226a8",
+    "oracle/windows-dao/scripts/row_update_candidate.py": "600b3e653ef001c3cd93d9ebbc25b4b9196bd0f55ae9e1e3b9af922d8e784a71",
+    "oracle/windows-dao/scripts/single_leaf_key.py": "519143c44cb6206a0d2b7fcd8b2a208e952ef70a5fcde4a40a0998062301ac40",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "oracle/windows-dao/scripts/validate_protocol_v1_2.py": "de8910e207a6774a426ddca90502e1c6a189b799452d7704d46d0c8a7015232e"
+  }
+}
