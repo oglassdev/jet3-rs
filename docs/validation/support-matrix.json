@@ -197,7 +197,13 @@
         "oracle/windows-dao/scripts/Invoke-DaoIndexedUpdateV12.ps1",
         "crates/jet3-testkit/src/indexed_update_fixture.rs",
         "crates/jet3/src/update_index_key.rs",
-        "crates/jet3/src/index_key_page.rs"
+        "crates/jet3/src/index_key_page.rs",
+        "oracle/windows-dao/protocol/v1_2/row-replacement-scenarios.json",
+        "oracle/windows-dao/acquisition/row-replacement-v1_2.plan.json",
+        "oracle/windows-dao/scripts/dao_row_replacement_diff.py",
+        "crates/jet3-testkit/src/row_replacement_fixture.rs",
+        "crates/jet3/src/row_update.rs",
+        "crates/jet3/src/row_update_page.rs"
       ]
     },
     {
