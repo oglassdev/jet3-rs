@@ -1783,7 +1783,7 @@
     "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
     "oracle/windows-dao/scripts/field_update.py": "0c6d6536ad69126b53d596e011a4bede7293fd34a1efa8f313fa7f391212ba76",
     "oracle/windows-dao/scripts/multi_level_index_reanalysis.py": "1420a5af9bfa069ab299fa0bffc4b80875d586c2a95c740978b4f9c365aaa9c5",
-    "oracle/windows-dao/scripts/numeric_index_successor.py": "8dcd8c5cf63f135dfef40fbc1ec4141b0a840489193332c5ac4d170e593f27c1",
+    "oracle/windows-dao/scripts/numeric_index_successor.py": "80d8fd75df0d497bf4433adc46a23d657a1969e6d110b63e9877dd688d0cc487",
     "oracle/windows-dao/scripts/numeric_index_successor.ps1": "52763e28771f504c0819b3d87f2d657f3203312c51a7f011ba3bbd675cfed5b2",
     "oracle/windows-dao/acquisition/numeric-index.plan.json": "ba39dfe4d9815d55377ac6c6a5e598d950ef9736a95c33f31d94b2b6aeb22d63"
   },

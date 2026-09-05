@@ -13,6 +13,8 @@ class SuccessorTests(unittest.TestCase):
         for name in ['source_revision','images','arms','replicas','decision_rule','bounds']:
             self.assertEqual(old[name],new[name])
         self.assertNotEqual(historical.PLAN,successor.original.PLAN)
+        self.assertTrue((successor.ROOT/successor.original.SCRIPT).is_file())
+        self.assertIn(successor.original.SCRIPT,new['inputs'])
         for name in ['build_report','expected','raw_check','component']:
             self.assertEqual(getattr(historical,name).__code__.co_code,getattr(successor.original,name).__code__.co_code)
         self.assertEqual(new['inputs'][str(historical.PLAN.relative_to(historical.ROOT))],hashlib.sha256(historical.PLAN.read_bytes()).hexdigest())

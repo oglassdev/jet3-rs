@@ -12562,7 +12562,7 @@ Copy this block under the appropriate section and remove this instruction:
   finite acquisition after EXP-0184, preserving the original EXP-0183 consumed
   inputs, artifacts and `no_outcome` without retry or reinterpretation.
 - Plan: `oracle/windows-dao/acquisition/numeric-index-successor.plan.json`,
-  SHA-256 `348796db2c268f52de530f3417d72960706aecd795a1983076ba41d2b9793998`. Source remains reviewed
+  SHA-256 `d01233e9a6ba9a9d812fa8953d0be63ef383b3a057380db14dbf32e586cecfe0`. Source remains reviewed
   numeric writer `16e6d57`; all eight candidate identities, exact saved-bit rows,
   directions, null policies, queries, duplicate/required probes and bounds are
   identical to EXP-0183. Three fresh pairs per arm, 102 complete retained images,

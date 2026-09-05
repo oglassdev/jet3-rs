@@ -7,7 +7,7 @@ ROOT=Path(__file__).resolve().parents[3]
 spec=importlib.util.spec_from_file_location('_numeric_successor',ROOT/'oracle/windows-dao/scripts/numeric_index.py')
 original=importlib.util.module_from_spec(spec);spec.loader.exec_module(original)
 original.PLAN=ROOT/'oracle/windows-dao/acquisition/numeric-index-successor.plan.json'
-original.SCRIPT='oracle/windows-dao/scripts/single_leaf_numeric_successor.ps1'
+original.SCRIPT='oracle/windows-dao/scripts/numeric_index_successor.ps1'
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);sub=parser.add_subparsers(dest='command',required=True)
