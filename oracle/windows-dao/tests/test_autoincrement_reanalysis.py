@@ -12,9 +12,10 @@ import autoincrement_reanalysis as secondary
 class SecondaryTests(unittest.TestCase):
     def test_limit_is_private_and_other_decoder_checks_remain(self):
         module = secondary.analyzer()
-        self.assertEqual(secondary.original.catalog.MAX_ROWS_PER_PAGE, 64)
+        baseline = secondary.load_private('baseline_catalog', 'system_catalog.py')
+        self.assertEqual(baseline.MAX_ROWS_PER_PAGE, 64)
         constants = lambda m: {k: v for k, v in vars(m).items() if k.isupper() and isinstance(v, (str, int))}
-        expected = constants(secondary.original.catalog)
+        expected = constants(baseline)
         expected['MAX_ROWS_PER_PAGE'] = 256
         self.assertEqual(constants(module.catalog), expected)
         self.assertIsNot(module.catalog, secondary.original.catalog)
@@ -22,8 +23,8 @@ class SecondaryTests(unittest.TestCase):
         data = bytearray(2048)
         data[0] = 1
         data[8:10] = (169).to_bytes(2, 'little')
-        with self.assertRaisesRegex(secondary.original.catalog.DecodeError, 'bound of 64'):
-            secondary.original.catalog._row_directory(bytes(data), 0)
+        with self.assertRaisesRegex(baseline.DecodeError, 'bound of 64'):
+            baseline._row_directory(bytes(data), 0)
         with self.assertRaises(module.catalog.DecodeError) as error:
             module.catalog._row_directory(bytes(data), 0)
         self.assertNotIn('bound of 64', str(error.exception))
