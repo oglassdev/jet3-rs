@@ -11242,6 +11242,104 @@ DAO control continuation; first/later images 57,344 bytes, last-page images 59,3
 - last-page-sole replica 2: `150e8937655b6f8aa2e0ca387c45778be08c1453b2bf99f91629563039f872f6`, `906b17069e3ec96f3f2accfe898290043848d593858eca0949c2ba333f614a07`, `9437209032548134abc6e4a77dfe560eceaae9097171037fb98167d3efcf4e6e`, `41a98cbe019a6583a7abb21b0b3c96d7874956c97d17a413a7ad5fb5e52abc14`, `1d1bc67decd97490bfcd84e6c6644e6d973f7c15824d84346032f1f7f44ec806`.
 - last-page-sole replica 3: `b6d428cb96642cb43cd6ab382a1e22a844bebbb3c996040842b7bec6faed0eb7`, `02968c3c96066d562cf328be94e6d5610083d0745203b48289e4efbacfb2e26f`, `108517677faa595eea3370c84faaca7f7d39a774387c15e9a541f10e9436e80a`, `f7acaf6a1c5f52a4564c99e08342c4496d5c352addc514db12527d9bf4ffb81b`, `cec4190d3befe417c5633113b4a104bc50acecb3f8485b7f17720416566cdce5`.
 
+## EXP-0208 — Named Memo AllowZeroLength property payload transitions
+
+- Single local EXP-0207 run `20260905T111500Z-memo-property`, frozen runtime
+  `b27e3b8`, plan SHA-256
+  `58ae4d566d55b02747430d70fa97577552e82d8d9fed81d8a203d503711ee82e`.
+  Outcome **answered**, all33closed checkpoints, no reasons or acquisition
+  errors. Twenty-four property setters completed across three schemas and
+  three replicas. No data rows were inserted.
+- Report336149bytes SHA-256
+  `cce590b9c65afe8e677964d6f743cb39ea0a4870fe25b76c227dde0587527791`;
+  result1462490bytes SHA-256
+  `31baed76e556ec66fe0c30f17a42635abf501b87311aecea26db88c33d6a82a9`.
+  Frozen analysis reproduced the exact report on temporary copies. All47files,
+  including33checkpoint MDBs and9final working MDBs, remained unchanged in
+  the external shared outbox. Every read-only checkpoint identity matched.
+- Rows(Id Long,M Memo), Ledger7(Id Long,Memo42Long Memo), and
+  Table9(Id Long,First2 Memo,SecondMemo7 Memo) retained exact requested schema,
+  empty rows/indexes/relations/queries and independent column properties.
+  Each Memo started False, toggled True then False; in the two-column schema
+  the first column completed its cycle before the second changed. Payload and
+  property observations agreed across all three replicas per schema.
+- Every catalog table root is20. LvProp uses the recorded single-external-value
+  header with lengths91/100/137 respectively, page22. Short/renamed checkpoints
+  use slots2,3,4; two-column checkpoints use slots4,5,6,7,8. All are exact
+  length-matched property row spans. Original catalog rows, backing pages and
+  all changed file bytes are retained in the report; physical relocation is
+  not interpreted as a property serialization rule.
+- Payloads begin `4b4b4400`, followed at offset4 by this exact33-byte block:
+  `210000008000080052657175697265640f00416c6c6f775a65726f4c656e677468`.
+  It contains length-prefixed ASCII Required and AllowZeroLength. All payloads
+  then contain this23-byte Id block at37:
+  `1700000001000800000002004964090001010000010000`.
+- Memo blocks begin at60 for the first Memo and96 for SecondMemo7. Their
+  observed lengths are31(M),40(Memo42Long),36(First2),41(SecondMemo7).
+  Each starts its four-byte little-endian total length, bytes `0100`, a
+  four-byte value7/16/12/17 respectively, then two-byte name length1/10/6/11
+  and those exact ASCII name bytes. The two following nine-byte sequences are
+  `090001010100010000` and `090001010000010000` when False. Only the final
+  byte of the first sequence becomes `ff` when that named Memo is True.
+- Thus payload-relative offsets81(M),90(Memo42Long),86(First2),127(SecondMemo7)
+  toggle00→ff→00. Each transition changes exactly one payload byte; the other
+  Memo property remains unchanged. After each False checkpoint the complete
+  payload equals its default payload. These are exact finite framing/name
+  observations, not a general property dictionary/type grammar.
+- User table owned/available maps and every Memo long-column owned/available
+  map remain empty. Catalog LvProp storage is separate from user Memo payload
+  storage. No empty-Memo candidate was constructed in this experiment.
+- Together with EXP-0200 these observations motivate a dedicated bounded Memo
+  AllowZeroLength encoder and present-empty inline Memo candidate. Generalized
+  names/block sizes or composition still require candidate validation; no
+  arbitrary properties, updates, OLE normalization, compatibility or hosted
+  support movement is claimed. Independent outcome review follows.
+
+Retained MDB identities (filename: bytes, SHA-256):
+
+- `renamed-r1-column0-false.mdb`: 47104, `ff638908aa1385572c69a3374850ecbfa1679475c8aab76e528e129f501cc2b7`.
+- `renamed-r1-column0-true.mdb`: 47104, `7e6cf5fd29db3353e860d38caa58e23b327b4adfa2749c87d42f9160beec1bec`.
+- `renamed-r1-default.mdb`: 47104, `fe8cda8ca45a3977a1d7c03fe630f99fa2edb48caa88d694ea450c4bdb8e7926`.
+- `renamed-r1-live.mdb`: 47104, `ff638908aa1385572c69a3374850ecbfa1679475c8aab76e528e129f501cc2b7`.
+- `renamed-r2-column0-false.mdb`: 47104, `d58a8914a5e06a9fdffa99e87d0bedca94c037526b75ef552a8c9bae7059bc22`.
+- `renamed-r2-column0-true.mdb`: 47104, `6ee1549b4f3de8c9aeacae1a22852db9c8724816a9d16f4c93593bc5cf840a6c`.
+- `renamed-r2-default.mdb`: 47104, `f76e1b2e2dbabef95d74f4b962032138c9c295745b105e6f1c8478fcb721e892`.
+- `renamed-r2-live.mdb`: 47104, `d58a8914a5e06a9fdffa99e87d0bedca94c037526b75ef552a8c9bae7059bc22`.
+- `renamed-r3-column0-false.mdb`: 47104, `be30a1d88ee23624d412f1c0578eb968c13b6e5d6875cac62d4678eac75f5559`.
+- `renamed-r3-column0-true.mdb`: 47104, `9c0704df72e3e1055675af0cfbb5b3b875b622ec05dd30d10cb0eb4e8476a19e`.
+- `renamed-r3-default.mdb`: 47104, `63b14da8ec44df1da2f6e8d17f551e113d122f6addeb3bd5b82662aaed76c86e`.
+- `renamed-r3-live.mdb`: 47104, `be30a1d88ee23624d412f1c0578eb968c13b6e5d6875cac62d4678eac75f5559`.
+- `short-r1-column0-false.mdb`: 47104, `407ad2fd9c7502ba66bc318dd531b2f5aa6cf4d30b3a54b076ea5d1a748b2dad`.
+- `short-r1-column0-true.mdb`: 47104, `ada76addc4f6410c4a4d0dc6cbb4f502a16c1e5e6ad59ab506300d479324b28b`.
+- `short-r1-default.mdb`: 47104, `e68b95fee51c2fbd28c291327ca58c77ccac5c525ed4a0b3330ab6901b5edde8`.
+- `short-r1-live.mdb`: 47104, `407ad2fd9c7502ba66bc318dd531b2f5aa6cf4d30b3a54b076ea5d1a748b2dad`.
+- `short-r2-column0-false.mdb`: 47104, `62a75864130323976030a0e7977f8a99d51343e4b1024c86fb322422c654ca8a`.
+- `short-r2-column0-true.mdb`: 47104, `6ecaa59d134669ea88536867c3713a5dc5f84ab9dfc79573bd0d8016cf911a02`.
+- `short-r2-default.mdb`: 47104, `3cf8d0912bfcd8f7965bde2845d2a50a21005ba9ac3603e7b5a839d0f8d5bf26`.
+- `short-r2-live.mdb`: 47104, `62a75864130323976030a0e7977f8a99d51343e4b1024c86fb322422c654ca8a`.
+- `short-r3-column0-false.mdb`: 47104, `64d423cf59d8df0f784698a9e15612c9b2d719970e2ba1aa6b7d7ff589f0e35a`.
+- `short-r3-column0-true.mdb`: 47104, `fa0fae0820e590263144fab8f30063d918ee671fa5b57ca440596a0d5b559e69`.
+- `short-r3-default.mdb`: 47104, `7e738d5bd952c36ce6441ba55862c6b5d6100d93321ae626814a3f003196a9eb`.
+- `short-r3-live.mdb`: 47104, `64d423cf59d8df0f784698a9e15612c9b2d719970e2ba1aa6b7d7ff589f0e35a`.
+- `two-columns-r1-column0-false.mdb`: 47104, `a1400dcdb3896619d290079cfbd5496d31cca71a27706a538f006b0c347bc947`.
+- `two-columns-r1-column0-true.mdb`: 47104, `36369b90bb99403f5e6d826e761e880f2174aa8fa14792f769f81e954671ced4`.
+- `two-columns-r1-column1-false.mdb`: 47104, `c48bc73487e808b25ba0cbf0dc2bb15c407847d9915ec2e73dd32a897fd4b093`.
+- `two-columns-r1-column1-true.mdb`: 47104, `7448fe54c56e9972504fef6a57c6c7487df914037f206ed16e5a8f3c76a09447`.
+- `two-columns-r1-default.mdb`: 47104, `704ad72ebbbc30f0f69d291f053f4c881aca551378813095189d47766f04189b`.
+- `two-columns-r1-live.mdb`: 47104, `c48bc73487e808b25ba0cbf0dc2bb15c407847d9915ec2e73dd32a897fd4b093`.
+- `two-columns-r2-column0-false.mdb`: 47104, `e733a806fe66c643e1ef8c52b91f7185258c3dff06e3f2433e4bf219ca0669a6`.
+- `two-columns-r2-column0-true.mdb`: 47104, `277b4e26f3e3aa391b934852bb3321d73efaa924f05c31d156eecb944e98645b`.
+- `two-columns-r2-column1-false.mdb`: 47104, `18e926e2b1067c86acde0980dd810baa4ec972b1e49cc0e9be5d09a6c96bae99`.
+- `two-columns-r2-column1-true.mdb`: 47104, `e1b6f0ce59c6c23509209fb28705c71460c82b9132dd122e4044c1b3ea6420ea`.
+- `two-columns-r2-default.mdb`: 47104, `8b3b20ee14b538566f488f9228d6666098b2f0dac63707433add1052f24ffe8b`.
+- `two-columns-r2-live.mdb`: 47104, `18e926e2b1067c86acde0980dd810baa4ec972b1e49cc0e9be5d09a6c96bae99`.
+- `two-columns-r3-column0-false.mdb`: 47104, `5ab308005cdc36445438c1e94e691399c46d771d0e83613dfe527f73ffb1a9ce`.
+- `two-columns-r3-column0-true.mdb`: 47104, `3592e247d6d74dfbba4f4e64b0e161d0a213c870f31c4cdc1832d8e9735ceddb`.
+- `two-columns-r3-column1-false.mdb`: 47104, `0ea6ddb631cd8a4375547014810cab36ef90af497e462bbb0c7a76382264ddde`.
+- `two-columns-r3-column1-true.mdb`: 47104, `7da6c8bf11491f6574aea43aa4573ea384f31c5dd4716e376b11123e7c168746`.
+- `two-columns-r3-default.mdb`: 47104, `945dfd525961fddbaaf15372eac4e2ee714133bc5cb252766c4913cff297ecec`.
+- `two-columns-r3-live.mdb`: 47104, `0ea6ddb631cd8a4375547014810cab36ef90af497e462bbb0c7a76382264ddde`.
+
 ## EXP-0207 — Named Memo AllowZeroLength property framing discovery
 
 - Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0208.
