@@ -6,13 +6,14 @@ use std::path::PathBuf;
 
 use jet3::TextCodePage;
 use jet3_testkit::{
-    PROTOCOL_SCENARIOS, Producer, ROW_UPDATE_SCENARIOS, SnapshotOptions, SnapshotOutcome,
-    UPDATE_SCENARIOS, WRITE_SCENARIOS, canonical_json, coverage, parse_scenarios, snapshot_bytes,
+    PROTOCOL_SCENARIOS, Producer, ROW_ALLOCATION_SCENARIOS, ROW_UPDATE_SCENARIOS, SnapshotOptions,
+    SnapshotOutcome, UPDATE_SCENARIOS, WRITE_SCENARIOS, canonical_json, coverage, parse_scenarios,
+    snapshot_bytes,
 };
 
 pub(crate) const HELP: &str = "\
   jet3-cli snapshot <file> --out <dir> --scenario <DAO-READ-...|DAO-WRITE-...|DAO-UPDATE-...> \
-    [--source-revision <text>] [--code-page 1252|1251] [--inventory row-update]
+    [--source-revision <text>] [--code-page 1252|1251] [--inventory row-update|row-allocation]
 
 snapshot reads the whole database with the jet3 reader and writes
 <dir>/snapshot.json (protocol 1.2 canonical semantic snapshot; omitted when
@@ -27,7 +28,7 @@ pub(crate) struct SnapshotCommand {
     scenario_id: String,
     source_revision: String,
     code_page: TextCodePage,
-    row_update_inventory: bool,
+    inventory: Option<&'static str>,
 }
 
 pub(crate) fn parse_args(
@@ -41,7 +42,7 @@ pub(crate) fn parse_args(
     let mut scenario_id = None;
     let mut source_revision = None;
     let mut code_page = TextCodePage::Windows1252;
-    let mut row_update_inventory = false;
+    let mut inventory = None;
     while let Some(option) = arguments.next() {
         let value = arguments.next().ok_or("missing_option_value")?;
         if option == "--out" {
@@ -54,10 +55,11 @@ pub(crate) fn parse_args(
         } else if option == "--source-revision" {
             source_revision = Some(text.to_owned());
         } else if option == "--inventory" {
-            if text != "row-update" {
-                return Err("invalid_inventory");
-            }
-            row_update_inventory = true;
+            inventory = Some(match text {
+                "row-update" => ROW_UPDATE_SCENARIOS,
+                "row-allocation" => ROW_ALLOCATION_SCENARIOS,
+                _ => return Err("invalid_inventory"),
+            });
         } else if option == "--code-page" {
             code_page = match text {
                 "1252" => TextCodePage::Windows1252,
@@ -75,14 +77,14 @@ pub(crate) fn parse_args(
         source_revision: source_revision
             .unwrap_or_else(|| format!("jet3-cli {}", env!("CARGO_PKG_VERSION"))),
         code_page,
-        row_update_inventory,
+        inventory,
     })
 }
 
 /// Writes the artifact pair and returns a one-line JSON summary.
 pub(crate) fn run(command: &SnapshotCommand) -> Result<String, String> {
-    let scenarios = parse_scenarios(if command.row_update_inventory {
-        ROW_UPDATE_SCENARIOS
+    let scenarios = parse_scenarios(if let Some(inventory) = command.inventory {
+        inventory
     } else if command.scenario_id.starts_with("DAO-WRITE-") {
         WRITE_SCENARIOS
     } else if command.scenario_id.starts_with("DAO-UPDATE-") {
