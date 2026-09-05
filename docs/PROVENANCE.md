@@ -11186,6 +11186,43 @@ Copy this block under the appropriate section and remove this instruction:
   additive EXP-0168 outcome. No general deletion grammar, sole-row page release,
   arbitrary compaction, hosted compatibility or support-state movement is claimed.
 
+## EXP-0191 — Sole physical-row release candidate plan
+
+- Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0192.
+  Plan: `oracle/windows-dao/acquisition/row-delete-release.plan.json`,
+  SHA-256 `9739b45fe398cb98997656c2c4fce35fe305ce7d66b840998561f389ce6b8109`.
+- Reviewed public release source: `7ef955dd736d493ed538359f8e3b59eb3687df95`.
+  The plan pins 32 scoped library/exporter/producer/analyzer/transport inputs.
+  Common input validation runs before dispatch and analysis; the single-row
+  public exporter and proven typed PowerShell setters are reused unchanged.
+- Three natural DAO Long/Long/Text255 profiles, three replicas each: one row
+  in Items; one row in Later with Items populated; eleven dense Items rows
+  whose selected final row must occupy a sole-physical-row page. Every profile
+  has an unrelated table and KeepQuery. Actual sole-slot eligibility is a
+  required observation; no raw fixture modification creates the condition.
+- Independently delete the selected row through DAO on an original copy.
+  On Unix, copy once and invoke public `delete_row`. Require correct original
+  inline global/owned/available memberships. The candidate may change only
+  page tag `01→09`, directory word to `c800`, free bytes to2036, table count
+  minus1 and three membership bits (global-free set, owned/available clear).
+  Payload/slack, surviving row locators, page zero, other map bits/objects
+  and file length must stay exact.
+- After all nine candidates pass, capture original/control/Rust read-only and
+  create separate control/Rust continuation copies for `[99,-9900,"next"]`.
+  Require complete schema, expected rows, index/relationship absence and
+  unchanged stored QuerySQL. Provider continuation placement may differ;
+  this does not establish public free-page reuse.
+- Retain45 MDBs and63 read-only captures: nine public and nine DAO deletions,
+  eighteen continuation inserts, plus baseline creation. Any post-mutation
+  failure remains one `no_outcome`, partial artifacts retained, with no
+  retry/resume or subset promotion. SSH phases300seconds; Unix calls120seconds.
+- Source facts are EXP-0162's sole-slot release/reinsertion observations,
+  SRC-0020/EXP-0057 map framing, EXP-0051 global-free polarity and EXP-0065
+  allocation memberships. Unchanged page zero is a candidate hypothesis;
+  no bookkeeping meaning, general release policy or hosted support is claimed.
+  Sole-live pages with other tombstones, indirect maps, map growth, truncation,
+  indexed/related/AutoIncrement/LVAL deletion and public reuse are excluded.
+
 ## EXP-0162 — Retained deletion transitions agree under the pinned secondary comparison
 
 - Date: 2026-09-05. Outcome: `answered`, no reasons; all three tail, middle
