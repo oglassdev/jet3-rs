@@ -224,7 +224,7 @@ pub fn creation_index_fixture(command: &str, id: &str, directory: &Path) -> Resu
     }
     Ok(())
 }
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     #[test]
