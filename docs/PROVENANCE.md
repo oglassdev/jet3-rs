@@ -14836,3 +14836,15 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   and DAO continuation mutations remain outside this inventory. The report's
   `support_matrix_movement` remains false; no general update compatibility is
   claimed. Earlier provenance entries and the consumed plan remain unchanged.
+
+### EXP-0215 — Final source integration before acquisition
+
+- Finalize the same unacquired matrix against merged source
+  `0fa4d07b1fc779e67ffb81e996f284abd962feec`. Plan SHA-256
+  `6fbee41dc0d54d7e47568a701b5bcce10dd0aecc5d5883575cf4f1261cbf46ff` supersedes the initial preregistration hash
+  above before any DAO acquisition. Only the source revision and two changed
+  creation-source pins were refreshed; all eight image identities, four public
+  preparation receipts, cases and acceptance rules reproduce unchanged.
+- No matching EXP-0215 plan or result exists in the external shared inbox/outbox.
+  The three focused analyzer tests and exact exporter reproduction passed.
+  Independent review must pass before the one authorized dispatch.
