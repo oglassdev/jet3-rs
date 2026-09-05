@@ -1,0 +1,274 @@
+//! Preservation-aware field updates using `EXP-0059` schema, `SRC-0020`/
+//! `EXP-0060` row spans, and the signed Long encoding from `EXP-0061`.
+
+use std::convert::Infallible;
+use std::error::Error as StdError;
+use std::fmt;
+use std::io::{Seek, SeekFrom, Write};
+use std::path::Path;
+
+use crate::atomic::atomic_update_budgeted;
+use crate::row_directory::RowDirectory;
+use crate::{
+    ByteOffset, CatalogObjectClass, ColumnOrdinal, ColumnPhysicalType, DatabaseReader, FileSource,
+    PAGE_BYTES, PageImage, PageOffset, PublishStage, ReadAt, ResourceBudget, RowLocator, RowValue,
+    TableDefinitionKind,
+};
+
+/// One existing field to replace. Obtain the ordinal and locator from the reader.
+#[derive(Debug, Clone, Copy)]
+pub struct FieldUpdate<'a> {
+    /// Exact database-encoded user table name.
+    pub table: &'a [u8],
+    /// Logical row locator from that table's row cursor.
+    pub row: RowLocator,
+    /// Column ordinal from that table's definition.
+    pub column: ColumnOrdinal,
+    /// Replacement value; currently only an ordinary, present Long is supported.
+    pub value: RowValue<'a>,
+}
+
+/// A rejected request, malformed source, exhausted resource policy, or publication failure.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum UpdateError {
+    /// The named user table, row, or column was not found.
+    NotFound(&'static str),
+    /// The request needs an unimplemented update capability.
+    Unsupported(&'static str),
+    /// Source or private bytes did not match the planned update.
+    Mismatch(&'static str),
+    /// Resource policy or raw input failure.
+    Resource(crate::Error),
+    /// File operation failed.
+    Io(std::io::Error),
+    /// Database header failure.
+    Open(crate::DatabaseOpenError),
+    /// Catalog failure.
+    Catalog(crate::CatalogError),
+    /// Table definition failure.
+    Definition(crate::TableDefinitionError),
+    /// Row traversal failure.
+    Rows(crate::RowError),
+    /// Row directory failure.
+    Directory(crate::RowDirectoryError),
+    /// Atomic publication failed; its stage indicates whether publication occurred.
+    Publish(crate::PublishError),
+}
+
+impl fmt::Display for UpdateError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "field update failed: {self:?}")
+    }
+}
+impl StdError for UpdateError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            Self::Resource(source) => Some(source),
+            Self::Io(source) => Some(source),
+            Self::Open(source) => Some(source),
+            Self::Catalog(source) => Some(source),
+            Self::Definition(source) => Some(source),
+            Self::Rows(source) => Some(source),
+            Self::Directory(source) => Some(source),
+            Self::Publish(source) => Some(source),
+            Self::NotFound(_) | Self::Unsupported(_) | Self::Mismatch(_) => None,
+        }
+    }
+}
+
+macro_rules! conversion {
+    ($source:ty, $variant:ident) => {
+        impl From<$source> for UpdateError {
+            fn from(source: $source) -> Self {
+                Self::$variant(source)
+            }
+        }
+    };
+}
+conversion!(crate::Error, Resource);
+conversion!(std::io::Error, Io);
+conversion!(crate::DatabaseOpenError, Open);
+conversion!(crate::CatalogError, Catalog);
+conversion!(crate::TableDefinitionError, Definition);
+conversion!(crate::RowError, Rows);
+conversion!(crate::RowDirectoryError, Directory);
+conversion!(crate::PublishError, Publish);
+
+/// Replaces one present Long field in an unindexed, relationship-free user table.
+///
+/// Null transitions, AutoIncrement columns, hidden/overflow rows and other value
+/// types are unsupported. The exact requested field bytes are the only bytes
+/// changed, including when the database contains opaque pages or unused space.
+/// Locators remain valid only while the source is unchanged: callers must exclude
+/// external writers for this entire operation, as required by [`crate::atomic_update`].
+/// Publication is Unix-only. Any pre-publication failure preserves the original;
+/// a post-publication sync failure is distinguished by the publication error stage.
+/// The same budget covers planning, copying, patching and streaming verification.
+/// Structural verification is not a DAO compatibility claim.
+pub fn update_field(
+    path: impl AsRef<Path>,
+    request: FieldUpdate<'_>,
+    budget: &mut ResourceBudget,
+) -> Result<(), UpdateError> {
+    update_with_hook(path.as_ref(), request, budget, |_| Ok::<(), Infallible>(()))
+}
+
+fn update_with_hook<H, HE>(
+    path: &Path,
+    request: FieldUpdate<'_>,
+    budget: &mut ResourceBudget,
+    hook: H,
+) -> Result<(), UpdateError>
+where
+    H: FnMut(PublishStage) -> Result<(), HE>,
+    HE: StdError + Send + Sync + 'static,
+{
+    let RowValue::Long(value) = request.value else {
+        return Err(UpdateError::Unsupported("replacement must be Long"));
+    };
+    let mut database = DatabaseReader::open(path, budget)?;
+    let mut root = None;
+    {
+        let mut catalog = database.catalog(budget)?;
+        while let Some(record) = catalog.next_record()? {
+            if record.class() == CatalogObjectClass::User
+                && record.name().raw_bytes() == request.table
+            {
+                if root.is_some() {
+                    return Err(UpdateError::Mismatch("ambiguous table name"));
+                }
+                root = record.table_definition();
+            }
+        }
+    }
+    let definition =
+        database.table_definition(root.ok_or(UpdateError::NotFound("table"))?, budget)?;
+    if definition.kind() != TableDefinitionKind::User
+        || !definition.indexes().is_empty()
+        || !definition.physical_indexes().is_empty()
+    {
+        return Err(UpdateError::Unsupported(
+            "table has indexes or relationships",
+        ));
+    }
+    let column = definition
+        .columns()
+        .get(usize::from(request.column.get()))
+        .ok_or(UpdateError::NotFound("column"))?;
+    if column.physical_type() != ColumnPhysicalType::Long || column.auto_increment() {
+        return Err(UpdateError::Unsupported("column must be ordinary Long"));
+    }
+    let mut original_page = [0; PAGE_BYTES];
+    database.read_raw_page(request.row.page(), &mut original_page, budget)?;
+    let directory = RowDirectory::validate(
+        request.row.page(),
+        definition.root(),
+        &original_page,
+        budget,
+    )?;
+    let entry = directory.entry(&original_page, request.row.slot())?;
+    if entry.hidden() || entry.overflow() {
+        return Err(UpdateError::Unsupported("hidden or overflow row"));
+    }
+    let (relative, before) = {
+        let mut rows = database.rows(&definition, budget)?;
+        let mut found = None;
+        while let Some(row) = rows.next_row()? {
+            if row.locator() != request.row {
+                continue;
+            }
+            if row.storage_locator() != request.row {
+                return Err(UpdateError::Unsupported("overflow row"));
+            }
+            let range = row
+                .present_fixed_field_range(request.column)
+                .ok_or(UpdateError::Unsupported("null or variable field"))?;
+            let bytes: [u8; 4] = row
+                .field(request.column)
+                .and_then(|field| field.raw_bytes())
+                .and_then(|bytes| bytes.try_into().ok())
+                .ok_or(UpdateError::Mismatch("Long width"))?;
+            found = Some((range, bytes));
+            break;
+        }
+        found.ok_or(UpdateError::NotFound("row"))?
+    };
+    let row_range = entry.range();
+    if relative.end > row_range.len() {
+        return Err(UpdateError::Mismatch("field outside row"));
+    }
+    let start = row_range
+        .start
+        .checked_add(relative.start)
+        .ok_or(UpdateError::Mismatch("field offset"))?;
+    let end = start
+        .checked_add(before.len())
+        .ok_or(UpdateError::Mismatch("field end"))?;
+    if original_page.get(start..end) != Some(before.as_slice()) {
+        return Err(UpdateError::Mismatch("source changed during planning"));
+    }
+    let mut patched = PageImage::from_bytes(original_page);
+    patched.write_at(PageOffset::new(start as u64), &value.to_le_bytes(), budget)?;
+    let page_offset = request
+        .row
+        .page()
+        .get()
+        .checked_mul(PAGE_BYTES as u64)
+        .ok_or(UpdateError::Mismatch("page offset"))?;
+    let offset = page_offset
+        .checked_add(start as u64)
+        .ok_or(UpdateError::Mismatch("file offset"))?;
+    let mut original = database.into_source();
+    let length = original.len();
+    atomic_update_budgeted(
+        path,
+        budget,
+        |file, budget| -> Result<(), UpdateError> {
+            budget.charge_work_units(before.len() as u64)?;
+            file.seek(SeekFrom::Start(offset))?;
+            file.write_all(&patched.as_bytes()[start..end])?;
+            Ok(())
+        },
+        |private, budget| -> Result<(), UpdateError> {
+            let mut candidate = FileSource::open(private, budget.read_budget())?;
+            if candidate.len() != length {
+                return Err(UpdateError::Mismatch("file length"));
+            }
+            let mut expected = [0; PAGE_BYTES];
+            let mut actual = [0; PAGE_BYTES];
+            let mut position = 0;
+            while position < length.get() {
+                let count = (length.get() - position).min(PAGE_BYTES as u64) as usize;
+                original.read_exact_at(
+                    ByteOffset::new(position),
+                    &mut expected[..count],
+                    budget.read_budget(),
+                )?;
+                candidate.read_exact_at(
+                    ByteOffset::new(position),
+                    &mut actual[..count],
+                    budget.read_budget(),
+                )?;
+                if position == page_offset {
+                    if expected != original_page {
+                        return Err(UpdateError::Mismatch("original page changed"));
+                    }
+                    expected = *patched.as_bytes();
+                }
+                budget.charge_work_units(count as u64)?;
+                if expected[..count] != actual[..count] {
+                    return Err(UpdateError::Mismatch("unrelated or requested bytes"));
+                }
+                position += count as u64;
+            }
+            Ok(())
+        },
+        hook,
+    )?;
+    Ok(())
+}
+
+#[cfg(all(test, unix))]
+#[path = "update_tests.rs"]
+mod tests;
