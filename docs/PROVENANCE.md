@@ -11385,6 +11385,55 @@ Copy this block under the appropriate section and remove this instruction:
   updates, deletion/insertion, arbitrary existing-file compatibility or
   hosted update support. Report compatibility/support flags remain false.
 
+## EXP-0176 — Retained fixed-field updates accepted in separate validation
+
+- Outcome: `observed_accepted`, recorded 2026-09-05 from the single distinct
+  run `20260905T074900Z-fixed-field-reuse`, acquisition revision
+  `3f50a50ea1efa5fe881077e1ef6c8f92889d61b4`. All 30 pairs passed with no
+  report reasons, coordinated error, observation error or retention failure.
+  EXP-0175 plan SHA-256 remains
+  `410084e32005ea98748017d3fbd9850c33e28f9f1f3e5e83f6dcc2935301df11`.
+- Validated report: 65027 bytes, SHA-256
+  `c054ba06916a8c630728e0af0a6eb098d4ac4553589be1789fbaf93719874957`.
+  Coordinated result: 15092 bytes, SHA-256
+  `0aed2dec58584e1f5f487a2ad2b1c61de4588ee033e0691d55c48e71704965e6`.
+  The committed analyzer reproduced the report byte-identically on temporary
+  copies without changing any retained acquisition artifact.
+- Read-only DAO phase: 938582 bytes, SHA-256
+  `381b37b334d2c32db1d058b966bd6d1fb36028b19b0283f509ca934078da589a`.
+  All 60 captures passed with unchanged before/after identities. The provider
+  receipt records 32-bit `DAO.DBEngine.36`, Windows NT 10.0.20348.0 and
+  `mutation_started: false`; every database snapshot reports Jet version 3.0.
+- The report attributes 27 `retained_update` cases to implementation
+  `37bd8175393dccf836b96172f740a28c4be36a60`, retaining their original EXP-0171
+  receipts and images exactly. Only the three `fixed-text-255` cases are
+  `new_public_update`, produced by reviewed implementation
+  `2c99b3dc78a3046837592fdf29e6a8bacaf99b20`. No old candidate is attributed to
+  the corrected reader, and no DAO creation or mutation occurred in this run.
+- Each of the ten arms passed three replicas. Exact saved replacements are
+  Byte 255, Integer -32768, Long -2147483648, Currency scaled -9223372036854775808,
+  Single and Double negative zero, DateTime OA days -1.25, GUID
+  `00112233-4455-6677-8899-aabbccddeeff`, and fixed Text widths 1 and 255
+  containing Windows-1252 byte `e9`. Negative zero remains the exact saved
+  `00000080` / `0000000000000080` bit pattern, without normalization.
+- Exact target offsets/lengths are 49126/1 for Byte and fixed Text 1,
+  49124/2 for Integer, 49120/4 for Long and Single, 49112/8 for Currency,
+  Double and DateTime, 49096/16 for GUID, and 48616/255 for fixed Text 255.
+  Every byte outside the independently selected field span remains identical.
+  All original snapshots match their frozen creation observations. Full schemas,
+  field properties, complete rows and saved values, relation/index absence,
+  unrelated tables and original stored KeepQuery SQL satisfy the exact request.
+- All 60 current images are 57344 bytes and match the guest-retained copies.
+  Verification preserved all 67 files in the coordinated output, 63 in its
+  read-only guest output, and all 89/33 files in the original EXP-0171 combined/
+  create outputs. All 61 pinned original artifacts remain unchanged.
+- This is bounded local acceptance of the declared fixed-field updates on these
+  retained databases, including the three wide-fixed-prefix cases. It does not
+  establish a general wide-offset encoding, null transition, indexed/related
+  update, variable-size update or hosted compatibility. EXP-0172 and EXP-0164
+  remain `no_outcome`; consumed inputs remain frozen. The report is development
+  only with compatibility and support-matrix movement both false.
+
 ## EXP-0175 — Distinct validation of retained fixed-field updates
 
 - Preregistered only; no acquisition. Outcome reserved as EXP-0176. The
