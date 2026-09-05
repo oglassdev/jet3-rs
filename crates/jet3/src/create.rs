@@ -8,13 +8,9 @@
 //! pre-publication failure.
 //!
 //! The structural reopen is a publication prerequisite, not compatibility
-//! evidence. Only a recorded DAO differential can establish that Microsoft
-//! Access or DAO consume a created database; none has been run for schemas
-//! other than the exact `EXP-0091`, `EXP-0107`, `EXP-0110`, and `EXP-0112`
-//! constructions.
-//! `EXP-0110` observed DAO read one composed four-table image built from the
-//! `EXP-0087` later-create pattern; it does not establish other table counts,
-//! orders, names, or schemas.
+//! evidence. DAO observations in `docs/PROVENANCE.md` cover exact candidates;
+//! they do not establish arbitrary schemas, values, or general compatibility.
+//! Hosted differential results govern the support matrix.
 
 use std::error::Error as StdError;
 use std::fmt;
@@ -162,10 +158,9 @@ pub fn create_database(
 /// [`create_database`] apply. Composition and the structural row comparison
 /// are charged to `budget`. Unsupported schemas and rows fail before writing.
 ///
-/// `EXP-0112` observed DAO read one exact `Rows(Id Long, Code Text 8)` image
-/// containing `(1, "one")`, `(-2, "two")`, and `(null, null)` unchanged in three
-/// local replicas. This establishes only that candidate, not other schemas or
-/// values, general compatibility, or hosted write-differential coverage.
+/// DAO observations cover only the exact candidates recorded in the provenance
+/// ledger. Construction bounds alone do not establish general compatibility or
+/// hosted write-differential coverage.
 pub fn create_database_with_rows(
     path: impl AsRef<Path>,
     table: &TableSpec<'_>,
