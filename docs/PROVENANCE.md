@@ -11292,6 +11292,82 @@ Copy this block under the appropriate section and remove this instruction:
   or hosted support claim. Retain all MDBs externally and record one validated
   additive outcome as `EXP-0128`.
 
+### EXP-0139 — Multi-level Long index candidate preregistration
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: committed development-only DAO preregistration; acquisition has not
+  started and no outcome or support movement is asserted.
+- Plan: `oracle/windows-dao/acquisition/multi-level-index.plan.json`, SHA-256
+  `7d0f368b31e2295b826118cea4e290b8ddc6661d108aea99eb870db84e13ccc2`. Pins cover producer, analyzer, dedicated structure decoder,
+  reused catalog decoder, low-level transport and Rust example. Dispatch and
+  analysis validate the same inputs; the exact plan must be committed before
+  acquisition. Independent harness review is required before dispatch.
+- Generator: `multi_level_index_candidate` at reviewed source
+  `5cd9e5a49888013059dfb88e8ab0a6ef942a91cd`. The implementation passed
+  independent review and `just ready`; the lookup-accounting review fix
+  changes no candidate bytes. No MDB bytes are committed.
+- Hypothesis: DAO accepts the writer's uncompressed balanced multi-level
+  construction, retaining its original root and appending non-contiguous
+  descendants after data. EXP-0062 supplies branch/leaf headers, complete
+  maximum-child key/row-locator separators, tail children and sibling links;
+  EXP-0126 supplies Long direction/composition, EXP-0073 distinct-key counts,
+  and EXP-0057/0065 map roles. The construction is not a DAO split or allocation
+  policy inference.
+- Three arms, each with three unchanged candidate replicas and three fresh
+  matched DAO controls. `primary` has Rows(Id Long, Payload Long), primary
+  ById ascending: position 0..27800 gives [27800-position, position].
+  `composite` has an empty first table and later Rows(A Long, B Long, Payload
+  Long), ordinary ByKey(B descending, A ascending): position 0..12928 gives
+  [floor(position/400), floor(position/800)-9, position]. `relationship` has
+  Parents(Id Long, Payload Long), primary ById, with [position-100, position]
+  for 0..200; Children has the same fields with [position%3-1, position] for
+  0..27800. ParentChildren links their Id columns and creates the child
+  ordinary foreign index. Parent keys include unused values; duplicate child
+  and composite runs cross leaf boundaries. Controls use the same insertion
+  order, one transaction per table, then relationship creation; no compaction.
+- Candidate identities:
+
+| Arm | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `primary` | 677,888 | `319337d779bfeceb7971ff133794ef738b5dcf44f3c55885d1c2591b5af15593` |
+| `composite` | 475,136 | `249529faf1161a6a7ceb255794fb65d6fd5080d66c0e8fefdae88a2eba2ae035` |
+| `relationship` | 694,272 | `beec4f2af1e0a84396053ef39ac9b76b5465db822f759cc7c35c1d11a9342147` |
+
+- Endpoints: complete DAO database/table/field/index/relation metadata, full
+  typed row multisets and full ordered index traversal returning every
+  payload. Seek is limited to the explicit matching/missing boundary keys
+  in the plan: seven primary queries, four composite queries, seven parent
+  and six child queries. Any duplicate selected by Seek must be a complete
+  matching row; duplicate tie order is unspecified. These finite probes do
+  not establish arbitrary Seek or update behavior.
+- Structural preflight and analysis: derive roots through the catalog, decode
+  all rows, bind every leaf locator exactly once, compare keys with row values,
+  and check every complete separator, tail, sibling chain and uniform leaf
+  depth. Report actual index/data/available maps and descendant membership.
+  Candidate main trees must have three levels (143/105/143 nodes respectively);
+  the relationship parent has two levels and three nodes. Control depths,
+  compression and page locations are observations, not equality gates.
+  Control map membership may include unused index pages; candidates may not.
+  The decoder explicitly allows 8,192 image pages, 1,019 directory slots and
+  32 tree levels, and handles inline and indirect control maps using existing
+  grammar. No consumed decoder is changed.
+- Classification: all nine controls must pass, all read-only identities remain
+  unchanged, and the complete inventory must have no job error. Three agreeing
+  candidate observations yield `observed_accepted` or `not_observed_accepted`
+  per arm; disagreement, incomplete jobs, changed files or failed controls
+  yield `no_outcome`. Pin and retained-identity mismatches reject validation.
+  Retain all eighteen MDBs and complete result/report JSON. SSH timeout is
+  3,600 seconds; interruption or unexpected failure after mutation is a
+  scientific result, with no automatic retries or redispatch.
+- Preflight: focused semantic/classifier/structure tests and a VM PowerShell
+  `Parser.ParseFile` check passed. The latter executed no producer or DAO.
+  Candidate raw decoding validated all planned depths and complete bindings;
+  generation after AutoIncrement integration reproduced identical bytes.
+- Boundary: exact pinned images and declared read-only probes only. No new
+  scalar/Text/Binary/null key grammar, indirect writer allocation, general
+  B-tree update policy, compatibility or hosted support claim. Record the
+  single validated outcome as EXP-0140.
+
 ### EXP-0134 — Populated relationship and bounded integrity probes accepted locally
 
 - Recorded: 2026-09-05, OpenAI Codex
