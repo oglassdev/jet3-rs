@@ -62,9 +62,10 @@ or hosted support movement.
 
 EXP-0146 records bounded acceptance of all three multi-level candidates from
 separately pinned analysis of the retained files; EXP-0140 preserves the
-original decoder refusal and `no_outcome`. Recognize the newly observed control
-branch header value in the reader, then continue broader index keys, null
-semantics and allocation beyond inline maps. After creation is complete, run the hosted write differential
+original decoder refusal and `no_outcome`. The reader recognizes the observed branch header values. Nullable one/two-Long
+keys now have typed include/omit-all-null/required options and variable-size
+index packing; their composed writer policy awaits candidate validation. Keep
+broader key codecs and allocation beyond inline maps as explicit limitations. After creation is complete, run the hosted write differential
 (#102), implement updates preserving unrelated data (#112), then run the
 hosted update differential (#113). Keep module cleanup (#182) until the
 creation API settles.

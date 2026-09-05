@@ -85,6 +85,10 @@ impl InitialLongIndex {
                 direction: field.direction,
             };
         }
+        u32::try_from(row_count).map_err(|_| Error::IntegerConversion {
+            value: row_count as u128,
+            target: "u32 initial row count",
+        })?;
         let pages = IndexPages::new(&[], budget)?;
         let allocation = row_count
             .checked_mul(size_of::<Entry>())

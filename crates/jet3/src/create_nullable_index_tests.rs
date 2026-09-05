@@ -264,3 +264,60 @@ fn variable_width_duplicate_runs_span_three_levels_and_later_table_maps() -> Tes
     assert_eq!(fs::read(directory.target())?, original);
     Ok(())
 }
+
+#[test]
+fn nullable_auto_components_and_corrupt_flags_or_keys_are_checked() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let columns = [ID, ColumnSpec::new(b"B", ColumnType::AutoIncrement)];
+    let indexes = [IndexSpec {
+        name: b"ById",
+        kind: IndexKind::Unique,
+        fields: &TWO,
+    }];
+    let table = TableSpec {
+        name: b"Items",
+        columns: &columns,
+        indexes: &indexes,
+    };
+    let rows: &[&[RowValue<'_>]] = &[
+        &[RowValue::Null, RowValue::AutoIncrement],
+        &[RowValue::Long(1), RowValue::AutoIncrement],
+    ];
+    create_database_with_rows(directory.target(), &table, rows, &mut budget())?;
+    assert_eq!(
+        tree(&directory.target())?.entries()[0].key().raw_bytes(),
+        &[0, 0x80, 0x7f, 0xff, 0xff, 0xfe]
+    );
+    let original = fs::read(directory.target())?;
+    let mut corrupt = original.clone();
+    corrupt[23 * crate::PAGE_BYTES + 248] = 1;
+    fs::write(directory.target(), corrupt)?;
+    assert!(
+        super::super::super::super::check_initial_rows(
+            &directory.target(),
+            &table,
+            rows,
+            &mut budget()
+        )
+        .is_err()
+    );
+    let mut corrupt = original;
+    // Two column records followed by their exact length-prefixed names.
+    let flag_offset = 20 * crate::PAGE_BYTES
+        + 43
+        + 8
+        + 36
+        + columns
+            .iter()
+            .map(|column| 1 + column.name().len())
+            .sum::<usize>()
+        + 38;
+    corrupt[flag_offset] = 4;
+    fs::write(directory.target(), corrupt)?;
+    let mut db = DatabaseReader::open(directory.target(), &mut budget())?;
+    assert!(
+        db.table_definition(PageNumber::new(20), &mut budget())
+            .is_err()
+    );
+    Ok(())
+}
