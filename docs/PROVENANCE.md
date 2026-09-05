@@ -11082,3 +11082,44 @@ Copy this block under the appropriate section and remove this instruction:
   component grammar, branch/allocation policy, general compatibility, updates,
   or hosted support claim. Retain all MDBs externally and record one validated
   additive outcome as `EXP-0128`.
+
+### EXP-0129 — Multi-table initial-row candidate preregistration
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: committed development-only DAO preregistration. Acquisition has not
+  started; this entry asserts no outcome or support movement.
+- Plan: `oracle/windows-dao/acquisition/multi-table-rows.plan.json`, SHA-256
+  `95f5711c27f45fdadef43fd242ae8b06afc75ebf7ad8c2f9fe665ee22eb459f9`. Input pins cover the
+  producer, analyzer, low-level SSH transport and deterministic Rust example.
+  Dispatch and analysis share input-pin verification; the plan must be committed.
+- Generator: `multi_table_row_candidate` at reviewed source
+  `4c4f2b34f3037b5b17c7027b629d4e396c9790ef`.
+- Candidate identities:
+  - mixed: 77824 bytes, SHA-256
+    `86a8e79ad23c0610d1c9c1cc70603efbd3186db1dfb6f42295fe857fc16ae17b`.
+  - empty-first: 57344 bytes, SHA-256
+    `fda4ae1e0775762daae9df21e78f36729c550f2c2fcbd700694399af3cf5abca`.
+- Hypothesis: the exact four-table mixed and two-table empty-first candidates
+  expose their complete declared schemas and initial rows unchanged. Mixed
+  combines 509 Numbers rows, three primary-indexed Keys rows, a 4096-character
+  Memo plus null in Notes, and an empty table. Empty-first precedes a chained
+  2048-byte OLE row with an empty table. The plan fixes every payload byte and
+  every field/index flag; Keys traversal and Seek validate the later table's
+  indexed row references. EXP-0087/0065 supply layout roles and EXP-0116/0120/
+  0124 provide individual-writer observations, not combination acceptance.
+- Acquisition: one job, three fresh matched DAO controls and three candidate
+  replicas per arm. Read all images read-only, compare every table's complete
+  schema and row multiset, Memo strings/OLE bytes, Keys traversal and Seek,
+  and unchanged before/after identities. Retain all twelve files externally.
+- Decision: accept an arm only after a complete six-pair job, all controls
+  pass, all images remain unchanged, and its three candidate observations
+  agree. Identical candidate failures yield `not_observed_accepted`; control
+  failure, changed images, incomplete jobs or replica disagreement yield
+  `no_outcome`. Binding/pin/retention errors reject validation. Failures after
+  the first mutation are scientific results, never automatic retries.
+- Preflight: seven classifier tests passed; VM `Parser.ParseFile` accepted
+  the PowerShell producer without executing it or DAO. Independent experiment
+  review precedes root's single authorized acquisition.
+- Boundary: exact candidates only; no general allocation, schema/index,
+  relationship, AutoIncrement, empty-payload, update, compatibility or hosted
+  support claim. Record the validated outcome once as EXP-0130.
