@@ -11024,6 +11024,56 @@ Copy this block under the appropriate section and remove this instruction:
   Neither this plan nor self-validation establishes general compatibility,
   completion of #100 or support-matrix movement.
 
+## EXP-0168 — Public tail deletion and DAO continuation accepted in three cases
+
+- Outcome: `observed_accepted`, recorded 2026-09-05 from the single local run
+  `20260905T073100Z-row-delete-candidate`. All nine comparisons passed with no
+  reasons, acquisition error or retention failure. Preregistration EXP-0167 plan
+  SHA-256 remains `8ee26e110283669fb50a4545ea9b71a63139ff950ab2d34ea78a04dad7003a19`.
+  Acquisition revision: `c08bc336331a0a75dd4957bb2f30444c285467fa`;
+  reviewed public implementation: `eb3d8a8df617e945f0f1723c2d3f6506faf7ccf5`.
+- Validated report: 20421 bytes, SHA-256
+  `776eeb6fc92c46c34d002db6bb99036bffee1aa5633fd68ac37774f2aa1d15d4`.
+  Coordinated result: 4041 bytes, SHA-256
+  `1b33d7ed430c5fd73349cec78903a28d58637b4f066221dae135a57528d353bd`.
+  The unchanged pinned analyzer reproduced the report byte-identically on
+  temporary copies; no additional DAO operation or corrected analysis occurred.
+- Create-phase result: 276496 bytes, SHA-256
+  `0da70203f447270bd470bc7e413e66559615c0f6489e6ef5bd4df63aab5a005f`.
+  Observe-phase result: 690176 bytes, SHA-256
+  `bb167ca0c41fa320d3189e2140dec7a3aef410f995d6c1af6e4a985f496fe054`.
+  The complete inventory contains 18 creation-phase and 45 observation-phase
+  read-only captures, nine DAO control deletions, nine public Unix deletions and
+  eighteen DAO insertions on separate continuation copies. Both phase errors
+  are null and both retention-failure lists are empty.
+- The report retains all 45 image identities (each 57344 bytes) and exact
+  candidate byte-change records; the coordinated result retains all nine Unix
+  source/candidate identity chains.
+  Every read-only before/after identity matches its retained file. Originals,
+  controls and Rust candidates remain unchanged across phases. All 60 files in
+  the coordinated outbox, 21 in its create outbox and 48 in its observe outbox
+  remained unchanged during reproduction and verification.
+- Each case passed all three replicas. `first-tail` removes Items Id3 at root20,
+  page23, slot2; `later-tail` removes Later Id13 at root24, page26, slot2;
+  `mixed-tail` removes Items Id3 with its 180-byte Text payload at root20,
+  page23, slot2. The target table count becomes two in every candidate. Its owned
+  and available maps retain only the respective data page, matching DAO controls.
+- Candidate changes are limited exactly to the table count, data-page free-byte
+  count and tail tombstone word. Deleted payload, unused slack, page zero and all
+  other bytes remain exact. Actual changed-byte totals are four for each first/
+  later-tail replica and five for each mixed-tail replica. This retains the
+  candidate policy; no page-zero counter meaning or general deletion rule follows.
+- Full DAO schemas, field properties, rows, relation/index absence and original
+  stored KeepQuery SQL match each candidate/control pair after deletion. Separate
+  Rust/control continuation copies both accept `[99, -9900, "next"]` and match
+  the complete expected post-state, including all unrelated table/query metadata.
+- This is finite development-only acceptance for these populated unindexed,
+  relationship-free tail deletions and subsequent DAO inserts. It does not cover
+  arbitrary deletion positions, sole-row release, allocation, AutoIncrement,
+  long-value or indexed/related deletion, Rust insertion, hosted compatibility or
+  support-matrix movement. EXP-0158's original discovery `no_outcome` remains
+  unchanged; the report's compatibility/support flags remain false.
+
 ## EXP-0167 — Bounded tail deletion and continuation candidate plan
 
 - Date: 2026-09-05. Preregistered only; acquisition pending independent review.
