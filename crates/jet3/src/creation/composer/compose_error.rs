@@ -17,7 +17,7 @@ pub enum ComposeError {
         /// Unsupported relationship constraint.
         detail: &'static str,
     },
-    /// Initial rows support at most one index on one or two supported numeric columns.
+    /// Initial indexes require one or two supported numeric columns and bounded index counts.
     UnsupportedInitialIndexSchema,
     /// A scalar key value needs an unsupported encoding (including negative zero).
     UnsupportedInitialIndexValue {
