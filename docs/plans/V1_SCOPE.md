@@ -92,9 +92,16 @@ inline-map coverage; compaction preserves physical slots and vacated slack.
 The combined `rows.insert_update_delete` capability remains partial with DAO
 differential evidence limited to these recipes. Sole-row release, free-page or
 slot reuse, indirect map growth, other fixed update types, null transitions,
-indexed or related targets, variable-width replacement and stored-query
-preservation remain unverified by this hosted inventory. Index CRUD stays
-unverified; atomic failure/rollback verification remains internal-only.
+related targets, variable-width replacement and stored-query preservation
+remain unverified by this hosted inventory. EXP-0204 adds four hosted indexed
+cases: ascending primary and descending unique Long-key reorder, a 200-entry
+isolated leaf reorder, and ordinary indexed non-key Long replacement. Complete
+before/after rows, directed traversal, present/removed/missing Seek results and
+independent exact-byte preservation checks passed. Index CRUD maintenance is
+partial with DAO differential evidence restricted to those unique single-leaf
+key replacements; compressed/branch/composite/nonunique key changes and indexed
+insertion/deletion remain unverified. Atomic failure/rollback verification
+remains internal-only.
 
 Keep broader index key codecs and allocation beyond inline maps as explicit
 creation limitations. Prioritize existing-file row insertion/deletion and index
