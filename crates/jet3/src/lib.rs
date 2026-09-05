@@ -61,6 +61,7 @@ pub mod index_definition;
 mod index_options;
 pub mod index_tree;
 mod index_tree_page;
+pub mod insert;
 pub use index_options::IndexNullPolicy;
 pub mod delete;
 mod index_tree_rows;
@@ -82,6 +83,7 @@ pub mod resource;
 pub mod row;
 mod row_delete_page;
 pub mod row_directory;
+mod row_insert_page;
 pub mod row_writer;
 pub mod source;
 pub mod table_definition;
@@ -157,6 +159,7 @@ pub use index_definition::{
 pub use index_tree::{
     IndexEntry, IndexKey, IndexKeyEncoding, IndexNode, IndexNodeKind, IndexTree, IndexTreeError,
 };
+pub use insert::insert_row;
 pub use jet3_page::Jet3PageReader;
 pub use limits::{ReadBudget, ReadLimits};
 pub use long_value::{
