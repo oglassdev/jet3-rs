@@ -193,8 +193,12 @@ fn candidate_budget_exhaustion_and_oversized_key_are_structured() {
     let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(0));
     assert!(compose_parent_child(&mut limited).is_err());
     assert!(matches!(
-        relation_index(&[0; INDEX_KEY_CAPACITY + 1], &mut budget()),
-        Err(ComposeError::IndexPageFull { .. })
+        relation_index_name(
+            &[b'A'; INDEX_KEY_CAPACITY + 1],
+            RELATION_DATA,
+            &mut budget()
+        ),
+        Err(ComposeError::NameKey(_))
     ));
 }
 
