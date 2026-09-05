@@ -8,7 +8,31 @@ jet3-cli create example.mdb --input request.json
 cat request.json | jet3-cli create example.mdb --input -
 ```
 
-The output must not exist. Creation uses the library's atomic publication,
+Inspect metadata and optional rows as JSON:
+
+```sh
+jet3-cli inspect example.mdb
+jet3-cli inspect example.mdb --table Items --rows --code-page 1252
+jet3-cli inspect example.mdb --page 0 --hex
+```
+
+`inspect` reads pages through the library's file reader, with a 256 MiB input
+limit. Its existing `pages`, `catalog`, `tables` and raw diagnostic fields remain
+available. Table entries include their catalog names. `--table` selects an exact
+ASCII table name for definition and row inspection; the page/catalog inventory
+still describes the file. Text values use the selected code page (1252 by default,
+or 1251). Non-ASCII metadata names retain their raw hexadecimal representation.
+`--page` cannot be combined with `--table` or `--rows`.
+
+A complete requested inspection returns `ok: true` and exit 0. If a table,
+allocation map, row or field cannot be decoded, available diagnostic output is
+retained on stdout with `ok: false`, an `issues` array and exit 1. Opening, catalog
+or selection failures instead produce a JSON `inspect_failed` error on stderr
+with exit 1. Invalid arguments produce JSON errors on stderr with exit 2. A
+successful inspection describes the requested decoded content; it is not a
+whole-file compatibility verdict. Inspection never modifies the database.
+
+The `create` output path must not exist. Creation uses the library's atomic publication,
 validation and default resource limits; publication currently requires Unix.
 Success writes one JSON object to stdout. Invalid command arguments exit 2;
 invalid JSON or a refused creation exits 1 with a JSON error on stderr. Unknown
