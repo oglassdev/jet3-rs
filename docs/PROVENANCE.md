@@ -10235,3 +10235,36 @@ Copy this block under the appropriate section and remove this instruction:
 - Rights:
 - Review:
 ```
+
+
+### EXP-0113 — Preregistered first and second relationship creation observations
+
+- Recorded: 2026-09-04, OpenAI Codex
+- Kind: SHA-256-pinned local development experiment preregistration; no DAO
+  acquisition or format observation has occurred under this plan
+- Question: Which exact reciprocal logical records, hidden names, physical
+  indexes/maps, relationship catalog IDs and rows, and standalone system
+  text-index keys result from creating the first and second relationship
+  between two fresh empty tables, without an intervening query?
+- Origin: original project-authored observation harness using only the
+  recorded `EXP-0057`, `EXP-0059`, `EXP-0060`, `EXP-0062`, and `EXP-0073`
+  grammar; no third-party MDB implementation was inspected
+- Protocol: three fresh CP1252 `dbVersion30` replicas, each creating
+  `Parent(Id Long, Alternate Long)` with primary `ById` and unique
+  `ByAlternate`, then `Child(ParentId Long, Alternate Long)`. Capture
+  closed `base`, then `first` after `ParentChild` (`Id` to `ParentId`), then
+  `second` after `AlternateLink` (`Alternate` to `Alternate`), both with
+  attributes zero. Capture read-only DAO Relations metadata and verify
+  unchanged bytes; retain MDBs externally.
+- Preregistration artifact:
+  `oracle/windows-dao/acquisition/relationship-create.plan.json`, SHA-256
+  `2a8e70e1eb34d5cf8019d7bc4840e2d8798da8ea7e44d5e73d9b23a0bb9a926e`. The plan pins the acquisition script,
+  analyzer, reused system-catalog decoder, and local transport helper.
+- Decision: complete matching question-bearing values across all three
+  replicas produce `answered`; scientific failures or disagreement produce
+  `no_outcome`. Preserve physical locators and raw records. Invalid retained
+  identities reject analysis. No retry after the first mutation without
+  another human decision.
+- Boundary: only these exact names, two relations, schemas and creation
+  order are tested. No automatic generalized hidden-name, selector, ID or
+  text-weight grammar, compatibility claim, or support-matrix movement.

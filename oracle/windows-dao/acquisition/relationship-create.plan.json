@@ -1,0 +1,57 @@
+{
+  "document_type": "dao_relationship_create_plan",
+  "experiment_id": "relationship-create",
+  "issue": 100,
+  "development_only": true,
+  "replicas": 3,
+  "purpose": "Observe exact relationship creation metadata needed by the clean-room composer: first/second catalog IDs, reciprocal logical records and hidden names, physical index/map placement, and standalone system text-index keys.",
+  "preregistration": {
+    "acquisition_started": false,
+    "authorization": "One local acquisition after this pinned plan and its inputs are committed and reviewed; user authorized DAO experiments in the current session.",
+    "retry": "A failure after the first DAO mutation is a scientific outcome. Do not redispatch without a new human decision."
+  },
+  "inputs": {
+    "oracle/windows-dao/scripts/relationship_create.ps1": "a2456ae5038758828f684ca4ba413f3ec338a97d548513eb119e33adf62f4f6f",
+    "oracle/windows-dao/scripts/relationship_create.py": "aa267ca957815ecf49abc155bd081dfb7d02d609b414e0efa68600161f3f7740",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9"
+  },
+  "scenario": [
+    "For each of three fresh dbVersion30 CP1252 databases, create Parent(Id Long, Alternate Long) with ById primary on Id and ByAlternate unique on Alternate, then Child(ParentId Long, Alternate Long) without indexes; close and capture base.",
+    "Append ParentChild from Parent.Id to Child.ParentId with attributes 0; close and capture first.",
+    "Append AlternateLink from Parent.Alternate to Child.Alternate with attributes 0; close and capture second.",
+    "At each checkpoint, reopen read-only to inventory DAO Relations and field pairs, close, rehash, and retain the exact MDB externally. Preserve partial results and the final working file on failure."
+  ],
+  "prior_evidence": [
+    "EXP-0057 table/index maps",
+    "EXP-0059 reciprocal logical records and definition grammar",
+    "EXP-0060 row layout",
+    "EXP-0062 leaf prefix/boundaries and relationship options",
+    "EXP-0073 system catalog/relationship rows"
+  ],
+  "questions": {
+    "Q1": "What exact logical index names and raw 20-byte reciprocal records, physical indexes and table/index map locators appear at base, first, and second? Do their related table references/selector ordinals correspond to the two DAO field pairs in these exact checkpoints?",
+    "Q2": "What Id, ParentId, Name, Type, Flags and Owner values identify the first and second relationships in MSysObjects when no query exists; what associated MSysACEs and MSysRelationships rows appear?",
+    "Q3": "What exact uncompressed key bytes and physical row locators appear in the three MSysRelationships single-leaf indexes, and what common prefix was stored?",
+    "Q4": "Are these values, page counts, global free-page lists, and the raw page-zero byte at1538 identical across the three replicas, with all physical locators retained?"
+  },
+  "analysis": {
+    "decoding": "Reuse the project-authored system_catalog.py typed decoder; reconstruct only EXP-0062 leaf prefix/boundary/trailer grammar. Record text keys uninterpreted; do not import catalog composite weight assumptions. Non-leaf or linked index pages produce no_outcome.",
+    "comparison": "Compare all emitted question-bearing observations exactly across replicas per checkpoint, including hidden names, raw logical records, physical selectors and page/row locators. Exclude only MSysObjects timestamps and unrelated system rows; do not mask differing question-bearing fields.",
+    "answered": "All nine checkpoints validate retained SHA-256 identities, unchanged read-only opens, exact expected DAO relation metadata, successful decoding, and replica equality. Emit one deterministic JSON report with complete decoded observations.",
+    "no_outcome": "Incomplete acquisition, any DAO failure, decode failure, metadata disagreement, changed read-only bytes, or replica disagreement yields one no_outcome report retaining completed observations and errors. Invalid identity/order rejects analysis.",
+    "limits": "Observations apply only to these two relations, names, empty schemas, indexes, creation order and zero cascade attributes. No generalized hidden-name, ordinal, ID or text-weight grammar is inferred automatically."
+  },
+  "publication": {
+    "compatibility_claim": false,
+    "support_matrix_movement": false,
+    "mdb_bytes_committed": false,
+    "provider_binaries_committed": false,
+    "outcome_entry": "EXP-0114"
+  },
+  "commands": {
+    "preflight": "python3 oracle/windows-dao/scripts/relationship_create.py preflight",
+    "run": "python3 oracle/windows-dao/scripts/relationship_create.py run --run-id UTC-relationship-create --shared-root LOCAL_SHARED_ROOT",
+    "analyze": "python3 oracle/windows-dao/scripts/relationship_create.py analyze OUTBOX"
+  }
+}
