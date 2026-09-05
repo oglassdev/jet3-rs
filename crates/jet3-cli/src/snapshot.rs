@@ -6,14 +6,14 @@ use std::path::PathBuf;
 
 use jet3::TextCodePage;
 use jet3_testkit::{
-    PROTOCOL_SCENARIOS, Producer, ROW_ALLOCATION_SCENARIOS, ROW_UPDATE_SCENARIOS, SnapshotOptions,
-    SnapshotOutcome, UPDATE_SCENARIOS, WRITE_SCENARIOS, canonical_json, coverage, parse_scenarios,
-    snapshot_bytes,
+    INDEXED_UPDATE_SCENARIOS, PROTOCOL_SCENARIOS, Producer, ROW_ALLOCATION_SCENARIOS,
+    ROW_UPDATE_SCENARIOS, SnapshotOptions, SnapshotOutcome, UPDATE_SCENARIOS, WRITE_SCENARIOS,
+    canonical_json, coverage, parse_scenarios, snapshot_bytes,
 };
 
 pub(crate) const HELP: &str = "\
   jet3-cli snapshot <file> --out <dir> --scenario <DAO-READ-...|DAO-WRITE-...|DAO-UPDATE-...> \
-    [--source-revision <text>] [--code-page 1252|1251] [--inventory row-update|row-allocation]
+    [--source-revision <text>] [--code-page 1252|1251] [--inventory row-update|row-allocation|indexed-update]
 
 snapshot reads the whole database with the jet3 reader and writes
 <dir>/snapshot.json (protocol 1.2 canonical semantic snapshot; omitted when
@@ -58,6 +58,7 @@ pub(crate) fn parse_args(
             inventory = Some(match text {
                 "row-update" => ROW_UPDATE_SCENARIOS,
                 "row-allocation" => ROW_ALLOCATION_SCENARIOS,
+                "indexed-update" => INDEXED_UPDATE_SCENARIOS,
                 _ => return Err("invalid_inventory"),
             });
         } else if option == "--code-page" {
