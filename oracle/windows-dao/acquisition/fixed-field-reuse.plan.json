@@ -1,0 +1,507 @@
+{
+  "replicas": 3,
+  "fields": [
+    {
+      "name": "Id",
+      "type": 4,
+      "size": 4,
+      "fixed": true
+    },
+    {
+      "name": "Value",
+      "type": 4,
+      "size": 4,
+      "fixed": true
+    },
+    {
+      "name": "Payload",
+      "type": 10,
+      "size": 20,
+      "fixed": false
+    }
+  ],
+  "tables": [
+    {
+      "name": "Items",
+      "rows": [
+        [
+          "01000000",
+          "65000000",
+          "6669727374"
+        ],
+        [
+          "02000000",
+          "36ffffff",
+          "7365636f6e64"
+        ],
+        [
+          "03000000",
+          "2f010000",
+          "7468697264"
+        ]
+      ]
+    },
+    {
+      "name": "Later",
+      "rows": [
+        [
+          "0b000000",
+          "b3fbffff",
+          "6c617465722d6f6e65"
+        ],
+        [
+          "0c000000",
+          "b2040000",
+          "6c617465722d74776f"
+        ],
+        [
+          "0d000000",
+          "e9faffff",
+          "6c617465722d7468726565"
+        ]
+      ]
+    }
+  ],
+  "query": {
+    "name": "KeepQuery",
+    "sql": "SELECT [Id], [Value] FROM [Items];"
+  },
+  "arms": [
+    {
+      "name": "byte",
+      "table": "Items",
+      "selected_id": 2,
+      "column": "Value",
+      "field": {
+        "name": "Value",
+        "type": 2,
+        "size": 1,
+        "fixed": true
+      },
+      "initial_hex": "00",
+      "replacement_hex": "ff"
+    },
+    {
+      "name": "integer",
+      "table": "Items",
+      "selected_id": 2,
+      "column": "Value",
+      "field": {
+        "name": "Value",
+        "type": 3,
+        "size": 2,
+        "fixed": true
+      },
+      "initial_hex": "ff7f",
+      "replacement_hex": "0080"
+    },
+    {
+      "name": "long-control",
+      "table": "Items",
+      "selected_id": 2,
+      "column": "Value",
+      "field": {
+        "name": "Value",
+        "type": 4,
+        "size": 4,
+        "fixed": true
+      },
+      "initial_hex": "01000000",
+      "replacement_hex": "00000080"
+    },
+    {
+      "name": "currency",
+      "table": "Items",
+      "selected_id": 2,
+      "column": "Value",
+      "field": {
+        "name": "Value",
+        "type": 5,
+        "size": 8,
+        "fixed": true
+      },
+      "initial_hex": "0000000000000000",
+      "replacement_hex": "0000000000000080"
+    },
+    {
+      "name": "single",
+      "table": "Items",
+      "selected_id": 2,
+      "column": "Value",
+      "field": {
+        "name": "Value",
+        "type": 6,
+        "size": 4,
+        "fixed": true
+      },
+      "initial_hex": "0000803f",
+      "replacement_hex": "00000080"
+    },
+    {
+      "name": "double",
+      "table": "Items",
+      "selected_id": 2,
+      "column": "Value",
+      "field": {
+        "name": "Value",
+        "type": 7,
+        "size": 8,
+        "fixed": true
+      },
+      "initial_hex": "000000000000f03f",
+      "replacement_hex": "0000000000000080"
+    },
+    {
+      "name": "date",
+      "table": "Items",
+      "selected_id": 2,
+      "column": "Value",
+      "field": {
+        "name": "Value",
+        "type": 8,
+        "size": 8,
+        "fixed": true
+      },
+      "initial_hex": "000000000000f03f",
+      "replacement_hex": "000000000000f4bf"
+    },
+    {
+      "name": "guid",
+      "table": "Items",
+      "selected_id": 2,
+      "column": "Value",
+      "field": {
+        "name": "Value",
+        "type": 15,
+        "size": 16,
+        "fixed": true
+      },
+      "initial_hex": "00000000000000000000000000000000",
+      "replacement_hex": "33221100554477668899aabbccddeeff"
+    },
+    {
+      "name": "fixed-text-1",
+      "table": "Items",
+      "selected_id": 2,
+      "column": "Value",
+      "field": {
+        "name": "Value",
+        "type": 10,
+        "size": 1,
+        "fixed": true
+      },
+      "initial_hex": "61",
+      "replacement_hex": "e9"
+    },
+    {
+      "name": "fixed-text-255",
+      "table": "Items",
+      "selected_id": 2,
+      "column": "Value",
+      "field": {
+        "name": "Value",
+        "type": 10,
+        "size": 255,
+        "fixed": true
+      },
+      "initial_hex": "616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161",
+      "replacement_hex": "e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9"
+    }
+  ],
+  "document_type": "dao_fixed_field_reuse_plan",
+  "provenance": "EXP-0175",
+  "outcome_provenance": "EXP-0176",
+  "source_revision": "2c99b3dc78a3046837592fdf29e6a8bacaf99b20",
+  "original_source_revision": "37bd8175393dccf836b96172f740a28c4be36a60",
+  "original_acquisition_revision": "b39ee054bc3360d778d3113fc68ba9df27fd47ad",
+  "original_plan_sha256": "01929cf68daa5d5bc8dbb4529819634c4017f8b0551a1772d3444eddc2027942",
+  "retained_root": "/home/alex/development/vms/jet3-windows/shared/outbox/20260905T072835Z-fixed-field-successor",
+  "retained": {
+    "byte-r1-original.mdb": {
+      "size": 57344,
+      "sha256": "a3bc24176d595745fd545f52ad10674c255ccbab86a109f493720e35bfb24a4e"
+    },
+    "byte-r1-updated.mdb": {
+      "size": 57344,
+      "sha256": "22d77e99cffc7d611adfac9058a6f7234f62ebf102490158afa666371eee53ac"
+    },
+    "byte-r2-original.mdb": {
+      "size": 57344,
+      "sha256": "26429e03d7e69a9d04265cca3d2ca1f333ad73c6f803c731fa7c45bc69c3dc5f"
+    },
+    "byte-r2-updated.mdb": {
+      "size": 57344,
+      "sha256": "8a7fbb5d2f5f3f2b0b578061467070c06418a7147dcc2a32639d2ee76a718378"
+    },
+    "byte-r3-original.mdb": {
+      "size": 57344,
+      "sha256": "1c179b61b474a644f280949b38097c10ce9d7fb91d290fa6602da00b85137644"
+    },
+    "byte-r3-updated.mdb": {
+      "size": 57344,
+      "sha256": "d3ca56ca5eb0818fd019b3691a571812d663f074d569d3ba96e53c15e091a89f"
+    },
+    "create.json": {
+      "size": 469595,
+      "sha256": "9a47f321d582c99f0288bed8cc8d113df828327000d65e577bdee22bb70f735c"
+    },
+    "currency-r1-original.mdb": {
+      "size": 57344,
+      "sha256": "1f6a2414120a754b997a1263e19ad49d7c3f2d48f05b2838d1fae4223745a130"
+    },
+    "currency-r1-updated.mdb": {
+      "size": 57344,
+      "sha256": "e13671990e4f001af0350aa2a2cb89aa955d63866e93b31e4431d089f2a34008"
+    },
+    "currency-r2-original.mdb": {
+      "size": 57344,
+      "sha256": "7840813767d7d9fdc871bf08078ce376241699a7adc448cf670bc942e780ce3d"
+    },
+    "currency-r2-updated.mdb": {
+      "size": 57344,
+      "sha256": "2c4161a9a7251bfed57a5af41a36f2f96e248bdce86c16e36e09557f66fed116"
+    },
+    "currency-r3-original.mdb": {
+      "size": 57344,
+      "sha256": "d2d8af0f6db99b78c5097d5beda6e8405483053626696a38e2c56dc13366f5b3"
+    },
+    "currency-r3-updated.mdb": {
+      "size": 57344,
+      "sha256": "725f5395c78ca69f17902ddfebda3f0fabe2756b82c303febce26f2662cc0d78"
+    },
+    "date-r1-original.mdb": {
+      "size": 57344,
+      "sha256": "313dd730d8c7f81d77ffcf36031a9095d787e54048ec3bebde571de0c71a6ecb"
+    },
+    "date-r1-updated.mdb": {
+      "size": 57344,
+      "sha256": "32218a5465997ace074e9a634691350905ed3bfc14874a11815305695eee5b5c"
+    },
+    "date-r2-original.mdb": {
+      "size": 57344,
+      "sha256": "973541fc5d1abc18b8860e97e6a9b0aa201b89e77e2729fd5cd02b0a402585b3"
+    },
+    "date-r2-updated.mdb": {
+      "size": 57344,
+      "sha256": "dc6766a0de4f51eef78ac0483d60925568274ef7dd4f7f337ae740b2929f2e51"
+    },
+    "date-r3-original.mdb": {
+      "size": 57344,
+      "sha256": "02805b23b3ca02cb7448bc1cdb7a58a9c7c5827a0e4fbcffb1adae8634f95770"
+    },
+    "date-r3-updated.mdb": {
+      "size": 57344,
+      "sha256": "64a342594d8d24bad7ebd1699a7de95d894a3cd2513a8f523dd00e96621748ff"
+    },
+    "double-r1-original.mdb": {
+      "size": 57344,
+      "sha256": "aaf98ff7e868d158a671bbe5c57eb7bb6e929dc044484e871123e3c4455e9adc"
+    },
+    "double-r1-updated.mdb": {
+      "size": 57344,
+      "sha256": "180b76f530a5ce93142685f7d09845e3a4a20a04965958e142d2ae7c5f4bbc84"
+    },
+    "double-r2-original.mdb": {
+      "size": 57344,
+      "sha256": "30e6324777b380965cb281a6e0910ce42d8945d922a1e679da6e0b7e961368fb"
+    },
+    "double-r2-updated.mdb": {
+      "size": 57344,
+      "sha256": "e38eeaf9d49b48a913f04b3b605d21e3232684c9d95e47c8b5d754a1ea9ab851"
+    },
+    "double-r3-original.mdb": {
+      "size": 57344,
+      "sha256": "8dd67367bb1cfd3f325a2c0f9ce2fe7b5bf83361f4893edab6b5d532f43ee82f"
+    },
+    "double-r3-updated.mdb": {
+      "size": 57344,
+      "sha256": "30d4d5ce4d0c544cf37119888989d64e942da1469c2ec3756afd61f735b0d00c"
+    },
+    "fixed-text-1-r1-original.mdb": {
+      "size": 57344,
+      "sha256": "a02895a2ac7a99032b6a42998204a0bb43f8d0ac9740932bb15ec883632d6b4e"
+    },
+    "fixed-text-1-r1-updated.mdb": {
+      "size": 57344,
+      "sha256": "8ebea3e1adbc4d6a907c62766376a6611b9d967beaafbf5d1817eaecd0121485"
+    },
+    "fixed-text-1-r2-original.mdb": {
+      "size": 57344,
+      "sha256": "2d584bbb2cbf25d68412c8f25356035044514b4d72e119454d24d825e208254d"
+    },
+    "fixed-text-1-r2-updated.mdb": {
+      "size": 57344,
+      "sha256": "77f70a469ce39cb330d6a0c78971c3df2c0a0204ee666d8040d01701d53dde38"
+    },
+    "fixed-text-1-r3-original.mdb": {
+      "size": 57344,
+      "sha256": "26370ceed51ebb88bf3f0d15f6fd9f4d2a22e67d538670c75a2a691a6d35ae0d"
+    },
+    "fixed-text-1-r3-updated.mdb": {
+      "size": 57344,
+      "sha256": "667584c1a1bf21babe1f163b29bb7f3df40a90270f12085407fb4b95d1237a34"
+    },
+    "fixed-text-255-r1-original.mdb": {
+      "size": 57344,
+      "sha256": "7c23281c622eb75c6948d70fd39f0151caee4da651d8e21b9c174e56eb8ca1f4"
+    },
+    "fixed-text-255-r1-unix.txt": {
+      "size": 57,
+      "sha256": "aedbb2783500a1407f8b10b0b5fecb869e28843bf2229b2a8bfd626c02a983ef"
+    },
+    "fixed-text-255-r2-original.mdb": {
+      "size": 57344,
+      "sha256": "43b6dd99f3ed76ea66e1efe5328094a077e9cc0583943e81d060a375cef5ec15"
+    },
+    "fixed-text-255-r3-original.mdb": {
+      "size": 57344,
+      "sha256": "71fc744abcea9eedbe2733f1ffd4984252f21133a8fde342e9c1332e83307321"
+    },
+    "guid-r1-original.mdb": {
+      "size": 57344,
+      "sha256": "7e634a17a711675e87e669e8ecf83e75fcbff2f7c89bbb243b94034437c1acdc"
+    },
+    "guid-r1-updated.mdb": {
+      "size": 57344,
+      "sha256": "5d130f06def0aa8b8cdec7088bc0f5da5a0323ababd7763da23b89a06b6c852f"
+    },
+    "guid-r2-original.mdb": {
+      "size": 57344,
+      "sha256": "b3d53d1ff1a2588ec5402f11e5354371c6729a0719ea72318544b93a41ee6eba"
+    },
+    "guid-r2-updated.mdb": {
+      "size": 57344,
+      "sha256": "d5c913aa4c4c54407935bb58d73e774b5713e0cbbaf88b097fa52383d6b3da43"
+    },
+    "guid-r3-original.mdb": {
+      "size": 57344,
+      "sha256": "4d0f27923ea96a6da999ba1afe3acc48c0b51bb5190fc7379c240577ee9e03dd"
+    },
+    "guid-r3-updated.mdb": {
+      "size": 57344,
+      "sha256": "ca5fbaa4343ec2a680a597cf773236ec32433b7720076810bc7333cfbdb79122"
+    },
+    "integer-r1-original.mdb": {
+      "size": 57344,
+      "sha256": "2fb4500eb6f7a29a22c511eb180da88696c452bd95edac6cc6b1c1e727ca5d1c"
+    },
+    "integer-r1-updated.mdb": {
+      "size": 57344,
+      "sha256": "5d475f7c5f8d0f667a0bf5bf51c4b11c59d390ac13f9047b7fcde44f5ff181ae"
+    },
+    "integer-r2-original.mdb": {
+      "size": 57344,
+      "sha256": "09f0b938d7141341f7af88a4db5c1a2c69a1add4e56d666ac3178faa260943ce"
+    },
+    "integer-r2-updated.mdb": {
+      "size": 57344,
+      "sha256": "28d5aba38920e2526cacf58b73d9045c6896e5fea50c11bec870c62f066ad037"
+    },
+    "integer-r3-original.mdb": {
+      "size": 57344,
+      "sha256": "e4c6be3d72d6df28ef210f04e6419c826ddee94080a869c4f6b4a063eb3e01d7"
+    },
+    "integer-r3-updated.mdb": {
+      "size": 57344,
+      "sha256": "e41b12f325f6ee19be91deeb78fa17a48b3e65804542010aa203eac109151ecf"
+    },
+    "long-control-r1-original.mdb": {
+      "size": 57344,
+      "sha256": "076c0393c3a1a2e3a6559a908aac55761ce006bbe7f1340d7c4971b127e220e1"
+    },
+    "long-control-r1-updated.mdb": {
+      "size": 57344,
+      "sha256": "155814085e39de0d408014ff490357b50b83ba714e3bc520640f8fca36c24545"
+    },
+    "long-control-r2-original.mdb": {
+      "size": 57344,
+      "sha256": "96b314a19c5c05956a8c7807a8a4353dfa539bca58bd9369abb44085d8f2b9ae"
+    },
+    "long-control-r2-updated.mdb": {
+      "size": 57344,
+      "sha256": "3e0274ca1b53133932bd47c4965b2e41f8041bd8ce5eb230bc79b0b29a6d484f"
+    },
+    "long-control-r3-original.mdb": {
+      "size": 57344,
+      "sha256": "2079b20c8a532894df4d53b2c7cf08250da007909e2fd037462603ae793c0473"
+    },
+    "long-control-r3-updated.mdb": {
+      "size": 57344,
+      "sha256": "08918d337770d0ab6801ffda47398c8a98fea7c3b3b57b79713e003f6c4f87f2"
+    },
+    "report.json": {
+      "size": 443,
+      "sha256": "e5038422be9fa5dcd4eac0301e773254bfbd211112178d09f1c4d9d4ff5526a0"
+    },
+    "result.json": {
+      "size": 11294,
+      "sha256": "c65483f1fa0996e447dc10dac925e7998b4caaf70d09b526da7346d59a03b640"
+    },
+    "single-r1-original.mdb": {
+      "size": 57344,
+      "sha256": "73ffb8cbd03c680ccef036b971f9248eed72c4540f0ea571d620e0e7a4df22b5"
+    },
+    "single-r1-updated.mdb": {
+      "size": 57344,
+      "sha256": "bf1d345e1d6d50cd262ed558f569a01be9c465d71ead17ea9302ed15f916f54c"
+    },
+    "single-r2-original.mdb": {
+      "size": 57344,
+      "sha256": "e6176ca11f6b5cfa14584aa4ea4a0f4daa292db00d6f41c4e91422a139d1264f"
+    },
+    "single-r2-updated.mdb": {
+      "size": 57344,
+      "sha256": "100669f3700677865ebd7045f010bf997dbb12f844aa01f82b93c56330e5b4a7"
+    },
+    "single-r3-original.mdb": {
+      "size": 57344,
+      "sha256": "1bc107946006047751d4718bb969e173fa8a526cf52367f525cdfb35b4cff648"
+    },
+    "single-r3-updated.mdb": {
+      "size": 57344,
+      "sha256": "f8785ecdad5a9a82b7ab91e9821077f2834e5e1a27cdcf4b1b4885dcbe40d24e"
+    }
+  },
+  "inputs": {
+    "Cargo.lock": "1b306e136535925889bb551ea92a606756153eb7f69eca9c9a0617aa2e551e11",
+    "Cargo.toml": "6d13cd82b6ea190311d8ba28311f23122e4cffa69c02135f465460236e951c60",
+    "crates/jet3/Cargo.toml": "3061aa9102924ee6e74c24752ba1b0a630440dfcc60708f984a4aa238dff4b75",
+    "crates/jet3/examples/fixed_field_update_candidate.rs": "c3baf749c0bf2df5f33fccd4284f96e8ae59f3d577f5be93c0774d618ec911e1",
+    "crates/jet3/src/atomic.rs": "450e15e7730150b87f936d0bbb207910e225fd1a512f240c98d96e1dfdf9ed6f",
+    "crates/jet3/src/binary_writer.rs": "f12922a7bf3a522b43d48311ac6844db42e78edd5c6841deb49cbc962152e190",
+    "crates/jet3/src/catalog.rs": "c755f928445950b35aaaf5ca7dfa33744fcbcbdae548eaf49c19a85b42246c33",
+    "crates/jet3/src/catalog_record.rs": "e4b06d60700a7abe1a9b55472930781b02659701ee1ae013f03cf18bdc66e144",
+    "crates/jet3/src/column_definition.rs": "f3f0741ce47d48f0fd368bca117f13e773326e4b77ee14bbc18e4a44f10861de",
+    "crates/jet3/src/data_page_directory.rs": "abaf82d51ed71084fe3623f8f6af3cc58f49bba26ad02249c39cd3da74e3bca1",
+    "crates/jet3/src/page_image.rs": "a33211ac27927bab6ddaf773af18c2e8a2de4bb7735fa9e5382ee54322a9c093",
+    "crates/jet3/src/resource.rs": "0495f6264de1254f42bd31bd4369e0941d65cb96a4b53c91a45bbf0acca95750",
+    "crates/jet3/src/row.rs": "64647c6c4ed50f88841d6d28fcf170653055e44ec4e3ee61f1ec2aaa50a5d1ae",
+    "crates/jet3/src/row_directory.rs": "0f683eec5d9d0f13e114de04e6c137bf953ee55c80fe6436508776299169a844",
+    "crates/jet3/src/row_writer.rs": "585c0769b03f060bdf4897752821ff32ef4f769010e109c885f151fcacd815e1",
+    "crates/jet3/src/source.rs": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a",
+    "crates/jet3/src/table_definition.rs": "7bc113e3fbd73dbb33d40476feb0e27ef11ddc4fcb9e7ac98dfe8f7dd34793c2",
+    "crates/jet3/src/update.rs": "ed169ae4cf7df0751966370fbbe15b7c6568388e3d93eac021678e4e29d67de9",
+    "oracle/windows-dao/acquisition/fixed-field-successor.plan.json": "01929cf68daa5d5bc8dbb4529819634c4017f8b0551a1772d3444eddc2027942",
+    "oracle/windows-dao/acquisition/fixed-field-update.plan.json": "c6958a5b238c6cee97f877ec12cf53b93ad699db190fb0aceec769045794c564",
+    "oracle/windows-dao/scripts/Invoke-DaoReadV12.ps1": "78fb338668271a23158f0cfc65f0393931e4a04945af0ed84808964b2a073c89",
+    "oracle/windows-dao/scripts/fixed_field_reuse.ps1": "5443089e97924bd79691edbcd81ea31a2f9a6d4a51c48c2c3241d45b910e5ad9",
+    "oracle/windows-dao/scripts/fixed_field_reuse.py": "6fe2d6634c38f4cff285792e1c0e0127f29bba330349426b17decd778c16522d",
+    "oracle/windows-dao/scripts/fixed_field_successor.ps1": "effe902ca9799bf898c1c20ccd4bc9b823a50cc1f69d2869c763e267922f954d",
+    "oracle/windows-dao/scripts/fixed_field_successor.py": "47e4b0e7776bda396ce0fc8c770fa9ad90cd6de008b3aa938658d1d519ea0601",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "oracle/windows-dao/tests/fixed_field_update_values.ps1": "01a4784a71d8bf5b2cd5a2d1cc9db50e7d9cf8ccaa0743a8ca1b0cb6f816925a",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9"
+  },
+  "question": "Do the 27 frozen EXP0171 Unix updates and three missing updates produced with the bounded EXP0172 reader fix pass complete read-only DAO comparison against the 30 retained originals?",
+  "sequence": [
+    "Commit and independently review this distinct plan before any new public update or DAO capture. Preserve original EXP0172 no_outcome, all consumed inputs and original retained artifacts. No original acquisition retry/resume.",
+    "Hash-bind all 30 originals, 27 existing updated MDBs, failed coordinated result/report, creation snapshots and initiating Unix failure log. Copy images into a new exclusive output tree; never modify the original tree.",
+    "Reuse each of the 27 original update receipts and images exactly, identifying source37bd817 per case. Only fixed-text-255 replicas1/2/3 invoke the unchanged public exporter with reviewed corrected source2c99b3d. All three operate on private copies. Recheck complete original identity and exact field span/all-other-byte equality before DAO.",
+    "Capture 60 read-only DAO observations in one guest job using frozen EXP0171 Observe/Read-Value helpers. Retain every image, initiating errors and retention failures. No DAO creation, insertion, update or deletion occurs.",
+    "Compare every original snapshot to its frozen creation snapshot and every updated snapshot to the exact requested change, including complete schema, query SQL, other rows/tables and exact saved scalar bits. Report all30 pairs only if every gate passes; otherwise no_outcome without subset promotion."
+  ],
+  "diagnostic_change": "A private decoder wrapper supports only one variable field with fixed prefix and end in256..511 and recorded zero jump, from EXP0172. It adjusts only an in-memory diagnostic trailer to the old decoder representation, preserving raw MDBs. All original decoder structure checks and exact whole-file patch comparison remain. No general wide-offset inference.",
+  "source_binding": "Each observation and update receipt labels retained_update/source37bd817 or new_public_update/source2c99b3d. The original27 are never attributed to the corrected source; original full acquisition remains no_outcome regardless of this distinct result.",
+  "decision_rule": "observed_accepted requires all30 exact pairs, 60 unchanged x86DAO.DBEngine.36/Jet3.0 captures, complete per-case source/request/image binding, exact raw replacements and all-other-byte preservation, all original snapshots and stored QueryDef SQL preserved. Negative zero stays exact bits; no normalization. Any failure stops once and is no_outcome; no implicit retry.",
+  "bounds": "Ten original typed arms times3 replicas, 60MDBs in new output, no new controls or provider installation. Existing diagnostic bounds suffice. Three Unix calls<=120seconds each and one SSH job<=300seconds. Local development only; no compatibility/support promotion. Original retained data are post-acquisition selected explicitly; no reinterpretation of the failed original run."
+}

@@ -11385,6 +11385,35 @@ Copy this block under the appropriate section and remove this instruction:
   updates, deletion/insertion, arbitrary existing-file compatibility or
   hosted update support. Report compatibility/support flags remain false.
 
+## EXP-0175 — Distinct validation of retained fixed-field updates
+
+- Preregistered only; no acquisition. Outcome reserved as EXP-0176. The
+  original EXP-0172 failed acquisition and consumed EXP-0171 inputs remain
+  unchanged; this is a separate post-acquisition reuse experiment.
+- Plan `oracle/windows-dao/acquisition/fixed-field-reuse.plan.json`, SHA-256
+  `410084e32005ea98748017d3fbd9850c33e28f9f1f3e5e83f6dcc2935301df11`.
+  It pins all 30 retained originals, 27 completed updates, original result,
+  report, create snapshots and initiating Unix error log (61 artifacts), plus
+  meaningful implementation, exporter, observer and diagnostic inputs.
+- Copy the retained images into a fresh exclusive tree. Preserve the original
+  27 update receipts and label them with implementation `37bd817`. Only the
+  missing three `fixed-text-255` updates use the unchanged public exporter and
+  reviewed wide-prefix fix `2c99b3d`; each report observation binds its actual
+  source revision and retained/new origin explicitly.
+- The private diagnostic decoder adds only the EXP-0172 same-second-block,
+  one-variable, zero-jump interpretation, retaining the original decoder and
+  all MDB bytes. Independent row/field selection, exact replacement bytes and
+  every byte outside the target span are checked before guest dispatch.
+- One read-only x86 `DAO.DBEngine.36` job captures all 60 images using the frozen
+  EXP-0171 observer and scalar readback helpers. No DAO creation or mutation
+  occurs. Compare each original to its frozen creation snapshot and each update
+  to the precise requested schema/rows/values, including negative-zero bits,
+  fixed Text width, unrelated tables and original stored QueryDef SQL.
+- All 30 pairs, complete identities, provider and preservation gates are
+  required; failure is `no_outcome`, without partial promotion or retry/resume.
+  This local experiment cannot change hosted support or imply broad
+  compatibility, and cannot turn the original EXP-0172 result into acceptance.
+
 ## EXP-0172 — Fixed-field successor stopped at wide fixed-prefix decoding
 
 - Outcome: `no_outcome`, recorded 2026-09-05 from the single local run
