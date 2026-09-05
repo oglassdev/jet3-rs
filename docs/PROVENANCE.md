@@ -12277,6 +12277,48 @@ Copy this block under the appropriate section and remove this instruction:
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
 
+## EXP-0165 — Distinct nullable index successor preregistration
+
+- Recorded 2026-09-05; no acquisition yet. Plan
+  `oracle/windows-dao/acquisition/nullable-index-successor.plan.json`, SHA-256
+  `d765bbf7f7e219147dc15aff0b58a8cac1c6e31e745666495d55da48ffaa50b1`. Outcome reserved as EXP-0166.
+- EXP-0155/0156 remains unchanged, including all six `no_outcome` arms and
+  failed original retention. This distinct acquisition repeats the full six-arm
+  scope because no arm passed its original validation; it does not resume or
+  retry the consumed script. Reviewed library source remains
+  `6a0e4537e7986a4b04db7616f5537cb306f17e2c`, with exactly the same six pinned
+  candidate images and exporter. No writer or format rule is changed here.
+- Pure x86 PowerShell AST-helper checks reproduced the consumed `New-Object`
+  array JSON wrapper in the successful Seek-row shape. Mock assignments did
+  produce intended values, so they do not establish the initiating COM cause
+  of the original all-null writes or masked transaction exception.
+- New producer uses plain CLR arrays and explicit local-field null/int setters
+  following the already exercised EXP-0147 setter pattern. An actual x86
+  no-DAO helper test checks 30 boundary/sample rows across all six arms,
+  exact mock assignment/read/JSON values, every declared Seek argument, all
+  six complete baseline snapshots and deliberate corrupt-baseline refusal.
+  It also checks that cleanup cannot replace the first initiating error.
+- Same three fresh matched controls per arm, complete metadata/typed row
+  multisets, variable-key ordered traversal, finite non-null Seek probes and
+  raw locator/tree/map/distinct-count checks as EXP-0155. Unique/ignore/
+  composite duplicate-key probes and required-null probes use independent
+  copies. Validate each original baseline before probes or the next control;
+  validate a control probe before its candidate probe and any further mutation.
+- First unexpected failure records arm/replica/endpoint/stack/inner HRESULT
+  before best-effort rollback/close/release. Retention attempts each file once
+  and records copy failures while preserving the original error. Incomplete,
+  cleanup, retention or baseline/probe-failure jobs yield explicit `no_outcome`
+  without requiring missing MDBs merely to write a failure report. No subset
+  promotion, automatic retry or resume. All evidence is retained externally.
+- Plan pins the new producer/analyzer and helper test plus all reused decoder,
+  transport and exporter inputs; both preflight and analysis verify pins.
+  Timeout remains 3,600 seconds; bounds and candidate policies are unchanged.
+  Focused classifier tests, actual x86 helper/parser check and candidate
+  preflight pass. Independent review pending before any acquisition.
+- Development-only writer-policy validation, no compatibility claim or support
+  movement. No nullable relationship expansion, null Seek, broader scalar
+  codec, indirect writer allocation or general update/split claim is tested.
+
 ## EXP-0156 — Nullable index acquisition and retention failure, no outcome
 
 - Recorded 2026-09-05 from the single local run
