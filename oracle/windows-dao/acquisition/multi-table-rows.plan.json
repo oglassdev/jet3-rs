@@ -1,0 +1,56 @@
+{
+  "document_type": "dao_multi_table_rows_plan",
+  "experiment_id": "multi-table-rows",
+  "issue": 100,
+  "development_only": true,
+  "replicas": 3,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0087 supplies later-create page roles; EXP-0065 supplies row append placement. EXP-0116, EXP-0120 and EXP-0124 accepted exact individual scalar/indexed/long-value candidates. Their combination across tables remains a candidate hypothesis.",
+    "hypothesis": "DAO reads both exact multi-table initial-row candidates unchanged, exposing every declared table, field and index flag and exact row/payload multisets. Keys traversal and Seek resolve the later indexed table correctly. Mixed has Numbers definition20/data23..25, Keys definition26/index28/data29, Notes definition30/LVAL32..34/data35 and Empty definition36/map37. Empty-first has Empty definition20/map21/property22 and Binary definition23/map24/LVAL25..26/data27. Later creates omit catalog-property pages as in the existing bounded composer. Page zero follows existing table-only composition without introducing an initial-row transition. These layouts are writer choices, not generalized DAO allocation policies.",
+    "authorization": "User authorized DAO experiments/mutations on 2026-09-04. Commit and independently review this pinned plan before one dispatch. A failure after the first CreateDatabase begins is a scientific result; another dispatch requires a new human decision."
+  },
+  "inputs": {
+    "oracle/windows-dao/scripts/multi_table_rows.py": "fa1531a8d94ef5729e224b3ac46e50263a251248d45133f1c6359311c3b8c3b1",
+    "oracle/windows-dao/scripts/multi_table_rows.ps1": "7e7fa2681727e0754e7cc6704409c3f948c2f2421eb792744bf30deba3ee2ab7",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9",
+    "crates/jet3/examples/multi_table_row_candidate.rs": "f4d3c3d891b75352670c37d6cf4b69c5ac128298731ee3e40d55b9c3b9706fbb"
+  },
+  "candidates": {
+    "mixed": {
+      "size": 77824,
+      "sha256": "86a8e79ad23c0610d1c9c1cc70603efbd3186db1dfb6f42295fe857fc16ae17b"
+    },
+    "empty-first": {
+      "size": 57344,
+      "sha256": "fda4ae1e0775762daae9df21e78f36729c550f2c2fcbd700694399af3cf5abca"
+    }
+  },
+  "scenarios": {
+    "mixed": "Create in order Numbers(Id Long), Keys(Id Long, primary ascending ById), Notes(Payload Memo), Empty(Id Long). Numbers rows are -254..254 in order. Keys rows are 3,-1,2. Notes has a 4096-character ASCII string A+(offset mod26), then null. Empty has no rows.",
+    "empty-first": "Create Empty(Id Long) without rows, then Binary(Payload OLE) with one 2048-byte payload byte=(offset mod256).",
+    "schema": "DAO version3.0; exactly four system tables plus requested user tables. Id fields type4 size4; Memo Payload type12 size0; OLE Payload type11 size0. Only Keys has an index: ById Primary/Unique/Required true, Foreign/IgnoreNulls false, one Id field with Attributes0 and descendingfalse. All other index inventories empty."
+  },
+  "execution": {
+    "environment": "Private Windows VM, x86 PowerShell, DAO.DBEngine.36; development-only.",
+    "pre_mutation": "Host verifies all input/candidate pins and committed plan; guest verifies producer and all six candidate replicas before first control creation.",
+    "per_replica": "For mixed then empty-first, replicas1..3: create and close one fresh same-schema DAO control, defining and populating each table in declared order. Read control and candidate read-only; capture full table inventory, every user-table field/index schema, every row and complete Memo string/OLE bytes. Keys also has complete ascending traversal and Seek queries -1,2,3. Close objects, compare before/after identities, retain every file.",
+    "attempts": 1,
+    "command": "python3 oracle/windows-dao/scripts/multi_table_rows.py run <directory containing mixed.mdb empty-first.mdb> --shared-root <VM shared directory> --run-id <UTC timestamp>-multi-table-rows",
+    "analysis": "python3 oracle/windows-dao/scripts/multi_table_rows.py analyze <shared directory>/outbox/<run id>"
+  },
+  "decision_rule": {
+    "observed_accepted": "Complete six-pair job; every matched control passes expected semantics, all twelve images unchanged, and three agreeing accepted candidate observations for the arm.",
+    "not_observed_accepted": "Same complete-job/control/unchanged gate but the arm candidates identically fail an endpoint or return the same semantic mismatch.",
+    "no_outcome": "Incomplete job, any changed image, any control failure or candidate replica disagreement for the arm.",
+    "semantic_normalization": "Only snapshot row order is ignored, independently within each table. Complete table and schema inventories, all payload characters/bytes, null versus empty, and exact ascending traversal/Seek inventories remain required. Seek results must match each query exactly.",
+    "validation_rejection": "Input-pin drift during dispatch or analysis, malformed result binding/inventory, candidate starting-pin mismatch or retained-file identity mismatch rejects validation."
+  },
+  "evidence_boundary": "Only these two exact candidates. No general allocator, table-count, row-count, schema, composite/descending index, relationship, AutoIncrement, empty-payload, update, compatibility or hosted support claim.",
+  "retention": "Retain result.json, canonical report.json, logs and all twelve candidate/control files locally. Never commit MDB bytes/provider binaries. Record one validated additive EXP-0130 outcome.",
+  "candidate_generation": {
+    "source_commit": "4c4f2b34f3037b5b17c7027b629d4e396c9790ef",
+    "example": "crates/jet3/examples/multi_table_row_candidate.rs",
+    "command": "cargo run --locked -p jet3 --example multi_table_row_candidate -- <directory>/<arm>.mdb <arm>"
+  }
+}
