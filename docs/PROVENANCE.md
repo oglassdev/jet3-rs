@@ -10320,3 +10320,100 @@ Copy this block under the appropriate section and remove this instruction:
 - Boundary: only these exact names, two relations, schemas and creation
   order are tested. No automatic generalized hidden-name, selector, ID or
   text-weight grammar, compatibility claim, or support-matrix movement.
+
+
+### EXP-0114 — First and second relationship creation observations
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: validated local development observation under `EXP-0113`; not a
+  hosted compatibility result or support-matrix update
+- Preregistration: `oracle/windows-dao/acquisition/relationship-create.plan.json`,
+  SHA-256 `2a8e70e1eb34d5cf8019d7bc4840e2d8798da8ea7e44d5e73d9b23a0bb9a926e`.
+  No consumed plan, script, or decoder was changed after acquisition.
+- Artifacts: local run `20260905T030800Z-relationship-create`, external
+  `result.json` SHA-256
+  `b3f7ca80ce87a64e1460f119f6ef7556ee7d243ef1ce1787aad3d71f15520929`,
+  `report.json` SHA-256
+  `4e2caa03b59390fb8ae342b0e4e4f9d71092b1470b43be693b049774b6a19a7b`.
+  Read-only host re-analysis verified the pinned inputs and retained MDB
+  identities and reproduced the report byte-identically. MDBs remain external.
+- Environment and result: x86 `DAO.DBEngine.36` on Windows NT
+  `10.0.20348.0`; `mutation_started=true`, no acquisition error. All nine
+  checkpoints completed, read-only metadata opens left bytes unchanged, and
+  every emitted question-bearing value agreed across three replicas. The
+  report outcome is `answered`, with no reasons, `development_only=true`,
+  `compatibility_claim=false`, and `support_matrix_movement=false`.
+- Exact scenario: empty `Parent(Id Long, Alternate Long)` has primary
+  `ById` on `Id`, then unique `ByAlternate` on `Alternate`; empty
+  `Child(ParentId Long, Alternate Long)` initially has no indexes. The
+  `first` checkpoint adds `ParentChild`, `Parent.Id` to `Child.ParentId`;
+  `second` adds `AlternateLink`, `Parent.Alternate` to `Child.Alternate`.
+  Both DAO relations have attributes zero; no saved query was created.
+- Catalog observations: `ParentChild` has `Id=-2147483648` (`0x80000000`);
+  `AlternateLink` has `Id=-2147483647` (`0x80000001`). Both have
+  `ParentId=251658243` (`0x0f000003`), `Type=8`, `Flags=0`, and
+  `Owner=0301`. Each ID has two `MSysACEs` rows: `SID=0301`, `ACM=983294`,
+  and `SID=0201`, `ACM=1048575`, both `FInheritable=false`. These are the
+  two observed IDs and access-control rows, not a generalized assignment rule.
+- Relationship rows: `MSysRelationships` stores `ParentChild` at page 27
+  row 0, with `szObject=Child`, `szColumn=ParentId`,
+  `szReferencedObject=Parent`, and `szReferencedColumn=Id`. `AlternateLink`
+  adds page 27 row 1 with the same object names and both column names
+  `Alternate`. Each row has `grbit=0`, `ccolumn=1`, and `icolumn=0`.
+- Reciprocal records: `Parent` remains rooted at page 20 and `Child` at
+  page 25. The following little-endian fields describe the complete sourced
+  logical-record selectors and references. Every row has context bytes
+  `[17,19)=00 00` and class byte `[19]=2`.
+
+  | Table / logical name | `[0,4)` | `[4,8)` | Side `[8]` | `[9,13)` | Related root `[13,17)` |
+  | --- | ---: | ---: | ---: | ---: | ---: |
+  | Parent / `.rC` | 2 | 0 | 1 | 0 | 25 |
+  | Child / `ParentChild` | 0 | 0 | 2 | 2 | 20 |
+  | Parent / `.rD` | 3 | 1 | 1 | 1 | 25 |
+  | Child / `AlternateLink` | 1 | 1 | 2 | 3 | 20 |
+
+  The first two records appear at `first` and remain unchanged at `second`;
+  the last two appear at `second`. Parent logical-name order is `.rC`,
+  `ByAlternate`, `ById`, then `.rC`, `.rD`, `ByAlternate`, `ById`.
+  Child order is `ParentChild`, then `AlternateLink`, `ParentChild`.
+  Only these exact hidden names and selector values were observed; no
+  formula for other index counts, names, or relationship orders is inferred.
+- Index/map observations: Parent's two physical indexes remain empty at
+  roots 23 and 24, flags `0x09` and `0x01`, with map locators page 21
+  rows 2 and 3 naming those roots. Child gains empty ascending physical
+  index 0 on column 0 at root 28, map page 26 row 2; then index 1 on
+  column 1 at root 29, map page 26 row 3. Both child index flags are
+  zero, and each map names only its root. Parent's owned/available maps
+  remain empty at page 21 rows 0/1; Child's remain empty at page 26 rows
+  0/1. Both user table row counts remain zero.
+- System index observations: `MSysRelationships` owned/available maps at
+  page 12 rows 8/9 both name page 27 after `first` and `second`; its row
+  count advances from 0 to 1 to 2. Its physical index maps at page 12
+  rows 10/11/12 continue to name roots 15/16/17, flags `0x02` each.
+  All three leaf common prefixes are empty. Exact uncompressed keys are:
+
+  | Root / field | Text | Key hex |
+  | --- | --- | --- |
+  | 15 / `szRelationship` | `ParentChild` | `7f73607566707762696a6d6400` |
+  | 15 / `szRelationship` | `AlternateLink` | `7f606d776675706077666d6a706c00` |
+  | 16 / `szObject` | `Child` | `7f62696a6d6400` |
+  | 17 / `szReferencedObject` | `Parent` | `7f73607566707700` |
+
+  At `first`, each root has one entry pointing to page 27 row 0.
+  At `second`, root 15 stores `AlternateLink` pointing to row 1 before
+  `ParentChild` pointing to row 0; roots 16 and 17 each repeat their
+  respective key pointing to rows 0 then 1. Distinct-key counts at roots
+  15/16/17 are `1/1/1` at `first` and `2/1/1` at `second`. These four
+  keys do not establish a general standalone-text weight grammar.
+- Allocation observations: page counts are 27, 29, and 30 at `base`,
+  `first`, and `second`. No extant page is globally free. The raw byte at
+  page-zero offset 1538 is respectively 0, 2, and 4; no counter formula
+  or meaning is inferred from these values.
+- Boundary: these observations support only the exact two empty-table
+  schemas, index and relationship creation order, names, and zero cascade
+  attributes above. They do not establish Rust relationship composition,
+  general relationship naming/selector allocation, populated relationships,
+  a DAO-compatible candidate, or public API support.
+- Review: independent outcome review checked the retained JSON, input and
+  artifact hashes, byte-identical report reconstruction, raw record fields,
+  catalog values, index keys/maps, and scope boundaries; no findings.
