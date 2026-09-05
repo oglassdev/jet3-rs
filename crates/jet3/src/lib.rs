@@ -84,6 +84,7 @@ pub mod resource;
 pub mod row;
 mod row_delete_page;
 pub mod row_directory;
+mod row_insert_eof;
 mod row_insert_page;
 pub mod row_writer;
 pub mod source;
