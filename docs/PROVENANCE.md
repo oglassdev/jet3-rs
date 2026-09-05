@@ -11385,6 +11385,52 @@ Copy this block under the appropriate section and remove this instruction:
   updates, deletion/insertion, arbitrary existing-file compatibility or
   hosted update support. Report compatibility/support flags remain false.
 
+## EXP-0172 — Fixed-field successor stopped at wide fixed-prefix decoding
+
+- Outcome: `no_outcome`, recorded 2026-09-05 from the single local run
+  `20260905T072835Z-fixed-field-successor`, acquisition revision
+  `b39ee054bc3360d778d3113fc68ba9df27fd47ad`, public implementation
+  `37bd8175393dccf836b96172f740a28c4be36a60`, and consumed EXP-0171 plan
+  SHA-256 `01929cf68daa5d5bc8dbb4529819634c4017f8b0551a1772d3444eddc2027942`.
+- The report reproduced byte-identically on temporary copies: 443 bytes,
+  SHA-256 `e5038422be9fa5dcd4eac0301e773254bfbd211112178d09f1c4d9d4ff5526a0`.
+  Its observations are empty and its reason is
+  `Coordinated acquisition failed: ValueError: Public field update failed: fixed-text-255-r1`.
+  The coordinated result is 11294 bytes, SHA-256
+  `c65483f1fa0996e447dc10dac925e7998b4caaf70d09b526da7346d59a03b640`.
+- Creation completed all ten arms and three replicas, including Currency.
+  The retained create result is 469595 bytes, SHA-256
+  `9a47f321d582c99f0288bed8cc8d113df828327000d65e577bdee22bb70f735c`.
+  All 30 original snapshots passed and their before/after identities match.
+  The recorded provider is 32-bit `DAO.DBEngine.36` on Windows NT 10.0.20348.
+- Unix updates completed the first nine arms and three replicas (27 updates).
+  Their retained source/destination identities and independently decoded target
+  spans satisfy the preregistered exact replacement and all-other-byte checks.
+  These are local checks only: the run stopped in `unix_update`, before the
+  DAO observation phase, so no updated candidate received DAO acceptance.
+- `fixed-text-255-r1-unix.txt` is 57 bytes, SHA-256
+  `aedbb2783500a1407f8b10b0b5fecb869e28843bf2229b2a8bfd626c02a983ef`,
+  containing `Error: InvalidFixedBoundary { expected: 260, actual: 4 }`.
+  The frozen exporter fails while reading the original row, before copying
+  the destination or invoking the public update. No destination exists for
+  that case; replicas 2 and 3 were not attempted.
+- Read-only inspection of that original's `Items` definition (page 20) and
+  data page 23 records fixed `Id` Long at offset 0, fixed `Value` Text of
+  width 255 at offset 4, and one variable `Payload` Text column. Including
+  the row header, the fixed prefix is 260 bytes. The three raw row lengths
+  are 270, 271, and 270; their trailers are respectively
+  `09 04 00 01 07`, `0a 04 00 01 07`, and `09 04 00 01 07`.
+  The boundary low bytes are 4 and 9/10, with a zero jump byte, one variable
+  column, and presence byte 7. The existing reader interprets that start as
+  absolute offset 4 instead of 260. This is a reader limitation on these
+  retained DAO-created rows, not evidence of a failed published update or a
+  general rule for arbitrary multi-boundary jump encodings.
+- All 122 retained files across the coordinated and create-phase directories
+  remain unchanged, including all 30 original MDB identities and 27 updated
+  MDB identities. Consumed inputs and the earlier EXP-0164 `no_outcome` remain
+  unchanged. No retry, compatibility promotion, or hosted support movement is
+  implied; any corrected implementation or retained-data successor is separate.
+
 ## EXP-0171 — Distinct fixed-field Currency setter successor
 
 - Preregistered only; no acquisition. Outcome reserved as EXP-0172. The
