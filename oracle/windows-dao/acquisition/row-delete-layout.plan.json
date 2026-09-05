@@ -1,0 +1,87 @@
+{
+  "document_type": "dao_row_delete_layout_plan",
+  "experiment_id": "row-delete-layout",
+  "replicas": 3,
+  "development_only": true,
+  "preregistration": {
+    "acquisition_started": false,
+    "question": "What exact row-directory/packed-byte/table-count/map transitions accompany tail, middle and sole-row deletion in a closed unindexed ordinary-Long table, followed by one explicit insertion?",
+    "prior_evidence": "SRC-0020/EXP-0060 source data-page owner/count/directory masks, hidden and zero-length c000 tombstones. EXP-0063 records page-end c800 tombstones. EXP-0136 sources table row count and unchanged ordinary state during deletion. EXP-0057 sources owned/available/global map roles. None defines a general existing-file delete algorithm.",
+    "procedure": "For each arm and replica create one fresh Rows(Id Long, Value Long), insert exact declared rows, close and retain before. Reopen/delete exactly one selected Id using FindFirst/Delete, close and retain deleted. Reopen/insert explicit (99,-9900), close and retain inserted. Each retained checkpoint is observed read-only, before/after hashed. No compaction, indexed/Auto/null/LVAL/relationship table or other writable action. Every operation is attempted once.",
+    "classification": "answered requires27 complete unchanged captures, exact DAO schema/rows and typed raw-row correlations, valid known structural decode, and stable question-bearing data-directory/header-with-owner-removed/row-value/per-data-page map-membership transitions across3replicas. Do not require physical page numbers, file timestamps, or opaque catalog changes to agree. Stable zero-length-c000 hypothesis disagreement is still answered; retain actual observations.",
+    "retention": "Retain all MDBs, including partial working files, results and logs externally. Record one additive EXP-0158 result derived from validated JSON. No MDB/provider bytes in git.",
+    "failure": "Commit SHA256-pinned plan and independently review before first DAO mutation. One dispatch, no automatic retry or resume; failure after mutation is no_outcome and a new attempt requires a human decision.",
+    "limits": "At most4 initial rows/two ordinaryLong fields/one unindexed table; original decoder64-row page bound unchanged. No generalized free-space threshold, slot-reuse/allocator policy, delete writer acceptance or hosted support claim."
+  },
+  "arms": [
+    {
+      "name": "tail",
+      "rows": [
+        [
+          1,
+          101
+        ],
+        [
+          2,
+          -202
+        ],
+        [
+          3,
+          303
+        ],
+        [
+          4,
+          -404
+        ]
+      ],
+      "delete_id": 4
+    },
+    {
+      "name": "middle",
+      "rows": [
+        [
+          1,
+          101
+        ],
+        [
+          2,
+          -202
+        ],
+        [
+          3,
+          303
+        ],
+        [
+          4,
+          -404
+        ]
+      ],
+      "delete_id": 2
+    },
+    {
+      "name": "sole",
+      "rows": [
+        [
+          1,
+          101
+        ]
+      ],
+      "delete_id": 1
+    }
+  ],
+  "insert": [
+    99,
+    -9900
+  ],
+  "checkpoints": [
+    "before",
+    "deleted",
+    "inserted"
+  ],
+  "inputs": {
+    "oracle/windows-dao/scripts/row_delete_layout.py": "74c30a55148ec5efe4c04a154917e8780c06a63442d28c0d0b3453b968142088",
+    "oracle/windows-dao/scripts/row_delete_layout.ps1": "0d7507eefe0e4ecc76e87c57e79f6b8667a9b35533bffebb38ab6845a6a16a5f",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9"
+  }
+}

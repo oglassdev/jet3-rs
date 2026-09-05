@@ -11024,6 +11024,43 @@ Copy this block under the appropriate section and remove this instruction:
   Neither this plan nor self-validation establishes general compatibility,
   completion of #100 or support-matrix movement.
 
+## EXP-0157 — Ordinary-row deletion transitions preregistered
+
+- Recorded: 2026-09-05, OpenAI Codex; local development discovery plan,
+  not an acquisition or writer acceptance result. Plan
+  `oracle/windows-dao/acquisition/row-delete-layout.plan.json`, SHA-256
+  `18c24390fc6429d839139719ccc11ae6049a236f77e42062592ee7f315355e7a`, pins the single DAO
+  producer, analyzer, unchanged structural decoder and ordinary SSH transport.
+- Three fresh replicas each cover tail, middle and sole-row deletion from
+  unindexed `Rows(Id Long, Value Long)`. Tail/middle start with four declared
+  rows and delete Id 4/2 respectively; sole starts with Id 1 and deletes it.
+  Each database closes before the `before` checkpoint, reopens for exactly one
+  FindFirst/Delete, closes for `deleted`, then reopens for one explicit
+  `(99,-9900)` insert and closes for `inserted`. Retained checkpoint copies
+  are observed read-only with before/after hashes: 27 planned captures.
+- Correlate complete DAO schema and exact surviving values with typed raw rows,
+  row locators, active table counts, complete data pages/directories, definition
+  pages, header page and owned/available/global-map observations. Retain every
+  whole-file changed byte range and its old/new bytes, including opaque catalog
+  differences; no changed range is discarded or assigned guessed semantics.
+- `answered` requires all captures, unchanged identities and correlations plus
+  stable question-bearing directory/payload/page-header-with-owner-removed and
+  per-data-page owned/available/global-free transitions across replicas. Do not
+  demand identical absolute allocator addresses or opaque timestamp/catalog
+  bytes. Record the zero-length `0xc000` tombstone hypothesis independently;
+  stable disagreement still answers the planned question.
+- Existing facts are `SRC-0020`/EXP-0060 directory/row grammar, EXP-0063's
+  page-end tombstone diagnosis, EXP-0057 map roles, and EXP-0136 ordinary table
+  count/state changes. The unchanged decoder keeps its 64-row-per-page bound;
+  this finite experiment has at most four user rows and no Auto/index/LVAL/
+  relationship/variable-width data, compaction, or implicit counter generation.
+- Commit and independently review before the first DAO mutation. One dispatch,
+  no automatic retry/resume; failed or incomplete acquisition is `no_outcome`,
+  with partial working MDBs and logs retained externally. A new attempt after
+  mutation needs a human decision. Record one additive EXP-0158 outcome.
+  No generalized deletion/reuse/free-space/allocator policy, Rust deletion
+  acceptance, compatibility or hosted support claim follows from this plan.
+
 ## EXP-0152 — Existing DAO files accept the bounded Long field updates
 
 - Recorded: 2026-09-05, OpenAI Codex; validated local development outcome
