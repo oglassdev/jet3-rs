@@ -10992,6 +10992,38 @@ Copy this block under the appropriate section and remove this instruction:
   Report compatibility and support-matrix flags remain false.
 
 
+## EXP-0136 — Retained AutoIncrement state observations
+
+- Status: validated `answered` secondary analysis under EXP-0135, not a new
+  acquisition or a revision of EXP-0132's preserved `no_outcome`.
+  Plan SHA-256:
+  `13ab8dab2f129fa8a859545e896fa3376836cde938c14e673a842d1d87b5c96f`.
+- External report: `20260905T045600Z-autoincrement-secondary/report.json`,
+  1,080,091 bytes, SHA-256
+  `670cc25e591afb33a987e6a8c6e26852e0543ab5a24939b903c25e876dfe01e6`.
+  Reproduced byte-identically from temporary copies of the pinned original
+  result/report and all 36 captures; originals remain unchanged. The only
+  decoder adjustment was its private row-directory limit from 64 to 256.
+- All three replicas passed the original correlations and all three finite
+  hypotheses. In the AutoIncrement arm, TDEF `[16,20)` held signed
+  little-endian values 0, 1, 255, 256, 256 and 257 at the empty, one, n255,
+  n256, deleted and next checkpoints respectively. Row counts were 0, 1,
+  255, 256, 255 and 256. Generated IDs matched insertion Tags; the next
+  insertion after deleting Tag 256 generated ID 257 in every replica.
+- Paired ordinary Long controls held zero throughout TDEF `[16,20)` with
+  the same row counts and explicit ID/Tag values. User-definition changes
+  in both arms were confined to existing row-count bytes `[12,16)` and,
+  only for generated inserts in the AutoIncrement arm, `[16,20)`. Deletion
+  changed row count but retained the last generated number. Thus this slot
+  records last-generated state for these finite positive cases, rather than
+  current row count or the largest surviving ID.
+- This supports a bounded initial construction that generates IDs 1 through
+  at most 256 and persists that last generated value. The state observed at
+  257 followed deletion/reopening; no arbitrary high seed, explicit Auto ID,
+  overflow, indexed generation or generalized update grammar was tested.
+  Rust candidate acceptance and subsequent DAO insertion remain separate
+  validation work. No compatibility or hosted support claim follows.
+
 ## EXP-0135 — Retained AutoIncrement captures secondary-analysis plan
 
 - Status: post-acquisition secondary analysis planned; expanded analysis has
