@@ -11242,6 +11242,36 @@ DAO control continuation; first/later images 57,344 bytes, last-page images 59,3
 - last-page-sole replica 2: `150e8937655b6f8aa2e0ca387c45778be08c1453b2bf99f91629563039f872f6`, `906b17069e3ec96f3f2accfe898290043848d593858eca0949c2ba333f614a07`, `9437209032548134abc6e4a77dfe560eceaae9097171037fb98167d3efcf4e6e`, `41a98cbe019a6583a7abb21b0b3c96d7874956c97d17a413a7ad5fb5e52abc14`, `1d1bc67decd97490bfcd84e6c6644e6d973f7c15824d84346032f1f7f44ec806`.
 - last-page-sole replica 3: `b6d428cb96642cb43cd6ab382a1e22a844bebbb3c996040842b7bec6faed0eb7`, `02968c3c96066d562cf328be94e6d5610083d0745203b48289e4efbacfb2e26f`, `108517677faa595eea3370c84faaca7f7d39a774387c15e9a541f10e9436e80a`, `f7acaf6a1c5f52a4564c99e08342c4496d5c352addc514db12527d9bf4ffb81b`, `cec4190d3befe417c5633113b4a104bc50acecb3f8485b7f17720416566cdce5`.
 
+## EXP-0207 — Named Memo AllowZeroLength property framing discovery
+
+- Preregistered 2026-09-05; no acquisition. Outcome reserved as EXP-0208.
+  Plan `oracle/windows-dao/acquisition/memo-property.plan.json`, SHA-256
+  `58ae4d566d55b02747430d70fa97577552e82d8d9fed81d8a203d503711ee82e`. Six source inputs pinned; commit and independent review precede
+  one local dispatch with no retry or resume.
+- Three empty schemas, three replicas: Rows(Id,M), Ledger7(Id,Memo42Long),
+  Table9(Id,First2,SecondMemo7), with Long Id and Memo columns. Capture default
+  false, then true and false for each Memo column individually; complete each
+  column cycle before touching the next. Thirty-three closed checkpoint images,
+  twenty-four native property setters and nine final working images retained.
+- Reopen each checkpoint read-only. Require exact requested properties, complete
+  field metadata/property inventories, empty rows/indexes/relations/queries and
+  unchanged image identities. Capture catalog row and LvProp descriptor,
+  exact bounded external payload/backing page, raw column metadata and table/
+  long-column maps. Existing single-external-value framing only; unsupported
+  framing refuses analysis instead of inventing a property grammar.
+- Retain complete file-byte differences and payload-relative differences between
+  checkpoints. Across replicas compare requested metadata, column bindings and
+  exact property payload/transitions; physical locators, catalog timestamps and
+  backing-page slack remain recorded without requiring equality. No guessed
+  property offset, name dictionary or block-length hypothesis gates the answer.
+- EXP-0200 establishes present empty Memo only when AllowZeroLength is true;
+  current creation emits null catalog LvProp and has no property writer. This
+  discovery supplies a bounded prerequisite for a dedicated opt-in, not a
+  broad property framework. Empty OLE remains refused; explicit Null unchanged.
+- All planned captures/operations and replica signatures must pass for answered.
+  Any unexpected failure gives no_outcome with retained diagnostics. No DAO
+  acquisition yet, parser changes, candidate acceptance or support movement.
+
 ## EXP-0200 — Empty Memo and OLE operations have distinct retained outcomes
 
 - Single local discovery run `20260905T104500Z-empty-long-values`, acquired
