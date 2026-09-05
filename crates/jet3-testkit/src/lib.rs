@@ -32,3 +32,6 @@ pub const fn fixture_format_name() -> &'static str {
 
 mod write_fixture;
 pub use write_fixture::{WRITE_SCENARIOS, write_fixture};
+
+mod update_fixture;
+pub use update_fixture::{UPDATE_SCENARIOS, update_fixture};

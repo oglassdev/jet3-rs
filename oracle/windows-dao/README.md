@@ -232,3 +232,22 @@ rejection or fail closed to evidenced or positively composable tested contexts;
 more than two non-ASCII bytes, arbitrary names, and untested pairs need more
 evidence. The result makes no general collation, writer, compatibility,
 public-support, or support-matrix claim.
+
+## Hosted field-update leg
+
+`windows-dao-update.yml` uses the separate `update-scenarios.json` inventory.
+Ubuntu creates three before/after pairs through the public creation and
+`update_field` APIs: a first field, a later row on another data page, and a
+later table. Windows independently locates each requested Long field with the
+public reader, verifies its new value and every byte outside its four-byte
+span, then snapshots both images with Rust and read-only DAO. Full snapshots
+must match the declared before/after rows, schema, Text/Binary payloads, and
+an unrelated Memo table, including nulls.
+
+`dao_update_diff.py prepare`, `snapshot`, and `evaluate` retain original and
+updated MDBs, logs, identity receipts, and a `matched` or `no_outcome` report.
+Acquisition requires a separately committed, pinned EXP-0159 plan; the workflow
+rejects repeat attempts. This implementation alone supplies no DAO result or
+support-state promotion. Insert/delete, indexed or related targets, null and
+variable-width transitions, and hosted stored-query preservation remain outside
+this first inventory.
