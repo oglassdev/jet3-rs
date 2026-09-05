@@ -1,0 +1,68 @@
+{
+  "document_type": "dao_row_candidate_plan",
+  "experiment_id": "multi-page-rows",
+  "issue": 100,
+  "development_only": true,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0060 provides row encoding and EXP-0065 allocation observations. EXP-0112 accepted the exact one-data-page Rows(Id Long, Code Text 8) candidate in three local replicas; it establishes no multiple-page or availability-threshold rule.",
+    "hypothesis": "DAO reads the composed Rows(Id Long) candidate containing 509 rows -254 through 254 unchanged. Rows occupy consecutive data pages 23, 24, and 25 with counts 254, 254, and 1. Owned-map bits name all three; only page 25 is available because pages 23 and 24 lack space for an all-null row. This physical-capacity availability policy and the unchanged composed page-zero header are exact-candidate hypotheses, not inferred DAO policies.",
+    "authorization": "User authorized DAO experiments and mutations on 2026-09-04. Commit and review the exact SHA-256-pinned plan before one dispatch. A failure after the first CreateDatabase is a scientific result; another dispatch requires a new human decision."
+  },
+  "inputs": {
+    "oracle/windows-dao/scripts/row_candidate.py": "203b23bd30365e61ca29948b78e0a71fc40ec23001d6342663b50dda0225f6f3",
+    "oracle/windows-dao/scripts/row_candidate.ps1": "89b408616de8778223b6bd40339468cc72cbc0a2e33b414242a23cc8131137a7",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9",
+    "crates/jet3/examples/multi_page_row_candidate.rs": "a2910c2120f33c53a080f3f4abc7a621948d821bf90d43b736394eb3eb93228a"
+  },
+  "candidate": {
+    "size": 53248,
+    "sha256": "57498e634b9e4e7102efd4f4c2d673cccd42c344b51590177c7704232df675af"
+  },
+  "replicas": 3,
+  "expected_snapshot": {
+    "version": "3.0",
+    "tables": [
+      "MSysACEs",
+      "MSysObjects",
+      "MSysQueries",
+      "MSysRelationships",
+      "Rows"
+    ],
+    "fields": [
+      {
+        "name": "Id",
+        "type": 4,
+        "size": 4
+      }
+    ],
+    "index_count": 0
+  },
+  "execution": {
+    "environment": "Private local Windows VM, x86 PowerShell, DAO.DBEngine.36. This is development discovery, not hosted support-matrix evidence.",
+    "pre_mutation": "Host validates every input hash and committed plan; guest verifies its script hash and prepares three hash-checked candidate copies before any CreateDatabase.",
+    "per_replica": "Create and close a fresh DAO Jet 3 control with unindexed Rows(Id Long), insert every integer from row_range.first through row_range.last inclusive in ascending order. Read control and candidate read-only through the same schema/row endpoints; close and record unchanged identities. Compare row multisets without asserting physical row order or matching control page layout.",
+    "attempts": 1,
+    "command": "python3 oracle/windows-dao/scripts/row_candidate.py run /tmp/multi-page-rows.mdb --shared-root <VM shared directory> --run-id <UTC timestamp>-multi-page-rows",
+    "analysis": "python3 oracle/windows-dao/scripts/row_candidate.py analyze <shared directory>/outbox/<run id>",
+    "analysis_validation": "Before analysis, verify every preregistered input pin again; reject diagnostic producer/analyzer edits rather than emitting an outcome under the original plan."
+  },
+  "decision_rule": {
+    "observed_accepted": "All three controls and candidates have unchanged identities and exactly expected schema and row multiset, with identical replicated endpoint observations.",
+    "not_observed_accepted": "All three controls pass unchanged with expected semantics, all candidates unchanged and identically fail at one endpoint or yield the same semantic mismatch.",
+    "no_outcome": "Incomplete job, control failure, changed image, or disagreement between replicas.",
+    "validation_rejection": "Reject report for mismatched plan/result identity, invalid replica inventory, candidate starting pin mismatch, or retained image identity mismatch."
+  },
+  "evidence_boundary": "Only exact pinned image and schema/row endpoints. No arbitrary multiple-page schemas, availability-threshold or page-zero update rule, indexed rows, long values, existing-database mutations, general compatibility, or hosted support-matrix movement.",
+  "retention": "Retain result.json, canonical report.json, logs and all candidate/control MDBs locally. Never commit MDB bytes. Add one additive EXP outcome from validated report after acquisition.",
+  "candidate_generation": {
+    "source_commit": "826b1318669071afc360659201fd8c012ff07bd0",
+    "example": "crates/jet3/examples/multi_page_row_candidate.rs",
+    "command": "cargo run --locked -p jet3 --example multi_page_row_candidate -- /tmp/multi-page-rows.mdb"
+  },
+  "table_name": "Rows",
+  "row_range": {
+    "first": -254,
+    "last": 254
+  }
+}
