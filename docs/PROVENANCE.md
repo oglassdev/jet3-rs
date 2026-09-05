@@ -12532,6 +12532,44 @@ Copy this block under the appropriate section and remove this instruction:
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
 
+## EXP-0169 — Existing-row insertion candidate preregistration
+
+- Status: preregistered only; no acquisition. Outcome reserved as EXP-0170.
+- Question: does the bounded public insertion match DAO insertion and subsequent
+  DAO use while retaining all unrelated bytes, maps and uninterpreted page zero?
+- Committed plan: `oracle/windows-dao/acquisition/row-insert-candidate.plan.json`,
+  SHA-256 `c1a902a208baa27c7801aa2131180af008b1a53e4f9ee5ae8ae6f1d73309f413`.
+  Reviewed implementation source: `2fdd791cae4ce1649fb634b01c40cac98f2b4340`.
+  The plan pins the exporter, relevant row/reader/publication inputs, PowerShell
+  producer, analyzer, imported diagnostic/read helpers and transport. Dispatch
+  and analysis share input-pin verification. Acquisition revision is recorded
+  separately from the reviewed library source.
+- Three cases, each with three independent originals: first-page insertion,
+  insertion in a later table with multiple data pages and 180-byte Text payloads,
+  and insertion after a preparatory DAO tail deletion. Each database contains
+  the complete declared Long/Long/Text tables and an unrelated stored KeepQuery.
+- A complete DAO creation/control phase precedes any Unix insertion. The public
+  exporter copies each original and calls `insert_row` once; an independent raw
+  decoder binds its table/page/new slot, exact encoded row, free-byte and row
+  counts, retained tombstones and map membership. The entire remaining file,
+  including original payload/slack and page zero, must remain byte-identical.
+- Separate DAO continuation copies receive one further declared row. Require
+  full schema/rows/index/relation metadata and original stored QueryDef SQL
+  preservation, Rust/control equality after both operations and unchanged
+  original/control/Rust identities. Nine originals plus controls, Rust candidates
+  and continuation copies produce 45 retained MDBs and 63 read-only captures;
+  control/continuation inserts and three preparatory deletes are finite endpoints.
+- Any mismatch, native/public failure or incomplete phase is `no_outcome` without
+  subset promotion or retry/resume. The raw decoder's finite bounds and phase
+  timeouts are declared. No DAO free-space threshold, page-zero interpretation,
+  empty-table/new-page allocator or general compatibility claim is inferred.
+  This local validation cannot move the hosted support matrix.
+- Pre-acquisition checks: three focused classifier/preservation/pin tests and
+  exporter Clippy pass. An actual x86 parser-only producer check passes without
+  execution/DAO. Public insertion plus independent exact-byte analysis passes on
+  a temporary copy of a retained original, which remains unchanged. Independent
+  review is required before dispatch.
+
 ## EXP-0166 — Nullable writer successor accepted in the exact six-arm matrix
 
 - Recorded 2026-09-05 from the single local run
