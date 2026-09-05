@@ -11657,3 +11657,197 @@ Copy this block under the appropriate section and remove this instruction:
 - Boundary: exact candidates only; no general allocation, schema/index,
   relationship, AutoIncrement, empty-payload, update, compatibility or hosted
   support claim. Record the validated outcome once as EXP-0130.
+
+## EXP-0143 — Scalar and nullable index-key discovery preregistration
+
+- Recorded: 2026-09-05, OpenAI Codex.
+- Kind: development-only preregistration; acquisition has not started. This
+  entry establishes no format transform or compatibility/support claim.
+- Plan: `oracle/windows-dao/acquisition/scalar-index-layout.plan.json`, SHA-256
+  `c692ca69614f176b3391d3dd8020de1109e30957a9aaaf65abd5b09ac20de863`.
+  Pins cover the producer, analyzer, existing original catalog/leaf decoders
+  and local SSH transport. Both dispatch and analysis verify inputs; dispatch
+  also requires the exact plan committed before acquisition.
+- Questions: exact ascending/descending keys for Boolean, Byte, Integer,
+  Currency, Single, Double, Date and four-byte Binary values; nullable Long
+  one/two-component keys, duplicate-null insertion behavior, and the effects
+  of Unique, Required and IgnoreNulls. EXP-0062/0073 supply existing leaf/row
+  framing; EXP-0126 supplies prior non-null Long observations. No scalar key
+  transform, null uniqueness rule or null-omission policy is assumed.
+- Matrix: sixteen scalar direction arms and ten nullable Long arms, each
+  repeated with three fresh controls: 78 images, at most twelve attempts
+  per image. Values include signed endpoints, negative/zero/positive values,
+  finite floating normal/subnormal minima, exact Binary bytes, and repeated
+  null/non-null full keys with distinct Tag payloads. Tag is not indexed.
+- Capture: create declared table/index, attempt each row exactly once, and
+  retain actual Update success or DAO error numbers/HRESULT. A declared
+  rejected insertion is cancelled before the next distinct attempt. Any
+  assignment/setup/cleanup failure aborts acquisition; completed operations
+  and raw images remain retained. Close and reopen read-only for complete
+  schema, index flags/directions, saved rows and ordered index traversal;
+  record unchanged before/after image identities.
+- Analysis: bind uninterpreted raw leaf keys through page/slot locators to
+  every indexed saved row and DAO traversal. Observe null omissions; reject
+  missing non-null bindings. Compare question-bearing raw key/value bindings,
+  saved/omitted rows, index records/flags/counts and actual operation outcomes
+  across three replicas. Provider value normalization is a separate diagnostic;
+  an observation supplies keys only for the values actually saved.
+- Decision: `answered` requires all 78 captures and complete correlations with
+  stable observations. Unexpected acquisition failure, incomplete/changed
+  capture, unsupported decoding or disagreement yields `no_outcome`; identity
+  or pin mismatches reject validation. No automatic retry after first mutation.
+- Bounds: existing decoder limits remain unchanged; each image has at most
+  twelve rows, three fields and one leaf index. No parser edits, Text collation,
+  GUID/Memo/OLE index grammar, candidate acceptance, general Binary lengths,
+  NaN/infinity, existing-row updates or hosted support movement in this slice.
+- Validation: five focused classifier/binding/pin tests and Python compilation
+  passed; Windows `Parser.ParseFile` accepted the producer without executing
+  it or DAO. Independent experiment review precedes acquisition. Retain all
+  raw files externally; record one additive validated EXP-0144 outcome.
+
+## EXP-0144 — Scalar/null discovery stopped with no outcome
+
+- Recorded: 2026-09-05, OpenAI Codex; validated development-only `no_outcome`.
+- Consumed EXP-0143 plan SHA-256:
+  `c692ca69614f176b3391d3dd8020de1109e30957a9aaaf65abd5b09ac20de863`,
+  analyzer/producer source `bfb19ef`. Their bytes and earlier entries remain
+  unchanged. One acquisition ran; no retry or successor acquisition occurred.
+- Retained local run: `20260905T054700Z-scalar-index-layout` under the external
+  VM shared outbox. Result: 703682 bytes, SHA-256
+  `47e9be13836af6bb67b6007bcd731c73c96f871744b7998cb22734f0cb562624`.
+  Validated report: 3284 bytes, SHA-256
+  `e338265e299b875b0a8de0426fd2f2c285d675822ed84919b1bfbdb061b3242d`.
+  The pinned analyzer reproduced the report byte-for-byte on a temporary
+  copy; all original retained files stayed unchanged.
+- Acquisition: 36 completed captures of the planned 78, covering both
+  directions for Boolean, Byte, Integer, Currency, Single and Double, three
+  replicas each. Every completed capture reports `pass` and all 36 retained
+  image hashes/sizes equal their recorded before/after identities.
+- The 37th attempt is `date-ascending`, replica 1, with no recorded Update
+  operation. `mutation_started` is true and acquisition stopped with
+  `System.InvalidCastException: Specified cast is not valid.` The additional
+  partial Date image is 49152 bytes, SHA-256
+  `b13a0441901bbdd876433a48fe5007c6529626dfbb111b8a2336155ec99c6c2e`;
+  read-only decoding finds zero saved rows. The empty guest log and result
+  provide no statement/stack location, so they do not identify the precise
+  failed cast or establish a DAO Date rejection. Remaining Date/Binary/null
+  captures were not completed.
+- Analysis: zero validated observations. All 36 captures fail the planned
+  saved-row correlation: DAO `values` are serialized as an object containing
+  `value` and `Count`, while the frozen classifier expects an array. The
+  report records these 36 reasons plus the incomplete acquisition error.
+  This is a producer/contract mismatch, not an established scalar encoding
+  disagreement. No corrected normalization or expanded analysis was applied
+  to the consumed run.
+- Boundary: no key transforms, null policies, Date/Binary acceptance, general
+  compatibility or hosted support movement follow from this `no_outcome`.
+  Retain all 37 raw images externally. Any secondary read-only interpretation
+  needs a separately declared analysis; any new DAO acquisition requires a
+  separately reviewed successor plan and the repository's human retry decision.
+
+## EXP-0147 — Remaining Date/Binary/null index discovery successor plan
+
+- Recorded: 2026-09-05, OpenAI Codex; unacquired development-only successor.
+  EXP-0143 inputs and EXP-0144 `no_outcome` remain unchanged. Standing user
+  authorization covers DAO experiments/mutations; root dispatches this distinct
+  plan once only after independent review and final checks.
+- Plan: `oracle/windows-dao/acquisition/scalar-index-remaining.plan.json`,
+  SHA-256 `c0378eca7d65ae58bd8d4a5b124b476ea1bc51989de75d579cfebd7a3d7555ae`.
+  New producer/analyzer files have separate input pins, checked before dispatch
+  and analysis; dispatch requires the exact committed plan. Existing original
+  catalog/leaf decoders and local one-dispatch transport stay unchanged.
+- Scope: exactly the fourteen remaining arms, three fresh controls each:
+  ascending/descending Date and four-byte Binary, plus ten nullable Long
+  ordinary/unique/Required/IgnoreNulls one/two-component arms. Each control
+  has at most twelve attempts. The 36 completed scalar captures from EXP-0143
+  are neither reacquired nor reinterpreted by this plan.
+- Corrections: values use plain CLR arrays instead of PowerShell's decorated
+  `New-Object` array wrapper. Date conversion is precomputed and assigned with
+  the explicit `[datetime]` cast used by the original read producer. Original
+  artifacts do not identify the precise failing cast; this change does not
+  prove DAO Date acceptance. Unexpected errors now retain endpoint and script
+  stack alongside the original error text and completed attempt records.
+- Gates: retain actual Update outcomes, null omissions, complete saved rows,
+  exact raw key-to-row-locator bindings, schema/flag/direction metadata and
+  full DAO traversal. Compare three replicas per arm without guessing nullable
+  uniqueness/omission policies or index transforms. All 42 captures must be
+  complete, unchanged and correlated for `answered`; otherwise preserve an
+  honest `no_outcome`. Binding/pin failures reject validation; no automatic retry.
+- Validation: four focused Python classifier/binding/pin tests and compilation
+  passed. Windows x86 PowerShell parsed the new producer and ran only extracted
+  helper functions against in-memory fake fields: all 120 declared Date/Binary/
+  nullable row conversions and JSON array roundtrips matched exact planned
+  values. The retained test is `tests/check_scalar_index_remaining.ps1` under
+  `oracle/windows-dao`; it instantiates no DAO and executes no acquisition.
+- Boundary: no scalar encoding promotion, completed-capture reanalysis, Text
+  collation, GUID/Memo/OLE indexes, arbitrary Binary lengths, existing-row
+  updates, candidate acceptance, general compatibility or hosted support claim.
+  Retain raw images/results externally and record one validated EXP-0148 outcome.
+
+## EXP-0148 — Remaining Date/Binary/null index observations answered
+
+- Recorded: 2026-09-05, OpenAI Codex; validated local development discovery
+  `answered`, not candidate acceptance or hosted support. Consumed EXP-0147
+  plan SHA-256 `c0378eca7d65ae58bd8d4a5b124b476ea1bc51989de75d579cfebd7a3d7555ae`,
+  producer/analyzer source `9fb6874`, and original EXP-0144 `no_outcome` remain
+  unchanged. The earlier 36 captures were not reacquired or reanalyzed.
+- Retained run: `20260905T060000Z-scalar-index-remaining` in the external VM
+  shared outbox. Result: 900612 bytes, SHA-256
+  `2d078ba65dbab7455f6aacb8408a784d521d09553fdc079cd69c554bf9bcccfd`.
+  Report: 137822 bytes, SHA-256
+  `88a33d7e37f4e45f3a8ad305ff8fc9ff4c2eac4442b26e9765de19208d882fb9`.
+  Pinned analysis reproduced the report byte-for-byte on a temporary copy;
+  every original retained file remained unchanged.
+- All fourteen arms have three complete, agreeing captures: 42 observations,
+  no report reasons or acquisition error. All 42 retained MDB identities equal
+  recorded before/after hashes and sizes. Complete DAO schema, index flags,
+  saved rows, traversal and raw key/row-locator correlations pass. Every saved
+  payload equals its declared value; stable Update rejections are listed below.
+- Date: six OA day values `-10000,-1,0,1,36526,2958465` were saved exactly.
+  Ascending raw keys respectively are `7f3f3c77ffffffffff`,
+  `7f400fffffffffffff`, `7f8000000000000000`, `7fbff0000000000000`,
+  `7fc0e1d5c000000000` and `7fc146924080000000`. For these exact inputs,
+  descending keys complement every ascending byte, including marker `7f` to
+  `80`, and traversal reverses value order. This observes finite Date keys;
+  it does not establish arbitrary Date/floating encodings or explain the
+  original failed producer's unlocalized cast.
+- Four-byte Binary: exact inputs `ffffffff`, `00000000`, `00000001`,
+  `01000000`, `7fffffff`, `80000000` all saved. Ascending keys equal marker
+  `7f`, the four input bytes, four zero padding bytes, then `04`. Descending
+  keys complement every byte, and traversal reverses bytewise order. This
+  is evidence only for these four-byte inputs, not arbitrary-length framing.
+- Nullable Long: ascending null key is `00`, descending null is `ff`.
+  Non-null component bytes agree with prior EXP-0126 observations. Mixed
+  ascending-A/descending-B composite keys concatenate the observed components:
+  `(null,null)` is `00ff`; `(null,1)` is `00807ffffffe`; `(1,null)` is
+  `7f80000001ff`. These repeated full null-bearing keys retain distinct row
+  locators and complete Tag payloads.
+- Per-replica saved rows / leaf entries / physical distinct-key count:
+
+  | Arm | Rows | Entries | Count | Raw flags |
+  | --- | ---: | ---: | ---: | ---: |
+  | null-ordinary / null-descending | 8 | 8 | 6 | 0 |
+  | null-unique | 7 | 7 | 6 | 1 |
+  | null-unique-ignore | 7 | 5 | 5 | 3 |
+  | null-ignore | 8 | 6 | 5 | 2 |
+  | null-required | 6 | 6 | 5 | 8 |
+  | composite-null-ordinary | 12 | 12 | 8 | 0 |
+  | composite-null-unique | 11 | 11 | 8 | 1 |
+  | composite-null-ignore | 12 | 10 | 7 | 2 |
+  | composite-null-required | 6 | 6 | 5 | 8 |
+
+- Unique single indexes accept both null rows and reject only the repeated
+  non-null zero (Tag 6); unique composite accepts repeated `(null,null)`,
+  `(null,1)` and `(1,null)`, rejecting repeated `(1,1)` (Tag 8). Observed
+  rejection is DAO `3022`, HRESULT `-2146825266`, in every replica.
+- IgnoreNulls single indexes omit the two stored null rows; the composite
+  IgnoreNulls arm omits only the two all-null rows, retaining partial-null
+  entries. Required single rejects Tags 1/5; Required composite rejects
+  Tags 1/2/3/5/6/7, namely every attempted null-bearing row. Observed rejection
+  is DAO `3058`, HRESULT `-2146825230`. Ordinary Required retains repeated
+  non-null keys. These statements concern exactly the declared flags/shapes.
+- Boundary: no generalized scalar/type grammar, arbitrary null-component
+  policy, Text/GUID/Memo/OLE indexing, existing-row update behavior, writer
+  acceptance or general compatibility claim. Report support and compatibility
+  flags remain false. Keep all raw images externally, with no provider bytes
+  or MDBs committed.
