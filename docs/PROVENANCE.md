@@ -12561,6 +12561,53 @@ Copy this block under the appropriate section and remove this instruction:
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
 
+## EXP-0186 — Finite single-leaf Long key updates observed accepted
+
+- Recorded: 2026-09-05, OpenAI Codex; validated `observed_accepted` local result
+  from the distinct EXP-0185 acquisition. Original EXP-0179 inputs and EXP-0180
+  `no_outcome` are unchanged; the failed run was not retried or reclassified.
+- Reviewed plan SHA-256
+  `6e477d14e086696d54309c920f4c0346b7580d3400c42f0bea518b298523e1d9`,
+  harness `450bcd2`, public candidate source
+  `d16d0ed735657526c258194f0d7fe0b9622b1878`. Single run
+  `20260905T082600Z-single-leaf-successor` retained externally:
+  `result.json` 6559465 bytes, SHA-256
+  `fa979470586cefed2f667a0312152e6a2abd2c89bad55b29bbd4289672298a55`;
+  `report.json` 29605 bytes, SHA-256
+  `6812bf61d3aa8ff2c8b670b519faac301c9f4fcee05ddba2f1273947d9657ad5`.
+  The frozen analyzer reproduced the exact report on temporary copies; all 50
+  retained files remained unchanged. The report has nine observations, no reasons,
+  no acquisition error and no retention failures, with `mutation_started=true`.
+- Each of three arms has three replicas and five complete read-only observations:
+  pinned original, public Rust update, independent DAO update control, and separate
+  Rust/control copies after continuation. All 45 MDB identities match their
+  before/after capture hashes. Ascending primary and descending unique images are
+  51200 bytes; full-leaf images are 55296 bytes, including continuation copies.
+- Table `Items` has ordinary Long `Id` and `Value`, Text(8) `Payload`, and unique
+  single-column `ByKey`. Ascending primary changes Id 0 to -2147483648 among
+  [-10,0,10]; descending unique changes Id 0 to 2147483646 among
+  [-2147483648,0,2147483647]; ascending primary full-leaf changes Id 100 to -1
+  among 0 through 199. Full schema/index properties, all rows, directed traversal
+  and all six/six/203 declared Seek queries match the requested role and controls.
+  Relation/query inventories remain empty and other captured metadata agrees.
+- Independent raw correlation verifies the complete original unique key/locator
+  inventory, table and physical distinct counts 3/3/200, and exact public patch:
+  four-byte field at absolute offset 51161/51161/53069, plus occupied leaf entry
+  bytes at offset 47352, length 27/27/1800, on page 23. Actual changed byte counts
+  are 11/8/211 in every replica. Every byte outside those two spans is unchanged,
+  including page 0, leaf header/bitmap/slack, maps, counts and unrelated payload.
+  DAO control physical bytes are not required to equal the Rust candidate.
+- On independent copies, DAO inserts [999,9990,"next"] for both roles, producing
+  complete row counts 4/4/201 with matching traversal and Seek. All 18 duplicate
+  probes reject the declared existing key with DAO 3022, HRESULT -2146825266;
+  complete post-probe snapshots contain no rejected row. Baselines stay unchanged.
+- This is finite local evidence for these present, ordinary Long unique/primary
+  updates in an isolated uncompressed leaf and subsequent DAO use. It does not
+  establish Rust split/compression/allocation, composite/nonunique/null/Auto or
+  relationship key maintenance, arbitrary schemas, or hosted support. Report
+  `development_only=true`, `compatibility_claim=false` and
+  `support_matrix_movement=false` remain unchanged.
+
 ## EXP-0185 — Typed-setter successor for unique Long key validation
 
 - Preregistered only; no acquisition. Outcome reserved as EXP-0186. Plan:
