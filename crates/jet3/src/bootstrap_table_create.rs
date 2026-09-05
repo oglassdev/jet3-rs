@@ -156,7 +156,7 @@ impl<'a> PlannedCreate<'a> {
                 }
                 Err(error) => return Err(error.into()),
             };
-            let locator = crate::RowLocator::new(PageNumber::new(self.page_count()), slot);
+            let locator = crate::RowLocator::new(PageNumber::new(self.data_end()), slot);
             if let Some(index) = &mut self.initial_index {
                 index.push(row, locator, budget)?;
             }
@@ -174,7 +174,7 @@ impl<'a> PlannedCreate<'a> {
         minimum_row: &[u8],
         budget: &mut ResourceBudget,
     ) -> Result<(), ComposeError> {
-        let page = PageNumber::new(self.page_count());
+        let page = PageNumber::new(self.data_end());
         // The existing inline map covers this many pages (SRC-0020/EXP-0057).
         // EXP-0065 observed indirect growth, but supplies no general policy.
         let page_count = MAP_BITMAP_BYTES * 8;
@@ -225,6 +225,14 @@ impl<'a> PlannedCreate<'a> {
 
     /// Returns the page count once every appended page is in place.
     pub(super) fn page_count(&self) -> u64 {
+        self.data_end()
+            + self
+                .initial_index
+                .as_ref()
+                .map_or(0, InitialLongIndex::extra_page_count)
+    }
+
+    fn data_end(&self) -> u64 {
         self.plan.definition_root().get()
             + self.plan.appended_page_count()
             + self
@@ -246,7 +254,7 @@ impl<'a> PlannedCreate<'a> {
 
     /// Logical row locations in the same order used while packing initial data.
     pub(super) fn initial_row_locators(&self) -> impl Iterator<Item = crate::RowLocator> + '_ {
-        let first = self.page_count() - self.initial_data.len() as u64;
+        let first = self.data_end() - self.initial_data.len() as u64;
         self.initial_data
             .iter()
             .enumerate()
@@ -255,6 +263,17 @@ impl<'a> PlannedCreate<'a> {
                     crate::RowLocator::new(PageNumber::new(first + page as u64), slot as u8)
                 })
             })
+    }
+
+    pub(super) fn contains_initial_long(
+        &self,
+        value: i32,
+        budget: &mut ResourceBudget,
+    ) -> Result<bool, ComposeError> {
+        self.initial_index
+            .as_ref()
+            .ok_or(ComposeError::UnsupportedInitialIndexSchema)?
+            .contains_single_long(value, budget)
     }
 
     /// Returns the catalog row the create adds (`EXP-0087`).
@@ -298,9 +317,15 @@ impl<'a> PlannedCreate<'a> {
             plan.append(continuation, append_map, budget)?;
         }
         let owner = self.plan.definition_root().get();
-        for _ in self.plan.index_placements() {
+        for (root, _) in self.plan.index_placements() {
             let image = if let Some(index) = &self.initial_index {
-                index.image(self.plan.definition_root(), budget)?
+                index.image(
+                    self.plan.definition_root(),
+                    root,
+                    self.data_end(),
+                    None,
+                    budget,
+                )?
             } else {
                 empty_index_page(owner, budget)?
             };
@@ -311,6 +336,27 @@ impl<'a> PlannedCreate<'a> {
         }
         for data in &self.initial_data {
             plan.append(data.image.clone(), append_map, budget)?;
+        }
+        if let Some(index) = &self.initial_index {
+            let root = self
+                .plan
+                .index_placements()
+                .next()
+                .ok_or(ComposeError::UnsupportedInitialIndexSchema)?
+                .0;
+            for ordinal in 0..index.extra_page_count() {
+                plan.append(
+                    index.image(
+                        self.plan.definition_root(),
+                        root,
+                        self.data_end(),
+                        Some(ordinal as usize),
+                        budget,
+                    )?,
+                    append_map,
+                    budget,
+                )?;
+            }
         }
         Ok(())
     }
@@ -422,7 +468,7 @@ impl<'a> PlannedCreate<'a> {
     /// Builds the map page with the rows the definition names.
     pub(super) fn map_page(
         &self,
-        foreign_index: Option<PageNumber>,
+        foreign_index: Option<(PageNumber, u64)>,
         budget: &mut ResourceBudget,
     ) -> Result<PageImage, ComposeError> {
         if foreign_index.is_some() && (!self.spec.indexes.is_empty() || self.long_value.is_some()) {
@@ -458,10 +504,17 @@ impl<'a> PlannedCreate<'a> {
         available.encode_into(&mut available_row, budget)?;
         let mut rows: Vec<[u8; 133]> = vec![owned_row, available_row];
         for (root, _) in self.plan.index_placements() {
-            rows.push(inline_map_row(&[root.get()], budget)?);
+            rows.push(initial_index_map(
+                root,
+                self.data_end(),
+                self.initial_index
+                    .as_ref()
+                    .map_or(0, InitialLongIndex::extra_page_count),
+                budget,
+            )?);
         }
-        if let Some(index) = foreign_index {
-            rows.push(inline_map_row(&[index.get()], budget)?);
+        if let Some((root, extra)) = foreign_index {
+            rows.push(initial_index_map(root, root.get() + 1, extra, budget)?);
         }
         if self.long_value.is_some() {
             let maps = match &self.initial_long_values {
@@ -530,3 +583,20 @@ fn long_value_columns<'s>(spec: &'s TableSpec<'_>) -> impl Iterator<Item = u16> 
 #[cfg(test)]
 #[path = "bootstrap_table_create_tests.rs"]
 mod tests;
+
+fn initial_index_map(
+    root: PageNumber,
+    first_extra: u64,
+    extra_count: u64,
+    budget: &mut ResourceBudget,
+) -> Result<[u8; 133], ComposeError> {
+    let mut map =
+        InlineUsageMapEncoder::new(PageNumber::new(0), ByteCount::new(MAP_BITMAP_BYTES), budget)?;
+    map.set_page(root)?;
+    for page in first_extra..first_extra + extra_count {
+        map.set_page(PageNumber::new(page))?;
+    }
+    let mut row = [0_u8; 133];
+    map.encode_into(&mut row, budget)?;
+    Ok(row)
+}

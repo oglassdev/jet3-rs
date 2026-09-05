@@ -1,8 +1,12 @@
-//! One uncompressed leaf of one/two Long components: EXP-0062 leaf/locator
+//! Uncompressed trees of one/two Long components: EXP-0062 branch/leaf/locator
 //! grammar, EXP-0126 direction/composition and full-key distinct counts.
 
 use super::*;
 use crate::{IndexKind, IndexTree, RowLocator};
+
+#[path = "bootstrap_initial_index_pages.rs"]
+mod pages;
+use pages::IndexPages;
 
 const COMPONENT_BYTES: usize = 5;
 const MAX_FIELDS: usize = 2;
@@ -22,6 +26,7 @@ pub(crate) struct InitialLongIndex {
     unique: bool,
     entries: Vec<[u8; ENTRY_CAPACITY]>,
     distinct: u32,
+    pages: IndexPages,
 }
 
 impl InitialLongIndex {
@@ -63,12 +68,7 @@ impl InitialLongIndex {
             };
         }
         let entry_bytes = index.fields.len() * COMPONENT_BYTES + LOCATOR_BYTES;
-        if row_count > INDEX_ENTRY_AREA_LEN / entry_bytes {
-            return Err(ComposeError::IndexPageFull {
-                needed: row_count.saturating_mul(entry_bytes),
-                available: INDEX_ENTRY_AREA_LEN,
-            });
-        }
+        let pages = IndexPages::new(row_count, entry_bytes, budget)?;
         budget.charge_allocation(ByteCount::new((row_count * ENTRY_CAPACITY) as u64))?;
         let mut entries = Vec::new();
         entries
@@ -83,6 +83,7 @@ impl InitialLongIndex {
             unique: index.kind != IndexKind::Ordinary,
             entries,
             distinct: 0,
+            pages,
         }))
     }
 
@@ -130,9 +131,11 @@ impl InitialLongIndex {
     }
 
     pub(crate) fn sort(&mut self, budget: &mut ResourceBudget) -> Result<(), ComposeError> {
-        // At most 200 entries; charge a conservative quadratic byte-comparison bound.
         let count = self.entries.len() as u64;
-        budget.charge_work_units(count * count * ENTRY_CAPACITY as u64)?;
+        // The unstable sort has O(n log n) worst-case work; charge byte comparisons.
+        budget.charge_work_units(
+            count * u64::from(count.max(1).ilog2() + 1) * 4 * ENTRY_CAPACITY as u64,
+        )?;
         self.entries.sort_unstable();
         self.distinct = u32::from(!self.entries.is_empty());
         let key_bytes = self.key_bytes();
@@ -177,31 +180,37 @@ impl InitialLongIndex {
         self.distinct
     }
 
+    pub(super) fn extra_page_count(&self) -> u64 {
+        self.pages.extra_count()
+    }
+
     pub(super) fn image(
         &self,
         owner: PageNumber,
+        root: PageNumber,
+        first_extra: u64,
+        ordinal: Option<usize>,
         budget: &mut ResourceBudget,
     ) -> Result<PageImage, ComposeError> {
-        let mut bytes = [0_u8; PAGE_BYTES];
-        bytes[0] = 4;
-        bytes[1] = 1;
-        let entry_bytes = self.key_bytes() + LOCATOR_BYTES;
-        let used = self.entries.len() * entry_bytes;
-        bytes[2..4].copy_from_slice(&((INDEX_ENTRY_AREA_LEN - used) as u16).to_le_bytes());
-        let owner = u32::try_from(owner.get()).map_err(|_| Error::IntegerConversion {
-            value: owner.get() as u128,
-            target: "u32 index owner",
-        })?;
-        bytes[4..8].copy_from_slice(&owner.to_le_bytes());
-        for (position, entry) in self.entries.iter().enumerate() {
-            let start = INDEX_ENTRY_AREA_OFFSET + position * entry_bytes;
-            bytes[start..start + entry_bytes].copy_from_slice(&entry[..entry_bytes]);
-            let end = (position + 1) * entry_bytes;
-            bytes[INDEX_BOUNDARY_BITMAP_OFFSET + end / 8] |= 1 << (end % 8);
-        }
-        let mut image = PageImage::new(PageKind::LeafIndex);
-        image.write_at(PageOffset::new(0), &bytes, budget)?;
-        Ok(image)
+        self.pages
+            .image(&self.entries, owner, root, first_extra, ordinal, budget)
+    }
+
+    pub(super) fn contains_single_long(
+        &self,
+        value: i32,
+        budget: &mut ResourceBudget,
+    ) -> Result<bool, ComposeError> {
+        budget.charge_work_units(
+            u64::from((self.entries.len().max(1) as u64).ilog2() + 1) * COMPONENT_BYTES as u64,
+        )?;
+        let mut key = [0x7f, 0, 0, 0, 0];
+        key[1..].copy_from_slice(&value.to_be_bytes());
+        key[1] ^= 0x80;
+        Ok(self
+            .entries
+            .binary_search_by(|entry| entry[..COMPONENT_BYTES].cmp(&key))
+            .is_ok())
     }
 
     pub(crate) fn matches(&self, tree: &IndexTree) -> bool {

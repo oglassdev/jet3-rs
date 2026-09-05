@@ -218,7 +218,7 @@ fn orphan_null_duplicate_and_unsupported_parent_shapes_are_refused() -> TestResu
 }
 
 #[test]
-fn foreign_leaf_capacity_and_publication_budget_preserve_destination() -> TestResult {
+fn foreign_branch_growth_and_publication_budget_preserve_destination() -> TestResult {
     let directory = Directory::new()?;
     let (tables, relation) = schema(false);
     let value = [RowValue::Text(b"a"), RowValue::Long(1)];
@@ -254,25 +254,41 @@ fn foreign_leaf_capacity_and_publication_budget_preserve_destination() -> TestRe
         &relation,
         &mut budget(),
     )?;
-    let original = fs::read(directory.target())?;
-    let overflow = [
+    let expanded = [
         requests[0],
         TableRows {
             rows: &child_rows,
             ..requests[1]
         },
     ];
-    assert!(matches!(
+    let directory = Directory::new()?;
+    create_database_with_relationship_rows(
+        directory.target(),
+        &expanded,
+        &relation,
+        &mut budget(),
+    )?;
+    let original = fs::read(directory.target())?;
+    let mut reader = DatabaseReader::open(directory.target(), &mut budget())?;
+    let definition = reader.table_definition(PageNumber::new(25), &mut budget())?;
+    let tree = reader.index_tree(&definition, 0, &mut budget())?;
+    assert_eq!(tree.entries().len(), 201);
+    assert_eq!(tree.nodes().len(), 3);
+    for node in tree.nodes() {
+        assert!(map_bit(&original, 26, 2, node.page().get())?);
+        assert!(!map_bit(&original, 26, 0, node.page().get())?);
+    }
+    drop(reader);
+    let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(1));
+    assert!(
         create_database_with_relationship_rows(
             directory.target(),
-            &overflow,
+            &expanded,
             &relation,
-            &mut budget()
-        ),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::IndexPageFull { .. }
-        ))
-    ));
+            &mut limited
+        )
+        .is_err()
+    );
     assert_eq!(fs::read(directory.target())?, original);
     assert_eq!(fs::read_dir(&directory.0)?.count(), 1);
     Ok(())

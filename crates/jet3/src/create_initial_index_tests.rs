@@ -136,7 +136,7 @@ fn indexed_payload_rows_can_reference_multiple_data_pages() -> TestResult {
 }
 
 #[test]
-fn leaf_capacity_is_exact_and_overflow_preserves_destination() -> TestResult {
+fn leaf_capacity_spills_into_a_branch_root() -> TestResult {
     let directory = TestDirectory::create()?;
     let indexes = one_index(IndexKind::Primary);
     let table = TableSpec {
@@ -157,13 +157,16 @@ fn leaf_capacity_is_exact_and_overflow_preserves_destination() -> TestResult {
     );
     assert!(matches!(
         create_database_with_rows(directory.target(), &table, &rows, &mut budget()),
-        Err(CreateDatabaseError::Compose(ComposeError::IndexPageFull {
-            needed: 1809,
-            available: 1800
-        }))
+        Err(CreateDatabaseError::Publish(_))
     ));
     assert_eq!(fs::read(directory.target())?, original);
-    assert_eq!(directory.entries()?, ["created.mdb"]);
+    let directory = TestDirectory::create()?;
+    create_database_with_rows(directory.target(), &table, &rows, &mut budget())?;
+    let expanded = tree(&directory.target())?;
+    assert_eq!(expanded.entries().len(), 201);
+    assert_eq!(expanded.nodes().len(), 3);
+    assert_eq!(expanded.nodes()[0].depth(), 1);
+    assert_eq!(fs::read(directory.target())?[23 * crate::PAGE_BYTES], 3);
     Ok(())
 }
 
@@ -290,3 +293,6 @@ fn index_storage_budget_and_empty_index_are_handled() -> TestResult {
 
 #[path = "create_composite_index_tests.rs"]
 mod composite;
+
+#[path = "create_multi_level_index_tests.rs"]
+mod multi_level;
