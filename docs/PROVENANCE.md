@@ -11292,6 +11292,73 @@ Copy this block under the appropriate section and remove this instruction:
   or hosted support claim. Retain all MDBs externally and record one validated
   additive outcome as `EXP-0128`.
 
+### EXP-0140 — Multi-level candidate run retained as no_outcome
+
+- Recorded: 2026-09-05, OpenAI Codex
+- Kind: validated development-only outcome from the single authorized run
+  `20260905T054000Z-multi-level-index`; no retry or support movement.
+- Preregistration: EXP-0139, commit `412dc99`, plan
+  `oracle/windows-dao/acquisition/multi-level-index.plan.json`, SHA-256
+  `7d0f368b31e2295b826118cea4e290b8ddc6661d108aea99eb870db84e13ccc2`.
+  Generator source: `5cd9e5a`. Consumed producer, analyzer, structure/catalog
+  decoders, transport, example and plan remained unchanged.
+- Artifacts: local VM
+  `shared/outbox/20260905T054000Z-multi-level-index`. `result.json` is
+  9,682,811 bytes, SHA-256
+  `4adee25ea2276ea8b080441ac6eadf293869a7d5cee881145d82ab602f612718`;
+  canonical `report.json` is 150,657 bytes, SHA-256
+  `8c665dccb340155c3998022305cefbaa2b590c687167236abb2f18b2dcaf23cb`.
+  The pinned analyzer reproduced the report byte-for-byte on temporary copies.
+  All eighteen retained MDB identities and their unchanged read-only
+  before/after identities were verified; retained originals were untouched.
+  Independent outcome review follows.
+- Environment: Windows NT 10.0.20348.0, 32-bit PowerShell, DAO.DBEngine.36.
+  All nine candidate/control pairs completed; the result records no job error.
+  The validated report classifies `primary`, `composite` and `relationship`
+  as `no_outcome`. Six primary/composite control structural observations fail
+  with `Index node header`. The all-controls prerequisite therefore fails
+  for the entire matrix, including the relationship arm.
+- Recorded observations: all nine candidate observations and all three
+  relationship control observations have `passed=true`. Candidate primary
+  Rows contains 27,801 entries/distinct keys across 143 nodes and three levels.
+  Candidate composite Rows, following the empty table, contains 12,929 leaf
+  entries and 33 distinct keys across 105 nodes and three levels. Candidate
+  relationship Parents contains 201 entries/distinct keys across three nodes
+  and two levels; Children contains 27,801 entries and three distinct keys
+  across 143 nodes and three levels. Their recorded checks cover complete
+  typed rows, traversal, planned boundary/missing Seek, maximum-child
+  separators, sibling chains, locator bindings and map membership. These
+  successful subobservations do not override the preregistered control gate
+  or constitute candidate acceptance.
+- Retention: each arm's three candidate files retain the exact EXP-0139
+  identity. Control files and their unchanged identities are listed below.
+
+| Arm / candidate replicas | Bytes each | SHA-256 |
+| --- | ---: | --- |
+| `primary-candidate-r1..r3.mdb` | 677,888 | `319337d779bfeceb7971ff133794ef738b5dcf44f3c55885d1c2591b5af15593` |
+| `composite-candidate-r1..r3.mdb` | 475,136 | `249529faf1161a6a7ceb255794fb65d6fd5080d66c0e8fefdae88a2eba2ae035` |
+| `relationship-candidate-r1..r3.mdb` | 694,272 | `beec4f2af1e0a84396053ef39ac9b76b5465db822f759cc7c35c1d11a9342147` |
+
+| Retained control MDB | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `primary-control-r1.mdb` | 839,680 | `23828c3ebaf78bdf15f924ce069c246df2e1d54a864a3f972ed808b3316b6a89` |
+| `primary-control-r2.mdb` | 839,680 | `6bdbd1d45fb084befa3711063bc17a53174f794ac128e2da87daa2e090d0d138` |
+| `primary-control-r3.mdb` | 839,680 | `cf3131459fe08d6cd028da27932e5dba00588c1ef38211b88498f69c38f613f1` |
+| `composite-control-r1.mdb` | 577,536 | `7ba5500bf8b8484472ae45e977cacbe3ffa7139f959207badedb3fea07710d26` |
+| `composite-control-r2.mdb` | 577,536 | `9c48cc94f82ca93ee179e0bf4c4d01d346994e2264e33c799d7d0b066fe326ab` |
+| `composite-control-r3.mdb` | 577,536 | `909f2dfb034c5d84637eaf0edbbf21f2b9249b9b213c507eade150b439ef96c1` |
+| `relationship-control-r1.mdb` | 481,280 | `5275c7c0a7b072e00c77860dd79d5d3b191629f15004625d521a3909c0d6c2a9` |
+| `relationship-control-r2.mdb` | 481,280 | `caedbb7cfe2e7fa8855ef1f93972516957ddf0c966e5f545de2493caf7dfd22b` |
+| `relationship-control-r3.mdb` | 481,280 | `5169e8a825568533c3d8319ea4a3cf1cc50d998ca5ee9354448bcb1c5d2cdea5` |
+
+- Boundary: this records the original validated `no_outcome` once. It does
+  not establish a new header interpretation, general tree/allocation policy,
+  candidate acceptance, compatibility or hosted support. Investigating the
+  retained control-header failure requires a separately pinned secondary
+  analysis; the consumed plan and original result/report remain unchanged.
+  The report keeps `development_only=true`, `compatibility_claim=false` and
+  `support_movement=false`.
+
 ### EXP-0139 — Multi-level Long index candidate preregistration
 
 - Recorded: 2026-09-05, OpenAI Codex
