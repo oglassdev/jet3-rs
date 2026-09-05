@@ -37,6 +37,7 @@
 //! a recorded DAO differential can establish that.
 
 pub mod allocation;
+mod allocation_patch;
 pub mod allocation_traverse;
 pub mod atomic;
 pub mod binary;

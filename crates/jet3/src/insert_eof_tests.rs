@@ -170,7 +170,7 @@ fn last_inline_bit_is_allowed_but_map_growth_is_refused() -> TestResult {
         } else {
             assert!(matches!(
                 result,
-                Err(UpdateError::Unsupported("EOF outside existing inline map"))
+                Err(UpdateError::Unsupported("page outside existing inline map"))
             ));
             assert_eq!(fs::read(f.path())?, before);
         }
