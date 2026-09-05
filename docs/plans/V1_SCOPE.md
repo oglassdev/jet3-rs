@@ -60,6 +60,11 @@ records the other bounded writer observations. These establish only the
 pinned candidates and finite probes, with no general compatibility claim
 or hosted support movement.
 
+EXP-0146 records bounded acceptance of all three multi-level candidates from
+separately pinned analysis of the retained files; EXP-0140 preserves the
+original decoder refusal and `no_outcome`. Recognize the newly observed control
+branch header value in the reader.
+
 EXP-0154 records matching canonical results for the twelve hosted write
 recipes in the EXP-0141 inventory, after separately reviewed read-only index
 association under EXP-0153. The original hosted failure remains EXP-0142
