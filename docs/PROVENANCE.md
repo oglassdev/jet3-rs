@@ -14194,3 +14194,42 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   `support_matrix_movement` remains false; no broad compatibility or completed
   creation-surface claim follows automatically. Any support-state integration
   is a separate reviewed change tied to these exact scenarios.
+
+## EXP-0212 — Hosted row replacement and release matrix matched
+
+- Outcome **matched** from hosted GitHub Actions run
+  [33968780678](https://github.com/oglassdev/jet3-rs/actions/runs/33968780678),
+  attempt 1, source `19b5161e1c6bb49c97f0eaa1c33801ecf316d789`.
+  Both jobs succeeded under the unchanged EXP-0211 plan, SHA-256
+  `f65790c175609db2f8cb9550711cfb1b26257a2ff5713dfa6ff00492f5f7f62e`.
+  All 83 scoped input pins matched before acquisition. No retry occurred.
+- Retained artifacts are outside the repository at
+  `/home/alex/experiments/jet3-rs/hosted-row-replacement-33968780678/`.
+  Report: 18,572 bytes, SHA-256
+  `60937c6b73791820e67719b1359fb9b4ee43b2fce3276e74b4f41979a2ef6b57`.
+  The frozen evaluator reproduced it byte-for-byte on temporary copies;
+  all 619 retained files remained unchanged, and all 34 downloaded MDBs
+  matched the corresponding Unix-generated images exactly.
+- All 17 recipes passed, with 34 complete DAO/Rust semantic comparisons and
+  17 independent preservation checks. Stock Windows x86 DAO observations,
+  source and image identities, requested schema/values, coverage, and complete
+  index sidecar checks passed; `index_observations_verified` is true.
+- The original thirteen field, row, allocation and indexed-update cases are
+  retained. Four additions cover sole physical-row page release, scalar row
+  growth and shrinkage with null/Text/Binary/Boolean transitions, and later-table
+  replacement adjacent to a retained tombstone. Independent reconstruction
+  verified the declared changes and preservation of unrelated bytes.
+- Preparation SHA-256:
+  `c8023a93ef44072159132e790056599d2af96ba471605f7fa378cdd81da4b77a`;
+  Windows reader receipt:
+  `880fa543affc22ab755886bc0ad8b2bff3a15040cc6df54fa9fbaa9cbc7c334d`;
+  DAO manifest:
+  `c91c5491489b04cac11463e9b76b042a5d79035a20dd261cfec8b5ae83a1277c`;
+  environment:
+  `ac6864f9681e3e1aea1a0a20af1f1d3ce32954d4951cd50c0e421360da56a69d`.
+- Evidence is limited to these seventeen recipes on the pinned source. Free-page
+  or slot reuse, indirect allocation, indexed insertion/deletion, relationship
+  mutations, arbitrary wide or Auto/LVAL replacements, stored-query preservation
+  and DAO continuation mutations remain outside this inventory. The report's
+  `support_matrix_movement` remains false; no general update compatibility is
+  claimed. Earlier provenance entries and the consumed plan remain unchanged.
