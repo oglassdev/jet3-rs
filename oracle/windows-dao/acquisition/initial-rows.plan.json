@@ -1,0 +1,81 @@
+{
+  "document_type": "dao_initial_rows_plan",
+  "experiment_id": "initial-rows",
+  "issue": 100,
+  "development_only": true,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0110 observed exact multi-table creation candidates. Initial-row composition combines previously documented row encoding and data page/map facts; no composed initial-row DAO acceptance is assumed.",
+    "hypothesis": "DAO consumes a composed one-table unindexed image containing positive, negative, and null Long values and nonempty/null Text values, with the same schema and row multiset as a fresh DAO control. The candidate retains the composed page-zero header without insertion counter updates; whether DAO reads that image unchanged is part of this exact-candidate hypothesis.",
+    "authorization": "User authorized DAO experiments and mutations on 2026-09-04. Commit and review the exact SHA-256-pinned plan before one dispatch. A failure after the first CreateDatabase is a scientific result; another dispatch requires a new human decision."
+  },
+  "inputs": {
+    "oracle/windows-dao/scripts/initial_rows.py": "b353cfe7ef0a21d6f5a5b652a942f9dac108b87aec4a3389eafd2e59e126f371",
+    "oracle/windows-dao/scripts/initial_rows.ps1": "b74669b30e91990c12e32bbaba9fd7cd3175aa0a02ab77cc8d2e8e6a679a5d2d",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9",
+    "crates/jet3/examples/initial_row_candidate.rs": "43ab503607a1a1184bfab2f0d30cdbb2e33c0848bef7f5011bd7a93aa274f16e"
+  },
+  "candidate": {
+    "size": 49152,
+    "sha256": "5d1dc9148f58d5a3c19c75b86368d7ee9deacf6a95c0fa6746944f8cc3b322f4"
+  },
+  "replicas": 3,
+  "expected_snapshot": {
+    "version": "3.0",
+    "tables": [
+      "MSysACEs",
+      "MSysObjects",
+      "MSysQueries",
+      "MSysRelationships",
+      "Rows"
+    ],
+    "fields": [
+      {
+        "name": "Id",
+        "type": 4,
+        "size": 4
+      },
+      {
+        "name": "Code",
+        "type": 10,
+        "size": 8
+      }
+    ],
+    "index_count": 0,
+    "rows": [
+      {
+        "id": 1,
+        "code": "one"
+      },
+      {
+        "id": -2,
+        "code": "two"
+      },
+      {
+        "id": null,
+        "code": null
+      }
+    ]
+  },
+  "execution": {
+    "environment": "Private local Windows VM, x86 PowerShell, DAO.DBEngine.36. This is development discovery, not hosted support-matrix evidence.",
+    "pre_mutation": "Host validates every input hash and committed plan; guest verifies its script hash and prepares three hash-checked candidate copies before any CreateDatabase.",
+    "per_replica": "Create and close a fresh DAO Jet 3 database with table Rows(Id Long, Code Text 8), no indexes, insert three expected rows; open both control and candidate read-only, enumerate schema and snapshot rows, close, compare before/after identities.",
+    "attempts": 1,
+    "command": "python3 oracle/windows-dao/scripts/initial_rows.py run /tmp/initial-rows.mdb --shared-root <VM shared directory> --run-id <UTC timestamp>-initial-rows",
+    "analysis": "python3 oracle/windows-dao/scripts/initial_rows.py analyze <shared directory>/outbox/<run id>"
+  },
+  "decision_rule": {
+    "observed_accepted": "All three controls and candidates have unchanged identities and exactly expected schema and row multiset, with identical replicated endpoint observations.",
+    "not_observed_accepted": "All three controls pass unchanged with expected semantics, all candidates unchanged and identically fail at one endpoint or yield the same semantic mismatch.",
+    "no_outcome": "Incomplete job, control failure, changed image, or disagreement between replicas.",
+    "validation_rejection": "Reject report for mismatched plan/result identity, invalid replica inventory, candidate starting pin mismatch, or retained image identity mismatch."
+  },
+  "evidence_boundary": "Only the exact pinned image and schema/row endpoints. No general initial-row compatibility, multiple data pages, indexed inserts, long values, existing-database mutation, or hosted support-matrix claims.",
+  "retention": "Retain result.json, canonical report.json, logs and all candidate/control MDBs locally. Never commit MDB bytes. Add one additive EXP outcome from validated report after acquisition.",
+  "candidate_generation": {
+    "source_commit": "df7c42e6e67803703d8814a27f71a9251f9fccd6",
+    "example": "crates/jet3/examples/initial_row_candidate.rs",
+    "command": "cargo run --locked -p jet3 --example initial_row_candidate -- /tmp/initial-rows.mdb"
+  }
+}
