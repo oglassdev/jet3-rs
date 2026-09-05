@@ -1,0 +1,80 @@
+{
+  "document_type": "dao_relationship_rows_plan",
+  "experiment_id": "relationship-rows",
+  "issue": 100,
+  "development_only": true,
+  "replicas": 3,
+  "preregistration": {
+    "acquisition_started": false,
+    "prior_evidence": "EXP-0114/0118/0122 supply exact empty relationship layout/acceptance; EXP-0120 supplies ordinary duplicate-key leaf observations; EXP-0130 accepted exact multi-table row/payload candidates. None establishes populated relationship enforcement.",
+    "hypothesis": "The exact populated candidate is readable unchanged with complete schema, relation metadata, all 23 rows, and both indexes traversable/searchable. On independent writable copies DAO accepts one valid child insert, rejects one orphan child insert, and rejects one duplicate parent key, matching fresh controls and exact expected post-state. These finite DAO operations are candidate acceptance/integrity observations, not implementation of a Rust updater.",
+    "authorization": "User authorized DAO experiments/mutations on2026-09-04. Commit and independently review this pinned plan before one dispatch. Unexpected failure after first mutation is a scientific result, never an automatic retry."
+  },
+  "inputs": {
+    "oracle/windows-dao/scripts/relationship_rows.py": "aaf732161c4db7e5c11dbd49e69ac5f0fe4f455bfdbffeeaf446d4b8be93904a",
+    "oracle/windows-dao/scripts/relationship_rows.ps1": "1573dc11738ad23cd41c6a3bc2d90478ebb86d33af0ceed659422fc8ced98531",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9",
+    "crates/jet3/examples/relationship_row_candidate.rs": "0c256261068b30fbd39e8647d0bfaa4b41637171165c085bc4e9cf35f19b972d"
+  },
+  "candidates": {
+    "populated": {
+      "size": 65536,
+      "sha256": "5a0bbe9329896ce19a46096d2b2a36bfc8dd2a2b16b8215dd377ff56fb05ab5b"
+    }
+  },
+  "schema": {
+    "tables": [
+      "Accounts7",
+      "Events9",
+      "MSysACEs",
+      "MSysObjects",
+      "MSysQueries",
+      "MSysRelationships"
+    ],
+    "parent": "Accounts7(Code2 Long, Key1 Long), Primary9 ascending Key1; Primary/Unique/Required true, Foreign/IgnoreNulls false.",
+    "child": "Events9(Label3 Text255, Account4 Long), Account7Events9 ascending Account4; Foreign true, Primary/Unique/Required/IgnoreNulls false.",
+    "relation": "Account7Events9: Accounts7.Key1 -> Events9.Account4, Attributes0. Index field Attributes0/descendingfalse; DAO version3.0. Long fields type4 size4, Text type10 size255. Exact inventories contain no extra fields/indexes/relations."
+  },
+  "rows": {
+    "parent": "(Code2,Key1)=(9,1),(8,2),(7,3).",
+    "child": "For position0..19: Label3=(ASCII a+position) repeated255; Account4=1+(position mod3). Compare every complete pair and every payload character."
+  },
+  "candidate_layout": "32pages: parent definition20/map21/property22/primary23/data24; child definition25/map26/data27..29; relationship data30 and foreignleaf31. Foreignleaf has20 entries/3 distinct keys; existing table maps/counts retained. This construction asserts no general insertion/page-zero/allocation rule.",
+  "probes": {
+    "valid_child": {
+      "operation": "Insert Events9(Label3='valid',Account4=2)",
+      "expected": "Update succeeds; full post-state equals original plus exactly this child row, including both complete indexes."
+    },
+    "orphan_child": {
+      "operation": "Insert Events9(Label3='orphan',Account4=999)",
+      "expected": "Update rejects; full schema/relation/row/index semantics equal original. Record actual native DAO error numbers and deepest exception HRESULT; require agreement with matched control, without presupposing numeric error codes."
+    },
+    "duplicate_parent": {
+      "operation": "Insert Accounts7(Code2=6,Key1=1)",
+      "expected": "Update rejects; full schema/relation/row/index semantics equal original. Actual native rejection identity must match matched control; no guessed numeric gate."
+    }
+  },
+  "execution": {
+    "environment": "Private Windows VM, x86 PowerShell, DAO.DBEngine.36; development-only.",
+    "pre_mutation": "Host validates committed plan and every input/candidate pin; guest validates producer and all three copied candidates before any fresh control CreateDatabase.",
+    "base_replicas": "Create/close one fresh matched control per replica, defining both tables, inserting all rows, then appending the relation with Attributes0. Observe control and pinned candidate read-only: complete schema/relations/rows, both index traversals, and Seek queries 1, 2, 3. Record before/after identities.",
+    "integrity_order": "After all three base pairs, for replicas1..3 and probes valid_child,orphan_child,duplicate_parent: make separate fresh copies of that original control and candidate. Verify each copy starts with its source identity, open writable, AddNew/assign fields, attempt Update once, capture native rejection identity immediately on Update failure, cancel a remaining edit if necessary, close. Read complete post-state read-only. Never roll back or reuse a probe copy. Unexpected setup/assignment/cleanup errors abort the job; anticipated Update rejections remain recorded endpoints.",
+    "attempts": 1,
+    "command": "python3 oracle/windows-dao/scripts/relationship_rows.py run <directory containing populated.mdb> --shared-root <VM shared directory> --run-id <UTC timestamp>-relationship-rows",
+    "analysis": "python3 oracle/windows-dao/scripts/relationship_rows.py analyze <shared directory>/outbox/<run id>"
+  },
+  "decision_rule": {
+    "read_only": "Complete three-pair job with all controls passing, six originals unchanged and three agreeing candidate observations: observed_accepted for exact semantics, not_observed_accepted for identical failures/mismatches. Any job error, control failure, changed original or disagreement gives no_outcome.",
+    "integrity": "Requires accepted read-only originals, no job error, all nine probe pairs present, every matched probe control meeting expected operation and exact post-operation state, and all probe post-observations read-only. Classify each probe from three agreeing candidate results: observed_accepted if expected operation, full post-operation state and native rejection identity match controls, not_observed_accepted for consistent mismatch. Incomplete jobs, failed controls or candidate disagreement yield no_outcome.",
+    "normalization": "Only snapshot row order and duplicate traversal tie order are unspecified. Traversal must contain every expected full row and ascending relationship keys. Seek queries exactly 1, 2, 3 must return a matching complete row; foreign Seek may choose any matching duplicate. Normalize valid Seek responses to queries, retaining raw rows in result. Actual native codes/HRESULT are compared to controls; English error text is retained but not a semantic discriminator.",
+    "validation_rejection": "Input drift, malformed inventories/result binding, candidate starting-pin mismatch, writable copy/source mismatch, retained identity mismatch, or changed read-only post-probe observation rejects validation."
+  },
+  "native_error_capture_reference": "https://learn.microsoft.com/en-us/office/client-developer/access/desktop-database-reference/error-object-dao",
+  "evidence_boundary": "Exact candidate plus three finite DAO insert probes only. No nullable/composite relationship keys, cascades, deletes/updates, general integrity/allocator/schema policy, Rust existing-database writer correctness, general compatibility or hosted support movement.",
+  "retention": "Retain result.json, canonical report.json, logs, six unchanged original candidate/control MDBs and eighteen writable probe copies locally. No MDB/provider bytes in git. Append one validated EXP-0134 outcome.",
+  "candidate_generation": {
+    "source_commit": "77269833fb21b4fdb77c4fab9b6e7d8ec23ac314",
+    "example": "crates/jet3/examples/relationship_row_candidate.rs",
+    "command": "cargo run --locked -p jet3 --example relationship_row_candidate -- <directory>/populated.mdb"
+  }
+}
