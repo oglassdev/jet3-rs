@@ -1,11 +1,12 @@
 //! JSON input translation for the public database creation APIs.
-use std::{ffi::OsString, fs::File, num::NonZeroU8, path::PathBuf};
+use std::{ffi::OsString, num::NonZeroU8, path::PathBuf};
 
+use crate::values::{self, Cell, ascii};
 use jet3::{
     ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
-    RelationshipColumn, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef,
-    TableRows, TableSpec, create_database, create_database_with_relationship,
-    create_database_with_relationship_rows, create_database_with_table_rows,
+    RelationshipColumn, RelationshipSpec, RowValue, TableRef, TableRows, TableSpec,
+    create_database, create_database_with_relationship, create_database_with_relationship_rows,
+    create_database_with_table_rows,
 };
 use serde::Deserialize;
 
@@ -177,81 +178,9 @@ impl Endpoint {
     }
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-enum Cell {
-    AutoIncrement,
-    Boolean(bool),
-    Byte(u8),
-    Integer(i16),
-    Long(i32),
-    Currency(i64),
-    Single(f32),
-    Double(f64),
-    DateTime(f64),
-    Text(Text),
-    Memo(Text),
-    Binary(Vec<u8>),
-    LongBinary(Vec<u8>),
-    Guid([u8; 16]),
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum Text {
-    Ascii(String),
-    Bytes(Vec<u8>),
-}
-
-impl Text {
-    fn bytes(&self) -> Result<&[u8], String> {
-        match self {
-            Self::Ascii(text) => ascii(text),
-            Self::Bytes(bytes) => Ok(bytes),
-        }
-    }
-}
-
-impl Cell {
-    fn value(&self) -> Result<RowValue<'_>, String> {
-        Ok(match self {
-            Self::AutoIncrement => RowValue::AutoIncrement,
-            Self::Boolean(v) => RowValue::Boolean(*v),
-            Self::Byte(v) => RowValue::Byte(*v),
-            Self::Integer(v) => RowValue::Integer(*v),
-            Self::Long(v) => RowValue::Long(*v),
-            Self::Currency(v) => RowValue::Currency { scaled: *v },
-            Self::Single(v) if !v.is_finite() => {
-                return Err("single value exceeds finite range".into());
-            }
-            Self::Single(v) => RowValue::Single(*v),
-            Self::Double(v) => RowValue::Double(*v),
-            Self::DateTime(v) => RowValue::DateTime { days: *v },
-            Self::Text(v) => RowValue::Text(v.bytes()?),
-            Self::Memo(v) => RowValue::Memo(v.bytes()?),
-            Self::Binary(v) => RowValue::Binary(v),
-            Self::LongBinary(v) => RowValue::LongBinary(v),
-            Self::Guid(v) => RowValue::Guid(*v),
-        })
-    }
-}
-
-fn ascii(text: &str) -> Result<&[u8], String> {
-    if text.is_ascii() {
-        Ok(text.as_bytes())
-    } else {
-        Err("names and text strings must be ASCII; use byte arrays for encoded text".into())
-    }
-}
-
 pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
-    let request: Request = if command.input == "-" {
-        serde_json::from_reader(std::io::stdin().lock())
-    } else {
-        let file = File::open(&command.input).map_err(|e| format!("read request: {e}"))?;
-        serde_json::from_reader(file)
-    }
-    .map_err(|e| format!("invalid creation request: {e}"))?;
+    let request: Request = values::read_request(&command.input)
+        .map_err(|e| format!("invalid creation request: {e}"))?;
     let columns = request
         .tables
         .iter()
@@ -338,7 +267,7 @@ pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
-    let mut budget = ResourceBudget::new(ResourceLimits::default());
+    let mut budget = values::budget();
     let empty = tables.iter().all(|table| table.rows.is_empty());
     let schema = tables.iter().map(|table| table.table).collect::<Vec<_>>();
     if let Some(relation) = &request.relationship {

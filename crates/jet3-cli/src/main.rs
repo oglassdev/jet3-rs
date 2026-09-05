@@ -15,7 +15,9 @@ use std::process::ExitCode;
 
 mod create;
 mod inspect;
+mod mutate;
 mod snapshot;
+mod values;
 
 use jet3::{
     ByteCount, CandidateError, DatabaseFormatError, DatabaseOpenError, DatabaseReader, FileSource,
@@ -81,6 +83,7 @@ enum Command {
     Snapshot(snapshot::SnapshotCommand),
     Inspect(inspect::InspectCommand),
     Create(create::CreateCommand),
+    Mutate(mutate::MutationCommand),
 }
 
 fn main() -> ExitCode {
@@ -94,10 +97,11 @@ fn main() -> ExitCode {
     match command {
         Command::Help => exit_after_write(
             write_stdout(&format!(
-                "{HELP}{}\n{}\n{}",
+                "{HELP}{}\n{}\n{}\n{}",
                 snapshot::HELP,
                 inspect::HELP,
-                create::HELP
+                create::HELP,
+                mutate::HELP
             )),
             0,
         ),
@@ -112,6 +116,10 @@ fn main() -> ExitCode {
         Command::Snapshot(command) => match snapshot::run(&command) {
             Ok(json) => exit_after_write(write_stdout(&json), 0),
             Err(message) => exit_after_write(write_stderr(&format!("jet3-cli: {message}\n")), 1),
+        },
+        Command::Mutate(command) => match mutate::run(&command) {
+            Ok(json) => exit_after_write(write_stdout(&json), 0),
+            Err(error) => exit_after_write(write_stderr(&(serde_json::json!({"ok":false,"error":"mutation_failed","message":error.message,"publication_stage":error.publication_stage}).to_string()+"\n")),1),
         },
         Command::Create(command) => match create::run(&command) {
             Ok(json) => exit_after_write(write_stdout(&json), 0),
@@ -146,6 +154,9 @@ fn parse_args(arguments: impl Iterator<Item = OsString>) -> Result<Command, &'st
     }
     if first == "snapshot" {
         return snapshot::parse_args(arguments).map(Command::Snapshot);
+    }
+    if first == "mutate" {
+        return mutate::parse_args(arguments).map(Command::Mutate);
     }
     if first == "create" {
         return create::parse_args(arguments).map(Command::Create);
