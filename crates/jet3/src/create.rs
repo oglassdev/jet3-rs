@@ -62,6 +62,8 @@ impl StdError for CreateDatabaseError {
 /// found when the candidate was reopened before publication.
 #[derive(Debug)]
 pub enum CandidateCheckError {
+    /// Reading a candidate page or charging comparison work failed.
+    Read(crate::Error),
     /// The candidate index tree could not be read.
     Index(crate::IndexTreeError),
     /// A candidate long-value field could not be decoded.
@@ -88,6 +90,7 @@ pub enum CandidateCheckError {
 impl fmt::Display for CandidateCheckError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Read(source) => write!(formatter, "candidate page comparison failed: {source}"),
             Self::Index(source) => write!(formatter, "candidate index scan failed: {source}"),
             Self::Value(source) => write!(formatter, "candidate value failed: {source}"),
             Self::LongValue(source) => write!(formatter, "candidate long value failed: {source}"),
@@ -110,6 +113,7 @@ impl fmt::Display for CandidateCheckError {
 impl StdError for CandidateCheckError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
+            Self::Read(source) => Some(source),
             Self::Index(source) => Some(source),
             Self::Value(source) => Some(source),
             Self::LongValue(source) => Some(source),
@@ -481,3 +485,7 @@ fn check_table(
 #[cfg(all(test, unix))]
 #[path = "create_tests.rs"]
 mod tests;
+
+#[path = "create_relationship.rs"]
+mod relationship;
+pub use relationship::create_database_with_relationship;

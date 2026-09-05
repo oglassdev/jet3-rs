@@ -44,7 +44,7 @@ const PRIMARY_WEIGHTS: [u8; 95] = [
 /// Marker `EXP-0062` observed before each non-null key component.
 const COMPONENT_MARKER: u8 = 0x7f;
 /// Encoded length of the leading non-null Long `ParentId` component.
-const LONG_COMPONENT_LEN: usize = 5;
+pub(crate) const LONG_COMPONENT_LEN: usize = 5;
 /// The text component's marker plus its terminating nibble-stream byte.
 const TEXT_COMPONENT_OVERHEAD: usize = 2;
 

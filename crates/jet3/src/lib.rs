@@ -105,7 +105,7 @@ pub use atomic::{
 };
 pub use binary::BinaryCursor;
 pub use binary_writer::BinaryWriter;
-pub use bootstrap_composer::ComposeError;
+pub use bootstrap_composer::{ComposeError, RelationshipColumn, RelationshipSpec, TableRef};
 pub use candidate::{CandidateError, RawJet3Candidate};
 pub use catalog::{CatalogCursor, CatalogError};
 pub use catalog_name_key::CatalogNameKeyError;
@@ -129,7 +129,8 @@ pub use commit_state::{
     read_commit_region_into,
 };
 pub use create::{
-    CandidateCheckError, CreateDatabaseError, create_database, create_database_with_rows,
+    CandidateCheckError, CreateDatabaseError, create_database, create_database_with_relationship,
+    create_database_with_rows,
 };
 pub use database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 pub use database_header::{
