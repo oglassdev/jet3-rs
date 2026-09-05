@@ -14848,3 +14848,30 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
 - No matching EXP-0215 plan or result exists in the external shared inbox/outbox.
   The three focused analyzer tests and exact exporter reproduction passed.
   Independent review must pass before the one authorized dispatch.
+
+## EXP-0216 — Unique Long leaf indexed row mutation validation outcome
+
+- The one authorized EXP-0215 acquisition,
+  `20260905T135208Z-indexed-row-candidate`, returned **`no_outcome`** under
+  the unchanged all-pairs decision rule. Preregistration commit
+  `c00b0e0728a5e6e179e4e29647f09a52e4953410` was pushed before dispatch;
+  plan SHA-256 `6fbee41dc0d54d7e47568a701b5bcce10dd0aecc5d5883575cf4f1261cbf46ff`.
+- The x86 `DAO.DBEngine.36` producer completed all twelve pairs and 96 captures,
+  with mutation started, no acquisition error, no retention failures, and all
+  96 MDBs retained outside the repository. The frozen analyzer accepted nine
+  pair observations before failing on the first deletions control with
+  `Index coverage or distinct count mismatch`. No subset is promoted.
+- Read-only diagnosis: each native deletions control retains physical distinct
+  count 6 after deleting three of six rows; its independent continuation has
+  count 7 after adding one row. Their live/table counts are respectively 3 and
+  4. The public deletion candidate has count 3 and its continuation count 4.
+  Deletion snapshots match the requested logical rows, traversal and Seek, but
+  these diagnostics are not accepted format or compatibility evidence and do
+  not weaken the frozen raw-count predicate. No reacquisition was attempted.
+- The report was independently rebuilt with the pinned analyzer and matched
+  exactly. Retained `report.json` SHA-256
+  `ca203ec4d46164e03319bc3e6c28c2e909a8f47d90f8c58e48876cadb0adf76f`;
+  retained `result.json` SHA-256
+  `032966c5ecea74fe2be0bc12ca09d2fc36084aff698ac02c2f6e51cdb3e2b914`. Artifacts remain in the external shared
+  outbox under the run identifier above. This local development result makes
+  no compatibility claim or hosted support-matrix movement.
