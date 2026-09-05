@@ -11024,6 +11024,38 @@ Copy this block under the appropriate section and remove this instruction:
   Neither this plan nor self-validation establishes general compatibility,
   completion of #100 or support-matrix movement.
 
+## EXP-0161 — Pinned post-acquisition deletion comparison plan
+
+- Date: 2026-09-05.
+- Status: committed secondary-analysis plan; independent review and execution pending.
+- Plan: `oracle/windows-dao/acquisition/row-delete-reanalysis.plan.json`,
+  SHA-256 `cc9b9ac21f6910dbaf696540a3e5f0b2007fcb80b56506f70c9e4e3aec1c48a5`.
+- Source: EXP-0157 run `20260905T064000Z-row-delete-layout`, whose original
+  EXP-0158 outcome remains `no_outcome`. This is explicitly post-acquisition
+  secondary analysis, not preregistration of another acquisition.
+- Inputs: the plan pins the unchanged original plan, analyzer, decoder and
+  acquisition inputs, the new secondary analyzer, and all 40 retained files,
+  including the original result/report and all 27 checkpoint MDB identities.
+- Question: do the three replica transitions agree when unused bytes that
+  remain unchanged within each transition are retained as diagnostics rather
+  than required to have the same initial contents across fresh databases?
+- Finite comparison change: for decoded data-page pairs, compare exact header,
+  directory and stored-row spans from both states plus every changed byte.
+  Validate directory/row boundaries before deriving these spans. Preserve the
+  original exclusion of owner-address bytes `[4, 8)`; leave non-data images
+  and every other signature component unchanged. Changed unused bytes remain
+  comparison-bearing. Retain full original page images and whole-file change
+  ranges and enumerate every omitted unchanged unused span with its raw bytes.
+- Execution: reproduce the original report byte-identically first on temporary
+  copies, then use an isolated analyzer instance with only the comparison
+  function replaced. Require identical raw observations and preserve all
+  original acquisition/schema/row/identity/map/classification gates. Verify
+  input and artifact pins before and after; output must be new and outside
+  the source outbox. No DAO, new captures, redispatch or original-file edits.
+- Review must precede secondary execution. Record its outcome separately as
+  EXP-0162. No deletion implementation, compatibility or support claim follows
+  from this plan.
+
 ## EXP-0158 — Deletion acquisition retained with replica-disagreement no outcome
 
 - Recorded: 2026-09-05, OpenAI Codex; validated `no_outcome` from the single
