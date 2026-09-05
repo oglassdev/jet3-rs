@@ -179,13 +179,16 @@ pub fn create_database(
 /// capacity. Each row and the table definition must fit one page. Pages with
 /// a slot and room for an all-null row are marked available; this construction
 /// policy has not been established as DAO's allocation policy.
-/// At most one index on one or two Long columns (including a generated
+/// At most one index on one or two numeric columns (including a generated
 /// AutoIncrement column) is accepted, with each field ascending or descending.
 /// Uncompressed branch/leaf trees grow within the existing inline-map and
 /// resource limits. Unique indexes reject repeated fully present keys while
 /// allowing repeated null-bearing keys. The index null policy includes keys,
 /// omits all-null keys, or requires every component; primary indexes require
-/// every component. Other key types are refused.
+/// every component. Supported components are Boolean, Byte, Integer, Long,
+/// Currency, Single and Double. Floating negative zero and nonfinite values,
+/// Boolean nulls and other key types are refused. Non-Long nullable/composite
+/// combinations are candidate generalizations awaiting DAO validation.
 /// One AutoIncrement column requires [`RowValue::AutoIncrement`] in every row;
 /// IDs start at 1 independently per table and the last generated ID is persisted.
 /// Null and explicit IDs are refused, as are counts reaching the signed Long
