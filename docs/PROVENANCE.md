@@ -12915,7 +12915,7 @@ Copy this block under the appropriate section and remove this instruction:
   corrected source `b66396d` accepts the observed Boolean zero placeholder
   while retaining scalar offset validation. No DAO acquisition yet.
 - Plan `oracle/windows-dao/acquisition/row-update-successor.plan.json`, SHA-256
-  `6b539af4b6b81874ed439558d94b5671a7ae598f7504e7c4ebef1fb37576ad22`,
+  `fcfc99ffde4bc05d2eb7d7729ea318000131a8e59f08a49c84a4bf7950fc2b06`,
   pins scoped runtime inputs, all 30 coordinated EXP-0197 artifacts and twelve
   predetermined Rust candidate identities. Original retained root remains
   `/home/alex/development/vms/jet3-windows/shared/outbox/20260905T101500Z-row-update`.
@@ -12941,8 +12941,8 @@ Copy this block under the appropriate section and remove this instruction:
 - Twelve actual candidates generated from retained originals passed the frozen
   independent byte checker without changing any original artifact. Old/new row
   lengths remained 19→82, 104→16, 14→26 and 21→14 in all three replicas.
-  Three successor tests cover phase-specific plan identity/restoration, retained
-  drift refusal and candidate identity gates. Scoped source/artifact verification
+  Four successor tests cover phase-specific plan identity/restoration, retained
+  drift refusal, exact copied create-receipt binding and candidate identity gates. Scoped source/artifact verification
   passed. The unchanged producer already passed EXP-0197 x86 parser and 200
   pure typed assignments; no new PowerShell behavior is introduced. These checks
   establish preparation only, not DAO acceptance.

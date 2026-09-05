@@ -28,11 +28,22 @@ class SuccessorTests(unittest.TestCase):
     def test_candidate_pin_gate_preserves_original_failure_reference(self):
         with tempfile.TemporaryDirectory() as temp:
             out=Path(temp);candidate=dict(size=1,sha256='pinned');plan=dict(retained={'report.json':{'sha256':'original-failure'}},candidates={'grow-first-r1-rust.mdb':candidate})
-            result={'updates':[dict(arm='grow-first',replica=1,rust=candidate)]};(out/'result.json').write_text(json.dumps(result))
+            (out/'create.json').write_bytes(b'original receipt');plan['retained']['create.json']=s.identity(out/'create.json')
+            result={'phases':{'create':plan['retained']['create.json']},'updates':[dict(arm='grow-first',replica=1,rust=candidate)]};(out/'result.json').write_text(json.dumps(result))
             report=dict(outcome='observed_accepted',reasons=[])
             with patch.object(s,'verify',return_value=plan),patch.object(s.base,'build_report',side_effect=lambda *args:copy.deepcopy(report)):
                 s.analyze(out);value=json.loads((out/'report.json').read_text());self.assertEqual(value['outcome'],'observed_accepted');self.assertEqual(value['original_report_sha256'],'original-failure')
                 result['updates'][0]['rust']={'size':1,'sha256':'different'};(out/'result.json').write_text(json.dumps(result));s.analyze(out)
                 self.assertEqual(json.loads((out/'report.json').read_text())['outcome'],'no_outcome')
+
+    def test_copied_create_receipt_must_equal_retained_pin(self):
+        with tempfile.TemporaryDirectory() as temp:
+            out=Path(temp);create=out/'create.json';create.write_bytes(b'original receipt')
+            plan=dict(retained={'report.json':{'sha256':'failure'},'create.json':s.identity(create)},candidates={})
+            create.write_bytes(b'changed but internally consistent receipt')
+            result={'phases':{'create':s.identity(create)},'updates':[]};(out/'result.json').write_text(json.dumps(result))
+            with patch.object(s,'verify',return_value=plan),patch.object(s.base,'build_report',return_value=dict(outcome='observed_accepted',reasons=[])):
+                s.analyze(out)
+            report=json.loads((out/'report.json').read_text());self.assertEqual(report['outcome'],'no_outcome');self.assertIn('Pinned retained create receipt differs',report['reasons'])
 
 if __name__=='__main__':unittest.main()

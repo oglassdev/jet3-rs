@@ -54,6 +54,11 @@ def preflight():
 def analyze(outbox):
     plan=verify();result=json.loads((outbox/'result.json').read_text())
     report=base.build_report(result,outbox,plan)
+    try:copied_create=identity(outbox/'create.json')
+    except OSError:copied_create=None
+    if (result.get('phases',{}).get('create')!=plan['retained']['create.json']
+        or copied_create!=plan['retained']['create.json']):
+        report['outcome']='no_outcome';report['reasons'].append('Pinned retained create receipt differs')
     for update in result.get('updates',[]):
         name=f"{update['arm']}-r{update['replica']}-rust.mdb"
         if update['rust']!=plan['candidates'].get(name):

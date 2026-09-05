@@ -636,7 +636,7 @@
     "oracle/windows-dao/tests/check_row_update_candidate.ps1": "ee7a87eb3e372396413357b34baa756f7db5346ca1fe12b75bf74fc487c7980e",
     "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9",
     "oracle/windows-dao/acquisition/row-update-candidate.plan.json": "95fa2e50c21230ed27f1c81bda93530b9fd2af460cb5760a984285c56215a0fe",
-    "oracle/windows-dao/scripts/row_update_successor.py": "ff9ecd6b243b1519fa045e7bda3ebe8889d10f5ec471a2b62bdc993e06789f7c"
+    "oracle/windows-dao/scripts/row_update_successor.py": "e6e579731c28e10965c83bf9a55a125ca12ee11bd2fa8389262efd752e39c9bf"
   },
   "question": "Do corrected Boolean-layout Rust candidates on the unchanged twelve EXP0197 originals match the retained independent DAO controls and fresh read-only/continuation observations?",
   "source_facts": [
