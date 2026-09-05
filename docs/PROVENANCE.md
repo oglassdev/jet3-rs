@@ -12084,6 +12084,45 @@ Copy this block under the appropriate section and remove this instruction:
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
 
+## EXP-0155 — Nullable initial-index candidate preregistration
+
+- Date: 2026-09-05. Development-only local DAO validation; no acquisition yet.
+- Plan: `oracle/windows-dao/acquisition/nullable-index.plan.json`, SHA-256
+  `8caa3cc7417004fedd745dcce28681b21f01c9776361bc73a199fe6764f98829`. Outcome reserved as EXP-0156.
+- Candidate source: reviewed `6a0e4537e7986a4b04db7616f5537cb306f17e2c`,
+  exporter `crates/jet3/examples/nullable_index_candidate.rs`. Plan pins exporter,
+  new producer/analyzer, reused bounded tree/catalog decoders and transport.
+- Six arms each have an empty first table and indexed later table. `unique`,
+  `ignore` and `required` contain 12 rows; `composite` contains 30,000;
+  `composite-ignore` and `auto` contain 1,200. Every row has a distinct Long
+  payload. Auto generates B from 1; other modes retain the exact null/non-null
+  formula and insertion order in the plan. The two-field key is A ascending,
+  B descending. Candidate tree depths are 1/1/1/3/2/2 respectively.
+- Three fresh matched DAO controls per arm; full field/Auto/index/relation
+  metadata and null-preserving row multisets, complete ordered traversal,
+  and the finite non-null Seek inventory must match. Seek may return any
+  actual matching duplicate row; all duplicates remain covered by traversal.
+  Raw decoding binds every complete variable-width key to its actual row
+  locator, distinct count, graph, separators, siblings and allocation maps.
+- Unique/ignore/composite copies attempt one duplicate fully-present key;
+  required copies attempt one null key. Each control and candidate gets its
+  own writable copy. Capture actual Update rejection codes/HRESULT, match
+  them to controls and require the complete original logical post-state.
+  Read-only originals stay unchanged. Null Seek and nullable relationships
+  are outside this finite experiment.
+- All 18 baseline controls and 12 control probes gate classification. Three
+  agreeing candidate observations per arm can yield observed acceptance;
+  incomplete jobs, failed controls, disagreement or unexpected failures give
+  `no_outcome`. Retain 60 MDBs and the result externally. Every mutation is
+  attempted once; no automatic retry or resume. Timeout is 3,600 seconds.
+- Format inputs are EXP-0148 null components/flags/uniqueness/omission,
+  EXP-0146 finite branch-marker acceptance, EXP-0062 tree grammar, EXP-0073
+  distinct counts and EXP-0057/EXP-0065 map roles. This tests the writer's
+  bounded policy, not DAO allocation thresholds or general index updates.
+- Focused classifier/null/Seek/input tests and candidate structural preflight
+  pass. Windows PowerShell parser-only check passes without DAO execution.
+  Independent review pending; no compatibility claim or support movement.
+
 ## EXP-0148 — Remaining Date/Binary/null index observations answered
 
 - Recorded: 2026-09-05, OpenAI Codex; validated local development discovery
