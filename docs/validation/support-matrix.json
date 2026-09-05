@@ -13,9 +13,17 @@
     },
     {
       "id": "database.create_empty",
-      "implementation": "not_started",
-      "verification": "unverified",
-      "evidence": []
+      "implementation": "implemented",
+      "verification": "dao_differential",
+      "evidence": [
+        "docs/PROVENANCE.md",
+        "oracle/windows-dao/protocol/v1_2/write-scenarios.json",
+        "oracle/windows-dao/acquisition/write-v1_2.plan.json",
+        "oracle/windows-dao/acquisition/hosted-write-reanalysis.plan.json",
+        "oracle/windows-dao/scripts/hosted_write_reanalysis.py",
+        "crates/jet3/src/create.rs",
+        "crates/jet3/src/create_tests.rs"
+      ]
     },
     {
       "id": "database.validate",
@@ -77,9 +85,18 @@
     },
     {
       "id": "schema.create_drop_tables",
-      "implementation": "not_started",
-      "verification": "unverified",
-      "evidence": []
+      "implementation": "partial",
+      "verification": "dao_differential",
+      "evidence": [
+        "docs/PROVENANCE.md",
+        "oracle/windows-dao/protocol/v1_2/write-scenarios.json",
+        "oracle/windows-dao/acquisition/write-v1_2.plan.json",
+        "oracle/windows-dao/acquisition/hosted-write-reanalysis.plan.json",
+        "oracle/windows-dao/scripts/hosted_write_reanalysis.py",
+        "crates/jet3/src/create.rs",
+        "crates/jet3/src/create_tests.rs",
+        "crates/jet3/src/create_multi_table_rows_tests.rs"
+      ]
     },
     {
       "id": "values.all_dao_jet3_table_types",
@@ -193,9 +210,19 @@
     },
     {
       "id": "relationships.create_drop_preserve_metadata",
-      "implementation": "not_started",
-      "verification": "unverified",
-      "evidence": []
+      "implementation": "partial",
+      "verification": "dao_differential",
+      "evidence": [
+        "docs/PROVENANCE.md",
+        "oracle/windows-dao/protocol/v1_2/write-scenarios.json",
+        "oracle/windows-dao/acquisition/write-v1_2.plan.json",
+        "oracle/windows-dao/acquisition/hosted-write-reanalysis.plan.json",
+        "oracle/windows-dao/scripts/hosted_write_reanalysis.py",
+        "crates/jet3/src/create.rs",
+        "crates/jet3/src/create_relationship.rs",
+        "crates/jet3/src/create_relationship_tests.rs",
+        "crates/jet3/src/create_relationship_rows_tests.rs"
+      ]
     },
     {
       "id": "transactions.copy_on_write_atomic_publish",
