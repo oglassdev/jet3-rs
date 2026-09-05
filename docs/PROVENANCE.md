@@ -12084,6 +12084,53 @@ Copy this block under the appropriate section and remove this instruction:
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
 
+## EXP-0156 — Nullable index acquisition and retention failure, no outcome
+
+- Recorded 2026-09-05 from the single local run
+  `20260905T065000Z-nullable-index`, consumed EXP-0155 source `57ec033`, plan
+  SHA-256 `8caa3cc7417004fedd745dcce28681b21f01c9776361bc73a199fe6764f98829`.
+  No retry or additional DAO operation was performed for this outcome.
+- Original result: 34918 bytes, SHA-256
+  `178a11fc50ef4f7aa4027834ba877268ccb9bda63f73fd808946292a6ccf7426`.
+  It records `mutation_started=true`, six complete pairs (unique/ignore, three
+  each), and `System.Runtime.InteropServices.COMException: Operation not
+  supported in transactions.` No required/composite/composite-ignore/auto pair
+  completed. The initiating statement is unknown: no stack/operation endpoint
+  was recorded, and unguarded cleanup can replace an initiating exception.
+- Retention also failed: the log identifies `Copy-Item` at script line 239,
+  unable to copy `required-control-r1.mdb` because another process used it.
+  Log: 2066 bytes, SHA-256
+  `a79ef14306cb5a00195e29aecd6ecaba627295e7426bdc71b0aac2c819db7a02`.
+  The original outbox contains 26 files (23 MDBs plus result/log/exit), no
+  report. Original analysis stopped on missing `unique-control-r1.mdb`.
+- After process closure, read-only filesystem recovery copied 43 guest MDBs
+  into separate `20260905T065000Z-nullable-index-recovered`; no database was
+  opened through DAO. Recovery manifest: 7427 bytes, SHA-256
+  `ed28569b7e2fa7883cda22597291aee2c5c0bdfb0a81b49de71419a90710f0a9`.
+  All manifest identities, overlap with the original outbox, and every retained
+  identity referenced by the original result were verified. Unobserved copies
+  and the incomplete required control are retained, not evaluated as captures.
+- The unchanged pinned original analyzer ran on a temporary union of original
+  and recovered files. Its report is separately retained in
+  `20260905T065000Z-nullable-index-analysis/report.json`: 10903 bytes, SHA-256
+  `ccfa230f8db9443427f49d5754181dea3600cf0c909b5e1eab7676a1f5be1ef0`.
+  All six arm outcomes are `no_outcome`. The original 26 files and all 44
+  recovered files (including manifest) remained unchanged. This is original
+  preregistered analysis after retention recovery, not a corrected classifier.
+- The report retains 12 baseline structural/semantic summaries and 12 probe
+  observations. All baseline read endpoints reported pass, but no complete
+  baseline comparison passed: controls fail raw row equality, while candidate
+  comparisons fail semantic validation. Original control snapshots contain
+  all-null rows instead of planned values; candidate rows retain their planned
+  values but do not pass the declared Seek check. All copy probes report
+  `updated`, empty native-code lists and null HRESULT, adding all-null rows;
+  the planned rejection endpoints were not successfully exercised.
+- These acquisition/semantic/retention failures prevent acceptance of any
+  subset. They do not establish nullable writer rejection or a storage fact.
+  Original inputs remain unchanged; a separately reviewed successor would
+  need corrected assignment/observation diagnostics and preserved initiating
+  errors. No compatibility claim, support movement or new parser fact follows.
+
 ## EXP-0155 — Nullable initial-index candidate preregistration
 
 - Date: 2026-09-05. Development-only local DAO validation; no acquisition yet.
