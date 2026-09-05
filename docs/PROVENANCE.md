@@ -12561,6 +12561,40 @@ Copy this block under the appropriate section and remove this instruction:
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
 
+## EXP-0179 — Unique Long root-leaf key update validation preregistration
+
+- Preregistered only; no acquisition. Outcome reserved as EXP-0180. Plan:
+  `oracle/windows-dao/acquisition/single-leaf-key.plan.json`, SHA-256
+  `40a1258ee08926d97df3f3edf8549a752d28b7aaaf58e7b7e9bdc82863c6e656`.
+  Reviewed public implementation: `d16d0ed`; exact revision and meaningful
+  runtime/exporter/decoder inputs are pinned in the plan.
+- The deterministic Rust exporter uses public creation and `update_field` once
+  per arm. Six external original/candidate images and reader-selected locators
+  are pinned before DAO. No MDB bytes enter the repository.
+- Three replicas of three cases: ascending primary Long moving zero to signed
+  minimum; descending unique Long moving zero near signed maximum; and an
+  ascending primary index whose 200 entries occupy the full uncompressed leaf,
+  moving key 100 to -1. Every table also has unchanged Long/Text payloads.
+- Each pair captures the public original/candidate read-only, applies one DAO
+  key update to a separate original copy, and captures that control read-only.
+  Candidate/control continuation copies each receive one new row and a declared
+  duplicate-key attempt. DAO error 3022 and unchanged logical state after the
+  rejection are required; rejected edits are cancelled before closing.
+- Exact independent checks bind every original row/key/locator, field span,
+  sorted replacement leaf, fixed nine-byte framing, row/distinct counts and
+  all bytes outside the field/occupied leaf area. The private decoder explicitly
+  permits 256 row slots; other existing bounds remain unchanged. Page zero,
+  counts, maps, leaf header/bitmap and slack preservation is the candidate policy
+  under test, without inferred DAO bookkeeping semantics.
+- All nine pairs, 45 unchanged read-only captures/retained MDB identities, full
+  schemas, rows, relation/query absence, directed traversal, complete declared
+  Seek results and continuation/duplicate outcomes must agree. DAO control
+  compression, row placement or subsequent splitting need not match Rust bytes.
+- One committed/reviewed dispatch, no retry or subset promotion. Preserve
+  initiating errors and per-file failure artifacts. This finite local experiment
+  does not claim general compression/split/null/Auto/relationship maintenance,
+  arbitrary existing-file compatibility or hosted support before its outcome.
+
 ## EXP-0170 — Public row insertion and DAO continuation accepted in three cases
 
 - Outcome: `observed_accepted`, recorded 2026-09-05 from the single local run
