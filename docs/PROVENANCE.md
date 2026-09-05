@@ -12610,6 +12610,48 @@ Copy this block under the appropriate section and remove this instruction:
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
 
+## EXP-0173 — Hosted five-case public row mutation preregistration
+
+- Preregistered only; no acquisition. Outcome reserved as EXP-0174.
+  Plan: `oracle/windows-dao/acquisition/row-update-v1_2.plan.json`, SHA-256
+  `8c2fc480c987326f06192f7a61cc648759f374d4ee34b455d33eb5ac1d0107d3`.
+- Independently reviewed tooling `2e7f37af4f4f28b3f25a1e52f2c3f0fbf3c2e953`
+  is integrated in `ead020cdec0c4b12db70d203620f0ac73c71384f`.
+  The plan pins the new workflow, thin isolated evaluator adapter, five-case
+  inventory, reused frozen read-only DAO/evaluation helpers, relevant executable,
+  public mutation/creation/reader sources, protocol schemas and provider probe.
+  Both jobs use the same dispatched committed revision containing this plan;
+  source/image/inventory identities bind all preparation and observation receipts.
+- One `windows-dao-row-update.yml` workflow dispatch, attempt1 only, with
+  `run_acquisition=true` and the exact plan SHA. Ubuntu creates every before
+  image through public APIs and makes one public mutation on its after copy.
+  No testkit raw-format patch is used. Windows independently re-derives each
+  public-reader locator and preservation receipt, then reads both files with
+  Rust and stock x86 DAO.DBEngine.36/dbVersion30 under the retained provider gate.
+- Preserve the original three Long update cases exactly: first field, later row
+  and later table, with unrelated Text/Binary/Memo payloads. Add one Items
+  `[88,-8800,"inserted"]` append and one Items Id3 tail deletion, each with an
+  unrelated Later table and the exact declared Long/Long/Text rows. This gives
+  five before/after pairs, ten retained MDBs and ten read-only DAO captures.
+- Require complete expected schemas, fields, rows, payloads and index/relation
+  absence; full DAO/Rust snapshot equality; complete coverage and all source,
+  provider, image and independent Windows/Unix verifier bindings. Reconstruct
+  each exact patch independently and require all other bytes unchanged, including
+  page zero, maps and unrelated objects. The original three-case inventory,
+  acquisition scripts and consumed EXP-0159 plan remain unchanged and usable.
+- Any incomplete/provider/source/identity/verification/recipe/coverage/semantic
+  failure prevents `matched`. Retain available partial diagnostics; reached
+  evaluation failures record `no_outcome`. Input-pin failures reject dispatch
+  and retained-data analysis. No automatic retry, redispatch or phase resume.
+- Local EXP-0168/0170 motivate these finite row recipes; this separately pinned
+  hosted run supplies its own acceptance result. It does not cover allocation,
+  empty-table insertion, non-tail/sole-row deletion, slot reuse, indexed/related
+  row mutations, null transitions, stored-query preservation or general rollback.
+  Any support-state update is separate from the report.
+- Pre-acquisition verification: implementation independent review and root
+  checks passed; exact integrated five-case public preparation and committed
+  plan/input checks precede dispatch. Independent plan review is required.
+
 ## EXP-0170 — Public row insertion and DAO continuation accepted in three cases
 
 - Outcome: `observed_accepted`, recorded 2026-09-05 from the single local run
