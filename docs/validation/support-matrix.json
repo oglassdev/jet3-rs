@@ -168,9 +168,18 @@
     },
     {
       "id": "rows.insert_update_delete",
-      "implementation": "not_started",
-      "verification": "unverified",
-      "evidence": []
+      "implementation": "partial",
+      "verification": "dao_differential",
+      "evidence": [
+        "docs/PROVENANCE.md",
+        "oracle/windows-dao/protocol/v1_2/update-scenarios.json",
+        "oracle/windows-dao/acquisition/update-v1_2.plan.json",
+        "oracle/windows-dao/scripts/dao_update_diff.py",
+        "oracle/windows-dao/scripts/Invoke-DaoUpdateV12.ps1",
+        "crates/jet3-testkit/src/update_fixture.rs",
+        "crates/jet3/src/update.rs",
+        "crates/jet3/src/update_tests.rs"
+      ]
     },
     {
       "id": "indexes.primary_unique_non_unique",

@@ -11024,6 +11024,83 @@ Copy this block under the appropriate section and remove this instruction:
   Neither this plan nor self-validation establishes general compatibility,
   completion of #100 or support-matrix movement.
 
+## EXP-0168 — Public tail deletion and DAO continuation accepted in three cases
+
+- Outcome: `observed_accepted`, recorded 2026-09-05 from the single local run
+  `20260905T073100Z-row-delete-candidate`. All nine comparisons passed with no
+  reasons, acquisition error or retention failure. Preregistration EXP-0167 plan
+  SHA-256 remains `8ee26e110283669fb50a4545ea9b71a63139ff950ab2d34ea78a04dad7003a19`.
+  Acquisition revision: `c08bc336331a0a75dd4957bb2f30444c285467fa`;
+  reviewed public implementation: `eb3d8a8df617e945f0f1723c2d3f6506faf7ccf5`.
+- Validated report: 20421 bytes, SHA-256
+  `776eeb6fc92c46c34d002db6bb99036bffee1aa5633fd68ac37774f2aa1d15d4`.
+  Coordinated result: 4041 bytes, SHA-256
+  `1b33d7ed430c5fd73349cec78903a28d58637b4f066221dae135a57528d353bd`.
+  The unchanged pinned analyzer reproduced the report byte-identically on
+  temporary copies; no additional DAO operation or corrected analysis occurred.
+- Create-phase result: 276496 bytes, SHA-256
+  `0da70203f447270bd470bc7e413e66559615c0f6489e6ef5bd4df63aab5a005f`.
+  Observe-phase result: 690176 bytes, SHA-256
+  `bb167ca0c41fa320d3189e2140dec7a3aef410f995d6c1af6e4a985f496fe054`.
+  The complete inventory contains 18 creation-phase and 45 observation-phase
+  read-only captures, nine DAO control deletions, nine public Unix deletions and
+  eighteen DAO insertions on separate continuation copies. Both phase errors
+  are null and both retention-failure lists are empty.
+- The report retains all 45 image identities (each 57344 bytes) and exact
+  candidate byte-change records; the coordinated result retains all nine Unix
+  source/candidate identity chains.
+  Every read-only before/after identity matches its retained file. Originals,
+  controls and Rust candidates remain unchanged across phases. All 60 files in
+  the coordinated outbox, 21 in its create outbox and 48 in its observe outbox
+  remained unchanged during reproduction and verification.
+- Each case passed all three replicas. `first-tail` removes Items Id3 at root20,
+  page23, slot2; `later-tail` removes Later Id13 at root24, page26, slot2;
+  `mixed-tail` removes Items Id3 with its 180-byte Text payload at root20,
+  page23, slot2. The target table count becomes two in every candidate. Its owned
+  and available maps retain only the respective data page, matching DAO controls.
+- Candidate changes are limited exactly to the table count, data-page free-byte
+  count and tail tombstone word. Deleted payload, unused slack, page zero and all
+  other bytes remain exact. Actual changed-byte totals are four for each first/
+  later-tail replica and five for each mixed-tail replica. This retains the
+  candidate policy; no page-zero counter meaning or general deletion rule follows.
+- Full DAO schemas, field properties, rows, relation/index absence and original
+  stored KeepQuery SQL match each candidate/control pair after deletion. Separate
+  Rust/control continuation copies both accept `[99, -9900, "next"]` and match
+  the complete expected post-state, including all unrelated table/query metadata.
+- This is finite development-only acceptance for these populated unindexed,
+  relationship-free tail deletions and subsequent DAO inserts. It does not cover
+  arbitrary deletion positions, sole-row release, allocation, AutoIncrement,
+  long-value or indexed/related deletion, Rust insertion, hosted compatibility or
+  support-matrix movement. EXP-0158's original discovery `no_outcome` remains
+  unchanged; the report's compatibility/support flags remain false.
+
+## EXP-0167 — Bounded tail deletion and continuation candidate plan
+
+- Date: 2026-09-05. Preregistered only; acquisition pending independent review.
+- Reviewed library source: `eb3d8a8df617e945f0f1723c2d3f6506faf7ccf5`. Plan
+  `oracle/windows-dao/acquisition/row-delete-candidate.plan.json`, SHA-256
+  `8ee26e110283669fb50a4545ea9b71a63139ff950ab2d34ea78a04dad7003a19`; all meaningful source, exporter, producer,
+  analyzer, decoder and transport inputs are pinned in that plan.
+- Three finite cases, three replicas each: first-table tail, later-table tail
+  and mixed Text row widths. Each fresh DAO original contains Items and Later
+  (Id/Value Long and Payload Text), three rows per table, and KeepQuery.
+- One coordinated create→Unix delete→observe acquisition. DAO controls delete
+  the same unique Id on separate original copies. A public Rust reader selects
+  the locator and public `delete_row` updates another closed copy once. Require
+  the exact sourced directory/free-byte/TDEF-count patch, retaining every other
+  byte, including the removed payload, slack, unrelated objects and page zero.
+- Page-zero preservation is explicitly a candidate hypothesis, not an inferred
+  header update rule. Separate Rust/control continuation copies receive one
+  identical DAO insert. Compare complete requested schema/rows and unchanged
+  stored QueryDef SQL, full metadata and table-map memberships as specified.
+- Require all 63 captures, nine public updates, 27 DAO control/continuation
+  operations and 45 retained MDBs, with complete identity chains and read-only
+  hashes. Failures prevent acceptance of any subset; keep artifacts/native
+  diagnostics, never retry or resume after mutation. No MDB bytes are committed.
+- Pure tests and x86 parser-only preflight precede acquisition. Record one
+  additive EXP-0168 outcome. No general deletion grammar, sole-row page release,
+  arbitrary compaction, hosted compatibility or support-state movement is claimed.
+
 ## EXP-0162 — Retained deletion transitions agree under the pinned secondary comparison
 
 - Date: 2026-09-05. Outcome: `answered`, no reasons; all three tail, middle
@@ -11142,6 +11219,48 @@ Copy this block under the appropriate section and remove this instruction:
   retaining all raw bytes, exact transitions and their real variability.
   No such correction or new DAO acquisition is part of EXP-0158. Original
   `no_outcome`, compatibility=false and support-movement=false remain intact.
+
+## EXP-0160 — Hosted before/after Long updates match with byte preservation
+
+- Outcome: `matched`, from successful hosted workflow run
+  `33952142877`, attempt 1, source revision
+  `96c65132c6256c30a29774bd67205df003bea627`, recorded 2026-09-05.
+  Consumed EXP-0159 plan SHA-256 is
+  `0f88f5c8c4b940e7699a779a844a9ba6e31849bb6911e8186965cbf1ed607d04`.
+- Retained artifact sets are under shared outbox
+  `20260905T072044Z-hosted-update-33952142877`: the source-bound
+  `generated-update-...` and `windows-dao-update-...-1` artifacts, 109 files total.
+  The original report reproduced byte-identically using temporary copies;
+  every retained file remained unchanged. Both artifact sets contain identical
+  bytes for each of the six original/updated MDBs.
+- Report: `dao-update-v1_2/report.json`, 3224 bytes, SHA-256
+  `e3fca4e6b1b96d7aacfd19a9e74a4a17b9b24c730df7b1bb23fecb7e28bb13b7`.
+  All six DAO/Rust comparisons match; all three independent preservation
+  receipts are true. The report's `support_matrix_movement` remains false.
+- Retained environment: 4264 bytes, SHA-256
+  `eb318c7079a55d9567f2234d887945b79d2ab4043a94f10b7f7cd0bcccbec68f`;
+  protocol 1.2, ready, x86 `DAO.DBEngine.36`, `dbVersion30`. Its hash is bound
+  by the DAO manifest (1731 bytes, SHA-256
+  `3acc225ee038cb85df5a5022fdc5a3fb357b95c3740a0b519c4297d90090e94c`).
+- Linux preparation and independent Windows reader receipts bind the same
+  source and complete request inventory. The Windows reader rederived the
+  table/column/row and exact four-byte span for each request:
+  - `DAO-UPDATE-FIRST-FIELD`: Items.Id, row 0, 0 to -42, offset 48935,
+    page 23 slot 0.
+  - `DAO-UPDATE-LATER-ROW`: Items.Value, row 31, 1031 to -2147483648,
+    offset 54211, page 26 slot 4.
+  - `DAO-UPDATE-LATER-TABLE`: Items.Value, row 17, 1017 to 2147483647,
+    offset 55387, page 27 slot 8, following the Prefix table.
+- Every byte outside each requested four-byte span is identical. All images
+  remained unchanged during Rust/DAO reads. Full before/after schemas and rows
+  match the declared recipes, including 33 Items rows with distinct 200-byte
+  Text and four-byte Binary payloads, and the unrelated Notes table's 2048-byte
+  Memo and null row. Empty index and relationship inventories also match.
+- This establishes the exact three hosted Long field-update cases only.
+  Insert/delete, indexed or related targets, null transitions, other fixed types,
+  variable-width replacements and hosted stored-query preservation are not
+  demonstrated. No general rollback/failure claim or automatic support promotion
+  follows. Original local and hosted failed outcomes remain unchanged.
 
 ## EXP-0159 — Hosted before/after field-update preregistration
 
@@ -11265,6 +11384,115 @@ Copy this block under the appropriate section and remove this instruction:
   and later table. It does not establish null/Auto/index/relationship/overflow
   updates, deletion/insertion, arbitrary existing-file compatibility or
   hosted update support. Report compatibility/support flags remain false.
+
+## EXP-0172 — Fixed-field successor stopped at wide fixed-prefix decoding
+
+- Outcome: `no_outcome`, recorded 2026-09-05 from the single local run
+  `20260905T072835Z-fixed-field-successor`, acquisition revision
+  `b39ee054bc3360d778d3113fc68ba9df27fd47ad`, public implementation
+  `37bd8175393dccf836b96172f740a28c4be36a60`, and consumed EXP-0171 plan
+  SHA-256 `01929cf68daa5d5bc8dbb4529819634c4017f8b0551a1772d3444eddc2027942`.
+- The report reproduced byte-identically on temporary copies: 443 bytes,
+  SHA-256 `e5038422be9fa5dcd4eac0301e773254bfbd211112178d09f1c4d9d4ff5526a0`.
+  Its observations are empty and its reason is
+  `Coordinated acquisition failed: ValueError: Public field update failed: fixed-text-255-r1`.
+  The coordinated result is 11294 bytes, SHA-256
+  `c65483f1fa0996e447dc10dac925e7998b4caaf70d09b526da7346d59a03b640`.
+- Creation completed all ten arms and three replicas, including Currency.
+  The retained create result is 469595 bytes, SHA-256
+  `9a47f321d582c99f0288bed8cc8d113df828327000d65e577bdee22bb70f735c`.
+  All 30 original snapshots passed and their before/after identities match.
+  The recorded provider is 32-bit `DAO.DBEngine.36` on Windows NT 10.0.20348.
+- Unix updates completed the first nine arms and three replicas (27 updates).
+  Their retained source/destination identities and independently decoded target
+  spans satisfy the preregistered exact replacement and all-other-byte checks.
+  These are local checks only: the run stopped in `unix_update`, before the
+  DAO observation phase, so no updated candidate received DAO acceptance.
+- `fixed-text-255-r1-unix.txt` is 57 bytes, SHA-256
+  `aedbb2783500a1407f8b10b0b5fecb869e28843bf2229b2a8bfd626c02a983ef`,
+  containing `Error: InvalidFixedBoundary { expected: 260, actual: 4 }`.
+  The frozen exporter fails while reading the original row, before copying
+  the destination or invoking the public update. No destination exists for
+  that case; replicas 2 and 3 were not attempted.
+- Read-only inspection of that original's `Items` definition (page 20) and
+  data page 23 records fixed `Id` Long at offset 0, fixed `Value` Text of
+  width 255 at offset 4, and one variable `Payload` Text column. Including
+  the row header, the fixed prefix is 260 bytes. The three raw row lengths
+  are 270, 271, and 270; their trailers are respectively
+  `09 04 00 01 07`, `0a 04 00 01 07`, and `09 04 00 01 07`.
+  The boundary low bytes are 4 and 9/10, with a zero jump byte, one variable
+  column, and presence byte 7. The existing reader interprets that start as
+  absolute offset 4 instead of 260. This is a reader limitation on these
+  retained DAO-created rows, not evidence of a failed published update or a
+  general rule for arbitrary multi-boundary jump encodings.
+- All 122 retained files across the coordinated and create-phase directories
+  remain unchanged, including all 30 original MDB identities and 27 updated
+  MDB identities. Consumed inputs and the earlier EXP-0164 `no_outcome` remain
+  unchanged. No retry, compatibility promotion, or hosted support movement is
+  implied; any corrected implementation or retained-data successor is separate.
+
+## EXP-0171 — Distinct fixed-field Currency setter successor
+
+- Preregistered only; no acquisition. Outcome reserved as EXP-0172. The
+  EXP-0164 Decimal-to-String creation failure and consumed EXP-0163 inputs,
+  original captures and reports remain unchanged.
+- Plan `oracle/windows-dao/acquisition/fixed-field-successor.plan.json`, SHA-256
+  `01929cf68daa5d5bc8dbb4529819634c4017f8b0551a1772d3444eddc2027942`.
+- Correction: compute Currency in a local Decimal, then assign through the
+  dedicated `$field.Value = [decimal]$currencyValue` site. This matches the
+  explicit typed setter in the pinned original read producer's
+  `Set-RecordsetValue` Currency branch; it replaces the direct division RHS.
+- Same ten typed arms and three fresh replicas each, same public exporter and
+  implementation `37bd817`, exact replacement bits, schemas, query preservation,
+  independently decoded field spans and all-other-byte checks. Fresh controls
+  are required because the failed acquisition performed no Rust updates.
+- The actual x86 pure helper test passes 200 exact conversion checks and all
+  CLR row-array JSON roundtrips. It does not exercise DAO COM property binding;
+  success of the correction remains an acquisition question.
+- Root performs one coordinated create / Unix update / DAO read-only run only
+  after independent review and committed pins. Any failure remains no_outcome;
+  no same-plan retry, broad compatibility or hosted support claim.
+
+## EXP-0164 — Fixed-field acquisition stopped at Currency assignment
+
+- Outcome: `no_outcome`, recorded 2026-09-05 from the single local coordinated
+  run `20260905T071241Z-fixed-field-update`, acquisition revision `8364929`
+  and reviewed public implementation `37bd817`. Consumed EXP-0163 plan SHA-256
+  remains `c6958a5b238c6cee97f877ec12cf53b93ad699db190fb0aceec769045794c564`.
+- The original report reproduced byte-identically on temporary copies:
+  440 bytes, SHA-256
+  `f68a41a90c9531a8bd2abe8dd5b34539be61597d0aebda59261a9aaa53b05b7a`.
+  It contains no accepted observations and the reason
+  `Coordinated acquisition failed: ValueError: Phase failed or has wrong identity: create`.
+- Coordinated result: 487 bytes, SHA-256
+  `bb62c9b86d823dc8a45e490bc49598e4e369a51257518f12c2bbcc9a56a05700`.
+  Its phase is `create`, updates are empty, and the retained create result is
+  140474 bytes, SHA-256
+  `c659d4b4df266fdae7a2be45d56c2c6c4128e41604ea85cd0c5fae9422a10fda`.
+- The guest had begun mutations under x86 `DAO.DBEngine.36`. Nine read-only
+  original captures completed: all three replicas of Byte, Integer and the
+  Long control. Each captured original is 57344 bytes; its recorded before/after
+  identity matches both retained phase and coordinated copies.
+- Currency replica 1 failed at `assign/Items/Value`. The retained initiating
+  exception is `System.InvalidCastException`, with message
+  `Unable to cast object of type 'System.Decimal' to type 'System.String'.`
+  The stack identifies `Set-Value` line 29, called by `Create-Original` line 102
+  and the script line 164. That line assigns the Decimal division expression
+  directly to the DAO field's Value property. No Rust update was attempted.
+- Ten original MDBs were retained in both the create-phase and coordinated
+  outboxes, including the partial Currency file (47104 bytes, SHA-256
+  `262ee706a16618ad0a6ab6e372ff85477a5c4a35a5aafdfbc7342084a267b261`).
+  All ten copy identities and the nine complete capture identities agree;
+  the phase result is identical to `create.json`. No phase-2 observations or
+  updated MDBs were produced. Original artifacts and consumed inputs are unchanged.
+- The actual x86 mock-field conversion preflight passed before acquisition,
+  but did not exercise DAO COM property binding. The proven read producer uses
+  an explicit typed Currency assignment; that is a concrete successor candidate,
+  not evidence that the recorded failure has been fixed. The exception does not
+  establish a library encoding or publication defect.
+- No typed-update acceptance, general compatibility or support-state movement
+  follows from these baseline captures. Preserve this failed acquisition without
+  retry; any corrected successor has a distinct reviewed plan and outcome.
 
 ## EXP-0163 — Typed existing fixed-field update preregistration
 
@@ -12303,6 +12531,44 @@ Copy this block under the appropriate section and remove this instruction:
   collation, GUID/Memo/OLE indexes, arbitrary Binary lengths, existing-row
   updates, candidate acceptance, general compatibility or hosted support claim.
   Retain raw images/results externally and record one validated EXP-0148 outcome.
+
+## EXP-0169 — Existing-row insertion candidate preregistration
+
+- Status: preregistered only; no acquisition. Outcome reserved as EXP-0170.
+- Question: does the bounded public insertion match DAO insertion and subsequent
+  DAO use while retaining all unrelated bytes, maps and uninterpreted page zero?
+- Committed plan: `oracle/windows-dao/acquisition/row-insert-candidate.plan.json`,
+  SHA-256 `c1a902a208baa27c7801aa2131180af008b1a53e4f9ee5ae8ae6f1d73309f413`.
+  Reviewed implementation source: `2fdd791cae4ce1649fb634b01c40cac98f2b4340`.
+  The plan pins the exporter, relevant row/reader/publication inputs, PowerShell
+  producer, analyzer, imported diagnostic/read helpers and transport. Dispatch
+  and analysis share input-pin verification. Acquisition revision is recorded
+  separately from the reviewed library source.
+- Three cases, each with three independent originals: first-page insertion,
+  insertion in a later table with multiple data pages and 180-byte Text payloads,
+  and insertion after a preparatory DAO tail deletion. Each database contains
+  the complete declared Long/Long/Text tables and an unrelated stored KeepQuery.
+- A complete DAO creation/control phase precedes any Unix insertion. The public
+  exporter copies each original and calls `insert_row` once; an independent raw
+  decoder binds its table/page/new slot, exact encoded row, free-byte and row
+  counts, retained tombstones and map membership. The entire remaining file,
+  including original payload/slack and page zero, must remain byte-identical.
+- Separate DAO continuation copies receive one further declared row. Require
+  full schema/rows/index/relation metadata and original stored QueryDef SQL
+  preservation, Rust/control equality after both operations and unchanged
+  original/control/Rust identities. Nine originals plus controls, Rust candidates
+  and continuation copies produce 45 retained MDBs and 63 read-only captures;
+  control/continuation inserts and three preparatory deletes are finite endpoints.
+- Any mismatch, native/public failure or incomplete phase is `no_outcome` without
+  subset promotion or retry/resume. The raw decoder's finite bounds and phase
+  timeouts are declared. No DAO free-space threshold, page-zero interpretation,
+  empty-table/new-page allocator or general compatibility claim is inferred.
+  This local validation cannot move the hosted support matrix.
+- Pre-acquisition checks: three focused classifier/preservation/pin tests and
+  exporter Clippy pass. An actual x86 parser-only producer check passes without
+  execution/DAO. Public insertion plus independent exact-byte analysis passes on
+  a temporary copy of a retained original, which remains unchanged. Independent
+  review is required before dispatch.
 
 ## EXP-0166 — Nullable writer successor accepted in the exact six-arm matrix
 

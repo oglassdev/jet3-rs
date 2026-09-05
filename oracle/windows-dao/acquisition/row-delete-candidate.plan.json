@@ -1,0 +1,222 @@
+{
+  "document_type": "dao_row_delete_candidate_plan",
+  "provenance": "EXP-0167",
+  "outcome_provenance": "EXP-0168",
+  "replicas": 3,
+  "source_revision": "eb3d8a8df617e945f0f1723c2d3f6506faf7ccf5",
+  "fields": [
+    {
+      "name": "Id",
+      "type": 4,
+      "size": 4
+    },
+    {
+      "name": "Value",
+      "type": 4,
+      "size": 4
+    },
+    {
+      "name": "Payload",
+      "type": 10,
+      "size": 255
+    }
+  ],
+  "query": {
+    "name": "KeepQuery",
+    "sql": "SELECT [Id], [Value] FROM [Items];"
+  },
+  "insert": [
+    99,
+    -9900,
+    "next"
+  ],
+  "arms": [
+    {
+      "name": "first-tail",
+      "table": "Items",
+      "selected_id": 3,
+      "tables": [
+        {
+          "name": "Items",
+          "rows": [
+            [
+              1,
+              101,
+              "aaa"
+            ],
+            [
+              2,
+              -202,
+              "bbb"
+            ],
+            [
+              3,
+              303,
+              "ccc"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "later-tail",
+      "table": "Later",
+      "selected_id": 13,
+      "tables": [
+        {
+          "name": "Items",
+          "rows": [
+            [
+              1,
+              101,
+              "aaa"
+            ],
+            [
+              2,
+              -202,
+              "bbb"
+            ],
+            [
+              3,
+              303,
+              "ccc"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "mixed-tail",
+      "table": "Items",
+      "selected_id": 3,
+      "tables": [
+        {
+          "name": "Items",
+          "rows": [
+            [
+              1,
+              101,
+              "a"
+            ],
+            [
+              2,
+              -202,
+              "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            ],
+            [
+              3,
+              303,
+              "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            ]
+          ]
+        },
+        {
+          "name": "Later",
+          "rows": [
+            [
+              11,
+              -1101,
+              "ddd"
+            ],
+            [
+              12,
+              1202,
+              "eee"
+            ],
+            [
+              13,
+              -1303,
+              "fff"
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "inputs": {
+    "Cargo.lock": "1b306e136535925889bb551ea92a606756153eb7f69eca9c9a0617aa2e551e11",
+    "Cargo.toml": "6d13cd82b6ea190311d8ba28311f23122e4cffa69c02135f465460236e951c60",
+    "crates/jet3/Cargo.toml": "3061aa9102924ee6e74c24752ba1b0a630440dfcc60708f984a4aa238dff4b75",
+    "crates/jet3/examples/field_update_candidate.rs": "867c42c748114e1f0ae19e84d0afdef37ac38bbbf079e332ef5e4df78cb724a0",
+    "crates/jet3/examples/row_delete_candidate.rs": "01170dc617c79d307966f1ebe10f7edf9ddb68337faf81f9552c1fbe58a9b111",
+    "crates/jet3/src/atomic.rs": "450e15e7730150b87f936d0bbb207910e225fd1a512f240c98d96e1dfdf9ed6f",
+    "crates/jet3/src/binary_writer.rs": "f12922a7bf3a522b43d48311ac6844db42e78edd5c6841deb49cbc962152e190",
+    "crates/jet3/src/catalog.rs": "c755f928445950b35aaaf5ca7dfa33744fcbcbdae548eaf49c19a85b42246c33",
+    "crates/jet3/src/catalog_record.rs": "e4b06d60700a7abe1a9b55472930781b02659701ee1ae013f03cf18bdc66e144",
+    "crates/jet3/src/column_definition.rs": "f3f0741ce47d48f0fd368bca117f13e773326e4b77ee14bbc18e4a44f10861de",
+    "crates/jet3/src/data_page_directory.rs": "abaf82d51ed71084fe3623f8f6af3cc58f49bba26ad02249c39cd3da74e3bca1",
+    "crates/jet3/src/delete.rs": "2b8ba7bee2cc749af57ef628f85b1aa13a8b6d8bfe5339fe444ce8b2456b85f4",
+    "crates/jet3/src/page_image.rs": "a33211ac27927bab6ddaf773af18c2e8a2de4bb7735fa9e5382ee54322a9c093",
+    "crates/jet3/src/resource.rs": "0495f6264de1254f42bd31bd4369e0941d65cb96a4b53c91a45bbf0acca95750",
+    "crates/jet3/src/row.rs": "c0d85ee83c64d063fa80ac2bdb38ac6ea32efc16d8d6961010bf8463bd98ac95",
+    "crates/jet3/src/row_delete_page.rs": "04304818212bcc452ce875008cea4c916a123ae98714f41b35eba7a9bdde2fa5",
+    "crates/jet3/src/row_directory.rs": "0f683eec5d9d0f13e114de04e6c137bf953ee55c80fe6436508776299169a844",
+    "crates/jet3/src/source.rs": "84ebc1c169b9441a4c2932c61b8faf46f0546e19bbc686a8e84718ec781a950a",
+    "crates/jet3/src/table_definition.rs": "7bc113e3fbd73dbb33d40476feb0e27ef11ddc4fcb9e7ac98dfe8f7dd34793c2",
+    "crates/jet3/src/update.rs": "707d18f566149e87a02913da1c2d68317ad071fbe79d01c8b06f858a693978c3",
+    "crates/jet3/src/update_pages.rs": "df312df67ae1e6d3ef5ec93df53a191918b3f8a79c7b70ae8f2013d063fc68ae",
+    "oracle/windows-dao/scripts/field_update.ps1": "9bef9e7e83e6cfd346067e221826937d043d2a31e77ab3df5d9dacd7df29f201",
+    "oracle/windows-dao/scripts/field_update.py": "0c6d6536ad69126b53d596e011a4bede7293fd34a1efa8f313fa7f391212ba76",
+    "oracle/windows-dao/scripts/row_delete_candidate.ps1": "ddc64cfdba20ccffa1ac8c8500334b12e6d6c8a27e6d7b37c5a79f3614be7ad1",
+    "oracle/windows-dao/scripts/row_delete_candidate.py": "6f179e04bff5594ff64b2661befc5e5b464c9ae91973cc4a8eb06c06212f305f",
+    "oracle/windows-dao/scripts/row_delete_layout.py": "74c30a55148ec5efe4c04a154917e8780c06a63442d28c0d0b3453b968142088",
+    "oracle/windows-dao/scripts/system_catalog.py": "3a710d97a83aab55f9c56cbbeb2e7dd4f75078e8567d0134cd7bfa59f44ee7d9",
+    "scripts/windows-dao-ps.py": "9895d9b1eb13aaaf031dff3f19b958c85eec7bcf024ea188746d7cdd06a9dbe9"
+  },
+  "question": "Does the bounded public tail deletion on a DAO-created original preserve all bytes except its directory word/free-byte/TDEF-count fields, and match DAO deletion plus a subsequent insert despite keeping page0 unchanged?",
+  "source_facts": [
+    "EXP-0162 tail tombstone, count, free-byte, maps and continuation; page0 bytes observed but uninterpreted",
+    "EXP-0152 public Unix field-update publication and existing-file/query preservation"
+  ],
+  "sequence": [
+    "Commit and independently review pinned inputs before a single coordinated acquisition. No same-plan retry or phase resume.",
+    "Phase create: nine fresh DAO originals, each with Items/Later and KeepQuery; close all writable handles. Copy each original for one DAO delete of the unique selected Id. Retain read-only original/control snapshots and closed images.",
+    "Require complete correct phase1 and unchanged transfers. Unix exporter uses public reader to select unique Id/locator, copies original, and invokes public delete_row once. Independently bind raw row/page/root and exact patch; preserve the original, all deleted payload/slack and page0.",
+    "Only nine valid Rust deletions allow phase observe. Read originals/control/Rust copies read-only, then create separate control-next and rust-next copies and insert the exact declared row through DAO. Capture every resulting file read-only; original/control/Rust baseline images remain unchanged.",
+    "Original/control phase1 and all five roles phase2 give63 capture records and45 retained MDBs. Compare complete expected schemas/rows, relation/index absence, original exact stored QueryDef SQL and full metadata. Match Rust vs DAO control both after delete and follow-on insert; compare original/control/Rust table map membership. Retain all raw files, receipts and operation/error results."
+  ],
+  "decision_rule": "observed_accepted only when all phases/operations/captures and nine Unix receipts are complete, all input/image/source identities match, all requested snapshots match and exact Rust patch/payload/slack/page0 preservation succeeds. Any mismatch/incomplete phase/native/public failure gives no_outcome, without accepting subsets. Pin mismatches reject analysis. No normalized floating values or inferred header counters.",
+  "bounds": "Three finite unindexed, relationship-free, non-Auto/LVAL target tables with consistent source free metadata; last physical slot and at least2live rows. Small constant/mixed Text widths only. Existing decoder64rows/page and64pages bounds are sufficient. SSH phases300seconds, Unix exporter120seconds; no acquisition retry. No arbitrary deletion grammar, tombstone reuse/page release, hosted compatibility or support movement.",
+  "hypothesis": "Page zero remains byte-identical in Rust-deleted files, unlike observed DAO bookkeeping changes. Its semantics are not guessed. Deleted row payload and slack are deliberately retained. Acceptance and continuing DAO use are experimental questions.",
+  "producer": "Unix public delete_row from reviewed source, one copy/operation per original. Result source_revision binds declared reviewed source and pinned relevant files; acquisition_revision records actual committed harness. No binary/build attestation."
+}
