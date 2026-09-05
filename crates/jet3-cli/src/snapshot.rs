@@ -6,12 +6,12 @@ use std::path::PathBuf;
 
 use jet3::TextCodePage;
 use jet3_testkit::{
-    PROTOCOL_SCENARIOS, Producer, SnapshotOptions, SnapshotOutcome, WRITE_SCENARIOS,
-    canonical_json, coverage, parse_scenarios, snapshot_bytes,
+    PROTOCOL_SCENARIOS, Producer, SnapshotOptions, SnapshotOutcome, UPDATE_SCENARIOS,
+    WRITE_SCENARIOS, canonical_json, coverage, parse_scenarios, snapshot_bytes,
 };
 
 pub(crate) const HELP: &str = "\
-  jet3-cli snapshot <file> --out <dir> --scenario <DAO-READ-...|DAO-WRITE-...> \
+  jet3-cli snapshot <file> --out <dir> --scenario <DAO-READ-...|DAO-WRITE-...|DAO-UPDATE-...> \
     [--source-revision <text>] [--code-page 1252|1251]
 
 snapshot reads the whole database with the jet3 reader and writes
@@ -75,6 +75,8 @@ pub(crate) fn parse_args(
 pub(crate) fn run(command: &SnapshotCommand) -> Result<String, String> {
     let scenarios = parse_scenarios(if command.scenario_id.starts_with("DAO-WRITE-") {
         WRITE_SCENARIOS
+    } else if command.scenario_id.starts_with("DAO-UPDATE-") {
+        UPDATE_SCENARIOS
     } else {
         PROTOCOL_SCENARIOS
     })
