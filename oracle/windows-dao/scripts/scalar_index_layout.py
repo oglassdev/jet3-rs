@@ -68,7 +68,8 @@ def semantic_key(row, arm):
     values = []
     for value, field, direction in zip(row['values'], arm['fields'], arm['directions']):
         if field['type'] == 1:
-            number = int(value)
+            # EXP-0062 retained Boolean leaf: True precedes False ascending.
+            number = -int(value)
         else:
             raw = bytes.fromhex(value)
             if field['type'] in (6, 7, 8):

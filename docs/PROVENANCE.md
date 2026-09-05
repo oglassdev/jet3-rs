@@ -11444,7 +11444,7 @@ Copy this block under the appropriate section and remove this instruction:
 - Kind: development-only preregistration; acquisition has not started. This
   entry establishes no format transform or compatibility/support claim.
 - Plan: `oracle/windows-dao/acquisition/scalar-index-layout.plan.json`, SHA-256
-  `138a01ef51eca94da9b94f53e9cfa7497599091e98af3266289e99dc6e6ed1c4`.
+  `c692ca69614f176b3391d3dd8020de1109e30957a9aaaf65abd5b09ac20de863`.
   Pins cover the producer, analyzer, existing original catalog/leaf decoders
   and local SSH transport. Both dispatch and analysis verify inputs; dispatch
   also requires the exact plan committed before acquisition.
@@ -11480,7 +11480,7 @@ Copy this block under the appropriate section and remove this instruction:
   twelve rows, three fields and one leaf index. No parser edits, Text collation,
   GUID/Memo/OLE index grammar, candidate acceptance, general Binary lengths,
   NaN/infinity, existing-row updates or hosted support movement in this slice.
-- Validation: four focused classifier/binding/pin tests and Python compilation
+- Validation: five focused classifier/binding/pin tests and Python compilation
   passed; Windows `Parser.ParseFile` accepted the producer without executing
   it or DAO. Independent experiment review precedes acquisition. Retain all
   raw files externally; record one additive validated EXP-0144 outcome.

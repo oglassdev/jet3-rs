@@ -18,6 +18,14 @@ class ScalarIndexLayoutTests(unittest.TestCase):
     def plan(self):
         return json.loads(experiment.PLAN.read_text())
 
+    def test_boolean_direction_matches_retained_exp0062_order(self):
+        for arm in self.plan()['arms']:
+            if arm['fields'][0]['type'] == 1:
+                rows = [{'values': [False]}, {'values': [True]}]
+                ordered = sorted(rows, key=lambda row: experiment.semantic_key(row, arm))
+                expected = [False, True] if arm['directions'][0] else [True, False]
+                self.assertEqual([row['values'][0] for row in ordered], expected)
+
     @staticmethod
     def decoded(_data, arm):
         rows = [{'tag': i + 1, 'values': value} for i, value in enumerate(arm['rows'])]
