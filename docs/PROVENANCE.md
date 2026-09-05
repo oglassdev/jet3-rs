@@ -11891,3 +11891,39 @@ Copy this block under the appropriate section and remove this instruction:
   honest original result; there is no support-matrix movement or general
   compatibility claim. Any corrected read-only association of retained probes
   requires a separately pinned and independently reviewed secondary plan.
+
+## EXP-0149 — Selected completed scalar captures read-only reanalysis plan
+
+- Recorded: 2026-09-05, OpenAI Codex; post-acquisition secondary plan.
+  EXP-0143 consumed inputs and EXP-0144 full-run `no_outcome` remain unchanged.
+  No expanded analysis or new DAO acquisition has occurred under this plan.
+- Plan: `oracle/windows-dao/acquisition/scalar-index-reanalysis.plan.json`,
+  SHA-256 `86264bd70406353e1241e5f5564a54a37ea5b847f8540dd7d44e5b9eec813b20`.
+  Pins cover the original plan/runtime, new analyzer, original result/report,
+  all 36 completed scalar MDBs and the additional partial Date MDB: 39 retained
+  files from `20260905T054700Z-scalar-index-layout`.
+- Explicit selection: twelve completed Boolean/Byte/Integer/Currency/Single/
+  Double direction arms, three replicas each. This is a post-acquisition
+  subset of 36 captures from the failed 78-capture plan, not a replacement
+  full-run outcome. Require the recorded 37th Date attempt with zero Update
+  operations and carry its failure and partial image identity in the report.
+- Correction: on a deep copy of each saved-row/traversal snapshot, unwrap only
+  an object with exactly `value` and `Count`, integer Count 1, and a value array
+  of length 1, for an exactly one-column selected scalar key. Any other shape
+  or arity fails; payloads, raw keys, locators and recorded operations do not
+  change. No corrected interpretation of the separate EXP-0148 successor.
+- Gates: reuse original decoders, row/payload/schema/flag correlation, raw
+  key-to-row-locator binding, complete directed traversal and three-replica
+  comparator unchanged. Secondary `answered` requires all 36 selected
+  captures complete, unchanged and matching; failures yield `no_outcome`.
+  Pin/inventory/source mismatches reject analysis. Carry original `no_outcome`
+  and acquisition error explicitly; no Date failure is silently discarded.
+- Preservation: verify every original retained identity before and after
+  analysis; exclusively write a fresh report outside the original source tree.
+  No DAO, provider activation, retry, new acquisition, corrected original
+  report, candidate acceptance or hosted support movement.
+- Validation: three focused strict-shape/selection/correlation/pin/containment
+  tests and Python compilation passed. Committed preflight checks retained
+  files without expanded analysis; independent review precedes execution.
+  Record one additive validated EXP-0150 outcome, limited to the selected
+  finite saved values and directions, without arbitrary scalar-key grammar.
