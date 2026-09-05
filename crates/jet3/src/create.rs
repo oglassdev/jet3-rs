@@ -8,13 +8,9 @@
 //! pre-publication failure.
 //!
 //! The structural reopen is a publication prerequisite, not compatibility
-//! evidence. Only a recorded DAO differential can establish that Microsoft
-//! Access or DAO consume a created database; none has been run for schemas
-//! other than the exact `EXP-0091`, `EXP-0107`, `EXP-0110`, and `EXP-0112`
-//! constructions.
-//! `EXP-0110` observed DAO read one composed four-table image built from the
-//! `EXP-0087` later-create pattern; it does not establish other table counts,
-//! orders, names, or schemas.
+//! evidence. DAO observations in `docs/PROVENANCE.md` cover exact candidates;
+//! they do not establish arbitrary schemas, values, or general compatibility.
+//! Hosted differential results govern the support matrix.
 
 use std::error::Error as StdError;
 use std::fmt;
@@ -24,7 +20,8 @@ use std::path::Path;
 
 use crate::atomic::atomic_create;
 use crate::bootstrap_composer::{
-    ComposeError, compose_database, compose_database_with_rows, initial_row_layout,
+    ComposeError, InitialLongIndex, compose_database, compose_database_with_rows,
+    initial_row_layout,
 };
 use crate::page_append_plan::PlannedPage;
 use crate::{
@@ -65,6 +62,8 @@ impl StdError for CreateDatabaseError {
 /// found when the candidate was reopened before publication.
 #[derive(Debug)]
 pub enum CandidateCheckError {
+    /// The candidate index tree could not be read.
+    Index(crate::IndexTreeError),
     /// The candidate rows could not be read.
     Rows(RowError),
     /// Requested rows could not be encoded for comparison.
@@ -85,6 +84,7 @@ pub enum CandidateCheckError {
 impl fmt::Display for CandidateCheckError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Index(source) => write!(formatter, "candidate index scan failed: {source}"),
             Self::Rows(source) => write!(formatter, "candidate row scan failed: {source}"),
             Self::RowEncoding(source) => {
                 write!(formatter, "candidate row comparison failed: {source}")
@@ -104,6 +104,7 @@ impl fmt::Display for CandidateCheckError {
 impl StdError for CandidateCheckError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
+            Self::Index(source) => Some(source),
             Self::Rows(source) => Some(source),
             Self::RowEncoding(source) => Some(source),
             Self::Open(source) => Some(source),
@@ -150,20 +151,25 @@ pub fn create_database(
     .map_err(CreateDatabaseError::Publish)
 }
 
-/// Creates one unindexed table containing scalar initial rows in caller order.
+/// Creates one table containing scalar initial rows in caller order.
 ///
-/// All rows must fit one data page, leaving a slot and room for one all-null
-/// row. The table definition must fit one page.
+/// Rows are packed in caller order into data pages within the inline usage-map
+/// capacity. Each row and the table definition must fit one page. Pages with
+/// a slot and room for an all-null row are marked available; this construction
+/// policy has not been established as DAO's allocation policy.
+/// At most one ascending index on one Long column is accepted, with at most
+/// 200 non-null keys in a single leaf. Primary and unique indexes reject
+/// duplicate keys; ordinary indexes retain duplicates. Null keys, descending
+/// indexes, and other key types are refused.
 /// AutoIncrement, Memo, and LongBinary columns are refused. Values use the
 /// same database-code-page and physical scalar representations as [`RowValue`].
 /// The existing-destination and atomic publication guarantees of
 /// [`create_database`] apply. Composition and the structural row comparison
 /// are charged to `budget`. Unsupported schemas and rows fail before writing.
 ///
-/// `EXP-0112` observed DAO read one exact `Rows(Id Long, Code Text 8)` image
-/// containing `(1, "one")`, `(-2, "two")`, and `(null, null)` unchanged in three
-/// local replicas. This establishes only that candidate, not other schemas or
-/// values, general compatibility, or hosted write-differential coverage.
+/// DAO observations cover only the exact candidates recorded in the provenance
+/// ledger. Construction bounds alone do not establish general compatibility or
+/// hosted write-differential coverage.
 pub fn create_database_with_rows(
     path: impl AsRef<Path>,
     table: &TableSpec<'_>,
@@ -207,36 +213,33 @@ fn check_initial_rows(
     let definition = database
         .table_definition(root, budget)
         .map_err(CandidateCheckError::Definition)?;
+    let mut expected_index = InitialLongIndex::new(table, rows.len(), budget)
+        .map_err(CandidateCheckError::RowEncoding)?;
     let mut encoded = [0_u8; crate::PAGE_BYTES];
-    let mut ends = [0_usize; 256];
-    let mut used = 0;
-    for (index, row) in rows.iter().enumerate() {
-        let length = crate::encode_row(&layout, row, &mut encoded[used..], budget)
-            .map_err(|error| CandidateCheckError::RowEncoding(ComposeError::Row(error)))?
-            .get() as usize;
-        used += length;
-        let end = ends.get_mut(index).ok_or(CandidateCheckError::Mismatch {
-            detail: "initial row count",
-        })?;
-        *end = used;
-    }
     let mut cursor = database
         .rows(&definition, budget)
         .map_err(CandidateCheckError::Rows)?;
-    let mut start = 0;
-    for end in ends.into_iter().take(rows.len()) {
+    for row in rows {
+        let length = crate::encode_row(&layout, row, &mut encoded, cursor.owned.budget_mut())
+            .map_err(|error| CandidateCheckError::RowEncoding(ComposeError::Row(error)))?
+            .get() as usize;
         let actual = cursor
             .next_row()
             .map_err(CandidateCheckError::Rows)?
             .ok_or(CandidateCheckError::Mismatch {
                 detail: "initial row count",
             })?;
-        if actual.raw_bytes() != &encoded[start..end] {
+        if actual.raw_bytes() != &encoded[..length] {
             return Err(CandidateCheckError::Mismatch {
                 detail: "initial row value",
             });
         }
-        start = end;
+        let locator = actual.locator();
+        if let Some(index) = &mut expected_index {
+            index
+                .push(row, locator, cursor.owned.budget_mut())
+                .map_err(CandidateCheckError::RowEncoding)?;
+        }
     }
     if cursor
         .next_row()
@@ -246,6 +249,20 @@ fn check_initial_rows(
         return Err(CandidateCheckError::Mismatch {
             detail: "initial row count",
         });
+    }
+    drop(cursor);
+    if let Some(mut expected) = expected_index {
+        expected
+            .sort(budget)
+            .map_err(CandidateCheckError::RowEncoding)?;
+        let actual = database
+            .index_tree(&definition, 0, budget)
+            .map_err(CandidateCheckError::Index)?;
+        if !expected.matches(&actual) {
+            return Err(CandidateCheckError::Mismatch {
+                detail: "initial index entries",
+            });
+        }
     }
     Ok(())
 }
