@@ -20,7 +20,7 @@ use std::path::Path;
 
 use crate::atomic::atomic_create;
 use crate::bootstrap_composer::{
-    ComposeError, InitialLongIndex, compose_database, compose_database_with_rows,
+    ComposeError, InitialLongIndex, compose_database, compose_database_with_table_rows,
     encode_initial_row, initial_payload_start, initial_row_layout,
 };
 use crate::page_append_plan::PlannedPage;
@@ -29,6 +29,15 @@ use crate::{
     DatabaseOpenError, DatabaseReader, IndexDefinitionKind, IndexKind, PageNumber, PublishError,
     ResourceBudget, RowError, RowValue, TableDefinitionError, TableSpec,
 };
+
+/// A table schema and its initial rows, in caller-specified order.
+#[derive(Debug, Clone, Copy)]
+pub struct TableRows<'a> {
+    /// The schema to create.
+    pub table: TableSpec<'a>,
+    /// Initial values, one slice per row in schema column order.
+    pub rows: &'a [&'a [RowValue<'a>]],
+}
 
 /// Structured failure of [`create_database`].
 #[derive(Debug)]
@@ -195,9 +204,45 @@ pub fn create_database_with_rows(
     rows: &[&[RowValue<'_>]],
     budget: &mut ResourceBudget,
 ) -> Result<(), CreateDatabaseError> {
-    let pages = compose_database_with_rows(table, rows, budget)
+    create_database_with_table_rows(
+        path,
+        &[TableRows {
+            table: *table,
+            rows,
+        }],
+        budget,
+    )
+}
+
+/// Creates up to four tables and their initial rows in one atomic publication.
+///
+/// Each table retains the bounds described by [`create_database_with_rows`]
+/// and [`create_database`]. Tables, their LVAL pages and their row pages are
+/// placed sequentially in input order within the shared inline-map capacity.
+/// An empty request creates an empty database. Relationships are not included.
+/// Every table and row is checked before publication; existing destinations
+/// remain untouched. This candidate construction has no general DAO guarantee.
+pub fn create_database_with_table_rows(
+    path: impl AsRef<Path>,
+    requests: &[TableRows<'_>],
+    budget: &mut ResourceBudget,
+) -> Result<(), CreateDatabaseError> {
+    let pages = compose_database_with_table_rows(requests, budget)
         .map_err(CreateDatabaseError::Compose)?
         .into_pages();
+    budget
+        .charge_allocation(crate::ByteCount::new(
+            (requests.len() * std::mem::size_of::<TableSpec<'_>>()) as u64,
+        ))
+        .map_err(|error| CreateDatabaseError::Compose(error.into()))?;
+    let mut tables = Vec::new();
+    tables.try_reserve_exact(requests.len()).map_err(|_| {
+        CreateDatabaseError::Compose(ComposeError::Encoding(crate::Error::Io {
+            operation: "reserve initial table schemas",
+            kind: io::ErrorKind::OutOfMemory,
+        }))
+    })?;
+    tables.extend(requests.iter().map(|request| request.table));
     let page_count = pages.len() as u64;
     budget
         .charge_work_units(page_count.saturating_mul(crate::PAGE_BYTES as u64))
@@ -206,36 +251,66 @@ pub fn create_database_with_rows(
         path,
         |file| write_pages(file, &pages),
         |candidate| {
-            check_candidate(candidate, std::slice::from_ref(table), page_count, budget)?;
-            check_initial_rows(candidate, table, rows, budget)
+            check_candidate(candidate, &tables, page_count, budget)?;
+            check_initial_tables(candidate, &tables, requests, budget)
         },
     )
     .map_err(CreateDatabaseError::Publish)
 }
 
+#[cfg(test)]
 fn check_initial_rows(
     candidate: &Path,
     table: &TableSpec<'_>,
     rows: &[&[RowValue<'_>]],
     budget: &mut ResourceBudget,
 ) -> Result<(), CandidateCheckError> {
-    let layout = initial_row_layout(table, budget).map_err(CandidateCheckError::RowEncoding)?;
+    check_initial_tables(
+        candidate,
+        std::slice::from_ref(table),
+        &[TableRows {
+            table: *table,
+            rows,
+        }],
+        budget,
+    )
+}
+
+fn check_initial_tables(
+    candidate: &Path,
+    tables: &[TableSpec<'_>],
+    requests: &[TableRows<'_>],
+    budget: &mut ResourceBudget,
+) -> Result<(), CandidateCheckError> {
     let mut database =
         DatabaseReader::open(candidate, budget).map_err(CandidateCheckError::Open)?;
-    let root = candidate_table_roots(&mut database, std::slice::from_ref(table), budget)?
-        .into_iter()
-        .next()
-        .flatten()
-        .ok_or(CandidateCheckError::Mismatch {
+    let roots = candidate_table_roots(&mut database, tables, budget)?;
+    for (position, (request, root)) in requests.iter().zip(roots).enumerate() {
+        let root = root.ok_or(CandidateCheckError::Mismatch {
             detail: "catalog row",
         })?;
+        check_initial_table_rows(&mut database, request, root, position == 0, budget)?;
+    }
+    Ok(())
+}
+
+fn check_initial_table_rows(
+    database: &mut DatabaseReader<crate::FileSource>,
+    request: &TableRows<'_>,
+    root: PageNumber,
+    first_create: bool,
+    budget: &mut ResourceBudget,
+) -> Result<(), CandidateCheckError> {
+    let table = &request.table;
+    let rows = request.rows;
+    let layout = initial_row_layout(table, budget).map_err(CandidateCheckError::RowEncoding)?;
     let definition = database
         .table_definition(root, budget)
         .map_err(CandidateCheckError::Definition)?;
     let mut expected_index = InitialLongIndex::new(table, rows.len(), budget)
         .map_err(CandidateCheckError::RowEncoding)?;
-    let mut next_payload =
-        initial_payload_start(table, root).map_err(CandidateCheckError::RowEncoding)?;
+    let mut next_payload = initial_payload_start(table, root, first_create)
+        .map_err(CandidateCheckError::RowEncoding)?;
     let mut encoded = [0_u8; crate::PAGE_BYTES];
     let mut cursor = database
         .rows(&definition, budget)

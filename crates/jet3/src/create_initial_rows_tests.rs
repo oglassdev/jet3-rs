@@ -371,3 +371,6 @@ mod indexes;
 
 #[path = "create_initial_long_values_tests.rs"]
 mod long_values;
+
+#[path = "create_multi_table_rows_tests.rs"]
+mod multi_table;

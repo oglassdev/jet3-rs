@@ -174,17 +174,6 @@ fn compose_planned_creates(
     Ok(plan)
 }
 
-/// Composes one unindexed table with scalar initial rows in inline-mapped pages.
-pub(crate) fn compose_database_with_rows(
-    spec: &TableSpec<'_>,
-    rows: &[&[RowValue<'_>]],
-    budget: &mut ResourceBudget,
-) -> Result<WholeFileImagePlan, ComposeError> {
-    let planned =
-        PlannedCreate::new(spec, EMPTY_DATABASE_PAGE_COUNT, true)?.with_rows(rows, budget)?;
-    compose_planned_creates(&[planned], budget)
-}
-
 /// Resolves precisely the same column placements as the definition encoder.
 pub(crate) fn initial_row_layout(
     spec: &TableSpec<'_>,
@@ -405,6 +394,7 @@ pub(crate) use initial_index::InitialLongIndex;
 #[path = "bootstrap_table_create.rs"]
 mod table_create;
 use table_create::PlannedCreate;
+pub(crate) use table_create::compose_database_with_table_rows;
 
 const OBJECT_LAYOUT: [RowColumnLayout; 17] = [
     fixed(ColumnPhysicalType::Long, 0, 4),

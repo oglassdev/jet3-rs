@@ -21,8 +21,9 @@ pub(super) struct InitialLongValues {
 pub(crate) fn initial_payload_start(
     table: &TableSpec<'_>,
     root: PageNumber,
+    first_create: bool,
 ) -> Result<u64, ComposeError> {
-    let plan = crate::table_schema_plan::plan_table_schema(table, root.get(), true)?;
+    let plan = crate::table_schema_plan::plan_table_schema(table, root.get(), first_create)?;
     Ok(root.get() + plan.appended_page_count())
 }
 
