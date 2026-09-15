@@ -100,7 +100,7 @@ impl Fixture {
         let mut b = budget();
         let mut db = DatabaseReader::open(self.path(), &mut b)?;
         let def = crate::update::indexed_writable_table(&mut db, b"Rows", &mut b)?;
-        crate::unique_index::load(&mut db, &def, &mut b)?;
+        crate::index_mutation::load(&mut db, &def, &mut b)?;
         assert_eq!(fs::read_dir(&self.directory)?.count(), 1);
         Ok(())
     }
@@ -318,8 +318,8 @@ fn indexed_rows_grow_shrink_reuse_and_empty() -> TestResult {
     Ok(())
 }
 #[test]
-fn indexed_rows_duplicate_null_ordinary_and_budget_refuse() -> TestResult {
-    let f = Fixture::new(3, false, IndexKind::Unique)?;
+fn indexed_rows_duplicate_required_null_and_budget_refuse_ordinary_keys_mutate() -> TestResult {
+    let f = Fixture::new(3, false, IndexKind::Primary)?;
     let before = fs::read(f.path())?;
     for value in [RowValue::Long(1), RowValue::Null] {
         assert!(
@@ -345,29 +345,22 @@ fn indexed_rows_duplicate_null_ordinary_and_budget_refuse() -> TestResult {
     );
     assert_eq!(fs::read(f.path())?, before);
     let f = Fixture::new(3, false, IndexKind::Ordinary)?;
-    let before = fs::read(f.path())?;
-    assert!(
-        insert_row(
-            f.path(),
-            b"Rows",
-            &[RowValue::Long(-1), RowValue::Long(5)],
-            &mut budget()
-        )
-        .is_err()
-    );
-    assert!(
-        crate::delete_row(
-            f.path(),
-            RowDelete {
-                table: b"Rows",
-                row: f.rows()?[0].1
-            },
-            &mut budget()
-        )
-        .is_err()
-    );
-    assert_eq!(fs::read(f.path())?, before);
-    Ok(())
+    insert_row(
+        f.path(),
+        b"Rows",
+        &[RowValue::Long(1), RowValue::Long(5)],
+        &mut budget(),
+    )?;
+    crate::delete_row(
+        f.path(),
+        RowDelete {
+            table: b"Rows",
+            row: f.rows()?[0].1,
+        },
+        &mut budget(),
+    )?;
+    assert_eq!(f.rows()?.len(), 3);
+    f.validate()
 }
 #[test]
 fn indexed_rows_corrupt_keys_counts_map_and_leaf_framing_refuse() -> TestResult {
@@ -393,7 +386,6 @@ fn indexed_rows_corrupt_keys_counts_map_and_leaf_framing_refuse() -> TestResult 
         (index + 20, 1),
         (index + 23, 0),
         (table.root().get() as usize * PAGE_BYTES + 12, 9),
-        (table.root().get() as usize * PAGE_BYTES + 47, 2),
         (map_start + 5, 0xff),
     ] {
         let mut bytes = original.clone();
@@ -455,7 +447,7 @@ fn indexed_rows_private_corruption_preserves_original() -> TestResult {
 }
 
 #[test]
-fn indexed_rows_no_available_page_appends_and_multiple_indexes_refuse() -> TestResult {
+fn indexed_rows_no_available_page_appends_and_multiple_indexes_mutate() -> TestResult {
     let f = Fixture::new(3, false, IndexKind::Primary)?;
     let table = f.definition()?;
     let map = table.maps().available();
@@ -513,30 +505,23 @@ fn indexed_rows_no_available_page_appends_and_multiple_indexes_refuse() -> TestR
         &[&values[0], &values[1]],
         &mut budget(),
     )?;
-    let before = fs::read(f.path())?;
     let row = f.rows()?[0].1;
-    assert!(
-        insert_row(
-            f.path(),
-            b"Rows",
-            &[RowValue::Long(-1), RowValue::Long(2)],
-            &mut budget()
-        )
-        .is_err()
-    );
-    assert!(
-        crate::delete_row(
-            f.path(),
-            RowDelete {
-                table: b"Rows",
-                row
-            },
-            &mut budget()
-        )
-        .is_err()
-    );
-    assert_eq!(fs::read(f.path())?, before);
-    Ok(())
+    insert_row(
+        f.path(),
+        b"Rows",
+        &[RowValue::Long(-1), RowValue::Long(2)],
+        &mut budget(),
+    )?;
+    crate::delete_row(
+        f.path(),
+        RowDelete {
+            table: b"Rows",
+            row,
+        },
+        &mut budget(),
+    )?;
+    assert_eq!(f.rows()?.len(), 2);
+    f.validate()
 }
 
 #[test]
@@ -777,3 +762,6 @@ fn indexed_rows_accept_retained_separator_and_reject_wrong_subtree_bounds() -> T
 
 #[path = "row_reuse_tests.rs"]
 mod reuse;
+
+#[path = "numeric_index_mutation_tests.rs"]
+mod numeric;

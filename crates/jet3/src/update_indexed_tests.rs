@@ -72,25 +72,28 @@ fn nonkey_update_preserves_every_index_and_unrelated_byte() -> TestResult {
     let mut expected = original;
     expected[offset..offset + 4].copy_from_slice(&i32::MIN.to_le_bytes());
     assert_eq!(fs::read(fixture.path())?, expected);
-    // Insert/delete retain their unindexed-table guard.
     let mut db = DatabaseReader::open(fixture.path(), &mut b)?;
     assert!(matches!(
         writable_table(&mut db, b"Items", &mut b),
         Err(UpdateError::Unsupported(_))
     ));
     for column in [0, 1] {
-        assert!(matches!(
-            update_field(
-                fixture.path(),
-                FieldUpdate {
-                    column: ColumnOrdinal::new(column),
-                    ..request(row, RowValue::Long(9))
-                },
-                &mut budget()
-            ),
-            Err(UpdateError::Unsupported(_))
-        ));
-        assert_eq!(fs::read(fixture.path())?, expected);
+        update_field(
+            fixture.path(),
+            FieldUpdate {
+                column: ColumnOrdinal::new(column),
+                ..request(row, RowValue::Long(9))
+            },
+            &mut budget(),
+        )?;
+        let mut b = budget();
+        let mut db = DatabaseReader::open(fixture.path(), &mut b)?;
+        crate::index_mutation::load(&mut db, &definition, &mut b)?;
+        let current = fs::read(fixture.path())?;
+        assert_eq!(
+            &current[current.len() - PAGE_BYTES..],
+            &expected[expected.len() - PAGE_BYTES..]
+        );
     }
     fixture.assert_only_original()
 }

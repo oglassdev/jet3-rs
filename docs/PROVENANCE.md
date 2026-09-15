@@ -15404,3 +15404,44 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   `retained-artifacts.json` pins 116 local and 305 outbox files.
   Captures: `shared/outbox/20260915T050500Z-random-storage-c9d38a9-sol/`.
   Original attempt: `shared/checks/20260915-random-storage-sol-c9d38a9/`.
+
+## EXP-0230 — Numeric index counters track distinct inserts and retain key edits
+
+- Native DAO histories cover single/composite Long keys, unique/nonunique
+  indexes and include/ignore-all-null policies, each with an independent
+  primary index and a descending mirror index. Eight cases have two replicas;
+  19 checkpoints each yield 304 retained images and 912 index checkpoints.
+- In every observed index, row INSERT increments the stored prefix counter
+  only when the encoded key is included and absent from the current index.
+  Duplicate-key insertion and omitted all-null insertion retain it. This
+  includes a first null-bearing key in an including index. Deleting either
+  one duplicate or the last duplicate retains the counter; later reinsertion
+  of that now-absent key increments it again.
+- Every key UPDATE retains the counter, including merging/splitting duplicate
+  groups, present/null transitions and omitted/included transitions. Both
+  replicas agree. All complete leaf records sort by encoded key plus locator
+  in this small single-leaf inventory. Branch-boundary duplicates require
+  separate mutation verification.
+- A dependent eight-case followup (44 images) confirms that counters can be
+  lower than the current distinct-key count. Three equal inserted keys retain
+  counter 1 after two edits produce three distinct keys. Two initially omitted
+  null rows retain counter 0 after edits produce two included unique keys.
+  A general reader/mutator must not require the counter to equal or exceed
+  current live rows or distinct keys. Table live counts remain independently
+  checked against rows.
+- Independent analysis checks cumulative before/after identities, complete
+  expected typed rows, physical schema and live counts, key encoding and exact
+  locator coverage, DAO directed traversal, and capture-read preservation.
+  These observations establish counter behavior, not a Rust mutation result.
+- Private first report:
+  `shared/checks/20260915-numeric-counter-discovery/report.json`, SHA-256
+  `ae71d8f79d0fdb3923c231e730fd30d34666e9077b445dbf3ae20277c2475c77`;
+  all-transition predicate/replica check `conclusions.json`, SHA-256
+  `d1c9b57812b9b89647482799ce6cee629fc942844df2a3f9f66dd5d1639b3daf`.
+  Captures: `shared/outbox/20260915T045200Z-numeric-counters/`.
+- Followup report:
+  `shared/checks/20260915-numeric-counter-below-distinct/report.json`, SHA-256
+  `c74acabe44506d275f2596817fbf3fb8e1698c8db725b39d1c61f7afb257d1d0`.
+  Captures: `shared/outbox/20260915T045500Z-counters-below-distinct/`.
+  Both directories retain matrices, producers, analyzer and actual provider
+  environment. DAO is the fresh local 3.6 provider from EXP-0221.

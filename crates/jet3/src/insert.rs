@@ -11,10 +11,11 @@ use std::path::Path;
 /// Inserts a row on an available page, a released target-table page, or one EOF page.
 ///
 /// Values use the existing checked scalar/Text/Binary row encoder, including null
-/// and Boolean fields. One unique/primary present Long index is supported when
-/// its complete tree and row/key correspondence validate. The tree is rebuilt
-/// with its existing root, reusing reserved index pages and appending nodes as needed.
-/// Other indexes, AutoIncrement, long values and relationships are refused.
+/// and Boolean fields. Up to three indexes with one or two supported numeric
+/// fields admit primary, unique, nonunique, descending and nullable keys. Each
+/// complete tree and row/key correspondence must validate. Changed trees retain
+/// their roots, reuse reserved index pages and append nodes as needed. Other
+/// key types, AutoIncrement, long values and relationships are refused.
 /// If no populated page fits, a released global-free page belonging to this table
 /// is reused, or one EOF page is appended, within existing inline maps. No slot reuse,
 /// map growth or compaction is implemented. An existing selected page must fit
@@ -23,7 +24,8 @@ use std::path::Path;
 ///
 /// The new row, appended slot, page free/count fields, availability and table count
 /// change on unindexed existing-page insertion. Indexed insertion additionally
-/// updates index nodes/maps and increments the retained index counter. EOF insertion clears its global free
+/// updates index nodes/maps and increments each retained counter only for a new
+/// included key. EOF insertion clears its global free
 /// bit and sets owned/available bits, marking available when a minimum encoded
 /// row still fits. All other bytes, including page zero, remain exact. This
 /// construction requires separate DAO validation and makes no compatibility claim.
@@ -86,7 +88,7 @@ where
     let mut index = if definition.indexes().is_empty() && definition.physical_indexes().is_empty() {
         None
     } else {
-        Some(crate::unique_index::load(
+        Some(crate::index_mutation::load(
             &mut database,
             &definition,
             budget,
@@ -125,7 +127,7 @@ where
     }
     let mut source_definition = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut source_definition, budget)?;
-    let mut patched_definition =
+    let patched_definition =
         crate::row_insert_page::increment_count(&source_definition, observed_rows, budget)?;
     let mut owned_bytes = [0; PAGE_BYTES];
     let owned = inline_map(
@@ -231,11 +233,7 @@ where
         RowLocator::new(plan.page, 0)
     };
     if let Some(index) = &mut index {
-        let Some(RowValue::Long(value)) = values.get(usize::from(index.column.get())) else {
-            return Err(UpdateError::Unsupported("insert requires present Long key"));
-        };
-        index.insert(*value, row, budget)?;
-        crate::index_key_page::increment_counter(&mut patched_definition, budget)?;
+        index.insert(values, row, budget)?;
         index.stage(&mut database, &definition, &mut edits, budget)?;
     }
     edits.replace(

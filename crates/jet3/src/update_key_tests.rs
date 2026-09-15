@@ -168,7 +168,7 @@ fn duplicate_noop_multilevel_and_budget_bounds_preserve_source() -> TestResult {
         let mut b = budget();
         let mut db = DatabaseReader::open(full.path(), &mut b)?;
         let table = definition(&full)?;
-        crate::unique_index::load(&mut db, &table, &mut b)?;
+        crate::index_mutation::load(&mut db, &table, &mut b)?;
         assert_eq!(db.index_tree(&table, 0, &mut b)?.entries()[0].row(), row);
     }
     Ok(())
@@ -202,11 +202,6 @@ fn stale_keys_counts_compression_and_locator_aliases_refuse() -> TestResult {
         );
         assert_eq!(fs::read(fixture.path())?, damaged);
     }
-    let mut raw = [0; PAGE_BYTES];
-    raw[12..16].copy_from_slice(&3_u32.to_le_bytes());
-    let mut prefix = [0; 8];
-    prefix[4..8].copy_from_slice(&2_u32.to_le_bytes());
-    assert!(crate::index_key_page::check_counts(&raw, &prefix, 3).is_err());
     Ok(())
 }
 

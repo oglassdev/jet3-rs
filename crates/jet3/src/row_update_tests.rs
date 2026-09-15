@@ -440,25 +440,18 @@ fn unsupported_schema_map_and_variable_width_states_are_preserved() -> TestResul
         &mut b
     )?);
     drop(db);
-    for (kind, value, indexed) in [
-        (ColumnType::AutoIncrement, RowValue::AutoIncrement, false),
-        (ColumnType::Memo, RowValue::Null, false),
-        (ColumnType::Long, RowValue::Long(1), true),
+    for (kind, value) in [
+        (ColumnType::AutoIncrement, RowValue::AutoIncrement),
+        (ColumnType::Memo, RowValue::Null),
     ] {
         fs::remove_file(f.path())?;
         let columns = [ColumnSpec::new(b"Id", kind)];
-        let keys = [crate::IndexColumnSpec::ascending(0)];
-        let indexes = [crate::IndexSpec {
-            name: b"Ix",
-            kind: crate::IndexKind::Ordinary,
-            fields: &keys,
-        }];
         crate::create_database_with_rows(
             f.path(),
             &TableSpec {
                 name: b"Rows",
                 columns: &columns,
-                indexes: if indexed { &indexes } else { &[] },
+                indexes: &[],
             },
             &[&[value]],
             &mut budget(),
@@ -627,7 +620,7 @@ fn indexed_variable_row_replacement_preserves_locators_and_other_rows() -> TestR
         let mut b = budget();
         let mut db = DatabaseReader::open(f.path(), &mut b)?;
         let table = db.table_definition(f.root, &mut b)?;
-        crate::unique_index::load(&mut db, &table, &mut b)?;
+        crate::index_mutation::load(&mut db, &table, &mut b)?;
     }
     let before = fs::read(f.path())?;
     let duplicate = [
