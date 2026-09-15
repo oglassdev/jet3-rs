@@ -165,6 +165,10 @@ impl<'operation, S: ReadAt> CatalogCursor<'operation, S> {
         self.root
     }
 
+    pub(crate) fn budget_mut(&mut self) -> &mut ResourceBudget {
+        self.owned.budget_mut()
+    }
+
     /// Returns the next active catalog record.
     ///
     /// Any error exhausts the cursor. Repeated calls after exhaustion perform

@@ -1,6 +1,6 @@
 # jet3-cli
 
-`jet3-cli --help` lists the existing `probe`, `inspect` and protocol `snapshot`
+`jet3-cli --help` lists `probe`, `inspect`, `validate`, `mutate` and protocol `snapshot`
 commands. `create` is an optional JSON frontend to the public creation APIs:
 
 ```sh
@@ -31,6 +31,35 @@ or selection failures instead produce a JSON `inspect_failed` error on stderr
 with exit 1. Invalid arguments produce JSON errors on stderr with exit 2. A
 successful inspection describes the requested decoded content; it is not a
 whole-file compatibility verdict. Inspection never modifies the database.
+
+Validate reachable user-table data without modifying the file:
+
+```sh
+jet3-cli validate example.mdb --code-page 1252
+jet3-cli validate example.mdb --max-input-bytes 268435456 --max-work-units 1000000000
+```
+
+`validate` calls `DatabaseReader::validate` with one shared resource budget. It
+decodes active catalog records and user-table definitions, checks live row counts,
+decodes every field, streams reachable Memo/OLE values to their end, and traverses
+each physical user index using the existing index reader. Text uses Windows-1252
+by default; Windows-1251 is also accepted. The input limit defaults to 256 MiB;
+the other library limits remain in effect alongside the optional work limit.
+Exclude concurrent writers while validation runs.
+
+Success returns `ok: true`, `scope: "catalogued_user_tables"`, checked counts,
+coverage limits and resource usage on stdout with exit 0. Long-value bytes count
+raw payload bytes per reference, before text decoding. The first failure returns
+`validation_failed` JSON on stderr with exit 1 and no success report; its message
+includes the table and available field/index/row context. Invalid arguments exit 2.
+
+This is a bounded structural check, not whole-file validity. System objects are
+checked only as catalog records; their contents and other object kinds are skipped.
+Unreferenced pages, allocation slack and relationship constraints are not checked.
+Index traversal checks node framing, links and page/slot references, but does not
+prove key ordering/semantics, index-to-row key equality, completeness or live-row
+membership. Unsupported key encodings are counted as uninterpreted entries.
+Success does not establish Access/DAO compatibility.
 
 The `create` output path must not exist. Creation uses the library's atomic publication,
 validation and default resource limits; publication currently requires Unix.
