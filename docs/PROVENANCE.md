@@ -15374,3 +15374,33 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   manifest SHA-256 `39ea72ad4ca36e86bdd882d27c3bd8a83d42a03ab1862abc9ab741400435aca6`.
   The provider is the fresh local DAO 3.6 environment recorded in EXP-0221.
   This meets the practical Items/Notes milestone, not the broader v1 inventory.
+
+
+## EXP-0231 — Seeded dense-page and released-storage mutations match DAO
+
+- Sol high independently exercised clean `c9d38a9f843758ea9cf7a676ed5c23c6e145abe9`
+  with six seeds and 50 scheduled operations each. Of 300 attempts, 271
+  succeeded and all 271 were replayed through DAO with matching complete
+  typed Items/Notes rows, metadata, directed traversal, typed Seek probes,
+  raw key/locator membership, counters and Notes page hashes.
+- Every seed exercised capacity exhaustion (88 appends total), same-width
+  replacement and deletion on a dense unavailable page, last-row release,
+  and reuse of that released page without EOF growth. Each of the latter
+  paths occurred six times. Narrow, wide and mixed rows and both index
+  directions were included.
+- The 29 refusals preserved exact input bytes: 27 intentional duplicates
+  and two remaining contiguous-growth scope gaps (seed 71543 step 42 and
+  seed 71545 step 46). No unexpected Rust failure, native rejection,
+  semantic mismatch or Notes change occurred. Refusals are coverage gaps,
+  not successful mutations.
+- The first host attempt stopped on a harness assertion after 61 validated
+  operations: an existing page correctly remained available after one
+  append. It is retained separately; the successor fills that page until
+  availability actually clears. No DAO run or implementation failure is
+  attributed to the first attempt.
+- Private final root: `shared/checks/20260915-random-storage-sol-c9d38a9-2/`.
+  `summary.json` SHA-256
+  `24169959739aca2579725ffeb2f3c1b408b047edc65b24f7745d19782e799ff9`.
+  `retained-artifacts.json` pins 116 local and 305 outbox files.
+  Captures: `shared/outbox/20260915T050500Z-random-storage-c9d38a9-sol/`.
+  Original attempt: `shared/checks/20260915-random-storage-sol-c9d38a9/`.
