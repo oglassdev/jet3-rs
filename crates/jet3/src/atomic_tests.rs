@@ -336,7 +336,8 @@ fn substituted_private_path_is_rejected_and_left_untouched() -> TestResult {
             Ok(())
         },
     )
-    .expect_err("substitution must fail");
+    .err()
+    .ok_or(TestFailure("substitution unexpectedly succeeded"))?;
     assert_eq!(error.stage(), PublishStage::Publish);
     assert!(error.cleanup_error().is_some());
     assert_eq!(fs::read(target)?, b"original");
@@ -367,7 +368,9 @@ fn readonly_private_copy_is_cleaned_after_a_prepublication_failure() -> TestResu
             }
         },
     );
-    let error = result.expect_err("injected failure");
+    let error = result
+        .err()
+        .ok_or(TestFailure("injected failure unexpectedly succeeded"))?;
     assert_eq!(error.stage(), PublishStage::PrePublish);
     assert!(error.cleanup_error().is_none());
     assert_eq!(fs::read(&target)?, b"original");
