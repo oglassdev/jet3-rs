@@ -10,37 +10,36 @@ use std::{convert::Infallible, error::Error as StdError, path::Path};
 pub struct RowUpdate<'a> {
     /// Exact database-encoded user table name.
     pub table: &'a [u8],
-    /// Existing physical/logical locator obtained while the source is unchanged.
+    /// Existing logical locator obtained while the source is unchanged.
     pub row: RowLocator,
     /// Complete replacement row, including raw Memo/OLE payload values.
     pub values: &'a [RowValue<'a>],
 }
 
-/// Replaces a complete ordinary row on its current page without changing its slot.
+/// Replaces a complete row while retaining its logical locator.
 ///
-/// Supports scalar/null/Boolean/Text/Binary values in relationship-free
-/// tables, including independent Memo/OLE columns. The page must be owned and
-/// allocated, with consistent metadata and ordinary live rows or known empty
-/// `c000` tombstones. The data page and row locator remain fixed. Up to 32
-/// indexes with one to ten supported scalar fields admit key and null changes,
-/// with uniqueness enforced for fully present keys.
-/// Existing checked row-encoding limits apply, including variable-offset widths.
-/// The replacement must fit the existing contiguous space. Available membership
-/// records whether a minimum encoded row and directory slot still fit; this is
-/// a candidate policy, not a model of DAO's availability threshold.
+/// Supports scalar/null/Boolean/Text/Binary values and independent Memo/OLE
+/// columns in relationship-free tables. Up to 32 indexes with one to ten
+/// supported scalar fields admit key and null changes, with uniqueness enforced
+/// for fully present keys. Every hidden storage slot must belong to exactly one
+/// logical row. Mutation of a selected multi-hop overflow chain is refused.
+///
+/// A replacement that fits its logical slot is stored there, releasing any old
+/// hidden target. Otherwise it replaces the current hidden target when space
+/// permits, or allocates hidden storage and rewrites the original logical link
+/// directly. EXP-0262 establishes these native transitions. Whole-row encoding
+/// limits still apply; overflow does not allow a row to exceed them.
 ///
 /// External payloads are validated against live references and column ownership.
 /// Replaced fragments are released or reused, with single and chained storage
-/// in separate pools. All payload, data, index and allocation changes publish
+/// in separate pools. All payload, row, index and allocation changes publish
 /// together. Caller-supplied raw long-value headers are refused.
 ///
-/// Later row bytes and offsets shift as needed, preserving their slots and values.
-/// Shrinking leaves newly vacated slack unchanged. Only the replacement, shifted
-/// bytes/offsets and page free-byte count change in the data page. A changed key
-/// rebuilds index nodes and may grow their allocation maps. The page's
-/// available bit reflects remaining capacity. Table/slot counts, page zero and
-/// unrelated objects remain exact. EXP-0232/0238 record finite numeric and
-/// long-value replacement comparisons, including retained generated IDs.
+/// Compaction preserves neighboring slots and values. Empty slots become
+/// tombstones; emptied pages are released for reuse. Available membership records
+/// whether a minimum encoded row and directory slot fit. Changed indexes retain
+/// logical row locators. Table counts, page zero and unrelated objects remain
+/// exact; newly vacated row slack is retained.
 ///
 /// Callers must exclude external writers throughout this operation on Unix or Windows.
 /// One resource budget covers planning, copying and complete private verification.
@@ -67,6 +66,12 @@ where
 {
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = crate::update::indexed_writable_table(&mut database, request.table, budget)?;
+    let graph = crate::row_mutation_graph::RowGraph::load(
+        &mut database,
+        &definition,
+        Some(request.row),
+        budget,
+    )?;
     let auto = crate::auto_number_mutation::AutoNumber::load(&definition)?;
     let mut lowered = [RowValue::Null; u8::MAX as usize];
     if let Some(auto) = auto {
@@ -102,9 +107,6 @@ where
     {
         let mut rows = database.rows(&definition, budget)?;
         while let Some(mut row) = rows.next_row()? {
-            if row.locator() != row.storage_locator() {
-                return Err(UpdateError::Unsupported("overflow row"));
-            }
             observed = observed
                 .checked_add(1)
                 .ok_or(UpdateError::Mismatch("row count overflow"))?;
@@ -146,39 +148,17 @@ where
     let mut count_page = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut count_page, budget)?;
     crate::row_update_page::check_count(&count_page, observed, budget)?;
-    let available =
-        crate::allocation_patch::available(&mut database, &definition, request.row.page(), budget)?;
-    let mut before = [0; PAGE_BYTES];
-    database.read_raw_page(request.row.page(), &mut before, budget)?;
-    let after = crate::row_update_page::replace(
-        request.row.page(),
-        definition.root(),
-        &before,
-        request.row.slot(),
-        &encoded[..length],
-        budget,
-    )?;
     let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
     long_values.stage(&mut database, &mut edits, budget)?;
-    edits.replace(
-        crate::update_pages::PageChange {
-            page: request.row.page(),
-            before: &before,
-            after: after.as_bytes(),
-        },
-        budget,
-    )?;
-    let maps = crate::allocation_patch::plan(
+    crate::row_mutation_place::replace(
         &mut database,
         &definition,
-        request.row.page(),
-        crate::allocation_patch::AllocationChange::Retain {
-            before: available,
-            available: crate::row_insert_page::has_capacity(after.as_bytes(), minimum_length),
-        },
+        &graph.selected,
+        &encoded[..length],
+        &minimum[..minimum_length],
+        &mut edits,
         budget,
     )?;
-    maps.stage(&mut database, &mut edits, budget)?;
     if let Some(index) = &mut index {
         index.replace(request.row, values, budget)?;
         index.stage(&mut database, &definition, &mut edits, budget)?;

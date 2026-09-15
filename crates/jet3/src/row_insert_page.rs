@@ -1,5 +1,6 @@
 //! Appending physical slots from EXP-0162, using EXP-0060 directory/row layout.
 use crate::row_directory::RowDirectory;
+use crate::row_slot::RowSlot;
 use crate::{PAGE_BYTES, PageImage, PageNumber, PageOffset, ResourceBudget, UpdateError};
 
 const FREE_BYTES: usize = 2;
@@ -15,6 +16,28 @@ pub(crate) fn append(
     row: &[u8],
     budget: &mut ResourceBudget,
 ) -> Result<Option<(PageImage, u8)>, UpdateError> {
+    append_inner(page, owner, source, row, None, budget)
+}
+
+pub(crate) fn append_physical(
+    page: PageNumber,
+    owner: PageNumber,
+    source: &[u8; PAGE_BYTES],
+    row: &[u8],
+    state: RowSlot,
+    budget: &mut ResourceBudget,
+) -> Result<Option<(PageImage, u8)>, UpdateError> {
+    append_inner(page, owner, source, row, Some(state), budget)
+}
+
+fn append_inner(
+    page: PageNumber,
+    owner: PageNumber,
+    source: &[u8; PAGE_BYTES],
+    row: &[u8],
+    state: Option<RowSlot>,
+    budget: &mut ResourceBudget,
+) -> Result<Option<(PageImage, u8)>, UpdateError> {
     let directory = RowDirectory::validate(page, owner, source, budget)?;
     let count = directory.row_count();
     if count == 0 {
@@ -24,6 +47,12 @@ pub(crate) fn append(
     let mut live = 0;
     for ordinal in 0..count {
         let entry = directory.entry(source, ordinal as u8)?;
+        if state.is_some() {
+            if RowSlot::read(&entry)? != RowSlot::Deleted {
+                live += 1;
+            }
+            continue;
+        }
         if entry.range().is_empty() && entry.hidden() && entry.overflow() {
             continue;
         }
@@ -46,6 +75,11 @@ pub(crate) fn append(
     if free != packed_start - directory_end {
         return Err(UpdateError::Mismatch("data page free-byte count"));
     }
+    let state = state.unwrap_or(RowSlot::Ordinary);
+    state.check_length(row.len())?;
+    if state == RowSlot::Deleted {
+        return Err(UpdateError::Mismatch("appending a deleted row"));
+    }
     let needed = row
         .len()
         .checked_add(ENTRY_BYTES)
@@ -57,7 +91,8 @@ pub(crate) fn append(
         .checked_sub(row.len())
         .ok_or(UpdateError::Mismatch("row start"))?;
     let new_free = u16::try_from(free - needed).map_err(|_| UpdateError::Mismatch("free bytes"))?;
-    let word = u16::try_from(start).map_err(|_| UpdateError::Mismatch("row offset"))?;
+    let word =
+        u16::try_from(start).map_err(|_| UpdateError::Mismatch("row offset"))? | state.flags();
     let mut patched = PageImage::from_bytes(*source);
     patched.write_at(PageOffset::new(start as u64), row, budget)?;
     patched.write_at(

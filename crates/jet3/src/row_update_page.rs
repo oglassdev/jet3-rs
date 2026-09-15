@@ -1,10 +1,10 @@
 //! Same-page row replacement from EXP-0060/0061 encoding and EXP-0162 movement.
 use crate::row_directory::RowDirectory;
+use crate::row_slot::RowSlot;
 use crate::{PAGE_BYTES, PageImage, PageNumber, PageOffset, ResourceBudget, UpdateError};
 const FREE_BYTES: usize = 2;
 const DIRECTORY: usize = 10;
 const ENTRY_BYTES: usize = 2;
-const TOMBSTONE: u16 = 0xc000;
 const TABLE_COUNT: usize = 12;
 
 pub(crate) fn replace(
@@ -15,10 +15,37 @@ pub(crate) fn replace(
     encoded: &[u8],
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, UpdateError> {
+    replace_inner(page, owner, source, slot, encoded, None, budget)?.ok_or(
+        UpdateError::Unsupported("replacement exceeds contiguous page space"),
+    )
+}
+
+pub(crate) fn replace_physical(
+    page: PageNumber,
+    owner: PageNumber,
+    source: &[u8; PAGE_BYTES],
+    slot: u8,
+    encoded: &[u8],
+    state: RowSlot,
+    budget: &mut ResourceBudget,
+) -> Result<Option<PageImage>, UpdateError> {
+    replace_inner(page, owner, source, slot, encoded, Some(state), budget)
+}
+
+fn replace_inner(
+    page: PageNumber,
+    owner: PageNumber,
+    source: &[u8; PAGE_BYTES],
+    slot: u8,
+    encoded: &[u8],
+    state: Option<RowSlot>,
+    budget: &mut ResourceBudget,
+) -> Result<Option<PageImage>, UpdateError> {
     let directory = RowDirectory::validate(page, owner, source, budget)?;
     let count = directory.row_count();
     let target = directory.entry(source, slot)?;
-    if target.hidden() || target.overflow() || target.range().is_empty() {
+    let previous = RowSlot::read(&target)?;
+    if previous == RowSlot::Deleted || (state.is_none() && previous != RowSlot::Ordinary) {
         return Err(UpdateError::Unsupported(
             "replacement target is not an ordinary live row",
         ));
@@ -26,6 +53,10 @@ pub(crate) fn replace(
     budget.charge_work_units(2 * u64::from(count))?;
     for ordinal in 0..count {
         let entry = directory.entry(source, ordinal as u8)?;
+        if state.is_some() {
+            RowSlot::read(&entry)?;
+            continue;
+        }
         if entry.hidden() && entry.overflow() && entry.range().is_empty() {
             continue;
         }
@@ -45,12 +76,14 @@ pub(crate) fn replace(
     if free != lowest - directory_end {
         return Err(UpdateError::Mismatch("replacement free-byte count"));
     }
-    let new_free = free
+    let Some(new_free) = free
         .checked_add(old.len())
         .and_then(|space| space.checked_sub(encoded.len()))
-        .ok_or(UpdateError::Unsupported(
-            "replacement exceeds contiguous page space",
-        ))?;
+    else {
+        return Ok(None);
+    };
+    let state = state.unwrap_or(RowSlot::Ordinary);
+    state.check_length(encoded.len())?;
     if encoded.is_empty() {
         return Err(UpdateError::Unsupported("empty replacement row"));
     }
@@ -75,9 +108,14 @@ pub(crate) fn replace(
             .and_then(|v| v.checked_sub(encoded.len()))
             .filter(|v| *v <= PAGE_BYTES)
             .ok_or(UpdateError::Mismatch("replacement slot offset"))?;
+        let flags = if ordinal == u16::from(slot) {
+            state.flags()
+        } else {
+            RowSlot::read(&entry)?.flags()
+        };
         let word = u16::try_from(offset)
             .map_err(|_| UpdateError::Mismatch("replacement slot width"))?
-            | if entry.hidden() { TOMBSTONE } else { 0 };
+            | flags;
         image.write_at(
             PageOffset::new((DIRECTORY + ENTRY_BYTES * usize::from(ordinal)) as u64),
             &word.to_le_bytes(),
@@ -91,7 +129,7 @@ pub(crate) fn replace(
         &free.to_le_bytes(),
         budget,
     )?;
-    Ok(image)
+    Ok(Some(image))
 }
 
 pub(crate) fn check_count(

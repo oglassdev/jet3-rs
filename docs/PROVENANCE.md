@@ -16927,3 +16927,72 @@ by this native-only discovery.
   `f39d1038802b826507347aeee1a2501843f38efd2dc61199ab705a008bd4c001`.
   These checks cover the retained finite candidates; arbitrary schema history
   and cross-page row growth remain outside this lifecycle suite.
+
+## EXP-0262 — Native overflow row replacement, collapse, relocation and release
+
+- **Source:** private clean-room native matrix
+  `/tmp/jet3-row-overflow-discovery/`, run `20260915T125534Z-row-overflow-r1`.
+  Two schema families × two replicas; each starts with72 packed short rows
+  and executes64 deterministic mutations across10 closed checkpoints. Both
+  have Long primary Id and Text255/Binary255; the second includes secondary
+  Text index and unchanged independent80-byte Memo/OLE fields. Unrelated
+  Notes has a4096-byte Memo. Existing EXP0060/0061/0065/0257/0258/0259 helpers
+  supply already-sourced framing; expected field values are Python recipes.
+- **Provider:** four fresh x86 workers, DAO3.6 DLL03.60.9765.0, SHA256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  Full OS/CLR/PowerShell/culture retained. All workers exit0;40 full native
+  schema/value/traversal/Seek captures;256 post-setup mutations. Forty-four
+  exact MDBs including working copies total3,637,248 bytes. No native or
+  analyzer failure/retry; no other MDB implementation inspected.
+- **Pins:** matrix96069 bytes SHA256
+  `32d24bf1e1c3d236b6e98ef1b3bfcf17817b375dfde2c11fbcfe16c464b8d30b`;
+  worker index2116 bytes SHA256
+  `5f646dc94054c1245ef7267386dccb5325dbb03a66e7f3fb563ef9c2d310d806`;
+  answered report2840665 bytes SHA256
+  `72bc780dd2fc97fad91c18f907fc2580d3d5091a6f1c7b9c356d5eef5b0f1f1b`.
+  Native outbox is
+  `/home/alex/development/vms/jet3-windows/shared/outbox/20260915T125534Z-row-overflow-r1/`.
+  Exact image/source pins and detailed graphs are retained privately in
+  `accepted-pins.json`, `images.json`, `FINDINGS.md` and `observations.json`.
+- **Growth/equal replacement:** packed ordinary rows become4000 four-byte
+  links at the original logical page/slot; target slot+u24 little-endian page
+  names a same-table 8000 hidden full row. Equal-size edits retain link and
+  target. Ordinary Id0 P30/0→P31/16 stores `101f0000` and371 target bytes;
+  payload Id0 P33/0→P39/8 stores `08270000` and397 target bytes. The selected
+  roomier-tail row grows in place as a control.
+- **Shrink/regrowth/relocation:** shrinking selected overflow rows to12/38
+  bytes when the original source has room replaces the original link with
+  the ordinary row and leaves the hidden target as a zero-length c000 slot.
+  Regrowth reinstates a link at the same logical locator. Existing ordinary
+  Id55 grows371→522 in the same hidden P31/18; payload Id31 grows397→548 by
+  relocating P39/10→P44/2. Original P33/31 changes directly to `022c0000` and
+  old P39/10 becomes c000; no intermediate hidden link is created.
+- **Insertion/deletion:** short and medium inserts append new ordinary slots
+  on pages already holding hidden targets, retaining intervening tombstones.
+  Deleting an overflow row turns both the4000 logical slot and8000 target into
+  empty c000. Shared pages retain other rows and slot numbers; ordinary P32
+  retains inserted2..4 after hidden0/1 deletion, payload P44 retains inserted3
+  after hidden0..2 deletion. Across all owned data pages free bytes equal
+  lowest row start minus10 minus twice the directory count.
+- **Release/reuse:** empty ordinary32/33 and payload44/45/51 leave table
+  owned/available maps and gain global free bits. Released pages use tag09,
+  byte1=01, retain table root and directory count, carry c800 in every retained
+  directory slot, and free2038−2×count. Reinsertion reuses freed pages32/33 or
+  44/45 with tag01 and fresh directory slots, without growing EOF. All global,
+  table, index and independent payload-map transitions are recorded.
+- **Complete comparisons:** all3120 logical row observations match exact
+  recipe values; native traversal/Seek and every raw key+locator agree.
+  All2720 surviving-row comparisons retain logical locators; indexes name
+  those locators even when storage moves. Strict graph checks find every
+  nonempty hidden slot reached exactly once, with no orphan, shared target,
+  cycle or wrong owner. Both replicas agree on complete structural fields and
+  defined row bytes. All2720 surviving Memo/OLE header checks preserve exact
+  references, complete payloads are independently verified, and Notes-owned
+  bytes remain identical throughout. Raw unused presence bits and free slack
+  remain retained without guessed equality requirements.
+- **Limits:** all observed chains have one logical link and one hidden payload.
+  No nonempty hidden+overflow intermediate, mutation of a multi-hop chain,
+  insertion specifically on a link-bearing source page, or shrink which
+  cannot fit at the source was observed. Page choices establish the retained
+  examples, not a universal allocation-selection rule. These are native format
+  and mutation facts, not Rust candidate compatibility acceptance.

@@ -674,3 +674,98 @@ fn autonumber_payload_mutations_generate_retain_and_wrap_state() -> TestResult {
     }
     Ok(())
 }
+
+#[test]
+fn overflow_rows_preserve_complete_payloads_and_column_ownership() -> TestResult {
+    let fixture = Fixture::new(true)?;
+    for id in 3..=50 {
+        insert_row(
+            fixture.path(),
+            b"Rows",
+            &[
+                RowValue::Long(id),
+                RowValue::Long(1),
+                RowValue::Memo(&[b'a'; 33]),
+                RowValue::LongBinary(&[0x11; 33]),
+            ],
+            &mut budget(),
+        )?;
+    }
+    let initial = fixture.snapshot()?;
+    let logical = initial[&1].locator;
+    update_row(
+        fixture.path(),
+        RowUpdate {
+            table: b"Rows",
+            row: logical,
+            values: &[
+                RowValue::Long(1),
+                RowValue::Long(2),
+                RowValue::Memo(&[b'M'; 32]),
+                RowValue::LongBinary(&[0xa5; 32]),
+            ],
+        },
+        &mut budget(),
+    )?;
+    let table = fixture.definition()?;
+    {
+        let mut work = budget();
+        let mut db = DatabaseReader::open(fixture.path(), &mut work)?;
+        let graph =
+            crate::row_mutation_graph::RowGraph::load(&mut db, &table, Some(logical), &mut work)?;
+        assert_eq!(graph.selected.len(), 2);
+    }
+    let grown = fixture.snapshot()?;
+    assert_eq!(grown[&1].locator, logical);
+    assert_eq!(
+        grown[&1].payloads,
+        [Some(vec![b'M'; 32]), Some(vec![0xa5; 32])]
+    );
+    for (id, row) in &initial {
+        if *id != 1 {
+            assert_eq!(&grown[id], row);
+        }
+    }
+    fixture.validate()?;
+    update_row(
+        fixture.path(),
+        RowUpdate {
+            table: b"Rows",
+            row: logical,
+            values: &[
+                RowValue::Long(1),
+                RowValue::Long(3),
+                RowValue::Memo(&[b'C'; 8192]),
+                RowValue::LongBinary(&[0x77; 4096]),
+            ],
+        },
+        &mut budget(),
+    )?;
+    let external = fixture.snapshot()?;
+    assert_eq!(
+        external[&1].payloads,
+        [Some(vec![b'C'; 8192]), Some(vec![0x77; 4096])]
+    );
+    for (id, row) in &initial {
+        if *id != 1 {
+            assert_eq!(&external[id], row);
+        }
+    }
+    delete_row(
+        fixture.path(),
+        RowDelete {
+            table: b"Rows",
+            row: logical,
+        },
+        &mut budget(),
+    )?;
+    let remaining = fixture.snapshot()?;
+    assert_eq!(remaining.len(), initial.len() - 1);
+    for (id, row) in &initial {
+        if *id != 1 {
+            assert_eq!(&remaining[id], row);
+        }
+    }
+    fixture.validate()?;
+    Ok(())
+}
