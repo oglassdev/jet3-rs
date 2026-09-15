@@ -168,3 +168,101 @@ fn locator_width_and_budget_are_checked() -> Result<(), Box<dyn std::error::Erro
     ));
     Ok(())
 }
+
+#[test]
+fn key_shapes_check_each_component_null_policy_and_complete_width()
+-> Result<(), Box<dyn std::error::Error>> {
+    for (kind, value) in [
+        (NumericKeyType::Boolean, RowValue::Boolean(false)),
+        (NumericKeyType::Byte, RowValue::Byte(7)),
+        (NumericKeyType::Integer, RowValue::Integer(-5)),
+        (NumericKeyType::Long, RowValue::Long(-500)),
+        (
+            NumericKeyType::Currency,
+            RowValue::Currency { scaled: 120001 },
+        ),
+        (NumericKeyType::Single, RowValue::Single(-1.25)),
+        (NumericKeyType::Double, RowValue::Double(2.5)),
+    ] {
+        for direction in [IndexDirection::Ascending, IndexDirection::Descending] {
+            let fields = [NumericIndexField {
+                column: 0,
+                kind,
+                direction,
+            }];
+            let entry = NumericIndexEntry::encode(
+                &fields,
+                &[value],
+                IndexNullPolicy::Required,
+                LOCATOR,
+                &mut budget(),
+            )?
+            .ok_or("entry")?;
+            assert!(valid_key_shape(
+                &fields,
+                IndexNullPolicy::Required,
+                entry.key()
+            ));
+            assert!(!valid_key_shape(
+                &fields,
+                IndexNullPolicy::Required,
+                &entry.key()[..entry.key().len() - 1]
+            ));
+            let mut bad = entry.key().to_vec();
+            bad.push(0);
+            assert!(!valid_key_shape(&fields, IndexNullPolicy::Required, &bad));
+            bad.pop();
+            bad[0] = 0x7e;
+            assert!(!valid_key_shape(&fields, IndexNullPolicy::Include, &bad));
+            if kind == NumericKeyType::Boolean {
+                bad[0] = entry.key()[0];
+                bad[1] = 1;
+                assert!(!valid_key_shape(&fields, IndexNullPolicy::Required, &bad));
+            }
+            let null = [if direction == IndexDirection::Ascending {
+                0
+            } else {
+                0xff
+            }];
+            assert_eq!(
+                valid_key_shape(&fields, IndexNullPolicy::Include, &null),
+                kind != NumericKeyType::Boolean
+            );
+            assert!(!valid_key_shape(
+                &fields,
+                IndexNullPolicy::IgnoreAllNull,
+                &null
+            ));
+            assert!(!valid_key_shape(&fields, IndexNullPolicy::Required, &null));
+        }
+    }
+    for values in [
+        [RowValue::Null, RowValue::Null],
+        [RowValue::Long(1), RowValue::Null],
+        [RowValue::Null, RowValue::Long(2)],
+        [RowValue::Long(1), RowValue::Long(2)],
+    ] {
+        let entry = NumericIndexEntry::encode(
+            &FIELDS,
+            &values,
+            IndexNullPolicy::Include,
+            LOCATOR,
+            &mut budget(),
+        )?
+        .ok_or("entry")?;
+        assert!(valid_key_shape(
+            &FIELDS,
+            IndexNullPolicy::Include,
+            entry.key()
+        ));
+        assert_eq!(
+            valid_key_shape(&FIELDS, IndexNullPolicy::Required, entry.key()),
+            !entry.has_null()
+        );
+        assert_eq!(
+            valid_key_shape(&FIELDS, IndexNullPolicy::IgnoreAllNull, entry.key()),
+            entry.key().len() > 2
+        );
+    }
+    Ok(())
+}

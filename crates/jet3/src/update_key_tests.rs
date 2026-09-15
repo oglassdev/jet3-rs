@@ -5,6 +5,15 @@ fn keyed(
     descending: bool,
     count: usize,
 ) -> Result<Fixture, Box<dyn StdError>> {
+    keyed_from(kind, descending, count, 0)
+}
+
+fn keyed_from(
+    kind: crate::IndexKind,
+    descending: bool,
+    count: usize,
+    first: i32,
+) -> Result<Fixture, Box<dyn StdError>> {
     let fixture = simple()?;
     fs::remove_file(fixture.path())?;
     let columns = [
@@ -22,7 +31,7 @@ fn keyed(
         fields: &keys,
     }];
     let values: Vec<_> = (0..count)
-        .map(|i| [RowValue::Long(i as i32), RowValue::Long(77)])
+        .map(|i| [RowValue::Long(first + i as i32), RowValue::Long(77)])
         .collect();
     let rows: Vec<_> = values.iter().map(|v| v.as_slice()).collect();
     create_database_with_rows(
@@ -225,4 +234,55 @@ fn two_page_patch_failure_preserves_original() -> TestResult {
     assert!(matches!(result, Err(UpdateError::Publish(_))));
     assert_eq!(fs::read(fixture.path())?, original);
     fixture.assert_only_original()
+}
+
+#[test]
+fn branch_fences_require_schema_width_even_when_their_bounds_are_valid() -> TestResult {
+    use crate::index_tree_page::{ENTRY_AREA_OFFSET, boundaries};
+    for longer in [false, true] {
+        let f = keyed_from(crate::IndexKind::Primary, false, 450, -199)?;
+        let row = f.locator(1)?;
+        let table = definition(&f)?;
+        let root = table.physical_indexes()[0].root();
+        let before = fs::read(f.path())?;
+        let base = root.get() as usize * PAGE_BYTES;
+        let mut page: [u8; PAGE_BYTES] = before[base..base + PAGE_BYTES].try_into()?;
+        let ends: Vec<_> = boundaries(&page).collect();
+        assert_eq!(ends, [13, 26]);
+        let old_fence = page[ENTRY_AREA_OFFSET..ENTRY_AREA_OFFSET + 9].to_vec();
+        let mut payload = page[ENTRY_AREA_OFFSET..ENTRY_AREA_OFFSET + 26].to_vec();
+        let delta = if longer {
+            payload.insert(5, 1);
+            1_isize
+        } else {
+            assert_eq!(payload.remove(4), 0);
+            -1
+        };
+        let new_first_end = ends[0].checked_add_signed(delta).ok_or("boundary")?;
+        let fence = &payload[..new_first_end - 4];
+        assert!(old_fence.as_slice() < fence);
+        // The next child starts at Long(1); both corrupt fences stay in its gap.
+        assert!(
+            fence < crate::long_index_key::encode(1, crate::IndexDirection::Ascending).as_slice()
+        );
+        page[22..ENTRY_AREA_OFFSET].fill(0);
+        for end in ends {
+            let end = end.checked_add_signed(delta).ok_or("boundary")?;
+            page[22 + end / 8] |= 1 << (end % 8);
+        }
+        page[2..4].copy_from_slice(
+            &((PAGE_BYTES - ENTRY_AREA_OFFSET - payload.len()) as u16).to_le_bytes(),
+        );
+        page[ENTRY_AREA_OFFSET..ENTRY_AREA_OFFSET + payload.len()].copy_from_slice(&payload);
+        let mut bad = before;
+        bad[base..base + PAGE_BYTES].copy_from_slice(&page);
+        fs::write(f.path(), &bad)?;
+        assert!(matches!(
+            update_field(f.path(), request(row, RowValue::Long(1000)), &mut budget()),
+            Err(UpdateError::Mismatch("numeric index key shape"))
+        ));
+        assert_eq!(fs::read(f.path())?, bad);
+        f.assert_only_original()?;
+    }
+    Ok(())
 }

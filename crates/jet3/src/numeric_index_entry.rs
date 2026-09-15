@@ -47,6 +47,38 @@ pub(crate) struct NumericIndexEntry {
     has_null: bool,
 }
 
+/// Checks the schema shape independently of current rows, including old branch fences.
+pub(crate) fn valid_key_shape(
+    fields: &[NumericIndexField],
+    null_policy: IndexNullPolicy,
+    mut key: &[u8],
+) -> bool {
+    if !(1..=MAX_FIELDS).contains(&fields.len()) {
+        return false;
+    }
+    let mut all_null = true;
+    for field in fields {
+        let Some(length) = key
+            .first()
+            .and_then(|marker| field.kind.encoded_length(*marker, field.direction))
+        else {
+            return false;
+        };
+        let Some((component, rest)) = key.split_at_checked(length) else {
+            return false;
+        };
+        if length == 1 && null_policy == IndexNullPolicy::Required {
+            return false;
+        }
+        if field.kind == NumericKeyType::Boolean && !matches!(component[1], 0 | 0xff) {
+            return false;
+        }
+        all_null &= length == 1;
+        key = rest;
+    }
+    key.is_empty() && !(all_null && null_policy == IndexNullPolicy::IgnoreAllNull)
+}
+
 impl NumericIndexEntry {
     /// Encodes one or two fields from a complete row. An all-null key is omitted
     /// only for IgnoreAllNull. Uniqueness and entry ordering belong to the caller.

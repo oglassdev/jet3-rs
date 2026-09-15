@@ -143,7 +143,14 @@ pub(crate) fn load(
             return Err(UpdateError::Mismatch("duplicate non-null unique index key"));
         }
         let tree = database.index_tree(table, index.ordinal, budget)?;
-        crate::index_mutation_structure::validate(database, table, &tree, budget)?;
+        crate::index_mutation_structure::validate(
+            database,
+            table,
+            &tree,
+            &index.fields,
+            index.null_policy,
+            budget,
+        )?;
         budget.charge_work_units(
             (tree.nodes().len() as u64)
                 .saturating_mul((index.mapped.len().max(1).ilog2() + 1) as u64)

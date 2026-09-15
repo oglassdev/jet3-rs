@@ -1,9 +1,9 @@
 //! EXP-0062/0126/0148/0225: bounded numeric records and subtree separator fences.
 use crate::index_tree_page::{ENTRY_AREA_OFFSET, boundaries, parse_node, u32_at_be};
-use crate::numeric_index_entry::ENTRY_CAPACITY;
+use crate::numeric_index_entry::{ENTRY_CAPACITY, NumericIndexField, valid_key_shape};
 use crate::{
-    DatabaseReader, FileSource, IndexNodeKind, IndexTree, PAGE_BYTES, PageNumber, ResourceBudget,
-    TableDefinition, UpdateError,
+    DatabaseReader, FileSource, IndexNodeKind, IndexNullPolicy, IndexTree, PAGE_BYTES, PageNumber,
+    ResourceBudget, TableDefinition, UpdateError,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -22,6 +22,8 @@ pub(crate) fn validate(
     database: &mut DatabaseReader<FileSource>,
     table: &TableDefinition,
     tree: &IndexTree,
+    fields: &[NumericIndexField],
+    null_policy: IndexNullPolicy,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
     let mut ranges: Vec<(PageNumber, Option<Bounds>)> = Vec::new();
@@ -63,6 +65,10 @@ pub(crate) fn validate(
             let mut record = [0; ENTRY_CAPACITY + 4];
             record[..prefix.len()].copy_from_slice(prefix);
             record[prefix.len()..size].copy_from_slice(suffix);
+            budget.charge_work_units(key_size as u64)?;
+            if !valid_key_shape(fields, null_policy, &record[..key_size - 4]) {
+                return Err(UpdateError::Mismatch("numeric index key shape"));
+            }
             let mut key = Record {
                 bytes: [0; ENTRY_CAPACITY],
                 length: key_size,
