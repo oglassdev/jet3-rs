@@ -17,7 +17,11 @@ fn failure(index: u16, detail: &'static str) -> TableValidationError {
 
 fn source_error(index: u16, error: UpdateError) -> TableValidationError {
     match error {
-        UpdateError::Resource(error) => TableValidationError::Resource(error),
+        UpdateError::Resource(error)
+        | UpdateError::Value(
+            crate::ValueError::Resource(error)
+            | crate::ValueError::Text(crate::TextError::Resource(error)),
+        ) => TableValidationError::Resource(error),
         UpdateError::Index(source) => TableValidationError::Index { index, source },
         UpdateError::Definition(source) => TableValidationError::Definition(source),
         UpdateError::Mismatch(detail) | UpdateError::Unsupported(detail) => failure(index, detail),

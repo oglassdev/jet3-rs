@@ -332,3 +332,61 @@ fn index_row_page_cache_reads_once_and_charges_cached_lookup_work() -> TestResul
     assert_eq!(limited.read_budget().total_read().get(), 0);
     Ok(())
 }
+
+#[test]
+fn numeric_and_text_index_decoding_keep_resource_errors_structured() -> TestResult {
+    for (kind, value) in [
+        (ColumnType::Long, RowValue::Long(1)),
+        (
+            ColumnType::Text {
+                max_len: std::num::NonZeroU8::MAX,
+            },
+            RowValue::Text(b"key"),
+        ),
+    ] {
+        let plan = compose_database_with_table_rows(
+            &[TableRows {
+                table: TableSpec {
+                    name: b"Items",
+                    columns: &[ColumnSpec::new(b"Value", kind)],
+                    indexes: &[IndexSpec {
+                        name: b"ByValue",
+                        kind: IndexKind::Ordinary,
+                        fields: &[IndexColumnSpec::ascending(0)],
+                    }],
+                },
+                rows: &[&[value]],
+            }],
+            &mut budget(),
+        )?;
+        let bytes: Vec<_> = plan
+            .pages()
+            .iter()
+            .flat_map(|page| page.image().as_bytes().iter().copied())
+            .collect();
+        let table = definition(&bytes, b"Items")?;
+        let (row, _) = first_row(&bytes, &table)?;
+        let mut work = budget();
+        let mut database = open(&bytes, &mut work)?;
+        let tree = database.index_tree(&table, 0, &mut work)?;
+        let mut limited = ResourceBudget::new(
+            ResourceLimits::default().with_max_total_decoded_bytes(ByteCount::new(0)),
+        );
+        let error = crate::validation::index::validate(
+            &mut database,
+            &table,
+            0,
+            &tree,
+            &[row],
+            &mut limited,
+            &mut ValidationReport::default(),
+        )
+        .err()
+        .ok_or("expected exhausted decode budget")?;
+        assert!(matches!(
+            error,
+            TableValidationError::Resource(Error::ResourceLimitExceeded { .. })
+        ));
+    }
+    Ok(())
+}
