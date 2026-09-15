@@ -94,18 +94,21 @@ fn six_tables_preserve_independent_index_roots_and_initial_rows() -> TestResult 
 #[test]
 fn creation_counter_overflow_is_refused_before_allocating_or_writing() -> TestResult {
     let directory = TestDirectory::create()?;
-    let tables = [TableSpec {
-        name: b"T",
-        columns: &[ID],
-        indexes: &[],
-    }; 128];
+    let tables = vec![
+        TableSpec {
+            name: b"T",
+            columns: &[ID],
+            indexes: &[],
+        };
+        32640
+    ];
     let mut budget = budget();
     assert!(matches!(
         create_database(directory.target(), &tables, &mut budget),
         Err(CreateDatabaseError::Compose(
             ComposeError::TableCountOverflow {
-                count: 128,
-                maximum: 127
+                count: 32640,
+                maximum: 32639
             }
         ))
     ));
@@ -118,7 +121,17 @@ fn creation_counter_overflow_is_refused_before_allocating_or_writing() -> TestRe
 fn catalog_data_and_index_pages_grow_with_complete_row_locators() -> TestResult {
     use crate::{CatalogObjectClass, ColumnOrdinal, TextCodePage, ValueKind};
     use std::collections::BTreeSet;
-    for (count, padding) in [(29, 0), (40, 0), (110, 0), (30, 45), (40, 45), (127, 45)] {
+    for (count, padding) in [
+        (29, 0),
+        (40, 0),
+        (110, 0),
+        (30, 45),
+        (40, 61),
+        (127, 45),
+        (128, 0),
+        (255, 0),
+        (256, 0),
+    ] {
         let directory = TestDirectory::create()?;
         let names = (0..count)
             .map(|n| format!("T{n:02}{}", "x".repeat(padding)))
@@ -222,10 +235,13 @@ fn catalog_data_and_index_pages_grow_with_complete_row_locators() -> TestResult 
         let raw = fs::read(directory.target())?;
         assert_eq!(
             raw[9 * crate::PAGE_BYTES] == 3,
-            padding == 45 && count >= 30
+            (padding >= 45 && count >= 30) || count >= 128
         );
         assert_eq!(raw[13 * crate::PAGE_BYTES] == 3, count >= 110);
-        assert_eq!(raw[1538] as usize, 2 * count);
+        assert_eq!(
+            u16::from_le_bytes(raw[1538..1540].try_into()?) as usize,
+            0x0100 + 2 * count
+        );
     }
     Ok(())
 }

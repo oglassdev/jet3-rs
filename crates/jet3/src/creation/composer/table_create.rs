@@ -608,13 +608,15 @@ pub(crate) fn compose_database_with_table_rows(
 }
 
 /// Bounds the EXP-0087/0222 counter without extrapolating its overflow.
-pub(super) fn creation_counter(count: usize) -> Result<u8, ComposeError> {
-    u8::try_from(count)
+// EXP-0249: close-empty/reopen-per-create history advances one 16-bit slot.
+pub(super) fn creation_counter(count: usize) -> Result<u16, ComposeError> {
+    u16::try_from(count)
         .ok()
         .and_then(|count| count.checked_mul(2))
+        .and_then(|count| count.checked_add(0x0100))
         .ok_or(ComposeError::TableCountOverflow {
             count,
-            maximum: usize::from(u8::MAX / 2),
+            maximum: usize::from((u16::MAX - 0x0100) / 2),
         })
 }
 
@@ -623,9 +625,12 @@ pub(super) fn reserve_creates<'a>(
     budget: &mut ResourceBudget,
 ) -> Result<Vec<PlannedCreate<'a>>, ComposeError> {
     creation_counter(count)?;
-    budget.charge_allocation(ByteCount::new(
-        (count * size_of::<PlannedCreate<'_>>()) as u64,
-    ))?;
+    let allocation = (count as u64)
+        .checked_mul(size_of::<PlannedCreate<'_>>() as u64)
+        .ok_or(Error::Arithmetic {
+            operation: "size initial table plans",
+        })?;
+    budget.charge_allocation(ByteCount::new(allocation))?;
     let mut creates = Vec::new();
     creates.try_reserve_exact(count).map_err(|_| Error::Io {
         operation: "reserve initial table plans",

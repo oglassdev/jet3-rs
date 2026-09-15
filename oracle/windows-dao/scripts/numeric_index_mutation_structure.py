@@ -47,6 +47,10 @@ def record_width(record, fields):
     return offset + 4
 
 
+def shortened_record(record, fields, branch):
+    return any(kind in (9, 10) for kind, _ in fields) and len(record) == 259 + (4 if branch else 0)
+
+
 def tree(data, root, owner, fields):
     nodes, seen, leaf_entries = [], set(), []
 
@@ -75,7 +79,7 @@ def tree(data, root, owner, fields):
             entry = area[:prefix] + area[start:end]
             # Full leaf keys are independently rebuilt from physical row values by the caller.
             # At the 255-byte cap, the CRC obscures the remaining component grammar.
-            shortened = any(kind == 9 or kind == 10 for kind, _ in fields) and len(entry) == 259 + (4 if branch else 0)
+            shortened = shortened_record(entry, fields, branch)
             require(shortened or len(entry) == record_width(entry, fields) + (4 if branch else 0), 'Invalid scalar record width')
             entries.append(entry)
             start = end

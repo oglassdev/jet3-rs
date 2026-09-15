@@ -280,33 +280,37 @@ fn an_empty_table_name_is_refused() {
 }
 
 #[test]
-fn a_table_name_too_long_for_a_catalog_row_is_refused() {
-    // The MSysObjects row's one-byte name-end offset bounds the name; the
-    // longest writable name must still plan.
+fn creation_name_limits_cover_table_column_and_index_boundaries() {
     let columns = [ID];
-    let longest = vec![b'A'; 224];
-    assert!(plan_table_schema(&spec(&longest, &columns, &[]), 20, true).is_ok());
-    let overlong = vec![b'A'; 225];
-    assert!(matches!(
-        plan_table_schema(&spec(&overlong, &columns, &[]), 20, true),
-        Err(TableSchemaPlanError::TableNameRow(
-            CatalogRecordWriteError::NameTooLong { length: 225, .. }
-        ))
-    ));
-}
-
-#[test]
-fn a_column_name_too_long_for_the_definition_is_refused() {
-    let overlong = vec![b'A'; 256];
-    let columns = [ColumnSpec::new(&overlong, ColumnType::Long)];
-    assert!(matches!(
-        definition_error(&spec(b"Beta", &columns, &[])),
-        Some(TableDefinitionWriteError::NameTooLong {
-            role: "column",
-            length: 256,
-            ..
-        })
-    ));
+    for (role, maximum) in [("table", 64), ("column", 64), ("logical index", 63)] {
+        for length in [maximum, maximum + 1] {
+            let name = vec![b'A'; length];
+            let named_column = [ColumnSpec::new(&name, ColumnType::Long)];
+            let indexes = [IndexSpec {
+                name: &name,
+                fields: &[key(0)],
+                kind: IndexKind::Ordinary,
+            }];
+            let schema = match role {
+                "table" => spec(&name, &columns, &[]),
+                "column" => spec(b"Items", &named_column, &[]),
+                _ => spec(b"Items", &columns, &indexes),
+            };
+            let result = plan_table_schema(&schema, 20, true);
+            if length == maximum {
+                assert!(result.is_ok(), "{result:?}");
+            } else {
+                assert_eq!(
+                    result,
+                    Err(TableSchemaPlanError::NameTooLong {
+                        role,
+                        length,
+                        maximum
+                    })
+                );
+            }
+        }
+    }
 }
 
 #[test]
@@ -319,11 +323,11 @@ fn an_index_name_too_long_for_the_definition_is_refused() {
         kind: IndexKind::Ordinary,
     }];
     assert!(matches!(
-        definition_error(&spec(b"Beta", &columns, &indexes)),
-        Some(TableDefinitionWriteError::NameTooLong {
+        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20, true),
+        Err(TableSchemaPlanError::NameTooLong {
             role: "logical index",
             length: 256,
-            ..
+            maximum: 63,
         })
     ));
 }

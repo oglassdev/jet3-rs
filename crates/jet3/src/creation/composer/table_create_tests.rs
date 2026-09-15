@@ -474,13 +474,21 @@ fn a_case_folded_duplicate_name_is_refused() {
 
 #[test]
 fn creation_counter_and_catalog_locators_reject_overflow() -> Result<(), ComposeError> {
-    assert_eq!(creation_counter(0)?, 0);
-    assert_eq!(creation_counter(127)?, 254);
+    for (count, expected) in [
+        (0, 0x0100),
+        (127, 0x01fe),
+        (128, 0x0200),
+        (255, 0x02fe),
+        (256, 0x0300),
+        (32639, 0xfffe),
+    ] {
+        assert_eq!(creation_counter(count)?, expected);
+    }
     assert!(matches!(
-        creation_counter(128),
+        creation_counter(32640),
         Err(ComposeError::TableCountOverflow {
-            count: 128,
-            maximum: 127
+            count: 32640,
+            maximum: 32639
         })
     ));
     assert_eq!(catalog_row_number(255)?, 255);

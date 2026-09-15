@@ -16266,3 +16266,67 @@ planner tests, 14 table-composition tests and 19 table-definition reader tests.
   It does not establish other Text collations, fixed Text keys, undefined
   CP1252 characters, general schema changes or full-v1 compatibility. The two
   earlier failed acquisitions remain independent recorded outcomes.
+
+## EXP-0249 — Native creation state and ASCII name boundaries
+
+Two replicas of same-handle and close/reopen-after-each histories created fresh
+Jet 3 databases, stopping independently at 0, 1, 2, 126, 127, 128, 129, 254,
+255, 256 and 257 empty one-Long-column tables. All 44 immutable final images
+matched their complete DAO schema and raw system catalog row/index/map model.
+All 256 two-byte commit-state words matched between replicas of each history.
+
+With the first table created through the CreateDatabase handle, word zero at
+[1536,1538) was 0x0101 for an empty file and 0x0103 for each nonempty file. The
+same-handle history retained word one at [1538,1540) as 0x0100 through 257 tables.
+The reopen history had word one 0x0100 + 2*(n-1), including 128→0x01fe,
+129→0x0200, 256→0x02fe and 257→0x0300. The remaining 254 words stayed 0x0100.
+
+A minimal successor closed the empty database first, then reopened before
+each table creation, matching the current writer's prior observed history.
+Two replicas at 127, 128, 255 and 256 tables all matched full schema and raw
+catalog checks. Word zero stayed 0x0101; word one was 0x0100+2*n: 0x01fe,
+0x0200, 0x02fe and 0x0300 respectively. The remaining 254 words stayed 0x0100.
+This establishes carry within the two-byte slot in these histories, not an
+8-bit wrap, arbitrary session-slot selection, or a 16-bit wrap policy.
+
+The name matrix independently created a table, column or primary index named
+N + repeated lowercase a + Z at lengths 57, 58, 63, 64 and 65, with two replicas.
+Table and column lengths through 64 passed exact metadata, rows, ordered index
+traversal and present/absent Seek. Length 65 was refused at CreateTableDef or
+CreateField with Invalid argument (HRESULT -2146825287). Index lengths 57, 58
+and 63 passed; length 65 was refused at CreateIndex with that same error.
+
+Both 64-byte index-name cases created the exact schema, inserted rows 2 and 1,
+and traversed them as 1 and 2. Their first absent Seek(0) failed with Reserved
+error (-1038), HRESULT -2146825288. Independent retained-image analysis found
+exact full logical names, rows and complete raw numeric key/locator records.
+This is a partial native failure and does not establish full 64-byte index-name
+support.
+
+The initial acquisition failed before appending any table because live DAO
+handles deny host FileStream header reads; an unset diagnostic endpoint first
+masked that error. Both failed outputs remain retained. Successors used
+independent stopping-count files and read only closed images. They made no
+permission modifications or raw byte patches.
+
+Inputs: checks/20260915-creation-capacity-r2 and -r3; outcomes:
+outbox/20260915T091100Z-creation-capacity and
+outbox/20260915T091900Z-creation-capacity. Provider: x86 DAO.DBEngine.36 3.6,
+dao360.dll 03.60.9765.0, SHA-256
+4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac.
+
+R2 result SHA-256:
+b26e49ed423464256dcc62ec340090d6e210b6e287729b969a5095064336c7fd
+R2 comparison SHA-256:
+fc95df924f8933869bcd39eda77868f9dd3b68b7da8ab0e2d37160af4d35ab0e
+R3 result SHA-256:
+5f6723430c9566d40cc62c08a37017be1cbd6d797da4d699ecf3087ae5d5c8bc
+R3 comparison SHA-256:
+fe56a423e8dcc7fb09f2fa3bea057ec1fc22849dbe40b389c237537d02707142
+Separate index64-read-analysis.json SHA-256:
+13506d24b0e7ee4f657f2ba3cf795918cce24cecc19b4188d04e92c01d33ae33
+
+The scripts, recipe, source/helper identities, provider probes, all successful
+and refused outcomes, and all closed MDB identities remain in these roots.
+No candidate writer compatibility or support-matrix movement is established
+by this native-only discovery.

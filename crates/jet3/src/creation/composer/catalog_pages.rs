@@ -81,7 +81,7 @@ impl CatalogData {
 }
 
 struct CatalogRecord {
-    bytes: [u8; INDEX_KEY_CAPACITY + 4],
+    bytes: [u8; CATALOG_KEY_CAPACITY + 4],
     length: usize,
 }
 
@@ -98,7 +98,7 @@ impl CatalogRecord {
                 maximum: PAGE_LIMIT,
             });
         }
-        let mut bytes = [0; INDEX_KEY_CAPACITY + 4];
+        let mut bytes = [0; CATALOG_KEY_CAPACITY + 4];
         bytes[..entry.len].copy_from_slice(&entry.key[..entry.len]);
         bytes[entry.len..entry.len + 3].copy_from_slice(&(locator.0 as u32).to_be_bytes()[1..]);
         bytes[entry.len + 3] = locator.1;

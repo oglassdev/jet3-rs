@@ -79,6 +79,15 @@ pub enum TableSchemaPlanError {
     Definition(TableDefinitionWriteError),
     /// The table declares no columns.
     NoColumns,
+    /// A created object's name exceeds the EXP-0249 admitted length.
+    NameTooLong {
+        /// Table, column or logical index.
+        role: &'static str,
+        /// Requested byte length.
+        length: usize,
+        /// Largest admitted byte length for this role.
+        maximum: usize,
+    },
     /// An index key names a column the table does not declare.
     UnknownIndexColumn {
         /// Position of the index in the spec.
@@ -255,6 +264,7 @@ pub(crate) fn plan_table_schema(
         return Err(TableSchemaPlanError::NoColumns);
     }
     for (ordinal, column) in spec.columns.iter().enumerate() {
+        validate_name_length("column", column.name(), 64)?;
         validate_name_bytes("column", ordinal, column.name())?;
     }
     validate_column_layout(spec.columns, TableDefinitionKind::User, &[])
@@ -316,8 +326,25 @@ fn resolve_index_fields(
 
 /// Checks the table name against both encodings that will carry it.
 fn validate_table_name(name: &[u8]) -> Result<(), TableSchemaPlanError> {
+    validate_name_length("table", name, 64)?;
     validate_catalog_name(name).map_err(TableSchemaPlanError::TableNameKey)?;
     catalog_record_len(name.len()).map_err(TableSchemaPlanError::TableNameRow)?;
+    Ok(())
+}
+
+// EXP-0249 semantic creation limits are narrower than the stored length byte.
+fn validate_name_length(
+    role: &'static str,
+    name: &[u8],
+    maximum: usize,
+) -> Result<(), TableSchemaPlanError> {
+    if name.len() > maximum {
+        return Err(TableSchemaPlanError::NameTooLong {
+            role,
+            length: name.len(),
+            maximum,
+        });
+    }
     Ok(())
 }
 
@@ -416,6 +443,8 @@ fn validate_indexes(
     let mut primary: Option<usize> = None;
     for ((position, planned), fields) in spec.indexes.iter().enumerate().zip(plan.index_fields()) {
         let ordinal = position as u16;
+        // EXP-0249: native 64-byte index names fail Seek; 63 passed.
+        validate_name_length("logical index", planned.name, 63)?;
         validate_name_bytes("logical index", position, planned.name)?;
         validate_name(
             "logical index",

@@ -54,6 +54,8 @@ const INDEX_ENTRY_AREA_OFFSET: usize = 248;
 const INDEX_ENTRY_AREA_LEN: usize = PAGE_BYTES - INDEX_ENTRY_AREA_OFFSET;
 const INDEX_BOUNDARY_BITMAP_OFFSET: usize = 22;
 const INDEX_KEY_CAPACITY: usize = 64;
+// EXP-0249: 64-byte table name plus Long and Text framing.
+const CATALOG_KEY_CAPACITY: usize = 64 + 7;
 // EXP-0084 preregisters only these fixed per-row candidate values; their SID
 // meanings are not generalized.
 const CATALOG_OWNER_0203: &[u8] = b"\x02\x03";
@@ -243,8 +245,8 @@ fn header_page(table_count: usize, budget: &mut ResourceBudget) -> Result<PageIm
     for offset in (1..commit_state.len()).step_by(2) {
         commit_state[offset] = 1;
     }
-    // EXP-0087/0222: the bounded creation counter advances by two per table.
-    commit_state[2] = creation_counter(table_count)?;
+    // EXP-0249: preserve the sourced 16-bit carry for the creation history.
+    commit_state[2..4].copy_from_slice(&creation_counter(table_count)?.to_le_bytes());
     image.write_at(PageOffset::new(1536), &commit_state, budget)?;
     Ok(image)
 }
@@ -426,13 +428,13 @@ fn finish_data_builder(
 
 #[derive(Clone, Copy)]
 struct OwnedIndexEntry {
-    key: [u8; INDEX_KEY_CAPACITY],
+    key: [u8; CATALOG_KEY_CAPACITY],
     len: usize,
     row: u8,
 }
 impl OwnedIndexEntry {
     const EMPTY: Self = Self {
-        key: [0; INDEX_KEY_CAPACITY],
+        key: [0; CATALOG_KEY_CAPACITY],
         len: 0,
         row: 0,
     };
