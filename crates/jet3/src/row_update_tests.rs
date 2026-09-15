@@ -27,6 +27,9 @@ impl Fixture {
         self.dir.join("rows.mdb")
     }
     fn new(count: usize) -> Result<Self, Box<dyn StdError>> {
+        Self::with_index(count, false)
+    }
+    fn with_index(count: usize, indexed: bool) -> Result<Self, Box<dyn StdError>> {
         let dir = std::env::temp_dir().join(format!(
             "jet3-row-update-{}-{}",
             std::process::id(),
@@ -61,12 +64,18 @@ impl Fixture {
             .collect();
         let rows: Vec<_> = values.iter().map(|r| r.as_slice()).collect();
         let path = dir.join("rows.mdb");
+        let keys = [crate::IndexColumnSpec::descending(0)];
+        let indexes = [crate::IndexSpec {
+            name: b"ById",
+            kind: crate::IndexKind::Unique,
+            fields: &keys,
+        }];
         crate::create_database_with_rows(
             &path,
             &TableSpec {
                 name: b"Rows",
                 columns: &columns,
-                indexes: &[],
+                indexes: if indexed { &indexes } else { &[] },
             },
             &rows,
             &mut budget(),
@@ -583,5 +592,58 @@ fn dao_boolean_zero_offset_schema_reaches_public_row_replacement() -> TestResult
     update_row(f.path(), f.request(0, &values), &mut budget())?;
     assert_eq!(fs::read(f.path())?, wanted);
     assert_eq!(f.rows()?.len(), 2);
+    Ok(())
+}
+
+#[test]
+fn indexed_variable_row_replacement_preserves_locators_and_other_rows() -> TestResult {
+    let f = Fixture::with_index(202, true)?;
+    let prior = f.rows()?;
+    let target = prior.len() - 1;
+    for (key, text, binary) in [
+        (-7, &b"a longer replacement text"[..], &b"longer bytes"[..]),
+        (i32::MAX, &b"x"[..], &b"y"[..]),
+    ] {
+        let values = [
+            RowValue::Long(key),
+            RowValue::Text(text),
+            RowValue::Binary(binary),
+            RowValue::Boolean(false),
+        ];
+        update_row(f.path(), f.request(target, &values), &mut budget())?;
+        let after = f.rows()?;
+        assert_eq!(after.len(), prior.len());
+        for (ordinal, row) in after.iter().enumerate() {
+            if ordinal == target {
+                assert_eq!(row.0, prior[ordinal].0);
+                assert_eq!(
+                    row.1,
+                    vec![
+                        Some(key.to_le_bytes().to_vec()),
+                        Some(text.to_vec()),
+                        Some(binary.to_vec())
+                    ]
+                );
+            } else {
+                assert_eq!(row, &prior[ordinal]);
+            }
+        }
+        let mut b = budget();
+        let mut db = DatabaseReader::open(f.path(), &mut b)?;
+        let table = db.table_definition(f.root, &mut b)?;
+        crate::unique_index::load(&mut db, &table, &mut b)?;
+    }
+    let before = fs::read(f.path())?;
+    let duplicate = [
+        RowValue::Long(0),
+        RowValue::Text(b"duplicate"),
+        RowValue::Null,
+        RowValue::Boolean(true),
+    ];
+    assert!(matches!(
+        update_row(f.path(), f.request(target, &duplicate), &mut budget()),
+        Err(UpdateError::Unsupported("duplicate unique key"))
+    ));
+    assert_eq!(fs::read(f.path())?, before);
     Ok(())
 }

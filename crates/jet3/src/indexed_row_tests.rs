@@ -100,8 +100,7 @@ impl Fixture {
         let mut b = budget();
         let mut db = DatabaseReader::open(self.path(), &mut b)?;
         let def = crate::update::indexed_writable_table(&mut db, b"Rows", &mut b)?;
-        let leaf = crate::unique_leaf::validate(&mut db, &def, &mut b)?;
-        leaf.check_map(&mut db, &def, &mut b)?;
+        crate::unique_index::load(&mut db, &def, &mut b)?;
         assert_eq!(fs::read_dir(&self.directory)?.count(), 1);
         Ok(())
     }
@@ -267,54 +266,54 @@ fn indexed_rows_retain_deleted_key_counters_and_reject_overflow() -> TestResult 
 }
 
 #[test]
-fn indexed_rows_actual_leaf_capacity_and_last_row_refuse_without_publication() -> TestResult {
-    let f = Fixture::new(199, false, IndexKind::Primary)?;
-    insert_row(
-        f.path(),
-        b"Rows",
-        &[RowValue::Long(-1), RowValue::Long(3)],
-        &mut budget(),
-    )?;
-    f.validate()?;
-    let before = fs::read(f.path())?;
-    assert!(matches!(
+fn indexed_rows_grow_shrink_reuse_and_empty() -> TestResult {
+    for (count, descending) in [
+        (0, false),
+        (1, true),
+        (200, false),
+        (201, true),
+        (27_800, false),
+    ] {
+        let f = Fixture::new(count, descending, IndexKind::Primary)?;
+        let before = fs::read(f.path())?;
+        let sentinel = before.len() - PAGE_BYTES;
+        let row = insert_row(
+            f.path(),
+            b"Rows",
+            &[RowValue::Long(-1), RowValue::Long(3)],
+            &mut budget(),
+        )?;
+        f.validate()?;
+        assert_eq!(f.rows()?.len(), count + 1);
+        assert_eq!(
+            &fs::read(f.path())?[sentinel..sentinel + PAGE_BYTES],
+            &[0xb7; PAGE_BYTES]
+        );
+        let allocated = fs::metadata(f.path())?.len();
+        crate::delete_row(
+            f.path(),
+            RowDelete {
+                table: b"Rows",
+                row,
+            },
+            &mut budget(),
+        )?;
+        f.validate()?;
+        assert_eq!(f.rows()?.len(), count);
+        assert_eq!(fs::metadata(f.path())?.len(), allocated);
         insert_row(
             f.path(),
             b"Rows",
             &[RowValue::Long(-2), RowValue::Long(3)],
-            &mut budget()
-        ),
-        Err(UpdateError::Unsupported("full root leaf"))
-    ));
-    assert_eq!(fs::read(f.path())?, before);
-    for count in [1, 201] {
-        let f = Fixture::new(count, false, IndexKind::Primary)?;
-        let before = fs::read(f.path())?;
-        let row = f.rows()?[0].1;
-        assert!(
-            crate::delete_row(
-                f.path(),
-                RowDelete {
-                    table: b"Rows",
-                    row
-                },
-                &mut budget()
-            )
-            .is_err()
+            &mut budget(),
+        )?;
+        f.validate()?;
+        // The index reuses its reserved pages; empty-table insertion may append data.
+        assert!(fs::metadata(f.path())?.len() <= allocated + PAGE_BYTES as u64);
+        assert_eq!(
+            &fs::read(f.path())?[sentinel..sentinel + PAGE_BYTES],
+            &[0xb7; PAGE_BYTES]
         );
-        assert_eq!(fs::read(f.path())?, before);
-        if count != 1 {
-            assert!(
-                insert_row(
-                    f.path(),
-                    b"Rows",
-                    &[RowValue::Long(-1), RowValue::Long(3)],
-                    &mut budget()
-                )
-                .is_err()
-            );
-            assert_eq!(fs::read(f.path())?, before);
-        }
     }
     Ok(())
 }
@@ -586,5 +585,56 @@ fn indexed_eof_private_leaf_and_append_corruption_preserve_original() -> TestRes
         assert_eq!(fs::read(f.path())?, before);
         assert_eq!(fs::read_dir(&f.directory)?.count(), 1);
     }
+    Ok(())
+}
+
+#[test]
+fn indexed_rows_reject_corrupt_branch_separator_before_publication() -> TestResult {
+    let f = Fixture::new(201, false, IndexKind::Primary)?;
+    let table = f.definition()?;
+    let row = f.rows()?[0].1;
+    let mut damaged = fs::read(f.path())?;
+    let root = table.physical_indexes()[0].root().get() as usize * PAGE_BYTES;
+    assert_eq!(damaged[root], 3);
+    damaged[root + 252] ^= 1;
+    fs::write(f.path(), &damaged)?;
+    let error = insert_row(
+        f.path(),
+        b"Rows",
+        &[RowValue::Long(-1), RowValue::Long(5)],
+        &mut budget(),
+    );
+    assert!(matches!(
+        error,
+        Err(UpdateError::Mismatch(
+            "branch separator differs from child maximum"
+        ))
+    ));
+    assert!(
+        crate::delete_row(
+            f.path(),
+            RowDelete {
+                table: b"Rows",
+                row
+            },
+            &mut budget()
+        )
+        .is_err()
+    );
+    assert!(
+        crate::update_field(
+            f.path(),
+            crate::FieldUpdate {
+                table: b"Rows",
+                row,
+                column: crate::ColumnOrdinal::new(0),
+                value: RowValue::Long(-1)
+            },
+            &mut budget()
+        )
+        .is_err()
+    );
+    assert_eq!(fs::read(f.path())?, damaged);
+    assert_eq!(fs::read_dir(&f.directory)?.count(), 1);
     Ok(())
 }

@@ -48,11 +48,16 @@ def source_revision():
 def runtime_inputs(module, images, revision, receipts):
     historical = json.loads(module.PLAN.read_text())
     value = {k: historical[k] for k in ("document_type", "arms")}
+    names = {name for name in historical["inputs"] if (ROOT / name).is_file()}
+    names.update(str(p.relative_to(ROOT)) for p in (ROOT / "crates/jet3/src").rglob("*.rs"))
     value.update(
         source_revision=revision,
         images={p.name: identity(p) for p in sorted(images.glob("*.mdb"))},
-        inputs={name: identity(ROOT / name)["sha256"] for name in historical["inputs"]},
+        inputs={name: identity(ROOT / name)["sha256"] for name in sorted(names)},
     )
+    if module.__name__ == "indexed_boundary":
+        # Tree growth has its own lifecycle suite; retain the historical refusal recipe.
+        value["arms"] = [arm for arm in value["arms"] if arm["name"] != "split"]
     if receipts:
         value["receipts"] = receipts
     return value

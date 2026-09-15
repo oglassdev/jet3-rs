@@ -12,9 +12,8 @@ use std::path::Path;
 ///
 /// Values use the existing checked scalar/Text/Binary row encoder, including null
 /// and Boolean fields. One unique/primary present Long index is supported when
-/// its complete tree is an uncompressed root leaf with capacity for another key.
-/// Indexed insertion requires an existing populated data page; its leaf records,
-/// boundary bitmap, free count and retained index counter are updated too.
+/// its complete tree and row/key correspondence validate. The tree is rebuilt
+/// with its existing root, reusing reserved index pages and appending nodes as needed.
 /// Other indexes, AutoIncrement, long values and relationships are refused.
 /// If no populated page fits, one EOF page is appended
 /// only within existing inline global/owned/available maps. No reuse,
@@ -24,7 +23,7 @@ use std::path::Path;
 ///
 /// Only the new row, appended slot, page free/count fields and table row count
 /// change on unindexed existing-page insertion. Indexed insertion additionally
-/// updates the leaf and increments the retained index counter. EOF insertion clears its global free
+/// updates index nodes/maps and increments the retained index counter. EOF insertion clears its global free
 /// bit and sets owned/available bits, marking available when a minimum encoded
 /// row still fits. All other bytes, including page zero, remain exact. This
 /// construction requires separate DAO validation and makes no compatibility claim.
@@ -87,9 +86,11 @@ where
     let mut index = if definition.indexes().is_empty() && definition.physical_indexes().is_empty() {
         None
     } else {
-        let leaf = crate::unique_leaf::validate(&mut database, &definition, budget)?;
-        leaf.check_map(&mut database, &definition, budget)?;
-        Some(leaf)
+        Some(crate::unique_index::load(
+            &mut database,
+            &definition,
+            budget,
+        )?)
     };
     let columns = definition.columns();
     if columns.len() > usize::from(u8::MAX) {
@@ -172,7 +173,18 @@ where
             break Some((page, patched, slot));
         }
     };
-    let Some(selected) = selected else {
+    let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
+    let row = if let Some((page, patched, slot)) = selected {
+        edits.replace(
+            crate::update_pages::PageChange {
+                page,
+                before: &source_page,
+                after: patched.as_bytes(),
+            },
+            budget,
+        )?;
+        RowLocator::new(page, slot)
+    } else {
         let mut minimum = [0; PAGE_BYTES];
         let nulls = [RowValue::Null; u8::MAX as usize];
         let minimum_length = crate::encode_row(
@@ -189,93 +201,38 @@ where
             &minimum[..minimum_length],
             budget,
         )?;
-        let leaf_image = if let Some(leaf) = &mut index {
-            let Some(RowValue::Long(value)) = values.get(usize::from(leaf.column.get())) else {
-                return Err(UpdateError::Unsupported("insert requires present Long key"));
-            };
-            let image = leaf.insert(*value, RowLocator::new(plan.page, 0), budget)?;
-            crate::index_key_page::increment_counter(&mut patched_definition, budget)?;
-            Some(image)
-        } else {
-            None
-        };
-        let (planned, count) = plan.changes(crate::update_pages::PageChange {
+        let (changes, count) = plan.changes(crate::update_pages::PageChange {
             page: definition.root(),
             before: &source_definition,
             after: patched_definition.as_bytes(),
         });
-        let mut changes = [planned[0]; 5];
-        changes[..count].copy_from_slice(&planned[..count]);
-        let count = if let (Some(leaf), Some(image)) = (&index, &leaf_image) {
-            changes[count] = crate::update_pages::PageChange {
-                page: leaf.page,
-                before: &leaf.before,
-                after: image.as_bytes(),
-            };
-            count + 1
-        } else {
-            count
-        };
-        crate::update_pages::publish_changes_with_append(
-            path,
-            database.into_source(),
-            &changes[..count],
-            Some(plan.image.as_bytes()),
-            budget,
-            hook,
-        )?;
-        return Ok(RowLocator::new(plan.page, 0));
+        for change in &changes[..count] {
+            edits.replace(*change, budget)?;
+        }
+        let page = edits.append(plan.image, budget)?;
+        if page != plan.page {
+            return Err(UpdateError::Mismatch("EOF placement"));
+        }
+        RowLocator::new(page, 0)
     };
-    if let Some(leaf) = &mut index {
-        let Some(RowValue::Long(value)) = values.get(usize::from(leaf.column.get())) else {
+    if let Some(index) = &mut index {
+        let Some(RowValue::Long(value)) = values.get(usize::from(index.column.get())) else {
             return Err(UpdateError::Unsupported("insert requires present Long key"));
         };
-        let after = leaf.insert(*value, RowLocator::new(selected.0, selected.2), budget)?;
+        index.insert(*value, row, budget)?;
         crate::index_key_page::increment_counter(&mut patched_definition, budget)?;
-        crate::update_pages::publish_changes(
-            path,
-            database.into_source(),
-            &[
-                crate::update_pages::PageChange {
-                    page: selected.0,
-                    before: &source_page,
-                    after: selected.1.as_bytes(),
-                },
-                crate::update_pages::PageChange {
-                    page: definition.root(),
-                    before: &source_definition,
-                    after: patched_definition.as_bytes(),
-                },
-                crate::update_pages::PageChange {
-                    page: leaf.page,
-                    before: &leaf.before,
-                    after: after.as_bytes(),
-                },
-            ],
-            budget,
-            hook,
-        )?;
-        return Ok(RowLocator::new(selected.0, selected.2));
+        index.stage(&mut database, &definition, &mut edits, budget)?;
     }
-    crate::update_pages::publish_changes(
-        path,
-        database.into_source(),
-        &[
-            crate::update_pages::PageChange {
-                page: selected.0,
-                before: &source_page,
-                after: selected.1.as_bytes(),
-            },
-            crate::update_pages::PageChange {
-                page: definition.root(),
-                before: &source_definition,
-                after: patched_definition.as_bytes(),
-            },
-        ],
+    edits.replace(
+        crate::update_pages::PageChange {
+            page: definition.root(),
+            before: &source_definition,
+            after: patched_definition.as_bytes(),
+        },
         budget,
-        hook,
     )?;
-    Ok(RowLocator::new(selected.0, selected.2))
+    edits.publish(path, database.into_source(), budget, hook)?;
+    Ok(row)
 }
 
 #[cfg(all(test, unix))]

@@ -127,7 +127,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("duplicate accepted")?;
         let refusal = match error {
             UpdateError::Unsupported("duplicate unique key") => "duplicate",
-            UpdateError::Unsupported("full root leaf") => "capacity",
             _ => return Err("unexpected refusal".into()),
         };
         if fs::read(&candidate)? != before {
