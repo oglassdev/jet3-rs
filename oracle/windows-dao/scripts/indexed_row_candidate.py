@@ -43,7 +43,11 @@ def raw_check(data,arm,rows,candidate=False):
     table,physical_rows=definition(data);physical=table['physical_indexes'][0]
     require(physical['flags']==(9 if arm['primary'] else 1) and physical['keys']==[dict(column=0,direction=int(not arm['descending']))],'Physical key metadata')
     spec=dict(name='Items',fields=[dict(name=n) for n in ('Id','Value')],indexes=[dict(fields=[dict(name='Id',descending=arm['descending'])])],candidate_depth=1)
-    result=structure.observe(data,[spec],{'Items':rows},candidate)
+    result=structure.observe(data,[spec],{'Items':rows},candidate,check_distinct_count=arm['kind']!='delete')
+    if arm['kind']=='delete':
+        # EXP-0219: deletion retains the counter; a subsequent insertion adds one.
+        count=len(arm['rows'])+int(arm['follow'] in rows)
+        require(physical['entry_count']==count,'Retained deletion counter')
     result[0]['row_locators']=[dict(values=r['values'],page=r['page'],slot=r['row']) for r in physical_rows]
     return result
 
@@ -73,7 +77,10 @@ def patch_check(before,after,arm,receipt):
                 expected[offset+10+2*n:offset+12+2*n]=word.to_bytes(2,'little')
             new_free=free+length;count=len(rows)-1
         expected[offset+2:offset+4]=new_free.to_bytes(2,'little');root=table['root']*2048
-        expected[root+12:root+16]=count.to_bytes(4,'little');expected[root+47:root+51]=count.to_bytes(4,'little')
+        expected[root+12:root+16]=count.to_bytes(4,'little')
+        if arm['kind']=='insert':
+            counter=int.from_bytes(expected[root+47:root+51],'little')+1
+            expected[root+47:root+51]=counter.to_bytes(4,'little')
         _,new_rows=definition(bytes(expected));index=table['physical_indexes'][0]['root'];leaf=bytes(expected[index*2048:(index+1)*2048])
         require(leaf[:2]==b'\x04\x01' and leaf[8:22]==bytes(14),'Candidate uncompressed root leaf')
         records=sorted(structure.key_bytes(r['values'],[dict(name='Id',descending=arm['descending'])],['Id','Value'])+r['page'].to_bytes(3,'big')+bytes([r['row']]) for r in new_rows)
@@ -93,10 +100,10 @@ def expected(snapshot,arm,role):
     require(value['traversal']==sorted(rows,reverse=arm['descending']) and value['seek']==[dict(query=q,row=next((r for r in rows if r[0]==q),None)) for q in arm['queries']],'Full directed traversal/present and missing Seek')
     return value
 
-def build_report(result,outbox,plan):
+def build_report(result,outbox,plan,*,plan_path=None):
     observations=[];reasons=[]
     try:
-        require(result['document_type']=='dao_indexed_row_result' and result['plan_sha256']==identity(PLAN)['sha256'] and result['source_revision']==plan['source_revision'] and result['error'] is None and result['retention_failures']==[] and result['mutation_started'] is True and result['environment']==dict(process_bits=32,provider='DAO.DBEngine.36'),'Acquisition/source failure')
+        require(result['document_type']=='dao_indexed_row_result' and result['plan_sha256']==identity(plan_path or PLAN)['sha256'] and result['source_revision']==plan['source_revision'] and result['error'] is None and result['retention_failures']==[] and result['mutation_started'] is True and result['environment']==dict(process_bits=32,provider='DAO.DBEngine.36'),'Acquisition/source failure')
         pairs={(p['arm'],p['replica']):p for p in result['pairs']};require(len(pairs)==len(result['pairs']) and set(pairs)=={(a['name'],r) for a in plan['arms'] for r in range(1,4)},'Complete pairs')
         for arm in plan['arms']:
             for replica in range(1,4):
@@ -107,9 +114,9 @@ def build_report(result,outbox,plan):
                     require(c['file']==path.name and c['status']=='pass' and c['error'] is None and c['before']==c['after']==identity(path),'Unchanged retained image');images[role]=identity(path)
                     if role in ('original','candidate'):require(images[role]==plan['images'][arm['name']+'-'+role+'.mdb'],'Pinned public image')
                     snapshots[role]=expected(c['snapshot'],arm,role)
+                    raw[role]=raw_check(path.read_bytes(),arm,rows_for(arm,role),role in ('original','candidate'))
                     if role.endswith('-duplicate'):
                         t,rs=definition(path.read_bytes());duplicate_counts[role]=dict(table_count=t['row_count'],distinct_count=t['physical_indexes'][0]['entry_count'],live_rows=len(rs))
-                    else:raw[role]=raw_check(path.read_bytes(),arm,rows_for(arm,role),role in ('original','candidate'))
                 for role in ('control','candidate-next','control-next'):require(pair['operations'][role]==dict(status='complete'),'Completed mutation')
                 for role in ('candidate-duplicate','control-duplicate'):
                     p=pair['operations'][role];require(p['accepted'] is False and p['error'] is not None and 3022 in p['numbers'],'Duplicate native rejection')
@@ -122,7 +129,7 @@ def build_report(result,outbox,plan):
                 patch=patch_check((outbox/f"{arm['name']}-r{replica}-original.mdb").read_bytes(),(outbox/f"{arm['name']}-r{replica}-candidate.mdb").read_bytes(),arm,plan['receipts'][arm['name']])
                 observations.append(dict(arm=arm['name'],replica=replica,identities=images,raw=raw,patch=patch,duplicate_counts=duplicate_counts,operations=pair['operations']))
     except (ValueError,KeyError,TypeError,OSError,catalog.DecodeError) as e:reasons.append(str(e))
-    return dict(document_type='dao_indexed_row_report',outcome='no_outcome' if reasons else 'observed_accepted',plan_sha256=identity(PLAN)['sha256'],reasons=reasons,observations=observations,development_only=True,compatibility_claim=False,support_matrix_movement=False)
+    return dict(document_type='dao_indexed_row_report',outcome='no_outcome' if reasons else 'observed_accepted',plan_sha256=identity(plan_path or PLAN)['sha256'],reasons=reasons,observations=observations,development_only=plan_path is None,compatibility_claim=False,support_matrix_movement=False)
 
 def preflight(images):
     plan=verify_inputs();require(subprocess.check_output(['git','show',f'HEAD:{PLAN.relative_to(ROOT)}'],cwd=ROOT)==PLAN.read_bytes(),'Plan not committed')

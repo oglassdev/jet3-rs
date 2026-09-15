@@ -4,6 +4,7 @@ import argparse
 import copy
 from decimal import Decimal
 import json
+import math
 import importlib.util
 from pathlib import Path
 import platform
@@ -51,13 +52,36 @@ def queries(rows,index,case):
     if case['recipe']=='long-depth-three':return {(n,) for n in [-13900,-13899,-13701,-13700,-13699,-1,0,13899,13900]}
     return {query_values(row,index) for row in rows if all(row[f['name']]['kind']!='null' for f in index['fields'])}
 
+def normalize_index_observation(observation, table, index):
+    """Apply the snapshot's float representation to traversal and Seek sidecars."""
+    result=copy.deepcopy(observation)
+    def number(value):
+        if type(value) not in (str,int,float): raise fail('Invalid index float type')
+        parsed=float(value)
+        if not math.isfinite(parsed): raise fail('Non-finite index float')
+        return parsed
+    def row(values):
+        for typed in values.values():
+            if typed['kind'] in ('single','double') and isinstance(typed['value'],str):
+                typed['value']=number(typed['value'])
+    for values in result['rows']: row(values)
+    columns={c['name']:c for c in table['columns']}
+    for seek in result['seeks']:
+        if len(seek['query'])!=len(index['fields']): raise fail('Seek key width')
+        for n,field in enumerate(index['fields']):
+            if columns[field['name']]['dao_type'] in ('dbSingle','dbDouble'):
+                seek['query'][n]=number(seek['query'][n])
+        if seek['row'] is not None: row(seek['row'])
+    return result
+
 def assert_indexes(observations,snapshot):
     case=next(s for s in inventory()['scenarios'] if s['id']==snapshot['scenario_id'])
     expected={(t['name'],i['name']):(t,i) for t in snapshot['tables'] for i in t['indexes']}
     keys=[(o['table'],o['index']) for o in observations]
     if len(keys)!=len(set(keys)) or set(keys)!=set(expected):raise fail('Index observation inventory')
     for obs in observations:
-        table,index=expected[obs['table'],obs['index']];rows=[r['values'] for r in table['rows']];actual=obs['rows'];canonical=original.common.canonical_bytes
+        table,index=expected[obs['table'],obs['index']];obs=normalize_index_observation(obs,table,index)
+        rows=[r['values'] for r in table['rows']];actual=obs['rows'];canonical=original.common.canonical_bytes
         if sorted(map(canonical,rows))!=sorted(map(canonical,actual)) or [directed(r,index) for r in actual]!=sorted(directed(r,index) for r in rows):raise fail('Complete directed traversal')
         observed=[tuple(s['query']) for s in obs['seeks']]
         if len(observed)!=len(set(observed)) or set(observed)!=queries(rows,index,case):raise fail('Declared finite Seek inventory')

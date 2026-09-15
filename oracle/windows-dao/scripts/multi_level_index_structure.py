@@ -100,7 +100,7 @@ def tree(data, root, owner):
     return nodes, leaf_entries
 
 
-def observe(data, tables, expected_rows, candidate):
+def observe(data, tables, expected_rows, candidate, *, check_distinct_count=True):
     require(len(data) % 2048 == 0 and 20 <= len(data) // 2048 <= 8192, 'Image page bound')
     definition, _, objects = catalog._discover_catalog(data)
     name, kind, ident = [catalog._ordinal(definition, key) for key in ('Name', 'Type', 'Id')]
@@ -134,11 +134,12 @@ def observe(data, tables, expected_rows, candidate):
                 expected = key_bytes(by_locator[locator], index['fields'], columns)
                 require(entry[:-4] == expected, 'Index key and row values disagree')
                 keys.append(expected)
-            require(seen == set(by_locator) and physical['entry_count'] == len(set(keys)), 'Index coverage or distinct count mismatch')
+            require(seen == set(by_locator), 'Index coverage mismatch')
+            require(not check_distinct_count or physical['entry_count'] == len(set(keys)), 'Index distinct count mismatch')
             depth = max(node['depth'] for node in nodes)
             require(not candidate or depth == table['candidate_depth'], 'Candidate did not reach planned depth')
             result['indexes'].append(dict(root=physical['root'], depth=depth, nodes=nodes, mapped_pages=sorted(mapped),
-                leaf_entries=len(entries), distinct_keys=physical['entry_count'], physical_flags=physical['flags'],
+                leaf_entries=len(entries), distinct_keys=len(set(keys)), stored_counter=physical['entry_count'], physical_flags=physical['flags'],
                 locator_key_sha256=hashlib.sha256(b''.join(entries)).hexdigest()))
         observations.append(result)
     return observations

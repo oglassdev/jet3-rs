@@ -34,6 +34,12 @@ records the scenario input, canonical DAO and Rust snapshots, comparison
 result, provider environment, fixture hashes, and release commit. The protocol
 validator checks its machine-readable canonical snapshot document.
 
+Local Windows VM and hosted runs use the same evidence standard. Retain the
+inputs, source revision, provider environment, complete comparisons and failed
+attempts. Preregistration and per-run authorization are not required. A harness
+fix may be tested again; historical reports remain unchanged and a later result
+describes its own scope.
+
 `docs/PROVENANCE.md` remains the clean-room ledger for every technical source,
 observed behavior, experiment, and fixture origin. Every format constant in
 `crates/jet3` cites the applicable `SRC-` or `EXP-` entry there.

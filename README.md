@@ -53,8 +53,8 @@ row insertion/deletion, scalar replacement, and unique Long index maintenance.
 Creation and updates remain partial: schema combinations, index key types,
 allocation, and relationship mutation are restricted. Publication is Unix-only.
 General database validation is not implemented, and atomic failure/rollback
-verification remains internal-only. Local DAO experiments provide development
-evidence; only hosted results feed the support matrix.
+verification remains internal-only. Local and hosted DAO differential runs provide evidence for their recorded
+capabilities and source revisions.
 
 See the [current checkpoint and remaining work](docs/plans/V1_SCOPE.md#current-checkpoint)
 for exact evidence boundaries and the GitHub issues tracking completion.

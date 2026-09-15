@@ -15000,3 +15000,89 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   implemented, but this result establishes no DAO compatibility or hosted
   support. EXP-0214/0216 remain `no_outcome`, the support matrix is unchanged,
   and the larger practical lifecycle milestone remains incomplete.
+
+
+## EXP-0219 — Retained unique Long index counters after deletion
+
+- Source: the 96 closed images and unchanged capture identities from EXP-0216,
+  reanalyzed under the simplified DAO verification workflow. This does not
+  rewrite EXP-0216 or accept its failed full comparison.
+- Report: private `20260914-index-counter-analysis/report.json`, SHA-256
+  `3293f8e333aa11bb0cd99ea0baeb72376e850b9ff69a5edda320718f89e8082d`.
+  Each image's table row count equals its live rows and leaf entries. All
+  observations repeat identically across three replicas.
+- Native unique Long deletion controls retain the physical index prefix counter
+  at six after deleting three of six distinct keys. A subsequent new-key
+  insertion produces four live rows and counter seven. Rejected duplicates
+  preserve both values. Ascending/descending insertion controls increment the
+  counter from three to four to five; the capacity control moves 199 to 200 to
+  201, including native leaf growth. The prefix is at bytes `[4,8)` of the
+  physical prefix (EXP-0059/0073), hence `[47,51)` for a single physical index.
+- Rust's prior deletion candidate instead stored three, and its continuation
+  stored four. This is a production counter-maintenance defect. For these
+  unique, present Long keys, deletion must preserve the stored counter and
+  insertion increments it; table/live counts are validated separately. A stored
+  counter greater than the live count is not itself corruption. Initial
+  creation counts still describe the newly constructed distinct keys.
+- Scope: retained counter observations only; no general counter semantics for
+  nullable/nonunique indexes or full mutation compatibility is inferred.
+
+
+## EXP-0220 — Creation-index comparison with normalized float sidecars
+
+- Reanalyzed all three retained hosted EXP-0214 recipes with
+  `dao_creation_index_diff.py`. Typed Single/Double values and their Seek
+  components use the same finite numeric representation as canonical snapshots;
+  Currency text and raw bytes remain compared exactly.
+- Outcome: **matched**, all three complete comparisons, including ordered
+  traversal and declared full-key lookups. Covers 27,801 deep Long rows, 126
+  nullable numeric rows and 201 rows with three indexes. No acquisition rerun.
+- Source: hosted run 33970016543, revision
+  `3bbf9cf7f38cd8277cee55e97226834c536551a8`. The original retained files and
+  failed EXP-0214 report remain unchanged. Reanalysis output is private at
+  `/home/alex/experiments/jet3-rs/creation-index-reanalysis-20260914/`;
+  report SHA-256
+  `38ec5ee224b36acf42a5319a4db3eb3c4d1dfd38ae05173cdded0a90426b6a3e`.
+- Supports these creation-index recipes only, not arbitrary creation or full v1.
+
+## EXP-0221 — Repeatable indexed mutation and boundary DAO suites
+
+- Ran `scripts/dao-check.py indexed-boundary indexed-rows` against current Rust
+  candidates on a freshly installed Windows Server 2022 VM. The source receipt
+  identifies `39f1ba4` with working changes; this is not release-commit evidence.
+- Environment: x86 `DAO.DBEngine.36`, provider 3.6, DLL version 03.60.9765.0,
+  SHA-256 `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+- Boundary suite: **matched**, all twelve captures across existing-page and EOF
+  insertion, duplicate refusal and full-root-leaf refusal. Complete Items and
+  Notes schema/rows, Memo content, traversal and present/missing Seek matched.
+  Exact independent patch reconstruction verifies unrelated-byte preservation.
+- Indexed-row suite: **matched**, all 96 captures across ascending primary,
+  descending unique, capacity and repeated-deletion cases with three replicas.
+  Full rows, schema, key/locator correspondence, traversal, lookups, native
+  continuations and duplicate rejection matched. Rust now retains counter six
+  after three deletions, and both native continuations store seven, as EXP-0219
+  requires. Original EXP-0216 and EXP-0218 outcomes are unchanged.
+- Reports are private under
+  `shared/checks/20260914-indexed-lifecycle-1/` in the VM directory, with complete
+  inputs, logs and capture paths. Boundary report SHA-256
+  `2a85b77b78c5c1ac5d0b31e6ea560322b65e4683f391d4313dffa9ae9f25ee88`;
+  indexed-row report SHA-256
+  `ebffcfb2e47d07ce9ed40ef84586625863cacfb126c32692e2b3bf010846d48a`.
+- This validates the finite isolated-leaf mutation inventory and indexed
+  data-page growth. Rust index splits, general relationships, long-value
+  mutation and broader allocation remain outside these suites.
+
+
+### EXP-0221 — Reviewed committed-source verification
+
+- Repeated both suites after review on clean revision
+  `7411ace15224ace05a15d7428b70338fe85ab7ef`: all twelve boundary and 96 indexed-row
+  captures matched again. Reports distinguish live distinct keys from the
+  retained counter and include result/environment identities.
+- Final private root: `shared/checks/20260914-indexed-lifecycle-final/`.
+  Boundary report SHA-256
+  `991b0bf3408ca4abba441c10b013ed0f495bda52aa802b27938da39e75209c03`;
+  indexed-row report SHA-256
+  `fca4905947535ff03e94d0331b4c60f75f69e79b9a384aa34bd61fa2c08b06a8`.
+- Independent GPT-5.6 Sol high review found no remaining correctness blockers.
+  `just ready`, 506 oracle tests and the focused float corruption tests passed.

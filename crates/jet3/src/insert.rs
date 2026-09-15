@@ -14,7 +14,7 @@ use std::path::Path;
 /// and Boolean fields. One unique/primary present Long index is supported when
 /// its complete tree is an uncompressed root leaf with capacity for another key.
 /// Indexed insertion requires an existing populated data page; its leaf records,
-/// boundary bitmap, free count and physical distinct-key count are updated too.
+/// boundary bitmap, free count and retained index counter are updated too.
 /// Other indexes, AutoIncrement, long values and relationships are refused.
 /// If no populated page fits, one EOF page is appended
 /// only within existing inline global/owned/available maps. No reuse,
@@ -24,7 +24,7 @@ use std::path::Path;
 ///
 /// Only the new row, appended slot, page free/count fields and table row count
 /// change on unindexed existing-page insertion. Indexed insertion additionally
-/// updates the leaf and physical distinct count. EOF insertion clears its global free
+/// updates the leaf and increments the retained index counter. EOF insertion clears its global free
 /// bit and sets owned/available bits, marking available when a minimum encoded
 /// row still fits. All other bytes, including page zero, remain exact. This
 /// construction requires separate DAO validation and makes no compatibility claim.
@@ -194,7 +194,7 @@ where
                 return Err(UpdateError::Unsupported("insert requires present Long key"));
             };
             let image = leaf.insert(*value, RowLocator::new(plan.page, 0), budget)?;
-            crate::index_key_page::set_distinct_count(&mut patched_definition, leaf.count, budget)?;
+            crate::index_key_page::increment_counter(&mut patched_definition, budget)?;
             Some(image)
         } else {
             None
@@ -231,7 +231,7 @@ where
             return Err(UpdateError::Unsupported("insert requires present Long key"));
         };
         let after = leaf.insert(*value, RowLocator::new(selected.0, selected.2), budget)?;
-        crate::index_key_page::set_distinct_count(&mut patched_definition, leaf.count, budget)?;
+        crate::index_key_page::increment_counter(&mut patched_definition, budget)?;
         crate::update_pages::publish_changes(
             path,
             database.into_source(),

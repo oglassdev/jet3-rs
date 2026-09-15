@@ -48,7 +48,11 @@ function Mutate([string]$Path,[int]$Id,[bool]$Duplicate){
         $script:mutationStarted=$true
         try{
             $rs.AddNew();$rs.Fields.Item('Id').Value=[int]$Id;$rs.Fields.Item('Name').Value=[string]('x'*80)
-            $rs.Fields.Item('Price').Value=$(if($Id%2-eq 0){[DBNull]::Value}else{[decimal]::Parse('-12.3456',[Globalization.CultureInfo]::InvariantCulture)})
+            $price=$rs.Fields.Item('Price')
+            try {
+                if($Id%2-eq 0){$price.Value=[DBNull]::Value}
+                else{$price.Value=[Runtime.InteropServices.CurrencyWrapper]::new([decimal]::Parse('-12.3456',[Globalization.CultureInfo]::InvariantCulture))}
+            } finally {Release $price}
             $rs.Fields.Item('Active').Value=[bool]($Id%2-ne 0);$rs.Update()
         }catch{
             $numbers=@($engine.Errors|ForEach-Object{[int]$_.Number})

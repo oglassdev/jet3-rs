@@ -43,36 +43,32 @@ and do not apply the parser's threat model to test harnesses, build scripts,
 or JSON emitters. No build-identity attestation, durability proofs, or
 resource budgeting outside the parser.
 
-## DAO experiments
+## DAO verification
 
-- Plan experiments around a capability or shared format question. Group
-  related types, boundary cases, names, and control variants into one bounded
-  case matrix with one preregistration and one outcome report, rather than
-  registering each small variation separately. State expected observations
-  and acceptance criteria per case so partial results remain explicit.
-- Before adding an experiment, check existing evidence and identify the
-  remaining questions for that deliverable. Batch cases that can be specified
-  up front and share a setup/analyzer; split when a later case depends on an
-  earlier result or answers an unrelated question. Do not expand a frozen plan
-  after acquisition or weaken the post-mutation failure rule to keep a batch
-  moving.
-- Preregister each experiment: commit a SHA-256-pinned plan before acquiring
-  data. If the plan is wrong, fix it in the next experiment; do not stack
-  revision files.
-- Record the outcome once as an additive `EXP-` entry derived from the
-  validated report JSON. An honest `no_outcome` is a valid result.
-- A failure after the first DAO mutation is a scientific result, not an
-  infrastructure retry. Do not redispatch without a human decision.
-- Never commit MDB bytes or provider binaries. Local VM runs
-  (`docs/LOCAL_WINDOWS_VM.md`) are for discovery; only hosted preregistered
-  runs feed the support matrix.
+- Group related schemas, boundaries, mutations and controls into reproducible
+  suites. Record inputs, source revision, provider environment and results.
+  Preregistration, separate plan PRs and per-run approval are not required.
+- Fix harness and implementation failures and rerun as needed. Keep failed
+  results alongside subsequent runs; do not overwrite historical outcomes or
+  weaken semantic comparisons to obtain a pass.
+- Record accepted format observations and differential outcomes additively in
+  `docs/PROVENANCE.md`. State the tested scope and any remaining failures.
+- Local Windows VM and hosted DAO runs may both establish differential
+  evidence when they retain reproducible inputs and complete comparisons.
+  Opening a file alone and Rust self-validation do not establish compatibility.
+- Never commit MDB bytes, provider binaries, VM disks or credentials. Keep
+  these outside the repository; see `docs/LOCAL_WINDOWS_VM.md`.
 
 ## Change discipline
 
 - Conventional commits: `feat:`, `fix:`, `test:`, `docs:`, `refactor:`,
   `perf:`, `build:`, `chore:`, `ci:`.
-- One PR, one deliverable. Prefer a 500-line PR over a 5,000-line one.
+- Group implementation, tests, validation fixes and documentation into coherent
+  deliverables. Avoid tiny plan/outcome PRs. Squash-merge completed, reviewed PRs.
 - Review is for correctness. Repeated adversarial review rounds on non-parser
   code are out of scope.
+- Prefer GPT-5.6 Sol with high reasoning for independent review and Windows
+  differential testing. Use subagents only when useful, with at most two active
+  at once; keep implementation ownership and VM access explicit.
 - `docs/PROVENANCE.md` is additive-only. Other docs may be edited or deleted
   freely; git history is the archive.
