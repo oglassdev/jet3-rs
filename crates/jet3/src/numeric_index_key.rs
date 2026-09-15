@@ -18,7 +18,8 @@ pub(crate) enum NumericKeyType {
 }
 
 impl NumericKeyType {
-    pub(crate) fn encoded_length(self, marker: u8, direction: IndexDirection) -> Option<usize> {
+    pub(crate) fn encoded_length(self, key: &[u8], direction: IndexDirection) -> Option<usize> {
+        let marker = *key.first()?;
         let marker = if direction == IndexDirection::Descending {
             marker ^ 0xff
         } else {

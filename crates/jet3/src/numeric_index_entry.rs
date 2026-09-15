@@ -58,10 +58,7 @@ pub(crate) fn valid_key_shape(
     }
     let mut all_null = true;
     for field in fields {
-        let Some(length) = key
-            .first()
-            .and_then(|marker| field.kind.encoded_length(*marker, field.direction))
-        else {
+        let Some(length) = field.kind.encoded_length(key, field.direction) else {
             return false;
         };
         let Some((component, rest)) = key.split_at_checked(length) else {

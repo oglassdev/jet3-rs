@@ -191,6 +191,7 @@ def refusal_check(directory, notes):
 
 def inputs():
     paths = [Path(__file__), SCRIPT, Path(raw_index.__file__), ROOT / 'crates/jet3/examples/numeric_index_mutation_candidate.rs',
+             ROOT / 'crates/jet3/examples/numeric_index_mutation_support/mod.rs',
              Path(__file__).with_name('index_tree_mutation.py'), Path(__file__).with_name('index_tree_mutation_structure.py'),
              Path(__file__).with_name('multi_level_index_structure.py'), Path(raw_index.catalog.__file__), Path(__file__).with_name('field_update.ps1')]
     return {str(p.relative_to(ROOT)): identity(p) for p in paths}
