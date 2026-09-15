@@ -14,8 +14,8 @@ use std::{
 pub(crate) const HELP: &str = "\
   jet3-cli mutate <file.mdb> --input <request.json|->
 
-mutate applies one insert, update or delete JSON request through the public API.
-Targets use exact ASCII table names; update/delete require a current page/slot.
+mutate applies one insert, update, replace or delete JSON request through the public API.
+Targets use exact ASCII table names; update/replace/delete require a current page/slot.
 Callers must exclude concurrent writers. See README.md for current library bounds.
 ";
 #[derive(Debug)]
@@ -59,6 +59,11 @@ enum Request {
     Delete {
         table: String,
         row: Locator,
+    },
+    Replace {
+        table: String,
+        row: Locator,
+        values: Vec<Option<Cell>>,
     },
 }
 fn required_value<'de, D: serde::Deserializer<'de>>(
@@ -178,6 +183,24 @@ pub(crate) fn run(command: &MutationCommand) -> Result<String, Failure> {
                 &mut budget,
             )?;
             ("update", locator)
+        }
+        Request::Replace { table, row, values } => {
+            let table = values::ascii(table)?;
+            let (locator, _) = resolve(&command.path, table, row, &mut budget, None)?;
+            let values = values
+                .iter()
+                .map(|cell| cell.as_ref().map_or(Ok(RowValue::Null), Cell::value))
+                .collect::<Result<Vec<_>, _>>()?;
+            jet3::update_row(
+                &command.path,
+                jet3::RowUpdate {
+                    table,
+                    row: locator,
+                    values: &values,
+                },
+                &mut budget,
+            )?;
+            ("replace", locator)
         }
         Request::Delete { table, row } => {
             let table = values::ascii(table)?;

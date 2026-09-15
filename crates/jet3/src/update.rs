@@ -110,19 +110,18 @@ conversion!(crate::IndexTreeError, Index);
 /// Replaces one present fixed field in a relationship-free user table.
 ///
 /// Indexed tables are supported when the column is absent from every physical
-/// index. A key update additionally supports one unique/primary Long index whose
-/// entire tree is one uncompressed root leaf with present keys. It preserves
-/// row and distinct-key counts, allocation maps, leaf header/bitmap and unused
-/// bytes. Other key updates are refused. This bounded key-update construction
-/// has not yet been validated by DAO.
+/// index. A key update additionally supports one unique/primary Long index with
+/// present keys. It rebuilds the tree using the existing root and reserved pages,
+/// appending nodes within inline maps if decompression needs more space. The row
+/// count and retained index counter remain unchanged. Other key updates are refused.
 ///
 /// Supports Byte, Integer, Long, Currency, Single, Double, DateTime, GUID and
 /// exact-width fixed Text. Null transitions, Boolean presence bits, AutoIncrement,
 /// variable fields and hidden/overflow rows remain unsupported. A missing or
 /// unreadable relationship catalog and unresolved non-ASCII relationship endpoint
 /// names are also refused.
-/// Only the requested field and, for a supported key update, the occupied leaf
-/// entry area change. Opaque pages and unused space remain unchanged.
+/// Only the requested field, index nodes and necessary index allocation bits
+/// change. Opaque pages and vacated index entry space remain unchanged.
 /// Locators remain valid only while the source is unchanged: callers must exclude
 /// external writers for this entire operation, as required by [`crate::atomic_update`].
 /// Publication is Unix-only. Any pre-publication failure preserves the original;
@@ -226,32 +225,15 @@ where
         before: &original_page,
         after: patched.as_bytes(),
     };
+    let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
+    edits.replace(field_change, budget)?;
     if let Some(index) = index_change {
-        crate::update_pages::publish_changes(
-            path,
-            database.into_source(),
-            &[
-                field_change,
-                crate::update_pages::PageChange {
-                    page: index.page,
-                    before: &index.before,
-                    after: index.after.as_bytes(),
-                },
-            ],
-            budget,
-            hook,
-        )
-    } else {
-        crate::update_pages::publish_changes(
-            path,
-            database.into_source(),
-            &[field_change],
-            budget,
-            hook,
-        )
+        index.stage(&mut database, &definition, &mut edits, budget)?;
     }
+    edits.publish(path, database.into_source(), budget, hook)
 }
 
+#[cfg(all(test, unix))]
 pub(crate) fn writable_table(
     database: &mut DatabaseReader<FileSource>,
     table: &[u8],

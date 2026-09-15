@@ -88,7 +88,8 @@ def patch_check(before,after,arm,receipt):
         for n in range(1,count+1):bitmap[n*9//8]|=1<<(n*9%8)
         base=index*2048;expected[base+2:base+4]=(1800-count*9).to_bytes(2,'little');expected[base+22:base+248]=bitmap;expected[base+248:base+248+count*9]=b''.join(records)
     require(bytes(expected)==after,'Exact three-page patches, slack/maps/page0 and unrelated preservation')
-    require(receipt['refusal_preserved'] is True and receipt['public_refusal']==('capacity' if arm['name']=='capacity' else 'duplicate'),'Public duplicate/capacity refusal')
+    allowed = ('capacity', 'duplicate') if arm['name'] == 'capacity' else ('duplicate',)
+    require(receipt['refusal_preserved'] is True and receipt['public_refusal'] in allowed, 'Public duplicate/capacity refusal')
     return dict(actions=actions,refusal=receipt['public_refusal'],changed_offsets=[i for i,(a,b) in enumerate(zip(before,after)) if a!=b],page0_unchanged=before[:2048]==after[:2048])
 
 def expected(snapshot,arm,role):

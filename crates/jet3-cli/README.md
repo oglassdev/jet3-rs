@@ -130,12 +130,18 @@ Use `--input -` for stdin. Requests have one of these shapes:
 {"operation":"delete","table":"Items","row":{"page":23,"slot":1}}
 ```
 
+For complete row replacement, including variable Text/Binary widths, null
+transitions and Boolean values, supply every column in schema order:
+
+```json
+{"operation":"replace","table":"Items","row":{"page":23,"slot":1},"values":[{"long":42},{"text":"Renamed"}]}
+```
+
 Page/slot locators come from the public row reader; column ordinals come from
 its table definition. They describe the unchanged source, not a primary key or
 row position. The CLI resolves the exact supplied table and locator with that
-reader before an update/delete. Names are ASCII, and values use the same typed
-JSON cells as creation. There is no batch, implicit retry, index maintenance or
-schema conversion. Each accepted request invokes its public mutation API once
+reader before an update/replace/delete. Names are ASCII, and values use the same typed
+JSON cells as creation. There is no batch, implicit retry or schema conversion. Each accepted request invokes its public mutation API once
 with the default library resource budget.
 
 Success returns JSON with `ok`, `operation`, `file` and `row` (the new locator
@@ -146,9 +152,10 @@ A sync error after publication can mean the change is already visible: do not
 blindly retry a failed mutation. Exclude concurrent writers for the entire
 operation; publication currently requires Unix.
 
-Current library restrictions apply unchanged: field updates support present
-fixed values, insertion needs room on a populated available page, and deletion
-supports a live tail slot without releasing its page. Indexes, relationships,
-AutoIncrement/LVAL insertion or deletion, null field transitions, page allocation,
-and inconsistent free/count metadata may be refused. Unit tests of command
-dispatch do not establish DAO compatibility for any additional operation.
+Field updates support present fixed values; complete row replacement supports
+scalar values on the existing available data page. Insertion can append a data
+page within inline maps. Deletion compacts retained pages or releases a page
+containing one physical row. One unique/primary present Long index supports
+multi-level row and key maintenance. Composite/nonunique/null keys, relationships,
+AutoIncrement/LVAL mutation, indirect maps and inconsistent source metadata remain
+restricted. Command tests do not establish additional DAO compatibility.

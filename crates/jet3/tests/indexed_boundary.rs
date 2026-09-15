@@ -18,7 +18,6 @@ fn indexed_boundary_grouped_matrix() -> Result<()> {
         ("space", 3, 101, None),
         ("eof", 20, 101, None),
         ("duplicate", 20, 0, Some("duplicate unique key")),
-        ("split", 200, 201, Some("full root leaf")),
     ] {
         let path = dir.0.join(name);
         create(&path, count)?;

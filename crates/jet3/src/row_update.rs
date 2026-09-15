@@ -18,18 +18,20 @@ pub struct RowUpdate<'a> {
 
 /// Replaces a complete ordinary row on its current page without changing its slot.
 ///
-/// Supports scalar/null/Boolean/Text/Binary values in unindexed, relationship-free
+/// Supports scalar/null/Boolean/Text/Binary values in relationship-free
 /// non-AutoIncrement/non-long-value tables. The page must be inline-owned and
 /// available, with consistent metadata and ordinary live rows or known empty
-/// `c000` tombstones. No overflow, page allocation or map transition is performed.
+/// `c000` tombstones. The data page and row locator remain fixed. One unique/primary
+/// present Long index is supported, including key changes in a multi-level tree.
 /// Existing checked row-encoding limits apply, including variable-offset widths.
 /// The resulting page must retain room for a minimum encoded row and directory
 /// slot; this is a candidate scope constraint, not a DAO availability threshold.
 ///
 /// Later row bytes and offsets shift as needed, preserving their slots and values.
 /// Shrinking leaves newly vacated slack unchanged. Only the replacement, shifted
-/// bytes/offsets and page free-byte count change; table/slot counts, maps, page zero
-/// and unrelated objects remain exact. This construction requires separate DAO
+/// bytes/offsets and page free-byte count change in the data page. A changed key
+/// rebuilds index nodes and may allocate them within inline maps. Table/slot counts,
+/// page zero and unrelated objects remain exact. This construction requires separate DAO
 /// validation and makes no compatibility claim.
 ///
 /// Callers must exclude external writers throughout this Unix-only operation.
@@ -54,7 +56,7 @@ where
     HE: StdError + Send + Sync + 'static,
 {
     let mut database = DatabaseReader::open(path, budget)?;
-    let definition = crate::update::writable_table(&mut database, request.table, budget)?;
+    let definition = crate::update::indexed_writable_table(&mut database, request.table, budget)?;
     if !definition.long_value_maps().is_empty()
         || definition.columns().iter().any(|c| {
             c.auto_increment()
@@ -68,6 +70,15 @@ where
             "AutoIncrement or long-value row replacement",
         ));
     }
+    let mut index = if definition.physical_indexes().is_empty() {
+        None
+    } else {
+        Some(crate::unique_index::load(
+            &mut database,
+            &definition,
+            budget,
+        )?)
+    };
     let columns = definition.columns();
     if columns.len() > usize::from(u8::MAX) {
         return Err(UpdateError::Unsupported("row column count"));
@@ -155,17 +166,26 @@ where
         minimum_length,
         budget,
     )?;
-    crate::update_pages::publish_changes(
-        path,
-        database.into_source(),
-        &[crate::update_pages::PageChange {
+    let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
+    edits.replace(
+        crate::update_pages::PageChange {
             page: request.row.page(),
             before: &before,
             after: after.as_bytes(),
-        }],
+        },
         budget,
-        hook,
-    )
+    )?;
+    if let Some(index) = &mut index {
+        let Some(RowValue::Long(value)) = request.values.get(usize::from(index.column.get()))
+        else {
+            return Err(UpdateError::Unsupported(
+                "replacement requires present Long key",
+            ));
+        };
+        index.replace(request.row, *value, budget)?;
+        index.stage(&mut database, &definition, &mut edits, budget)?;
+    }
+    edits.publish(path, database.into_source(), budget, hook)
 }
 
 #[cfg(all(test, unix))]

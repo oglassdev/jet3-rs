@@ -15119,3 +15119,151 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   indexes per table, and general creation compatibility.
 - Independent GPT-5.6 Sol high review found no correctness or evidence defects.
   `just ready` passed on the integrated candidate.
+
+## EXP-0224 — Last live row release with retained deleted slots
+
+- Native x86 DAO observations on the rebuilt Windows Server 2022 VM extend
+  EXP-0162's sole physical-row release. The source is the native six-row Long
+  primary-index control from the repeatable indexed-row suite. Each case deletes
+  five rows, retaining physical slot 0, 2 or 5, then deletes the last row. Two
+  replicas of each case produce the same observations.
+- The final data page retains its six-slot count and owner. Its tag changes
+  from `01` to `09`, every directory word becomes `c800`, and free bytes become
+  2,026 (`2048 - 10 - 2*6`). Those fields are the complete data-page patch;
+  payload and other slack remain exact. Owned and available map bits clear,
+  the global free bit sets, the table row count becomes zero, and the physical
+  index counter remains six. The index is an empty root leaf.
+- Private run: `shared/outbox/20260915T033100Z-last-slots/` in the VM directory,
+  retaining every pre/post image, producer result and observation report.
+  `report.json` SHA-256
+  `a309ad62cd187c37e78ed9e3bb8be2cca7b252b21e66f9c33b5ac1b8c49e54a2`.
+- Scope: ordinary Long rows and known empty deleted slots on one inline-mapped
+  page. No overflow-row, long-value, indirect-map or general free-page reuse
+  semantics are inferred.
+
+
+## EXP-0223 — Multi-level unique Long mutation lifecycle and DAO continuations
+
+- Ran the reproducible `index-trees` suite on the rebuilt Windows Server 2022
+  VM with x86 `DAO.DBEngine.36` 3.6, DLL 03.60.9765.0 (SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`).
+  Initial source: `edd18b92c1281167b490c1b3ccc528a284f19667` with runner changes.
+- Outcome: **matched**, all five finite cases. Ascending primary and descending
+  unique Long indexes grow from 200 to 201 keys while also appending a data page;
+  key reorder, Text/Binary row growth and shrinkage, collapse to 200 and regrowth
+  preserve complete expected contents. One-row and three-slot tombstone cases
+  delete every row and reinsert. Narrow Long/Long rows cross the 27,800/27,801
+  boundary into a three-level tree, then reorder, collapse and regrow.
+- All 27 retained Rust checkpoints pass independent raw row/key/locator, branch
+  maximum, sibling, depth, counter and map checks. Twenty-five checkpoints have
+  full paired DAO captures; the deep reorder/collapse intermediates retain
+  images and raw Rust checks without separate DAO snapshots. Five final pairs
+  also complete DAO insertion, key update and deletion and match again.
+- A second round takes the final native controls for the primary and deep
+  cases, verifies their actual compressed nodes, inserts key 1,234,567 through
+  Rust, and compares an independent equivalent DAO insertion. Both complete
+  comparisons match, producing 202 and 27,802 rows respectively.
+- Comparisons include complete typed row/traversal sidecars, schema, selected
+  present/absent Seek results and provider/input/result identities. Every phase
+  preserves unrelated Notes data pages and its 4 KiB Memo payload. Rebuilt trees
+  keep their original root and retain surplus mapped pages for later reuse;
+  those unused pages retain their previous bytes. Stored counters follow
+  EXP-0219; last-live data-page release follows EXP-0224.
+- Private root: `shared/checks/20260915-index-tree-lifecycle-1/index-trees/`.
+  Combined forward/continuation `report.json` SHA-256
+  `7784a7caf682963f9e1ce4a5d416301d7279b4360147612dc5dcc7274a75742f`.
+  Captures are `shared/outbox/20260915T033214Z-index-trees-82a763/` and
+  `shared/outbox/20260915T033259Z-index-trees-7e8aca/`.
+- Scope remains one unique/primary present Long index, scalar rows and inline
+  maps. No composite/nonunique/null-key mutation, relationships, long-value
+  mutation, indirect allocation or general v1 compatibility is established.
+### EXP-0223 clean-source verification
+
+- Repeated all four `scripts/dao-check.py` suites with omitted suite arguments
+  on clean source `38522ce16e187f1f1937c58657695a940620dc82`. All four
+  outcomes are **matched**, including the index-tree native continuation round.
+- Private root: `shared/checks/20260915-index-tree-final/`. SHA-256 identities
+  of each suite's retained `report.json` are:
+  - `indexed-boundary`: `80029d0668dc85febe00dcdb5ef7e629e8de70e633d2cb248c835f2e3e9527f8`
+  - `indexed-rows`: `5209ac244f09796a0737f567122a171be8387df1b9b34b700c3082c1a0212efe`
+  - `creation-tables`: `6611cf0de1b3d88d97cd8157ced992a56a8cae452c30052dd82463c11cbef616`
+  - `index-trees`: `dc01cbf460f5d538d9b9284101820341f76c55007c6cc36878f529dab6ca9464`
+- The summary SHA-256 is
+  `aec5ed85ff4785f4d7d7b02140ae5ec1e5cc3afda8ef68a0d409c5458413a88d`.
+  Each report retains the exact provider, source, inputs and captures. The
+  index-tree captures are `shared/outbox/20260915T033825Z-index-trees-f33c5e/`
+  and `shared/outbox/20260915T033910Z-index-trees-f5aab5/`. The finite scope and
+  explicit raw-only intermediate checkpoints above remain unchanged.
+
+## EXP-0225 — DAO deletion retains a valid branch separator above its child
+
+- Sol's seeded mutation check found that a retained, accepted native descending
+  output from EXP-0223 was rejected before mutation by the exact-child-maximum
+  check. The attempted Rust replacement preserved the original bytes.
+- The candidate and independent control histories both have exact separators
+  after native insertion and key update. Deleting Id 0 removes the middle
+  child's maximum while retaining its former separator. The final DAO captures
+  still match complete rows, traversal and Seek results under EXP-0223.
+- Both retained separators are `807fffffff00001800` (descending Id 0,
+  page 24/slot 0); the remaining child maximum is `807ffffffe00001801`
+  (Id 1, page 24/slot 1). The following subtree minimum is Id -2, encoded
+  `808000000100003800` in the control and `808000000100002b00` in the
+  candidate. Thus `child maximum < separator < next subtree minimum`.
+- A mutation may admit a separator satisfying `child maximum <= separator`
+  and `separator < following subtree minimum`. Rebuilt trees continue using
+  exact child maxima from EXP-0062/0126. Both bounds are checked, together
+  with complete leaf ordering and row/key/locator correspondence; accepting
+  this retained separator does not permit a key routed into the wrong child.
+- Private source: `shared/outbox/20260915T033214Z-index-trees-82a763/`.
+  `descending-native-candidate.mdb` is 90,112 bytes, SHA-256
+  `d351557e9ac9e933fbb5495f0dffef220e7a02b75453b15128592a7fbc24f3bb`.
+  Characterization is retained in
+  `shared/checks/20260915-random-lifecycle-sol/native-separator-characterization.json`,
+  SHA-256 `649634ca8445ccb52851fd2213cdbb65523b52f8aef1035f54a49dbba5317e05`.
+  This is analysis of already retained DAO outputs; no new acquisition or
+  whole-v1 compatibility claim follows.
+
+### EXP-0225 mutation and native continuation verification
+
+- The corrected parser passed `just ready` at `0e4806e`. After tightening
+  the independent oracle's exact Long record widths, the clean
+  `ea6d7f1fb9ba1a5a7d284c28ba8548760d7171ab` tree lifecycle run matched
+  all five cases and three native continuation cases. Descending input has
+  one compressed node and one retained nonexact separator; the primary and
+  deep inputs have one and 108 compressed nodes respectively. Resulting
+  complete paired contents have 202, 202 and 27,802 rows.
+- Private final report: `shared/checks/20260915-index-tree-fences-final/index-trees/report.json`,
+  SHA-256 `742439944315a1b4481f56b5ff8defcdf112abe38d99608a592c49436f1e1723`.
+  Forward and continuation captures are
+  `shared/outbox/20260915T035822Z-index-trees-f49048/` and
+  `shared/outbox/20260915T035917Z-index-trees-3e9bb4/`.
+
+## EXP-0226 — Seeded scalar/index mutation sequences agree with DAO
+
+- Sol high independently reviewed the corrected mutation parser and oracle,
+  then exercised clean `ea6d7f1fb9ba1a5a7d284c28ba8548760d7171ab` on six
+  private copies spanning primary/descending indexes, narrow/wide payloads,
+  and accepted native DAO input. Each seed attempted 50 operations.
+- All 162 accepted operations were replayed through native DAO: 54 inserts,
+  48 key updates, 24 full-row replacements and 36 deletes. All six final
+  comparisons matched complete typed rows, directed index traversal, 18–20
+  present/absent Seek probes per case, schema/index metadata, raw key/locator
+  inventory, retained insertion counters and unrelated Notes page hashes.
+- The other 138 attempts were 96 duplicate rejections and 42 explicit
+  allocation/resize scope refusals. Every refusal preserved the original
+  byte-for-byte. Accepted operation chains, retained artifact identities and
+  provider environment were checked independently with no mismatches.
+- Original discovery failure and traces remain separately retained; the
+  successful successor does not relabel them. Unsupported dense-page and
+  same-page resize requests remain coverage gaps, not successful mutations.
+- Private root: `shared/checks/20260915-random-lifecycle-sol-ea6d7f1/`.
+  `summary.json` SHA-256
+  `2b6772fefb2e74f6c3b8daccb9fa1ecee290ad6578ac1959f7936186ed5c85c8`;
+  `dao-report.json` SHA-256
+  `6d08136b587cf7ed8abd0313d0badf149825d94273c867890427177bec7f3d1e`;
+  replay manifest SHA-256
+  `039a1dfad3a666f86778934899ffc9c7cb9c4b6f0626b265dde09237d9de9ddd`.
+  Captures: `shared/outbox/20260915T110103Z-random-sol-ea6d7f1/`.
+  The outbox rename is documented by the retained `run-id-correction.json`.
+- Scope remains the recorded scalar, one-unique-Long and inline-map cases;
+  this finite differential does not establish general v1 compatibility.

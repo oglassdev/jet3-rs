@@ -1,4 +1,4 @@
-//! Exact prefix publication with an optional single planned EOF page.
+//! Exact prefix publication with planned EOF pages.
 use crate::{
     ByteOffset, FileSource, PAGE_BYTES, PageNumber, PublishStage, ReadAt, ResourceBudget,
     UpdateError,
@@ -14,25 +14,11 @@ pub(crate) struct PageChange<'a> {
     pub after: &'a [u8; PAGE_BYTES],
 }
 
-pub(crate) fn publish_changes<H, HE>(
-    path: &Path,
-    original: FileSource,
-    changes: &[PageChange<'_>],
-    budget: &mut ResourceBudget,
-    hook: H,
-) -> Result<(), UpdateError>
-where
-    H: FnMut(PublishStage) -> Result<(), HE>,
-    HE: StdError + Send + Sync + 'static,
-{
-    publish_changes_with_append(path, original, changes, None, budget, hook)
-}
-
-pub(crate) fn publish_changes_with_append<H, HE>(
+pub(crate) fn publish_changes_with_appends<H, HE>(
     path: &Path,
     mut original: FileSource,
     changes: &[PageChange<'_>],
-    append: Option<&[u8; PAGE_BYTES]>,
+    append: &[crate::PageImage],
     budget: &mut ResourceBudget,
     hook: H,
 ) -> Result<(), UpdateError>
@@ -41,24 +27,28 @@ where
     HE: StdError + Send + Sync + 'static,
 {
     let length = original.len();
-    let expected_length = if append.is_some() {
+    let expected_length = if !append.is_empty() {
         if !length.get().is_multiple_of(PAGE_BYTES as u64) {
             return Err(UpdateError::Mismatch("unaligned append"));
         }
-        budget.charge_encoded_bytes(crate::ByteCount::new(PAGE_BYTES as u64))?;
+        let bytes = (append.len() as u64)
+            .checked_mul(PAGE_BYTES as u64)
+            .ok_or(UpdateError::Mismatch("append length overflow"))?;
+        budget.charge_encoded_bytes(crate::ByteCount::new(bytes))?;
         length
             .get()
-            .checked_add(PAGE_BYTES as u64)
+            .checked_add(bytes)
             .ok_or(UpdateError::Mismatch("append length overflow"))?
     } else {
         length.get()
     };
-    if append.is_some() {
+    if !append.is_empty() {
         budget
             .read_budget()
             .check_input(crate::ByteCount::new(expected_length))?;
     }
     for (index, change) in changes.iter().enumerate() {
+        budget.charge_work_units(index as u64 + 1)?;
         let end = change
             .page
             .get()
@@ -95,10 +85,12 @@ where
                     file.write_all(&change.after[start..offset])?;
                 }
             }
-            if let Some(image) = append {
+            for (ordinal, image) in append.iter().enumerate() {
                 budget.charge_work_units(PAGE_BYTES as u64)?;
-                file.seek(SeekFrom::Start(length.get()))?;
-                file.write_all(image)?;
+                file.seek(SeekFrom::Start(
+                    length.get() + ordinal as u64 * PAGE_BYTES as u64,
+                ))?;
+                file.write_all(image.as_bytes())?;
             }
             Ok(())
         },
@@ -136,14 +128,14 @@ where
                 }
                 position += count as u64;
             }
-            if let Some(image) = append {
+            for (ordinal, image) in append.iter().enumerate() {
                 candidate.read_exact_at(
-                    ByteOffset::new(length.get()),
+                    ByteOffset::new(length.get() + ordinal as u64 * PAGE_BYTES as u64),
                     &mut actual,
                     budget.read_budget(),
                 )?;
                 budget.charge_work_units(PAGE_BYTES as u64)?;
-                if &actual != image {
+                if &actual != image.as_bytes() {
                     return Err(UpdateError::Mismatch("appended page bytes"));
                 }
             }

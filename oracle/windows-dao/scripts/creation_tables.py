@@ -188,6 +188,7 @@ def evaluate(candidates, outbox):
         else:
             write(path, report)
         print(path)
+    return report
 
 
 def main():

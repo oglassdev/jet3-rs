@@ -13,7 +13,6 @@ fn main() -> Result<()> {
         ("space", 3, 101, None),
         ("eof", 20, 101, None),
         ("duplicate", 20, 0, Some("duplicate unique key")),
-        ("split", 200, 201, Some("full root leaf")),
     ] {
         let original = directory.join(format!("{name}-original.mdb"));
         let candidate = directory.join(format!("{name}-candidate.mdb"));

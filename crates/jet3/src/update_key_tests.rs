@@ -149,17 +149,27 @@ fn duplicate_noop_multilevel_and_budget_bounds_preserve_source() -> TestResult {
         .is_err()
     );
     assert_eq!(fs::read(fixture.path())?, original);
+    let mut encoded = ResourceBudget::new(
+        ResourceLimits::default().with_max_encoded_bytes(crate::ByteCount::new(100)),
+    );
+    assert!(
+        update_field(
+            fixture.path(),
+            request(row, RowValue::Long(-1)),
+            &mut encoded
+        )
+        .is_err()
+    );
+    assert_eq!(fs::read(fixture.path())?, original);
     for count in [200, 201] {
         let full = keyed(crate::IndexKind::Primary, false, count)?;
         let row = full.locator(1)?;
-        let original = fs::read(full.path())?;
-        let result = update_field(full.path(), request(row, RowValue::Long(-1)), &mut budget());
-        if count == 200 {
-            result?;
-        } else {
-            assert!(matches!(result, Err(UpdateError::Unsupported(_))));
-            assert_eq!(fs::read(full.path())?, original);
-        }
+        update_field(full.path(), request(row, RowValue::Long(-1)), &mut budget())?;
+        let mut b = budget();
+        let mut db = DatabaseReader::open(full.path(), &mut b)?;
+        let table = definition(&full)?;
+        crate::unique_index::load(&mut db, &table, &mut b)?;
+        assert_eq!(db.index_tree(&table, 0, &mut b)?.entries()[0].row(), row);
     }
     Ok(())
 }

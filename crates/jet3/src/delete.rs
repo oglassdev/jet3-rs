@@ -13,20 +13,20 @@ pub struct RowDelete<'a> {
     pub row: RowLocator,
 }
 
-/// Deletes one ordinary row, compacting its page or releasing a single-slot page.
+/// Deletes one ordinary row, compacting its page or releasing an emptied page.
 ///
 /// Supports relationship-free tables without AutoIncrement or long values.
-/// One unique/primary present Long index additionally supports retained-page
-/// deletion when its complete tree is an uncompressed root leaf. The matching
-/// leaf entry is removed and its boundary/free fields are updated. The retained
-/// index counter and unused leaf bytes remain exact. Other indexed deletions are refused.
+/// One unique/primary present Long index supports deletion through an empty tree.
+/// The matching entry is removed and the complete tree is rebuilt with its existing
+/// root. Surplus index pages remain reserved for reuse; the retained index counter
+/// is unchanged. Other indexed deletions are refused.
 /// Slots must be ordinary live rows or known empty `c000` tombstones;
 /// the page must already appear in its inline available map. Later rows move
 /// upward without changing their physical slot numbers or stored values. The
 /// deleted slot becomes an empty tombstone; existing tombstone flags are retained.
-/// A page containing exactly one physical row is released through its existing
-/// inline global/owned/available maps. A sole live row alongside tombstones and
-/// inconsistent free/count metadata are refused.
+/// A page containing one live row is released through its existing
+/// inline global/owned/available maps. Its physical slot count is retained and
+/// all slots become empty tombstones. Inconsistent free/count metadata is refused.
 /// On retained unindexed pages, only shifted row bytes, affected directory offsets,
 /// free-byte count and table row count change. Vacated slack, maps, page zero and unrelated objects
 /// remain exact for retained pages. Released pages change their tag, directory
@@ -77,9 +77,11 @@ where
         }) {
             return Err(UpdateError::Unsupported("indexed long-value table"));
         }
-        let leaf = crate::unique_leaf::validate(&mut database, &definition, budget)?;
-        leaf.check_map(&mut database, &definition, budget)?;
-        Some(leaf)
+        Some(crate::unique_index::load(
+            &mut database,
+            &definition,
+            budget,
+        )?)
     };
     let mut source_page = [0; PAGE_BYTES];
     database.read_raw_page(request.row.page(), &mut source_page, budget)?;
@@ -136,37 +138,23 @@ where
     database.read_raw_page(definition.root(), &mut source_definition, budget)?;
     let patched_definition =
         crate::row_delete_page::decrement_count(&source_definition, observed_rows, budget)?;
-    if let Some(leaf) = &mut index {
-        if matches!(patched_page, crate::row_delete_page::Deletion::Released(_)) {
-            return Err(UpdateError::Unsupported(
-                "indexed deletion requires retained data page",
-            ));
-        }
-        let after = leaf.remove(request.row, budget)?;
-        return crate::update_pages::publish_changes(
-            path,
-            database.into_source(),
-            &[
-                crate::update_pages::PageChange {
-                    page: request.row.page(),
-                    before: &source_page,
-                    after: patched_page.image().as_bytes(),
-                },
-                crate::update_pages::PageChange {
-                    page: definition.root(),
-                    before: &source_definition,
-                    after: patched_definition.as_bytes(),
-                },
-                crate::update_pages::PageChange {
-                    page: leaf.page,
-                    before: &leaf.before,
-                    after: after.as_bytes(),
-                },
-            ],
-            budget,
-            hook,
-        );
-    }
+    let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
+    edits.replace(
+        crate::update_pages::PageChange {
+            page: request.row.page(),
+            before: &source_page,
+            after: patched_page.image().as_bytes(),
+        },
+        budget,
+    )?;
+    edits.replace(
+        crate::update_pages::PageChange {
+            page: definition.root(),
+            before: &source_definition,
+            after: patched_definition.as_bytes(),
+        },
+        budget,
+    )?;
     if matches!(patched_page, crate::row_delete_page::Deletion::Released(_)) {
         if definition.columns().iter().any(|column| {
             matches!(
@@ -183,48 +171,15 @@ where
             crate::allocation_patch::AllocationChange::Release,
             budget,
         )?;
-        let definition_change = crate::update_pages::PageChange {
-            page: definition.root(),
-            before: &source_definition,
-            after: patched_definition.as_bytes(),
-        };
-        let mut changes = [definition_change; 5];
-        changes[0] = crate::update_pages::PageChange {
-            page: request.row.page(),
-            before: &source_page,
-            after: patched_page.image().as_bytes(),
-        };
-        let map_changes = maps.changes();
-        let count = 2 + map_changes.len();
-        for (change, map) in changes.iter_mut().skip(2).zip(map_changes) {
-            *change = map;
+        for change in maps.changes() {
+            edits.replace(change, budget)?;
         }
-        return crate::update_pages::publish_changes(
-            path,
-            database.into_source(),
-            &changes[..count],
-            budget,
-            hook,
-        );
     }
-    crate::update_pages::publish_changes(
-        path,
-        database.into_source(),
-        &[
-            crate::update_pages::PageChange {
-                page: request.row.page(),
-                before: &source_page,
-                after: patched_page.image().as_bytes(),
-            },
-            crate::update_pages::PageChange {
-                page: definition.root(),
-                before: &source_definition,
-                after: patched_definition.as_bytes(),
-            },
-        ],
-        budget,
-        hook,
-    )
+    if let Some(index) = &mut index {
+        index.remove(request.row, budget)?;
+        index.stage(&mut database, &definition, &mut edits, budget)?;
+    }
+    edits.publish(path, database.into_source(), budget, hook)
 }
 
 #[cfg(all(test, unix))]
