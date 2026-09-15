@@ -8,6 +8,7 @@ import shutil
 import subprocess
 
 import wide_row_lifecycle as wide
+import row_overflow_lifecycle_structure as structure
 from index_tree_mutation import identity, notes_identity, require, write
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -99,11 +100,14 @@ def refusal_check(directory, notes):
 
 
 def inputs():
-    files = [Path(__file__), SCRIPT, ROOT / 'crates/jet3/examples/row_overflow_candidate.rs']
+    files = [Path(__file__), SCRIPT, Path(structure.__file__), ROOT / 'crates/jet3/examples/row_overflow_candidate.rs']
     return original_inputs() | {str(p.relative_to(ROOT)): identity(p) for p in files}
 
 
 def prepare(directory, revision):
+    physical = structure.review(directory, '', revision, SOURCE_PINS, payload)
+    retain(directory, 'overflow-physical-rust-report', physical)
+    require(physical['status'] == 'accepted', physical['error'])
     cases = {}
     for name in CASES:
         case = recipe(name)
@@ -119,6 +123,32 @@ def prepare(directory, revision):
     return manifest
 
 
+def retain(directory, stem, report):
+    path = directory / (stem + '.json')
+    suffix = 1
+    while path.exists() and json.loads(path.read_text()) != report:
+        suffix += 1; path = directory / f'{stem}-{suffix}.json'
+    write(path, report)
+    return path
+
+
+def evaluate(directory, outbox):
+    engine.aggregate(outbox)
+    semantic = engine.evaluate(directory, outbox)
+    report = dict(document_type='dao_row_overflow_lifecycle_report',
+                  source_revision=semantic['source_revision'], semantic_status=semantic['status'],
+                  physical={}, status='failed')
+    for role in ('candidate', 'control'):
+        physical = structure.review(outbox, role, semantic['source_revision'], SOURCE_PINS, payload)
+        path = retain(outbox, 'overflow-physical-' + role + '-report', physical)
+        report['physical'][role] = dict(status=physical['status'], error=physical['error'],
+                                       file=path.name, image=identity(path))
+    if semantic['status'] == 'accepted' and all(p['status'] == 'accepted' for p in report['physical'].values()):
+        report['status'] = 'accepted'
+    print(retain(outbox, 'overflow-lifecycle-report', report))
+    return report
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
@@ -129,8 +159,7 @@ def main():
         revision = subprocess.check_output(['git','rev-parse',args.revision], cwd=ROOT, text=True).strip()
         prepare(args.candidates, revision)
     else:
-        engine.aggregate(args.outbox)
-        return int(engine.evaluate(args.candidates, args.outbox)['status'] != 'accepted')
+        return int(evaluate(args.candidates, args.outbox)['status'] != 'accepted')
 
 
 engine.CASE_NAMES = CASES

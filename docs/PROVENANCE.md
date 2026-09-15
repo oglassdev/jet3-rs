@@ -16996,3 +16996,69 @@ by this native-only discovery.
   cannot fit at the source was observed. Page choices establish the retained
   examples, not a universal allocation-selection rule. These are native format
   and mutation facts, not Rust candidate compatibility acceptance.
+## EXP-0263 — Overflow lifecycle candidates and native successors match DAO
+
+- **Inputs and acquisition:** source revision
+  `29fc0d09ffbd537115627a30d13e9ad99f71a0c7`; public-API generator
+  `crates/jet3/examples/row_overflow_candidate.rs` and paired harness
+  `oracle/windows-dao/scripts/row_overflow_lifecycle.{py,ps1}`. Three arms
+  start from the pinned EXP-0262 ordinary original, payload original and
+  payload grown images; the third already contains DAO-created overflow rows.
+  Each arm performs 67 Rust mutations through 11 closed checkpoints. DAO
+  independently repeats those 201 mutations from identical native sources,
+  then performs three successor operations on each candidate and control.
+- **Outcome:** all 36 pairs / 72 complete captures accepted in
+  `20260915T180858Z-overflow-acceptance-r1`, with three fresh x86 workers.
+  Comparisons include full schema, all 5,592 Items row observations, complete
+  Memo/OLE values, 9,320 index traversal records and 9,384 full-key Seek results.
+  Independent raw checks verify physical key/logical-locator correspondence,
+  retained insertion counters, row counts and independent allocation maps.
+  Every capture is read-only by whole-image identity; unrelated Notes
+  definition, maps, rows and payload pages stay byte-exact. All six native
+  successors accept insertion, fixed-key rename and deletion and agree in full.
+- **Physical witnesses:** an independent GPT-5.6 Sol high verifier checks all
+  Rust checkpoints and both retained native roles. Surviving rows retain their
+  logical locators, every hidden row has exactly one owner/reachable link, equal
+  edits retain the target, shrink collapses the source and clears the old slot,
+  and fixed-key edits preserve the logical and hidden locations. Payload Id931
+  relocates directly from P39/10 to Rust P44/2 or native P44/3, retaining logical
+  P33/31 and leaving an empty old target. Shared-page deletion clears both
+  overflow slots while ordinary neighbors survive. Released pages leave table
+  maps, become globally free and are reused with fresh slots without EOF growth.
+  Rust also inserts ordinary rows on pages containing logical links; DAO reads
+  these candidates and continues writing successfully. This is finite candidate
+  acceptance, not a universal native page-selection rule.
+- **Payload preservation:** all unrelated surviving Memo/OLE headers remain
+  exact and every complete payload matches its model. Fixed-field key changes
+  additionally preserve selected payload headers, pages and map records. Full
+  Rust row replacement re-encodes supplied Memo/OLE values and may move the
+  selected payload storage; native short-field edits retain those headers.
+  This physical difference is recorded and complete semantic comparisons pass.
+- **Retained failures:** the first generated suite in
+  `/tmp/jet3-overflow-native-r1` passed raw semantics but its independent branch
+  report failed because the target still fit in place. Adding fill Id1012
+  forces the intended direct relocation in the accepted r2 suite. The earlier
+  build type mismatch and resource-error receipt assertion, their logs, the
+  first images and failed branch report remain retained. No native failure or
+  acquisition retry occurred, and no comparison was weakened to obtain a pass.
+  Three duplicate/resource refusal receipts preserve whole images. A separate
+  focused Rust test rejects a valid three-node overflow chain without changing
+  any bytes after each of row replacement, fixed-field update and deletion.
+- **Environment and pins:** Windows Server 2022 build 20348, x86 PowerShell
+  5.1.20348.558 / CLR 4.0.30319.42000, en-US, DAO 3.6 DLL 03.60.9765.0 SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  Manifest 197,692 bytes SHA-256
+  `80ac2e395a2cbf26c0b00b1906789bde7a10df7a5d9d0b522083b59470c1fc3d`;
+  aggregate capture 8,720,623 bytes SHA-256
+  `913353f9c8786cf254738f854729ecf76af096a1d87614766bb50c4777d00dbd`;
+  accepted comparison report 1,144,807 bytes SHA-256
+  `8a6c8a3076764cc6c2ce6ff75c2bec87e0dfa9c9b1098ced75feadc58d981c4a`.
+  Inputs remain in `/tmp/jet3-overflow-native-r2`; 120 retained MDBs total
+  10,291,200 bytes in the VM's
+  `shared/outbox/20260915T180858Z-overflow-acceptance-r1/`. The independent
+  verifier, failed r1 and accepted r2/paired reports are retained in
+  `shared/checks/20260915-overflow-acceptance-review/` with exact file identities.
+- **Limits:** selected multi-hop mutation remains refused. This suite does not
+  cover other collations, relationship targets, arbitrary live-slot reuse or
+  every payload/schema combination. It establishes the recorded overflow
+  lifecycle scope, not whole-v1 compatibility or release-commit evidence.
