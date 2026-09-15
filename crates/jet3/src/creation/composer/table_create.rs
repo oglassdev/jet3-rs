@@ -21,7 +21,8 @@
 //!
 //! Each Memo or LongBinary column takes one owned/available map-row pair
 //! (`EXP-0077`). Pairs follow the table and index maps in column order, bounded
-//! by the checked map-page builder. This combined placement is candidate policy.
+//! by checked map-page builders. EXP-0252 supplies independent page/slot
+//! locators; consecutive packed pages are a candidate construction policy.
 
 use super::*;
 use crate::creation::schema_plan::{
@@ -339,15 +340,15 @@ impl<'a> PlannedCreate<'a> {
         append_map: &mut InlineUsageMapEncoder,
         budget: &mut ResourceBudget,
     ) -> Result<(), ComposeError> {
-        // Check physical map capacity before encoding its row locators.
-        let maps = self.map_page(None, budget)?;
         let definition = self.definition_pages(budget)?;
         let mut root = definition.root(self.plan.continuation_page(), budget)?;
         if let Some(generated) = self.initial_autoincrement {
             generated.write(&mut root, budget)?;
         }
         plan.append(PageImage::from_bytes(root), append_map, budget)?;
-        plan.append(maps, append_map, budget)?;
+        for ordinal in 0..self.plan.map_page_count() {
+            plan.append(self.map_page_at(ordinal, None, budget)?, append_map, budget)?;
+        }
         if self.plan.property_page().is_some() {
             let mut lval = DataPageBuilder::new_long_value(budget)?;
             if let Some(property) = self.memo_property() {
@@ -439,8 +440,8 @@ impl<'a> PlannedCreate<'a> {
             .map(
                 |(ordinal, (((root, row), index), fields))| PhysicalIndexSpec {
                     fields,
-                    usage_map_page: map,
-                    usage_map_row: row,
+                    usage_map_page: self.plan.map_location(usize::from(row)).page(),
+                    usage_map_row: self.plan.map_location(usize::from(row)).row(),
                     root,
                     flags: index.kind.flags(),
                     // EXP-0073: the prefix counts distinct keys, not leaf entries.
@@ -479,14 +480,10 @@ impl<'a> PlannedCreate<'a> {
             })?;
         for (position, column) in long_value_columns(spec).enumerate() {
             let owned = usize::from(FIRST_INDEX_MAP_ROW) + spec.indexes.len() + 2 * position;
-            let available = u8::try_from(owned + 1).map_err(|_| Error::IntegerConversion {
-                value: (owned + 1) as u128,
-                target: "u8 map row",
-            })?;
             long_value_maps.push(LongValueMapSpec {
                 column,
-                owned: MapRowLocator::new(map, available - 1),
-                available: MapRowLocator::new(map, available),
+                owned: self.plan.map_location(owned),
+                available: self.plan.map_location(owned + 1),
             });
         }
         encode_table_definition(
@@ -507,74 +504,91 @@ impl<'a> PlannedCreate<'a> {
         .map_err(Into::into)
     }
 
-    /// Builds the map page with the rows the definition names.
+    /// The relationship composer uses a single map page with one foreign index.
     pub(super) fn map_page(
         &self,
         foreign_index: Option<(PageNumber, u64)>,
         budget: &mut ResourceBudget,
     ) -> Result<PageImage, ComposeError> {
-        if foreign_index.is_some() && (!self.spec.indexes.is_empty() || self.long_value_count != 0)
+        if self.plan.map_page_count() != 1 {
+            return Err(ComposeError::UnobservedMapRowLayout);
+        }
+        self.map_page_at(0, foreign_index, budget)
+    }
+
+    fn map_page_at(
+        &self,
+        ordinal: usize,
+        foreign_index: Option<(PageNumber, u64)>,
+        budget: &mut ResourceBudget,
+    ) -> Result<PageImage, ComposeError> {
+        use crate::creation::schema_plan::MAP_ROWS_PER_PAGE;
+        if ordinal >= self.plan.map_page_count()
+            || (foreign_index.is_some()
+                && (!self.spec.indexes.is_empty() || self.long_value_count != 0))
         {
             return Err(ComposeError::UnobservedMapRowLayout);
         }
-        let empty = inline_map_row(&[], budget)?;
-        let mut owned = InlineUsageMapEncoder::new(
-            PageNumber::new(0),
-            ByteCount::new(MAP_BITMAP_BYTES),
-            budget,
-        )?;
-        let mut available = InlineUsageMapEncoder::new(
-            PageNumber::new(0),
-            ByteCount::new(MAP_BITMAP_BYTES),
-            budget,
-        )?;
-        let first = self.plan.definition_root().get()
-            + self.plan.appended_page_count()
-            + self
-                .initial_long_values
-                .as_ref()
-                .map_or(0, InitialLongValues::page_count);
-        for (offset, data) in self.initial_data.iter().enumerate() {
-            let page = PageNumber::new(first + offset as u64);
-            owned.set_page(page)?;
-            if data.available {
-                available.set_page(page)?;
-            }
-        }
-        let mut owned_row = [0_u8; 133];
-        let mut available_row = [0_u8; 133];
-        owned.encode_into(&mut owned_row, budget)?;
-        available.encode_into(&mut available_row, budget)?;
+        let count = 2
+            + self.spec.indexes.len()
+            + 2 * self.long_value_count
+            + usize::from(foreign_index.is_some());
+        let start = ordinal * MAP_ROWS_PER_PAGE;
         let mut builder = DataPageBuilder::new(PageNumber::new(HEADER_PAGE), budget)?;
-        builder.append_row(&owned_row, budget)?;
-        builder.append_row(&available_row, budget)?;
-        for (ordinal, (root, _)) in self.plan.index_placements().enumerate() {
-            let row = initial_index_map(
-                root,
-                self.index_extra_start(ordinal),
-                self.initial_indexes
-                    .get(ordinal)
-                    .map_or(0, InitialLongIndex::extra_page_count),
-                budget,
-            )?;
-            builder.append_row(&row, budget)?;
-        }
-        if let Some((root, extra)) = foreign_index {
-            builder.append_row(
-                &initial_index_map(root, root.get() + 1, extra, budget)?,
-                budget,
-            )?;
-        }
-        for column in long_value_columns(self.spec) {
-            let maps = match &self.initial_long_values {
-                Some(values) => values.maps(column, budget)?,
-                None => [empty; 2],
+        for row in start..count.min(start + MAP_ROWS_PER_PAGE) {
+            let bytes = if row < 2 {
+                self.table_map_row(row == 1, budget)?
+            } else if let Some((root, extra)) = foreign_index {
+                initial_index_map(root, root.get() + 1, extra, budget)?
+            } else if row - 2 < self.spec.indexes.len() {
+                let index = row - 2;
+                let (root, _) = self
+                    .plan
+                    .index_placements()
+                    .nth(index)
+                    .ok_or(ComposeError::UnobservedMapRowLayout)?;
+                initial_index_map(
+                    root,
+                    self.index_extra_start(index),
+                    self.initial_indexes
+                        .get(index)
+                        .map_or(0, InitialLongIndex::extra_page_count),
+                    budget,
+                )?
+            } else {
+                let offset = row - 2 - self.spec.indexes.len();
+                let column = long_value_columns(self.spec)
+                    .nth(offset / 2)
+                    .ok_or(ComposeError::UnobservedMapRowLayout)?;
+                match &self.initial_long_values {
+                    Some(values) => values.maps(column, budget)?[offset % 2],
+                    None => inline_map_row(&[], budget)?,
+                }
             };
-            for row in maps {
-                builder.append_row(&row, budget)?;
-            }
+            builder.append_row(&bytes, budget)?;
         }
         finish_data_builder(builder, budget)
+    }
+
+    fn table_map_row(
+        &self,
+        available: bool,
+        budget: &mut ResourceBudget,
+    ) -> Result<[u8; 133], ComposeError> {
+        let mut map = InlineUsageMapEncoder::new(
+            PageNumber::new(0),
+            ByteCount::new(MAP_BITMAP_BYTES),
+            budget,
+        )?;
+        let first = self.data_end() - self.initial_data.len() as u64;
+        for (offset, data) in self.initial_data.iter().enumerate() {
+            if !available || data.available {
+                map.set_page(PageNumber::new(first + offset as u64))?;
+            }
+        }
+        let mut bytes = [0; 133];
+        map.encode_into(&mut bytes, budget)?;
+        Ok(bytes)
     }
 }
 

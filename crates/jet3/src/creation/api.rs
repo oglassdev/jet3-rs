@@ -158,8 +158,8 @@ impl StdError for CandidateCheckError {
 ///
 /// Unsupported layouts fail with [`CreateDatabaseError::Compose`] before
 /// anything is written: creation-counter overflow, allocation beyond 1,024 pages,
-/// two tables whose names differ only by ASCII case, more than three indexes
-/// on a table, table/index/long-value maps exceeding their shared page, or a
+/// two tables whose names differ only by ASCII case, more than 32 indexes
+/// on a table, or a
 /// name byte above `0x7E`. EXP-0249 bounds table/column names to 64 bytes and
 /// index names to 63; it establishes the 16-bit creation counter carry.
 /// Table definitions use linked pages within the same
@@ -194,8 +194,8 @@ pub fn create_database(
 /// pages. Pages with a slot and room for an all-null row are marked available;
 /// this construction
 /// policy has not been established as DAO's allocation policy.
-/// Each table accepts up to three indexes. Each
-/// index has one or two supported scalar columns (including a generated AutoIncrement
+/// Each table accepts up to 32 indexes. Each
+/// index has one to ten supported scalar columns (including a generated AutoIncrement
 /// column), with each field ascending or descending. Multiple populated indexes
 /// use separate roots/maps and independent trees.
 /// Uncompressed branch/leaf trees grow within the existing inline-map and
@@ -219,7 +219,7 @@ pub fn create_database(
 /// Memo and LongBinary columns accept nonempty typed payloads or null alongside
 /// scalar indexes and generated IDs; the long-value columns themselves cannot
 /// be indexed. Every long-value column has its own owned/available map pair,
-/// in column order after the table and index maps on the shared map page.
+/// in column order after the table and index maps across packed map pages.
 /// Its physical capacity bounds the column count. EXP-0236 compares multiple
 /// long-value columns with numeric indexes and native continuations.
 /// Raw `RowValue::LongValue` headers are refused.

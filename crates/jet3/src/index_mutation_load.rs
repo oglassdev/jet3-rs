@@ -7,11 +7,12 @@ pub(crate) fn load(
     table: &TableDefinition,
     budget: &mut ResourceBudget,
 ) -> Result<Indexes, UpdateError> {
-    if !(1..=3).contains(&table.physical_indexes().len())
+    if !(1..=crate::creation::schema_plan::MAX_OBSERVED_INDEXES)
+        .contains(&table.physical_indexes().len())
         || table.columns().len() > u8::MAX as usize
     {
         return Err(UpdateError::Unsupported(
-            "mutation requires one to three numeric indexes",
+            "mutation requires one to 32 scalar indexes",
         ));
     }
     let mut result = Indexes {
@@ -20,9 +21,9 @@ pub(crate) fn load(
     };
     reserve(&mut result.indexes, table.physical_indexes().len(), budget)?;
     for (ordinal, physical) in (0_u16..).zip(table.physical_indexes()) {
-        if !(1..=2).contains(&physical.fields().len()) {
+        if !(1..=crate::numeric_index_entry::MAX_FIELDS).contains(&physical.fields().len()) {
             return Err(UpdateError::Unsupported(
-                "mutation requires one or two numeric key fields",
+                "mutation requires one to ten scalar key fields",
             ));
         }
         let mut fields = Vec::new();

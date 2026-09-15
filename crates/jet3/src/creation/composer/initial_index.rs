@@ -1,4 +1,4 @@
-//! Uncompressed trees of one/two numeric components: EXP-0062 branch/leaf/locator
+//! Uncompressed scalar trees: EXP-0062 branch/leaf/locator
 //! grammar, EXP-0126/0150 scalar directions, and EXP-0148 null components/policies.
 
 use super::*;
@@ -173,13 +173,14 @@ impl InitialLongIndex {
         for pair in self.entries.windows(2) {
             if pair[0].key() == pair[1].key() {
                 if self.unique && !pair[1].has_null() {
-                    if self.fields[..self.field_count]
-                        .iter()
-                        .any(|field| field.kind != NumericKeyType::Long)
+                    if self.field_count > 2
+                        || self.fields[..self.field_count]
+                            .iter()
+                            .any(|field| field.kind != NumericKeyType::Long)
                     {
                         return Err(ComposeError::DuplicateInitialScalarIndexKey);
                     }
-                    let mut values = [0_i32; MAX_FIELDS];
+                    let mut values = [0_i32; 2];
                     for (position, value) in values.iter_mut().enumerate().take(self.field_count) {
                         let start = position * COMPONENT_BYTES + 1;
                         let mut raw: [u8; 4] =

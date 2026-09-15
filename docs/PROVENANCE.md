@@ -16369,3 +16369,37 @@ by this native-only discovery.
   and column names admit at most 64 ASCII bytes; logical index names admit
   at most 63. The native 64-byte index-name Seek failure in EXP-0249 remains
   outside the admitted writer schema. No full-v1 compatibility is claimed.
+
+## EXP-0252 — Index count, component count and map-page spill
+
+- Native discovery from source `5852479`, outbox
+  `20260915T100300Z-index-capacity`, using the EXP-0248/0250 x86 DAO 3.6
+  environment. Twelve schemas in two replicas cover 4/13/14/15/16/31/32/33
+  indexes and 3/9/10/11 key components. Each admitted table has twelve Long
+  columns and 64 rows, with primary, unique, ordinary and IgnoreNulls indexes,
+  nullable keys and mixed directions. All 20 admitted captures match complete
+  DAO schema/rows/traversal and independently decoded physical rows, every
+  component slot, index flags, key/locator records and disjoint ownership.
+  All 16,456 physical records agree; replicas match semantic and index shapes.
+  ById includes present/absent Seek checks; wider keys have complete traversal,
+  with composite Seek reserved for the candidate lifecycle comparison.
+- DAO accepts 32 independent physical/logical indexes and ten components.
+  The 33rd index is rejected with HRESULT -2146824662; an eleven-component
+  index is rejected with HRESULT -2146825011. Both errors repeat in both
+  replicas; partial databases are retained and do not represent acceptance.
+- Native index map rows use the existing 133-byte inline form. The first map
+  page has table ownership/availability at rows 0/1 and index maps at 2..14.
+  Starting with the fourteenth index, maps occupy other pages, addressed by
+  the same independent page/slot locator. In this native construction each
+  additional index gets row zero of a new map page. The observed page fits
+  fifteen 133-byte rows with the existing ten-byte header and two-byte slots.
+  Consecutive packed map pages can be tested as a creator allocation policy;
+  that placement is not inferred as DAO's allocation policy.
+- Identities:
+  - matrix: 293,530 bytes, SHA-256 `41d7b3a75e6fd305b8712989324956cd67880bbb717c2e12f991508cb867f4e2`.
+  - producer: 2,296 bytes, SHA-256 `54c6954f5624c537e53deafec8bf368919a0d452ad2774509f8a0f6e59acfbbd`.
+  - native result: 30,083,734 bytes, SHA-256 `e398a5aaa6cb3c286704b5c3730def7665496c5a2ffd1bdabbacdc4265ef3574`.
+  - analyzer: 4,704 bytes, SHA-256 `06ac4f523e54e213ce3b9e5bebcfd575f0dfac8485f28d2afd0e4a86883b12ad`.
+  - report: 2,272,459 bytes, SHA-256 `47aa66ab87ed31557091f67d27cf7b909c72b2aeec1a3ed7acfb975a95f7e8b5`.
+- This establishes finite index limits and map-locator facts, not candidate
+  creation/mutation acceptance or full-v1 compatibility.

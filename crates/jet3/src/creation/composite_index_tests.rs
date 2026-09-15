@@ -175,7 +175,7 @@ fn composite_capacity_and_multiple_row_pages_preserve_locators_and_destination()
 }
 
 #[test]
-fn required_null_second_component_and_three_fields_are_refused_without_publication() -> TestResult {
+fn required_null_second_component_is_refused_without_publication() -> TestResult {
     let directory = TestDirectory::create()?;
     let indexes = [IndexSpec {
         fields: &[
@@ -198,25 +198,6 @@ fn required_null_second_component_and_three_fields_are_refused_without_publicati
         ),
         Err(CreateDatabaseError::Compose(
             ComposeError::NullInitialIndexKey { row: 0 }
-        ))
-    ));
-    let indexes = [IndexSpec {
-        fields: &[
-            field(0, IndexDirection::Ascending),
-            field(1, IndexDirection::Descending),
-            field(2, IndexDirection::Ascending),
-        ],
-        ..indexes[0]
-    }];
-    let table = TableSpec {
-        columns: &[ID, SEQUENCE, ColumnSpec::new(b"Third", ColumnType::Long)],
-        indexes: &indexes,
-        ..table
-    };
-    assert!(matches!(
-        create_database_with_rows(directory.target(), &table, &[], &mut budget()),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::UnsupportedInitialIndexSchema
         ))
     ));
     assert!(directory.entries()?.is_empty());

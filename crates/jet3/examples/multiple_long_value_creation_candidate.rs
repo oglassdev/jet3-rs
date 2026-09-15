@@ -1,19 +1,20 @@
 //! Repeatable creation candidates with independent Memo/OLE ownership and numeric indexes.
 use jet3::{
-    ColumnSpec, ColumnType, ComposeError, CreateDatabaseError, DatabaseReader, FileSource,
-    IndexColumnSpec, IndexKind, IndexSpec, InlineLongValue, LongValue, LongValueChunkValue,
-    PageImageError, ResourceBudget, ResourceLimits, RowValue, TableDefinition, TableRows,
-    TextCodePage, ValueKind,
+    ColumnSpec, ColumnType, DatabaseReader, FileSource, IndexColumnSpec, IndexKind, IndexSpec,
+    InlineLongValue, LongValue, LongValueChunkValue, ResourceBudget, ResourceLimits, RowValue,
+    TableDefinition, TableRows, TextCodePage, ValueKind,
 };
 use std::{collections::BTreeMap, fs, path::Path};
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-const NAMES: [&[u8]; 6] = [
+const NAMES: [&[u8]; 8] = [
     b"Body",
     b"Blob",
     b"ExtraMemo",
     b"ExtraBlob",
     b"LastMemo",
     b"LastBlob",
+    b"WideMemo",
+    b"WideBlob",
 ];
 const LENGTHS: [usize; 9] = [1, 32, 33, 512, 2036, 2037, 2048, 4064, 4096];
 const NOTES: &[u8; 4096] = &[b'n'; 4096];
@@ -26,7 +27,7 @@ struct Case {
     generated: bool,
     later: bool,
 }
-const CASES: [Case; 6] = [
+const CASES: [Case; 8] = [
     Case {
         name: "first-mixed",
         count: 205,
@@ -73,6 +74,22 @@ const CASES: [Case; 6] = [
         columns: 5,
         indexes: 3,
         generated: false,
+        later: true,
+    },
+    Case {
+        name: "map-spill-first",
+        count: 12,
+        columns: 8,
+        indexes: 3,
+        generated: false,
+        later: false,
+    },
+    Case {
+        name: "map-spill-later",
+        count: 12,
+        columns: 8,
+        indexes: 2,
+        generated: true,
         later: true,
     },
 ];
@@ -145,11 +162,8 @@ fn schema_columns(case: Case) -> Vec<ColumnSpec<'static>> {
     );
     columns
 }
-fn create(path: &Path, case: Case, extra_column: bool) -> Result<()> {
-    let mut columns = schema_columns(case);
-    if extra_column {
-        columns.push(ColumnSpec::new(b"OverflowMemo", ColumnType::Memo));
-    }
+fn create(path: &Path, case: Case) -> Result<()> {
+    let columns = schema_columns(case);
     let by_id = [IndexColumnSpec::ascending(b"Id")];
     let by_tag = [IndexColumnSpec::descending(b"Tag")];
     let by_pair = [
@@ -207,9 +221,6 @@ fn create(path: &Path, case: Case, extra_column: bool) -> Result<()> {
                         Some(bytes) => RowValue::LongBinary(bytes),
                     }),
             );
-            if extra_column {
-                row.push(RowValue::Memo(b"overflow"));
-            }
             row
         })
         .collect::<Vec<_>>();
@@ -242,20 +253,7 @@ fn create(path: &Path, case: Case, extra_column: bool) -> Result<()> {
     } else {
         [items, notes]
     };
-    let result = jet3::create_database_with_table_rows(path, &requests, &mut budget());
-    if extra_column {
-        if !matches!(
-            result,
-            Err(CreateDatabaseError::Compose(ComposeError::Page(
-                PageImageError::PageFull { .. }
-            )))
-        ) || path.exists()
-        {
-            return Err(format!("capacity refusal: {result:?}").into());
-        }
-    } else {
-        result?;
-    }
+    jet3::create_database_with_table_rows(path, &requests, &mut budget())?;
     Ok(())
 }
 fn definition(
@@ -434,29 +432,14 @@ fn main() -> Result<()> {
             .ok_or("usage: multiple_long_value_creation_candidate NEW_DIRECTORY")?,
     );
     fs::create_dir(directory)?;
-    let mut refusals = Vec::new();
     for case in CASES {
         let path = directory.join(format!("{}.mdb", case.name));
-        create(&path, case, false)?;
+        create(&path, case)?;
         snapshot(
             &path,
             &directory.join(format!("{}.snapshot.json", case.name)),
         )?;
-        if case.name.starts_with("capacity") {
-            create(
-                &directory.join(format!("{}-overflow.mdb", case.name)),
-                case,
-                true,
-            )?;
-            refusals.push(format!(
-                "{{\"case\":{},\"error\":\"PageFull\",\"destination_absent\":true}}",
-                quote(case.name)
-            ));
-        }
     }
-    fs::write(
-        directory.join("refusals.json"),
-        format!("[{}]\n", refusals.join(",")),
-    )?;
+    fs::write(directory.join("refusals.json"), "[]\n")?;
     Ok(())
 }

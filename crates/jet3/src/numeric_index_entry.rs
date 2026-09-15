@@ -8,7 +8,8 @@ use crate::{
     RowValue,
 };
 
-pub(crate) const MAX_FIELDS: usize = 2;
+// EXP-0059 ten physical key slots; EXP-0252 native composite boundary.
+pub(crate) const MAX_FIELDS: usize = crate::column_definition_writer::KEY_SLOT_COUNT;
 const LOCATOR_BYTES: usize = 4;
 const INLINE_BYTES: usize = 22;
 pub(crate) const ENTRY_CAPACITY: usize = MAX_KEY_BYTES + LOCATOR_BYTES;
@@ -145,7 +146,7 @@ fn key_shape(
 }
 
 impl NumericIndexEntry {
-    /// Encodes one or two fields from a complete row. An all-null key is omitted
+    /// Encodes up to ten fields from a complete row. An all-null key is omitted
     /// only for IgnoreAllNull. Uniqueness and entry ordering belong to the caller.
     pub(crate) fn encode(
         fields: &[NumericIndexField],
