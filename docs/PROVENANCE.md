@@ -15119,3 +15119,25 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   indexes per table, and general creation compatibility.
 - Independent GPT-5.6 Sol high review found no correctness or evidence defects.
   `just ready` passed on the integrated candidate.
+
+## EXP-0224 — Last live row release with retained deleted slots
+
+- Native x86 DAO observations on the rebuilt Windows Server 2022 VM extend
+  EXP-0162's sole physical-row release. The source is the native six-row Long
+  primary-index control from the repeatable indexed-row suite. Each case deletes
+  five rows, retaining physical slot 0, 2 or 5, then deletes the last row. Two
+  replicas of each case produce the same observations.
+- The final data page retains its six-slot count and owner. Its tag changes
+  from `01` to `09`, every directory word becomes `c800`, and free bytes become
+  2,026 (`2048 - 10 - 2*6`). Those fields are the complete data-page patch;
+  payload and other slack remain exact. Owned and available map bits clear,
+  the global free bit sets, the table row count becomes zero, and the physical
+  index counter remains six. The index is an empty root leaf.
+- Private run: `shared/outbox/20260915T033100Z-last-slots/` in the VM directory,
+  retaining every pre/post image, producer result and observation report.
+  `report.json` SHA-256
+  `a309ad62cd187c37e78ed9e3bb8be2cca7b252b21e66f9c33b5ac1b8c49e54a2`.
+- Scope: ordinary Long rows and known empty deleted slots on one inline-mapped
+  page. No overflow-row, long-value, indirect-map or general free-page reuse
+  semantics are inferred.
+

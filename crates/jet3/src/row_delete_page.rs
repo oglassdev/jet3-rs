@@ -6,7 +6,7 @@ const DIRECTORY: usize = 10;
 const ENTRY_BYTES: usize = 2;
 const TOMBSTONE: u16 = 0xc000;
 const TABLE_COUNT: usize = 12;
-// EXP-0162 sole-row deletion changes only the tag, free bytes and directory word.
+// EXP-0162/0224 last-row deletion changes tag, free bytes and directory words.
 const RELEASED_PAGE_TAG: u8 = 0x09;
 
 pub(crate) enum Deletion {
@@ -48,11 +48,6 @@ pub(crate) fn remove(
     if range.is_empty() {
         return Err(UpdateError::NotFound("live row slot"));
     }
-    if live < 2 && directory.row_count() != 1 {
-        return Err(UpdateError::Unsupported(
-            "sole live row with other physical slots",
-        ));
-    }
     let lowest = directory
         .entry(source, (directory.row_count() - 1) as u8)?
         .range()
@@ -69,13 +64,15 @@ pub(crate) fn remove(
     let new_free =
         u16::try_from(free + removed).map_err(|_| UpdateError::Mismatch("free-byte range"))?;
     let mut patched = PageImage::from_bytes(*source);
-    if directory.row_count() == 1 {
+    if live == 1 {
         patched.write_at(PageOffset::new(0), &[RELEASED_PAGE_TAG], budget)?;
-        patched.write_at(
-            PageOffset::new(DIRECTORY as u64),
-            &(TOMBSTONE | PAGE_BYTES as u16).to_le_bytes(),
-            budget,
-        )?;
+        for ordinal in 0..directory.row_count() {
+            patched.write_at(
+                PageOffset::new((DIRECTORY + ENTRY_BYTES * usize::from(ordinal)) as u64),
+                &(TOMBSTONE | PAGE_BYTES as u16).to_le_bytes(),
+                budget,
+            )?;
+        }
         patched.write_at(
             PageOffset::new(FREE_BYTES as u64),
             &new_free.to_le_bytes(),

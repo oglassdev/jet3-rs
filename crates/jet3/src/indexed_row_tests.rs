@@ -638,3 +638,52 @@ fn indexed_rows_reject_corrupt_branch_separator_before_publication() -> TestResu
     assert_eq!(fs::read_dir(&f.directory)?.count(), 1);
     Ok(())
 }
+
+#[test]
+fn indexed_rows_release_last_live_slot_and_reinsert() -> TestResult {
+    for keep in [0, 2, 5] {
+        let f = Fixture::new(6, false, IndexKind::Primary)?;
+        for id in [4, 1, 5, 0, 3, 2].into_iter().filter(|id| *id != keep) {
+            let row = f.rows()?.into_iter().find(|r| r.0 == id).ok_or("row")?.1;
+            crate::delete_row(
+                f.path(),
+                RowDelete {
+                    table: b"Rows",
+                    row,
+                },
+                &mut budget(),
+            )?;
+        }
+        let row = f.rows()?[0].1;
+        let before = fs::read(f.path())?;
+        crate::delete_row(
+            f.path(),
+            RowDelete {
+                table: b"Rows",
+                row,
+            },
+            &mut budget(),
+        )?;
+        let after = fs::read(f.path())?;
+        let mut expected = *page(&before, row.page())?;
+        expected[0] = 9;
+        expected[2..4].copy_from_slice(&2026_u16.to_le_bytes());
+        for slot in 0..6 {
+            expected[10 + slot * 2..12 + slot * 2].copy_from_slice(&0xc800_u16.to_le_bytes());
+        }
+        assert_eq!(page(&after, row.page())?, &expected);
+        assert!(f.rows()?.is_empty());
+        f.validate()?;
+        let new = insert_row(
+            f.path(),
+            b"Rows",
+            &[RowValue::Long(-1), RowValue::Long(5)],
+            &mut budget(),
+        )?;
+        assert_eq!(new.page().get() as usize * PAGE_BYTES, after.len());
+        assert_eq!(f.rows()?, vec![(-1, new)]);
+        assert_eq!(page(&fs::read(f.path())?, row.page())?, &expected);
+        f.validate()?;
+    }
+    Ok(())
+}

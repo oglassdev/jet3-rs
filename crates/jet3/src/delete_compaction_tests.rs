@@ -143,21 +143,6 @@ fn repeated_deletions_shift_empty_tombstones_until_one_live_row_remains() -> Res
         );
         assert_eq!(fs::read(f.path())?, after);
     }
-    let before = fs::read(f.path())?;
-    assert!(matches!(
-        delete_row(
-            f.path(),
-            RowDelete {
-                row: RowLocator::new(f.row.page(), 2),
-                ..f.request()
-            },
-            &mut budget()
-        ),
-        Err(UpdateError::Unsupported(
-            "sole live row with other physical slots"
-        ))
-    ));
-    assert_eq!(fs::read(f.path())?, before);
     let inserted = crate::insert_row(
         f.path(),
         b"Rows",

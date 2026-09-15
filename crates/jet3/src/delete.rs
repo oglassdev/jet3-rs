@@ -13,7 +13,7 @@ pub struct RowDelete<'a> {
     pub row: RowLocator,
 }
 
-/// Deletes one ordinary row, compacting its page or releasing a single-slot page.
+/// Deletes one ordinary row, compacting its page or releasing an emptied page.
 ///
 /// Supports relationship-free tables without AutoIncrement or long values.
 /// One unique/primary present Long index supports deletion through an empty tree.
@@ -24,9 +24,9 @@ pub struct RowDelete<'a> {
 /// the page must already appear in its inline available map. Later rows move
 /// upward without changing their physical slot numbers or stored values. The
 /// deleted slot becomes an empty tombstone; existing tombstone flags are retained.
-/// A page containing exactly one physical row is released through its existing
-/// inline global/owned/available maps. A sole live row alongside tombstones and
-/// inconsistent free/count metadata are refused.
+/// A page containing one live row is released through its existing
+/// inline global/owned/available maps. Its physical slot count is retained and
+/// all slots become empty tombstones. Inconsistent free/count metadata is refused.
 /// On retained unindexed pages, only shifted row bytes, affected directory offsets,
 /// free-byte count and table row count change. Vacated slack, maps, page zero and unrelated objects
 /// remain exact for retained pages. Released pages change their tag, directory
