@@ -203,14 +203,18 @@ EXP-0254 adds 84 accepted native allocation observations across two replicated
 lifecycles. Inline rows can grow beyond 1,024 bits, and indirect bitmap slots
 represent 16,352 pages each. Empty availability windows can be smaller than the
 owned inventory. Creation and mutations now implement indirect map allocation,
-including global bookkeeping for the bitmap pages themselves. Candidate DAO
-lifecycle acceptance is pending; the native discovery establishes format facts.
+including global bookkeeping for the bitmap pages themselves. EXP-0256 accepts
+16 allocation lifecycle pairs (32 captures), including Rust edits to native
+files and conversion of widened inline maps into compact indirect rows.
+Complete payloads, index contents, allocation state and Notes preservation
+match. EXP-0255 fixes native index prefixes that include row-locator bytes;
+the original timeout and reader-failure reports remain recorded separately.
 
 ### Remaining work
 
-- Extend creation beyond current schema/index-key and map-reference bounds.
-- Extend updates beyond current index key types/counts and component limits,
-  to relationship targets, additional payload/schema combinations, broader
+- Extend creation to remaining schema/index-key combinations and relationship forms.
+- Extend updates to remaining index key types/collations, relationship targets,
+  additional payload/schema combinations, wider variable rows, broader
   data-page/live-slot reuse and cross-page row growth.
 - Cover remaining DAO inventories, stored-query preservation and broader
   failure/rollback behavior. Local VM and hosted runs may both establish

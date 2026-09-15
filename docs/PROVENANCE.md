@@ -16589,3 +16589,66 @@ by this native-only discovery.
   It binds the input manifest, aggregate result, images and every affected
   entry. No new native acquisition was performed for this analysis. This
   establishes the compression fact; candidate lifecycle acceptance is separate.
+
+
+## EXP-0256 — Allocation lifecycles across inline and indirect bitmap boundaries
+
+- Recorded: 2026-09-15, OpenAI Codex. Four finite creation/update cases compare
+  ordinary rows and paired Memo/OLE payloads above 1,024 and 16,352 pages.
+  Initial candidate source is `476b7614826b0916b5011337d5cbc5d760ef4cfe`;
+  corrected native-input reader/mutation source is
+  `3f9994080da76c68c7684001347567d4014c29cf` (EXP-0255). The continuation
+  harness at `ccda27edf75ab2fc3d3b30d96fa44c54ca99b500` requires an exact,
+  unique Rust index inventory. Both runs loaded the EXP-0254 x86 DAO provider.
+- Cases: 1,000/16,350 ordinary rows with four fixed Text(255) fields and a
+  Long primary index; 512/8,200 rows with independent deterministic 1,800-byte
+  Memo/OLE values, null controls, a Long primary index and a nullable descending
+  Long index. Initial candidate file sizes are 1,036/16,469 and 1,078/16,693
+  pages respectively. Every file includes unrelated Notes metadata and rows.
+- Four stages per case give 16 accepted pairs, 32 complete DAO captures:
+  initial creation; Rust insert/replace/delete versus native operations;
+  native successors on both outputs; Rust edits of retained native controls
+  versus equivalent DAO edits. The smaller ordinary native-input case also
+  appends 64 full-width rows, converting widened native inline global/table
+  maps into exactly 133-byte indirect rows while preserving adjacent records.
+- Complete schema/properties, every row and payload byte, directed index
+  traversal and full-key Seek agree. Independent raw checks compare every
+  key/locator, map membership and slot, index node, live payload reference,
+  and canonical Rust reader stream. Notes metadata/data/map pages remain
+  byte-identical within each history. The large cases activate the second
+  global bitmap slot and own ordinary/payload pages beyond 16,352. Global
+  maps allocate their own newly added bitmap pages and retain free future bits.
+- Three corrupted copies replace an indirect reference with an out-of-file
+  page, a data page, or another column's bitmap. Each Rust request fails with
+  a structured error and preserves the entire damaged input byte-for-byte.
+- Original acquisition: outbox `20260915T112458Z-allocation-lifecy-b951e6`.
+  All four workers exited zero; the host's 900-second timeout report remains
+  failed and unchanged. The first retained analysis accepted three cases and
+  rejected the large native payload control at EXP-0255's compressed locator.
+  After the reader fix, a separate analysis accepted all 12 forward/native
+  pairs without reacquiring data. Its report is 4,393,171 bytes, SHA-256
+  `175b8667d377a7058c144fd8f5ed45a15bf9f609cbeb0c0dedfdded6995008c3`.
+  Original aggregate result: 1,142,712 bytes, SHA-256
+  `baf665b59d947eff08136537baf6c681365cad5a7fbb018c86f24dbb79b8de3c`.
+- Native-input continuation: outbox
+  `20260915T115444Z-allocation-lifecy-5a6d4a`; all four additional pairs
+  accepted. Aggregate result: 382,860 bytes, SHA-256
+  `c918011f0d474757085deda557ba7ca3064da7c5e871d623da3ad73390158f46`.
+  Controller/comparison report: 1,247,318 bytes, SHA-256
+  `c97225506d4b5cfe8c3f5aced10005739afce40bc897c0e4dc1fbb0005d556bb`.
+- Sol review found that the original analyzer could ignore an extra/duplicate
+  Rust index receipt. The stricter check accepted all four genuine fixtures
+  and rejected eight injected receipt variants. A supplemental full comparison
+  of every one of the 32 retained captures with that stricter analyzer accepted:
+  `/tmp/jet3-allocation-inventory-recheck.json`, 8,821 bytes, SHA-256
+  `a4521338f499f7aa0084f5a9c855ba574db30319475ac23808f9f7181353dd1f`.
+  Reports, manifests, closed images and earlier failures remain private under
+  `/tmp/jet3-allocation-native-r1` and the named outboxes; no MDB is committed.
+- Earlier local preparation failures exposed a missing active bitmap prefix
+  and allocation/work budgets in the large payload fixture. They acquired no
+  DAO data. The final reader grows long-value traversal state with the actual
+  chain instead of reserving its maximum depth for every short payload.
+  Focused parser boundaries/corruption tests, Sol correctness review and
+  `just ready` at `ccda27e` passed. These finite results establish this allocation
+  deliverable; they do not assert whole-v1 compatibility or lift other row,
+  schema, relationship, collation or resource limits.

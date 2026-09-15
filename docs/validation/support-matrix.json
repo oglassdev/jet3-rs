@@ -68,7 +68,13 @@
         "crates/jet3/src/usage_map.rs",
         "crates/jet3/src/usage_map_tests.rs",
         "crates/jet3/src/allocation_traverse.rs",
-        "crates/jet3/src/allocation_traverse_tests.rs"
+        "crates/jet3/src/allocation_traverse_tests.rs",
+        "crates/jet3/src/mutation_map.rs",
+        "crates/jet3/src/mutation_map_write.rs",
+        "crates/jet3/src/mutation_map_guard.rs",
+        "crates/jet3/src/creation/composer/allocation_maps.rs",
+        "oracle/windows-dao/scripts/allocation_lifecycle.py",
+        "oracle/windows-dao/scripts/allocation_lifecycle_structure.py"
       ]
     },
     {
@@ -247,7 +253,13 @@
         "crates/jet3/src/auto_number_mutation.rs",
         "crates/jet3/examples/long_value_lifecycle_candidate.rs",
         "oracle/windows-dao/scripts/long_value_lifecycle.ps1",
-        "oracle/windows-dao/scripts/long_value_lifecycle.py"
+        "oracle/windows-dao/scripts/long_value_lifecycle.py",
+        "crates/jet3/src/mutation_map.rs",
+        "crates/jet3/src/mutation_map_write.rs",
+        "crates/jet3/src/mutation_map_guard.rs",
+        "crates/jet3/src/creation/composer/allocation_maps.rs",
+        "oracle/windows-dao/scripts/allocation_lifecycle.py",
+        "oracle/windows-dao/scripts/allocation_lifecycle_structure.py"
       ]
     },
     {
