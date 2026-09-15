@@ -17084,3 +17084,141 @@ by this native-only discovery.
   `2f13ee8f7757754c31b5a651e64ab6757ff4b20d2494915f5ca19ae89848c229` /
   `ede76d1a423e3b537621269d546376abbdcb3c02c858ecb789b72756abb607a4`.
   GPT-5.6 Sol high independently reviewed the integration and found no blockers.
+
+## EXP-0264 — Fixed Text indexes use the saved bytes and existing Text collation
+
+The private native matrix `/tmp/jet3-fixed-text-discovery/` tests fixed Text
+widths 1, 8, 32 and 255, ascending/descending keys, Long+Text composite keys,
+unique collisions and variable-Text controls through creation, updates,
+insertion and deletion. Its source revision is
+`6056618f9f91197230255df28970af9dc0b595fb`; native-r4 is the accepted acquisition.
+The matrix is 20,111 bytes, SHA-256
+`14a89fb3d46e3c5471bb5f0793c83418f9b5a07c4bd86d7108ef43eb7ccdef18`;
+producer 15,449 bytes, SHA-256
+`80cfe9cec02cbbf62046383df6b3129132077ba38413776ef6ad19f3fbd28cff`;
+complete result 650,829 bytes, SHA-256
+`b97f1fa4614f7b656a2fb13894cb2f1c0bf2f35e0e3423ae06122bb627344f9a`.
+DAO 3.6 x86 DLL 03.60.9765.0 has SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+
+- Fixed and variable Text retain encoding context `09 04 e4 04` (English-US,
+  CP1252). Fixed field Attributes is 1; row storage has the declared width.
+  DAO pads short non-null values on the right with ASCII spaces, and returns
+  those complete padded values on readback.
+- Every live native leaf key equals EXP-0248's Text transform of the saved
+  bytes. The existing trailing-space removal handles fixed padding. The
+  fixed/variable 255-byte descending controls have identical keys by row tag
+  at all four stages; fixed descending 8-byte keys are bytewise complements
+  of the ascending variable controls. Single/composite keys, nulls, full
+  traversal/Seek and logical locators agree with the independent predictions.
+- `A`, `A ` and `a` tie. The composite unique case rejects the padded duplicate
+  insertion and a Group edit into the same key class with native DAO error
+  3022. Edits and deletions retain index counters; insertion of an absent
+  included key increments the retained counter once.
+- Unrelated Notes definition, maps, rows and complete payload pages remain
+  exact. Four retained checkpoint MDBs are each 129,024 bytes. The original
+  r1/r2 probes silently saved null keys, and r3's explicit assignment check
+  exposed that harness failure; all remain retained separately from r4.
+  These failures establish no fixed-key format claim.
+
+The probe enables AllowZeroLength on Text fields, so empty/all-space results
+remain bounded to that setting. Nonempty padded values establish the shared
+key transform. This is native format evidence, not Rust candidate acceptance;
+other collations and arbitrary schema combinations remain untested here.
+
+The completed independent report accepts all 244 leaf key/locator records and
+280 full-key Seek probes, including the 255-byte shortened key and its `cfb2`
+checksum suffix. The 85 attempted native operations contain exactly the two
+declared unique rejections. Null fixed slots have a clear presence bit and may
+retain arbitrary bytes; no zero-fill invariant is established. Notes retains
+independent 4,096-byte Memo and OLE payloads and all nine owned page hashes.
+
+Accepted run `20260915T220000Z-fixed-text-r4` is retained in the VM shared
+outbox. The analyzer, report, all earlier failed acquisitions, diagnostics and
+51-file identity inventory are retained together in
+`shared/checks/20260915-fixed-text-discovery/`. Answered report 116,963 bytes
+SHA-256 `e8ffa532a60af9f88dc26956f5c46d0066172dde15ac511c3880c950213b1f24`;
+analyzer 16,477 bytes SHA-256
+`bf2948b799a837f3a42e86e69df4fd01624ddc687d9fbcc359b235db1c9f26cf`;
+identity inventory SHA-256
+`0ad446750d9c3a0eaadefa60665eb8020e2f79904b928c293345bb3515c5e058`.
+
+
+## EXP-0265 — Fixed Text creation and indexed mutation differential
+
+The local DAO suite accepts fixed Text widths 1, 8, 32 and 255 through initial
+creation, fixed-field updates, full-row replacement, deletion, insertion,
+native successors and Rust mutation of native inputs. The accepted source is
+`148b9d7dcfc171048c39848828352c492a5be2f7`; reproducible recipes, complete
+comparisons and the public-API generator are
+`oracle/windows-dao/scripts/fixed_text_index_lifecycle.py`, its `.ps1` producer,
+and `crates/jet3/examples/fixed_text_index_candidate.rs`.
+
+- The four cases each start with 96 rows and four indexes: primary Long,
+  ascending fixed Text, descending fixed Text omitting all-null keys, and
+  descending fixed Text/ascending Long. Width 8 uses unique ascending Text;
+  the other widths retain case-equivalent and repeated keys. Rows include null
+  fields and independent 80-byte Memo/OLE values. Unrelated Notes contains its
+  separate 4,096-byte Memo. Fixed values contain exactly the declared width;
+  their saved padding remains part of the row value.
+- Each case performs 97 Rust mutations across the edited/regrown checkpoints,
+  including a public `update_field` on fixed Text, present/null changes,
+  primary-key changes, scattered deletion and reinsertion. DAO independently
+  replays those operations. DAO then inserts, renames and deletes on both
+  outputs. Rust performs three further operations on each DAO-written control,
+  compared with the same operations performed by DAO on an independent copy.
+- Run `20260915T185005Z-fixed-text-acceptance-r2` accepts 16 lifecycle pairs
+  plus three refusal pairs; `20260915T185217Z-fixed-text-continuation-r1`
+  accepts four native-input continuation pairs. In total, 23 pairs / 46
+  captures compare 4,768 complete Items row observations, 18,672 index traversal
+  records and 16,308 finite full-key Seeks. Schema, properties, complete values,
+  nulls, payloads, directed traversal and complete Seek match sets agree.
+  Independent raw checks cover every key/locator record, insertion counters,
+  fixed/variable storage classes and allocation maps; trees reach depth three.
+  Notes-owned bytes remain unchanged through mutations of each source.
+- Three Rust refusals attempt to insert fresh Id 9999 or change row 2 to padded
+  uppercase `A`, equivalent to row 1's padded lowercase `a`. The primary key
+  stays fresh or unchanged, so each collision is on unique fixed Text. Insert,
+  field update and full-row update all return `duplicate unique key` and leave
+  the complete input byte-identical. Invalid width and exhausted-work-budget
+  refusals also preserve the complete input.
+- DAO independently attempts all three collisions on original copies of both
+  roles and returns error 3022. Complete post-refusal rows, schema, traversal,
+  Seeks, raw keys and Notes bytes remain unchanged. Failed insertion advances
+  the historical ById counter from 96 to 97 in both roles; the other counters
+  remain ByCode 89, ByCodeDesc 88 and ByPair 94. Failed field/full-row updates
+  retain the complete bytes in both roles. Rust intentionally rejects before
+  publication; this does not claim DAO's failed-insert counter side effect.
+- The loaded provider is x86 `DAO.DBEngine.36` 3.6, DAO DLL 03.60.9765.0 SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`,
+  Windows 10.0.20348, PowerShell 5.1.20348.558, CLR 4.0.30319.42000, en-US.
+  Each case uses a fresh x86 worker. All inputs, manifests, source pins, loaded
+  provider details, retained outputs and comparisons remain outside git under
+  the local VM shared outbox and private candidate directories.
+
+Retained artifacts (bytes / SHA-256):
+
+| Run | Artifact | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| acceptance-r2 | fixed-text-index-lifecycle.json | 379867 | `085487f668af4a51cda0bca5afdae4da0a1b5d15bf1a217d3bef002bf0439216` |
+| acceptance-r2 | result.json | 14170161 | `ef14ac7c82531b6ab140d6ba639b2cfa5ef282b280ee60b74d5a838312d23931` |
+| acceptance-r2 | numeric-index-mutation-report.json | 736905 | `a9197023f2a96f0eaa9f0da87cebbedc40f7ef933d46ecf5ab7106bdca2acd3b` |
+| acceptance-r2 | fixed-text-lifecycle-report.json | 131831 | `620660eccd46ea1409d6c6979f7d456101f6d88d4c63810d7957af9982707d18` |
+| continuation-r1 | fixed-text-index-lifecycle.json | 582885 | `79529dba5850984f15990b5c88279ecfc2df4c3a9332768e0a0f53996863c53e` |
+| continuation-r1 | result.json | 3112504 | `42a13f7a919e0c6bdc189776e4346c04e7af30994e49aa29f997eb122e13d9ed` |
+| continuation-r1 | numeric-index-mutation-report.json | 179118 | `c742b41cafc50a94b7d5381c57df8a02b2543dc4d7ad310270c90b8ec64cd07d` |
+| continuation-r1 | fixed-text-lifecycle-report.json | 212 | `236a5da6a8f584d9b3846ef672dfa0e5476f224f31c3dd35af1102e7bddac6a3` |
+
+The earlier source `6bc75af76a9491347059d727e369006f39e38c6e` run
+`20260915T184154Z-fixed-text-acceptance-r1` also accepted 16 lifecycle pairs,
+but its numeric-primary duplicate refusal did not cover fixed Text uniqueness.
+That review gap motivated the expanded suite above; the earlier result and
+all local preparation/build failures remain retained. The original result is
+11,654,119 bytes / `f4049faa59a7cb93af49ab7f855ada05c26cf90c2133730ae94c5773b41f4079`;
+its report is 736,897 bytes /
+`b656fd34bb2b8fabbdabed548bbd7d7f86cb6893dd51b9713213a60f121722e1`.
+
+This establishes the declared finite fixed Text lifecycle with default
+AllowZeroLength false and the EXP-0248 English-US/CP1252 collation. It does not
+establish other collations, empty/all-space Text behavior, every schema or
+relationship combination, universal allocation choices, or full v1 completion.

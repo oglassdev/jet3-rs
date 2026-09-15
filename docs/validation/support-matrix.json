@@ -35,7 +35,8 @@
         "crates/jet3-cli/src/validate.rs",
         "crates/jet3/src/validation_index.rs",
         "crates/jet3/src/validation_index_tests.rs",
-        "crates/jet3/src/index_mutation_structure.rs"
+        "crates/jet3/src/index_mutation_structure.rs",
+        "crates/jet3/src/creation/fixed_text_index_tests.rs"
       ]
     },
     {
@@ -120,7 +121,11 @@
         "crates/jet3/src/creation/composer/definition_chain_tests.rs",
         "crates/jet3/examples/creation_definition_chains_candidate.rs",
         "oracle/windows-dao/scripts/creation_definition_chains.ps1",
-        "oracle/windows-dao/scripts/creation_definition_chains.py"
+        "oracle/windows-dao/scripts/creation_definition_chains.py",
+        "crates/jet3/src/creation/fixed_text_index_tests.rs",
+        "crates/jet3/examples/fixed_text_index_candidate.rs",
+        "oracle/windows-dao/scripts/fixed_text_index_lifecycle.py",
+        "oracle/windows-dao/scripts/fixed_text_index_lifecycle.ps1"
       ]
     },
     {
@@ -277,7 +282,11 @@
         "crates/jet3/examples/row_overflow_candidate.rs",
         "oracle/windows-dao/scripts/row_overflow_lifecycle.py",
         "oracle/windows-dao/scripts/row_overflow_lifecycle.ps1",
-        "oracle/windows-dao/scripts/row_overflow_lifecycle_structure.py"
+        "oracle/windows-dao/scripts/row_overflow_lifecycle_structure.py",
+        "crates/jet3/src/creation/fixed_text_index_tests.rs",
+        "crates/jet3/examples/fixed_text_index_candidate.rs",
+        "oracle/windows-dao/scripts/fixed_text_index_lifecycle.py",
+        "oracle/windows-dao/scripts/fixed_text_index_lifecycle.ps1"
       ]
     },
     {
@@ -338,7 +347,11 @@
         "oracle/windows-dao/scripts/numeric_index_mutation.py",
         "crates/jet3/examples/long_value_lifecycle_candidate.rs",
         "oracle/windows-dao/scripts/long_value_lifecycle.ps1",
-        "oracle/windows-dao/scripts/long_value_lifecycle.py"
+        "oracle/windows-dao/scripts/long_value_lifecycle.py",
+        "crates/jet3/src/creation/fixed_text_index_tests.rs",
+        "crates/jet3/examples/fixed_text_index_candidate.rs",
+        "oracle/windows-dao/scripts/fixed_text_index_lifecycle.py",
+        "oracle/windows-dao/scripts/fixed_text_index_lifecycle.ps1"
       ]
     },
     {

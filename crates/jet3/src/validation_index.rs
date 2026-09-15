@@ -3,8 +3,8 @@ use super::{TableValidationError, ValidationReport, add, reserve};
 use crate::numeric_index_entry::{EntryError, NumericIndexEntry, NumericIndexField, sort_cost};
 use crate::numeric_index_key::NumericKeyType;
 use crate::{
-    ColumnPhysicalType, ColumnStorageClass, DatabaseReader, IndexNullPolicy, IndexTree, ReadAt,
-    ResourceBudget, RowLocator, TableDefinition, UpdateError,
+    ColumnPhysicalType, DatabaseReader, IndexNullPolicy, IndexTree, ReadAt, ResourceBudget,
+    RowLocator, TableDefinition, UpdateError,
 };
 
 pub(super) fn key(row: RowLocator) -> (u64, u8) {
@@ -193,8 +193,8 @@ fn fields(
                 };
                 if column.physical_type() == ColumnPhysicalType::Binary {
                     NumericKeyType::Binary { max_len }
-                } else if matches!(column.storage(), ColumnStorageClass::Variable { .. })
-                    && column.raw_encoding_context() == &crate::text_index_key::ENCODING_CONTEXT
+                // EXP-0264: fixed Text padding is handled by the same key transform.
+                } else if column.raw_encoding_context() == &crate::text_index_key::ENCODING_CONTEXT
                 {
                     NumericKeyType::Text { max_len }
                 } else {
