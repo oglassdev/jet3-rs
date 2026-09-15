@@ -17947,3 +17947,106 @@ Scope is ascending, enforced, non-cascading single-Long keys, at most two
 relations at an endpoint and the recorded append orders. Composite keys,
 cascades, longer cycles, schema mutation and other append orders remain
 unobserved by this discovery suite.
+
+## EXP-0274 — Multiple/self relationship mutation differential acceptance
+
+**Source and inputs.** Candidate production revision
+`bd5a1b16b15d34c5cc4c5cb6017dcdaabcad0807`, binary SHA-256
+`86822701cab553b1b319f365f5823d1b755d9bfa28b42ec5c54e96a153082c7d`,
+operates on the retained EXP-0273 native originals. Five graph shapes are each
+replicated twice: one parent/two children, two child FKs to one parent, two
+child FKs to distinct parents, a three-table chain and a self-reference.
+Additional duplicated cases cover two parents sharing one child FK physical
+index, atomic self-linked insert/replace/delete, and full-row Memo
+4096-byte growth, one-byte shrink and nullable FK/Memo removal.
+
+**Accepted runs.** Main capture `20260915T222754Z-multi-rel-accept-r1`, extras
+`20260915T225602Z-multi-rel-extras-env-r2`, and native refusals
+`20260915T225929Z-multi-rel-refusals-env-r1`. All three record x86
+DAO.DBEngine.36 3.6, dao360.dll 03.60.9765.0 SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`,
+Windows NT 10.0.20348.0 and en-US. Each process exits zero with an empty log.
+The environment-recorded follow-ups retain all 64 extra and eight refusal
+MDBs byte-for-byte from the preceding accepted captures.
+
+**Comparison.** `multiple_relationship_lifecycle.py` independently accepts 92
+complete Rust/native DAO snapshot pairs, including native successors on both
+final lineages. These are 60 main graph pairs and 32 extra pairs. It decodes
+212 retained captures: 154 main/extra output images, 50 native control stages
+and eight additional native refusal images. Complete expected table/field/index
+and relation inventories, all values, every indexed traversal row and every
+Seek result agree. Raw row locators, physical keys and both prefix words agree
+at each successful checkpoint. Allocation checks and 948 retraced Memo
+Descriptors retain complete active payload reachability. All four system
+tables' definition, data, index and map storage, including their long-value
+maps and payload pages, remain byte-exact. User column definitions, reciprocal
+records and raw column properties remain exact. DAO property arrays are
+captured completely at originals; later lean captures retain schema values,
+while raw property storage is checked against the original throughout.
+
+**Shared-index clarification of EXP-0273.** DAO exposes both logical names
+`Rel Same A` and `Rel Same B` in Child.Indexes, each over ParentId, while the
+file has one physical FK index. The discovery decoder labeled that physical
+index with the later name; that label was not the complete DAO logical
+inventory. Both aliases are checked here. Updating the FK changes the shared
+physical index once and enforces both parents, including refusal of a key
+present only in ParentA.
+
+**Refusals.** The evaluator derives 28 exact Rust constraint failures: 20 main,
+six shared-index and two self-primary-only requests. Each returns
+RelationshipConstraint and preserves every input byte. The self-primary
+requests start from the successfully inserted self-linked row (30,30), not
+from the earlier original without that row. Eight additional native refusals
+check exact requests, inputs, outputs and codes. Shared orphan and
+only-ParentA keys return 3201; native failed-write bookkeeping changes only
+page-zero byte 1538 from 0 to 1 and the one shared prefix (3,3) to (2,2).
+Referenced ParentA deletion and self primary-only edits return 3200 and are
+byte-exact. Rust intentionally preserves inputs for all failures rather than
+emulating native failed-write bookkeeping. Successful atomic (30,30) to
+(31,31) replacement and deletion of the solely self-referenced row pass.
+
+**Reproduction and pins.** `multiple_relationship_prepare.py --discovery DIR
+--binary FILE --source-revision bd5a1b16b15d34c5cc4c5cb6017dcdaabcad0807
+--output FRESH_DIR --reference RETAINED_DIR` regenerates 294/294 reference
+recipe/checkpoint artifacts exactly, with no omitted or mismatched files,
+plus one explicit shared-matrix input. It builds complete native controls and
+the two VM input bundles; all 141 main and 75 extra ZIP file payloads match
+the original bundles. ZIP metadata itself is a reproducible packing choice.
+The three committed PowerShell producers consume these bundles. Retain their
+inbox/outbox, then run `multiple_relationship_lifecycle.py ARTIFACT_DIR
+NEW_REPORT` to compare submitted scripts, input bundle bytes and every input
+member, exact case/stage/refusal/output inventories, receipts and MDBs.
+
+Final portable report SHA-256
+`0926d08e451d800ae05378d31b49e96776dc98301008be0c69e623b4f94bd06f`;
+evaluator `ec5cf59e02d984558e9964c0f87a62daf65b6755471e16a63623c57945937121`;
+preparer `7f6c72b8cc1841c8ef73dc776b571efb54cbe026fa790b536a27a3f39f40f24b`;
+source archive `3816acf0c535be6d6971104d7fa82efb1b7b52bd480dbfbbc6dc0d4abe3da0d9`.
+The final identity document hashes scripts/bundles/report and has SHA-256
+`7f2883241e3983bbfe467006790d90821a9a1757bab3e24bceff42cd1b3e748c`.
+Everything is retained outside git in
+`shared/checks/20260915-multiple-relationship-acceptance`, whose 3,477-file
+FINAL-SHA256SUMS has SHA-256
+`b3b4c3cef6d512cd0ba8e7afa73e3f1f5cf847c183f02ed2dd72a3911e051f1e`.
+Independent Sol review accepts the implementation and strengthened evaluator;
+its retained scratch audit checks 6,870 assertions. Final `just ready` passes
+1,532 test executions, zero failures and ten ignored executions (five tests
+run twice by the recipes).
+
+**Retained failures and limits.** The first extras run
+`20260915T224020Z-multi-rel-extras-r1` failed on missing optional source_stage
+under strict PowerShell property access. The corrected earlier extras/refusal
+runs passed but omitted environment receipts; their full outcomes remain
+alongside the later environment-recorded runs. The earlier self-atomic Rust
+refusal failed because its target was absent and does not count as constraint
+evidence; separate self-primary runs correct its source. Preparation failures,
+portable evaluator development failures (an expected-count typo and ordering
+of the expected DAO relation inventory), and pre-strengthening reports remain
+retained. The first environment follow-up wrapper omitted shared-root and
+failed before VM staging. None was overwritten or relabeled as accepted.
+
+This finite evidence covers enforced ascending, non-cascading single-Long
+relationships, at most two simultaneous constraints per endpoint, and the
+listed Memo transitions. It does not establish relationship creation/drop,
+composite/cascading/other-key relationships, OLE growth in these graph schemas,
+more complex graph inventories, other providers or whole-v1 compatibility.
