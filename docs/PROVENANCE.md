@@ -17084,3 +17084,61 @@ by this native-only discovery.
   `2f13ee8f7757754c31b5a651e64ab6757ff4b20d2494915f5ca19ae89848c229` /
   `ede76d1a423e3b537621269d546376abbdcb3c02c858ecb789b72756abb607a4`.
   GPT-5.6 Sol high independently reviewed the integration and found no blockers.
+
+## EXP-0264 — Fixed Text indexes use the saved bytes and existing Text collation
+
+The private native matrix `/tmp/jet3-fixed-text-discovery/` tests fixed Text
+widths 1, 8, 32 and 255, ascending/descending keys, Long+Text composite keys,
+unique collisions and variable-Text controls through creation, updates,
+insertion and deletion. Its source revision is
+`6056618f9f91197230255df28970af9dc0b595fb`; native-r4 is the accepted acquisition.
+The matrix is 20,111 bytes, SHA-256
+`14a89fb3d46e3c5471bb5f0793c83418f9b5a07c4bd86d7108ef43eb7ccdef18`;
+producer 15,449 bytes, SHA-256
+`80cfe9cec02cbbf62046383df6b3129132077ba38413776ef6ad19f3fbd28cff`;
+complete result 650,829 bytes, SHA-256
+`b97f1fa4614f7b656a2fb13894cb2f1c0bf2f35e0e3423ae06122bb627344f9a`.
+DAO 3.6 x86 DLL 03.60.9765.0 has SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+
+- Fixed and variable Text retain encoding context `09 04 e4 04` (English-US,
+  CP1252). Fixed field Attributes is 1; row storage has the declared width.
+  DAO pads short non-null values on the right with ASCII spaces, and returns
+  those complete padded values on readback.
+- Every live native leaf key equals EXP-0248's Text transform of the saved
+  bytes. The existing trailing-space removal handles fixed padding. The
+  fixed/variable 255-byte descending controls have identical keys by row tag
+  at all four stages; fixed descending 8-byte keys are bytewise complements
+  of the ascending variable controls. Single/composite keys, nulls, full
+  traversal/Seek and logical locators agree with the independent predictions.
+- `A`, `A ` and `a` tie. The composite unique case rejects the padded duplicate
+  insertion and a Group edit into the same key class with native DAO error
+  3022. Edits and deletions retain index counters; insertion of an absent
+  included key increments the retained counter once.
+- Unrelated Notes definition, maps, rows and complete payload pages remain
+  exact. Four retained checkpoint MDBs are each 129,024 bytes. The original
+  r1/r2 probes silently saved null keys, and r3's explicit assignment check
+  exposed that harness failure; all remain retained separately from r4.
+  These failures establish no fixed-key format claim.
+
+The probe enables AllowZeroLength on Text fields, so empty/all-space results
+remain bounded to that setting. Nonempty padded values establish the shared
+key transform. This is native format evidence, not Rust candidate acceptance;
+other collations and arbitrary schema combinations remain untested here.
+
+The completed independent report accepts all 244 leaf key/locator records and
+280 full-key Seek probes, including the 255-byte shortened key and its `cfb2`
+checksum suffix. The 85 attempted native operations contain exactly the two
+declared unique rejections. Null fixed slots have a clear presence bit and may
+retain arbitrary bytes; no zero-fill invariant is established. Notes retains
+independent 4,096-byte Memo and OLE payloads and all nine owned page hashes.
+
+Accepted run `20260915T220000Z-fixed-text-r4` is retained in the VM shared
+outbox. The analyzer, report, all earlier failed acquisitions, diagnostics and
+51-file identity inventory are retained together in
+`shared/checks/20260915-fixed-text-discovery/`. Answered report 116,963 bytes
+SHA-256 `e8ffa532a60af9f88dc26956f5c46d0066172dde15ac511c3880c950213b1f24`;
+analyzer 16,477 bytes SHA-256
+`bf2948b799a837f3a42e86e69df4fd01624ddc687d9fbcc359b235db1c9f26cf`;
+identity inventory SHA-256
+`0ad446750d9c3a0eaadefa60665eb8020e2f79904b928c293345bb3515c5e058`.

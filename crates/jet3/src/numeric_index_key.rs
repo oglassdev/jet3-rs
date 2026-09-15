@@ -96,7 +96,8 @@ impl NumericKeyType {
             ColumnType::Binary { max_len } => Self::Binary {
                 max_len: max_len.get(),
             },
-            ColumnType::Text { max_len } => Self::Text {
+            // EXP-0264: fixed Text uses the same key transform, including space trimming.
+            ColumnType::Text { max_len } | ColumnType::FixedText { len: max_len } => Self::Text {
                 max_len: max_len.get(),
             },
             ColumnType::Guid => Self::Guid,

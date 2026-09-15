@@ -50,9 +50,7 @@ pub(crate) fn load(
                         .ok_or(UpdateError::Mismatch("binary index field capacity"))?,
                 },
                 ColumnPhysicalType::Text => {
-                    if !matches!(column.storage(), crate::ColumnStorageClass::Variable { .. }) {
-                        return Err(UpdateError::Unsupported("fixed Text index field"));
-                    }
+                    // EXP-0264: fixed and variable Text share the recorded collation.
                     if column.raw_encoding_context() != &crate::text_index_key::ENCODING_CONTEXT {
                         return Err(UpdateError::Unsupported("text index collation context"));
                     }

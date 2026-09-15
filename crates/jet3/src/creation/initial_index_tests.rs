@@ -171,7 +171,7 @@ fn leaf_capacity_spills_into_a_branch_root() -> TestResult {
 }
 
 #[test]
-fn required_null_keys_and_unsupported_key_schemas_fail_before_publication() -> TestResult {
+fn required_null_keys_fail_before_publication() -> TestResult {
     let directory = TestDirectory::create()?;
     for kind in [
         IndexKind::Primary,
@@ -192,33 +192,6 @@ fn required_null_keys_and_unsupported_key_schemas_fail_before_publication() -> T
             ),
             Err(CreateDatabaseError::Compose(
                 ComposeError::NullInitialIndexKey { row: 0 }
-            ))
-        ));
-    }
-    let composite = [IndexSpec {
-        fields: &[
-            field(0, IndexDirection::Ascending),
-            field(1, IndexDirection::Ascending),
-        ],
-        ..one_index(IndexKind::Ordinary)[0]
-    }];
-    let text = [IndexSpec {
-        fields: &[IndexColumnSpec::ascending(b"Code")],
-        ..one_index(IndexKind::Ordinary)[0]
-    }];
-    for indexes in [&composite, &text] {
-        let table = TableSpec {
-            name: b"Items",
-            columns: &[
-                ID,
-                ColumnSpec::new(b"Code", ColumnType::FixedText { len: nz(8) }),
-            ],
-            indexes,
-        };
-        assert!(matches!(
-            create_database_with_rows(directory.target(), &table, &[], &mut budget()),
-            Err(CreateDatabaseError::Compose(
-                ComposeError::UnsupportedInitialIndexSchema
             ))
         ));
     }
@@ -307,3 +280,5 @@ mod multiple;
 
 #[path = "index_capacity_tests.rs"]
 mod capacity;
+#[path = "fixed_text_index_tests.rs"]
+mod fixed_text;

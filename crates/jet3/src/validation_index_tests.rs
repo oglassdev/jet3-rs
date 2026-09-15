@@ -77,9 +77,35 @@ fn retained_directory_slots_do_not_make_deleted_rows_valid_index_targets() -> Te
 
 #[test]
 fn unsupported_key_schemas_report_coverage_and_still_check_membership() -> TestResult {
-    let mut bytes = fixture()?;
+    let plan = compose_database_with_table_rows(
+        &[TableRows {
+            table: TableSpec {
+                name: b"Items",
+                columns: &[
+                    ColumnSpec::new(b"Id", ColumnType::Long),
+                    ColumnSpec::new(b"Body", ColumnType::Memo),
+                ],
+                indexes: &[IndexSpec {
+                    name: b"ById",
+                    kind: IndexKind::Primary,
+                    fields: &[IndexColumnSpec::ascending(0)],
+                }],
+            },
+            rows: &[
+                &[RowValue::Long(2), RowValue::Memo(b"two")],
+                &[RowValue::Long(0), RowValue::Memo(b"zero")],
+                &[RowValue::Long(1), RowValue::Memo(b"one")],
+            ],
+        }],
+        &mut budget(),
+    )?;
+    let mut bytes: Vec<_> = plan
+        .pages()
+        .iter()
+        .flat_map(|p| p.image().as_bytes().iter().copied())
+        .collect();
     let table = definition(&bytes, b"Items")?;
-    let raw = table.columns()[0].raw_record();
+    let raw = table.physical_indexes()[0].raw_record();
     let start = page_start(table.root());
     let positions: Vec<_> = bytes[start..start + PAGE_BYTES]
         .windows(raw.len())
@@ -87,8 +113,8 @@ fn unsupported_key_schemas_report_coverage_and_still_check_membership() -> TestR
         .filter_map(|(i, value)| (value == raw).then_some(start + i))
         .collect();
     assert_eq!(positions.len(), 1);
-    // EXP-0059/0061: same four-byte fixed slot, with an uninterpreted Fixed Text key schema.
-    bytes[positions[0]] = 10;
+    // EXP-0062: retarget the index descriptor to the uninterpreted Memo column.
+    bytes[positions[0]..positions[0] + 2].copy_from_slice(&1_u16.to_le_bytes());
     let report = validate(&bytes)??;
     assert_eq!(report.indexes, 1);
     assert_eq!(report.indexes_with_verified_keys, 0);
