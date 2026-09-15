@@ -15194,3 +15194,31 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   index-tree captures are `shared/outbox/20260915T033825Z-index-trees-f33c5e/`
   and `shared/outbox/20260915T033910Z-index-trees-f5aab5/`. The finite scope and
   explicit raw-only intermediate checkpoints above remain unchanged.
+
+## EXP-0225 — DAO deletion retains a valid branch separator above its child
+
+- Sol's seeded mutation check found that a retained, accepted native descending
+  output from EXP-0223 was rejected before mutation by the exact-child-maximum
+  check. The attempted Rust replacement preserved the original bytes.
+- The candidate and independent control histories both have exact separators
+  after native insertion and key update. Deleting Id 0 removes the middle
+  child's maximum while retaining its former separator. The final DAO captures
+  still match complete rows, traversal and Seek results under EXP-0223.
+- Both retained separators are `807fffffff00001800` (descending Id 0,
+  page 24/slot 0); the remaining child maximum is `807ffffffe00001801`
+  (Id 1, page 24/slot 1). The following subtree minimum is Id -2, encoded
+  `808000000100003800` in the control and `808000000100002b00` in the
+  candidate. Thus `child maximum < separator < next subtree minimum`.
+- A mutation may admit a separator satisfying `child maximum <= separator`
+  and `separator < following subtree minimum`. Rebuilt trees continue using
+  exact child maxima from EXP-0062/0126. Both bounds are checked, together
+  with complete leaf ordering and row/key/locator correspondence; accepting
+  this retained separator does not permit a key routed into the wrong child.
+- Private source: `shared/outbox/20260915T033214Z-index-trees-82a763/`.
+  `descending-native-candidate.mdb` is 90,112 bytes, SHA-256
+  `d351557e9ac9e933fbb5495f0dffef220e7a02b75453b15128592a7fbc24f3bb`.
+  Characterization is retained in
+  `shared/checks/20260915-random-lifecycle-sol/native-separator-characterization.json`,
+  SHA-256 `649634ca8445ccb52851fd2213cdbb65523b52f8aef1035f54a49dbba5317e05`.
+  This is analysis of already retained DAO outputs; no new acquisition or
+  whole-v1 compatibility claim follows.

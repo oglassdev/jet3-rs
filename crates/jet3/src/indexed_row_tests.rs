@@ -606,9 +606,7 @@ fn indexed_rows_reject_corrupt_branch_separator_before_publication() -> TestResu
     );
     assert!(matches!(
         error,
-        Err(UpdateError::Mismatch(
-            "branch separator differs from child maximum"
-        ))
+        Err(UpdateError::Mismatch("invalid branch separator bounds"))
     ));
     assert!(
         crate::delete_row(
@@ -683,6 +681,90 @@ fn indexed_rows_release_last_live_slot_and_reinsert() -> TestResult {
         assert_eq!(new.page().get() as usize * PAGE_BYTES, after.len());
         assert_eq!(f.rows()?, vec![(-1, new)]);
         assert_eq!(page(&fs::read(f.path())?, row.page())?, &expected);
+        f.validate()?;
+    }
+    Ok(())
+}
+
+#[test]
+fn indexed_rows_accept_retained_separator_and_reject_wrong_subtree_bounds() -> TestResult {
+    use crate::index_tree_page::{ENTRY_AREA_OFFSET, boundaries};
+    for descending in [false, true] {
+        let f = Fixture::new(201, descending, IndexKind::Unique)?;
+        let table = f.definition()?;
+        let before = fs::read(f.path())?;
+        let mut b = budget();
+        let mut db = DatabaseReader::open(f.path(), &mut b)?;
+        let tree = db.index_tree(&table, 0, &mut b)?;
+        let leaves: Vec<_> = tree.nodes().iter().filter(|n| n.depth() == 2).collect();
+        assert_eq!(leaves.len(), 2);
+        let first = leaves[0].page();
+        let next = leaves[1].page();
+        let root = table.physical_indexes()[0].root().get() as usize * PAGE_BYTES;
+        let id = if descending { 1 } else { 199 };
+        let row = f
+            .rows()?
+            .into_iter()
+            .find(|r| r.0 == id)
+            .ok_or("boundary row")?
+            .1;
+        drop(db);
+        let mut retained = before.clone();
+        // EXP-0225: delete the boundary record while retaining its old branch fence.
+        let removed = crate::row_delete_page::remove(
+            row.page(),
+            table.root(),
+            page(&before, row.page())?,
+            row.slot(),
+            &mut budget(),
+        )?;
+        let count = crate::row_delete_page::decrement_count(
+            page(&before, table.root())?,
+            201,
+            &mut budget(),
+        )?;
+        let row_offset = row.page().get() as usize * PAGE_BYTES;
+        retained[row_offset..row_offset + PAGE_BYTES].copy_from_slice(removed.image().as_bytes());
+        let definition_offset = table.root().get() as usize * PAGE_BYTES;
+        retained[definition_offset..definition_offset + PAGE_BYTES]
+            .copy_from_slice(count.as_bytes());
+        let offset = first.get() as usize * PAGE_BYTES;
+        let last = boundaries(page(&before, first)?)
+            .last()
+            .ok_or("last boundary")?;
+        assert_eq!(last, 1800);
+        retained[offset + 22 + last / 8] &= !(1 << (last % 8));
+        retained[offset + 2..offset + 4].copy_from_slice(&9_u16.to_le_bytes());
+        fs::write(f.path(), &retained)?;
+        f.validate()?;
+        // A fence below its own child's maximum or at the next child's minimum
+        // would route a live record incorrectly and must still be rejected.
+        for record in [
+            &before[offset + ENTRY_AREA_OFFSET..offset + ENTRY_AREA_OFFSET + 9],
+            &page(&before, next)?[ENTRY_AREA_OFFSET..ENTRY_AREA_OFFSET + 9],
+        ] {
+            let mut damaged = retained.clone();
+            damaged[root + ENTRY_AREA_OFFSET..root + ENTRY_AREA_OFFSET + 9].copy_from_slice(record);
+            fs::write(f.path(), &damaged)?;
+            assert!(matches!(
+                insert_row(
+                    f.path(),
+                    b"Rows",
+                    &[RowValue::Long(-1), RowValue::Long(5)],
+                    &mut budget()
+                ),
+                Err(UpdateError::Mismatch("invalid branch separator bounds"))
+            ));
+            assert_eq!(fs::read(f.path())?, damaged);
+        }
+        fs::write(f.path(), &retained)?;
+        insert_row(
+            f.path(),
+            b"Rows",
+            &[RowValue::Long(id), RowValue::Long(5)],
+            &mut budget(),
+        )?;
+        assert_eq!(f.rows()?.len(), 201);
         f.validate()?;
     }
     Ok(())

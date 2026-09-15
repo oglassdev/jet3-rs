@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
-import multiple_index as raw_index
+import index_tree_mutation_structure as raw_index
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / 'oracle/windows-dao/scripts/index_tree_mutation.ps1'
@@ -170,7 +170,7 @@ def prepare(candidates: Path, revision: str):
         case['notes_pages'] = original_notes
     manifest = dict(document_type='index_tree_mutation_inputs', round='mutations', source_revision=revision,
                     producer=identity(SCRIPT), generator=identity(ROOT / 'crates/jet3/examples/index_tree_mutation_candidate.rs'),
-                    analyzer=identity(Path(__file__)), cases=cases, files=files, queries=QUERIES)
+                    analyzer=identity(Path(__file__)), structure=identity(Path(raw_index.__file__)), cases=cases, files=files, queries=QUERIES)
     write(directory / 'index-tree-mutation.json', manifest)
     shutil.copy2(SCRIPT, directory / SCRIPT.name)
 
@@ -216,6 +216,7 @@ def evaluate(candidates: Path, outbox: Path):
                   manifest=identity(manifest_path), result=identity(outbox / 'result.json'), cases=[], error=None)
     try:
         require(manifest['analyzer'] == identity(Path(__file__)), 'Analyzer identity')
+        require(manifest['structure'] == identity(Path(raw_index.__file__)), 'Tree decoder identity')
         require(result['document_type'] == 'dao_index_tree_mutation_result' and result['source_revision'] == manifest['source_revision'] and result['manifest_sha256'] == identity(manifest_path)['sha256'], 'Result inputs and source')
         require(result['error'] is None and result['retention_failures'] == [], 'Producer and artifact retention completed')
         require(result['environment']['process_bits'] == 32 and result['environment']['provider'] == 'DAO.DBEngine.36' and result['environment']['provider_version'] == '3.6' and len(result['environment']['dll']['sha256']) == 64, 'Actual DAO provider environment')
@@ -301,7 +302,7 @@ def prepare_continue(directory, first_outbox, output, generator, revision):
     output.mkdir(parents=True, exist_ok=False)
     cases = []; files = {}; outcomes = []
     try:
-        for name in ('primary', 'deep'):
+        for name in ('primary', 'descending', 'deep'):
             case = next(c for c in first['cases'] if c['name'] == name)
             observed = next(c for c in result['cases'] if c['name'] == name)
             require(observed['status'] == 'pass', 'Source native case completed')
@@ -314,6 +315,8 @@ def prepare_continue(directory, first_outbox, output, generator, revision):
             input_nodes, _ = raw_index.tree(source.read_bytes(), tables(source.read_bytes())['Items']['physical_indexes'][0]['root'], tables(source.read_bytes())['Items']['root'])
             compressed = [node['page'] for node in input_nodes if node['prefix']]
             require(compressed, 'Source contains prefix-compressed index nodes')
+            stale = sum(node['stale_separators'] for node in input_nodes)
+            require(name != 'descending' or stale > 0, 'Descending source retains a separator after native deletion')
             operation = dict(kind='insert', row=base_row(1234567, case['deep']))
             apply(expected, operation)
             child = output / name
@@ -337,9 +340,9 @@ def prepare_continue(directory, first_outbox, output, generator, revision):
             require(notes_identity((output / (name + '-continued.mdb')).read_bytes()) == notes, 'Continuation Notes bytes')
             cases.append(dict(name=name, deep=case['deep'], descending=case['descending'], source_file=source_name,
                               candidate_file=name + '-continued.mdb', operation=operation, expected=sorted(expected.values()),
-                              counter=counter, notes_pages=notes, compressed_source_pages=compressed))
+                              counter=counter, notes_pages=notes, compressed_source_pages=compressed, retained_source_separators=stale))
         manifest = dict(document_type='index_tree_mutation_inputs', round='continuation', source_revision=revision,
-                        producer=identity(SCRIPT), analyzer=identity(Path(__file__)),
+                        producer=identity(SCRIPT), analyzer=identity(Path(__file__)), structure=identity(Path(raw_index.__file__)),
                         generator=identity(ROOT / 'crates/jet3/examples/index_tree_mutation_candidate.rs'),
                         parent_manifest=identity(directory / 'index-tree-mutation.json'), parent_result=identity(first_outbox / 'result.json'),
                         cases=cases, files=files, queries=QUERIES)
@@ -357,6 +360,7 @@ def evaluate_continue(directory, outbox):
                   source_revision=manifest['source_revision'], manifest=identity(manifest_path), result=identity(outbox / 'result.json'))
     try:
         require(manifest['analyzer'] == identity(Path(__file__)), 'Continuation analyzer identity')
+        require(manifest['structure'] == identity(Path(raw_index.__file__)), 'Continuation tree decoder identity')
         require(result['document_type'] == 'dao_index_tree_mutation_result' and result['round'] == 'continuation' and
                 result['source_revision'] == manifest['source_revision'] and result['manifest_sha256'] == identity(manifest_path)['sha256'], 'Continuation source')
         require(result['error'] is None and result['retention_failures'] == [], 'Continuation producer complete')
@@ -370,6 +374,7 @@ def evaluate_continue(directory, outbox):
             source_table = tables(previous)['Items']
             source_nodes, _ = raw_index.tree(previous, source_table['physical_indexes'][0]['root'], source_table['root'])
             require([n['page'] for n in source_nodes if n['prefix']] == case['compressed_source_pages'] and case['compressed_source_pages'], 'Compressed source inventory')
+            require(sum(n['stale_separators'] for n in source_nodes) == case['retained_source_separators'], 'Retained source separator inventory')
             require(observed['operation']['request'] == case['operation'] and observed['operation']['status'] == 'pass' and observed['operation']['before'] == identity(source), 'DAO equivalent continuation insert')
             normalized_roles = {}; images = {}
             for role, capture in observed['roles'].items():
@@ -381,7 +386,7 @@ def evaluate_continue(directory, outbox):
             layout = directory / (case['name'] + '-continued.layout.json')
             require(identity(layout) == manifest['files'][layout.name], 'Continuation layout identity')
             raw = raw_check((outbox / observed['roles']['candidate']['file']).read_bytes(), case, expected, json.loads(layout.read_text()), case['counter'], previous)
-            report['cases'].append(dict(name=case['name'], images=images, raw=raw, compressed_source_pages=case['compressed_source_pages']))
+            report['cases'].append(dict(name=case['name'], images=images, raw=raw, compressed_source_pages=case['compressed_source_pages'], retained_source_separators=case['retained_source_separators']))
         report['status'] = 'accepted'
     except Exception as error:
         report['error'] = str(error)

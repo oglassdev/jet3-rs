@@ -1,4 +1,4 @@
-//! EXP-0062/0126: branch separators duplicate each non-tail child's maximum record.
+//! EXP-0062/0126/0225: separators bound a child above and its successor below.
 use crate::index_key_page::RECORD_BYTES;
 use crate::index_tree_page::{ENTRY_AREA_OFFSET, boundaries, parse_node, u32_at_be};
 use crate::{
@@ -6,19 +6,22 @@ use crate::{
     TableDefinition, UpdateError,
 };
 
+type Record = [u8; RECORD_BYTES];
+type Bounds = (Record, Record);
+
 pub(crate) fn validate(
     database: &mut DatabaseReader<FileSource>,
     table: &TableDefinition,
     tree: &IndexTree,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    let mut maxima: Vec<(PageNumber, Option<[u8; RECORD_BYTES]>)> = Vec::new();
-    crate::page_edits::reserve(&mut maxima, tree.nodes().len(), budget)?;
-    maxima.extend(tree.nodes().iter().map(|n| (n.page(), None)));
+    let mut ranges: Vec<(PageNumber, Option<Bounds>)> = Vec::new();
+    crate::page_edits::reserve(&mut ranges, tree.nodes().len(), budget)?;
+    ranges.extend(tree.nodes().iter().map(|n| (n.page(), None)));
     budget.charge_work_units(
-        (maxima.len() as u64).saturating_mul((maxima.len().max(1).ilog2() + 1) as u64),
+        (ranges.len() as u64).saturating_mul((ranges.len().max(1).ilog2() + 1) as u64),
     )?;
-    maxima.sort_unstable_by_key(|n| n.0);
+    ranges.sort_unstable_by_key(|n| n.0);
     // The reader returns nodes by depth, so every child is available in reverse order.
     for node in tree.nodes().iter().rev() {
         let mut bytes = [0; PAGE_BYTES];
@@ -40,7 +43,8 @@ pub(crate) fn validate(
         let prefix = &data[..parsed.prefix_len];
         let mut start = prefix.len();
         let branch = node.kind() == IndexNodeKind::Intermediate;
-        let mut maximum = None;
+        let mut bounds = None;
+        let mut previous = None;
         for end in boundaries(&bytes) {
             let suffix = &data[start..end];
             let size = RECORD_BYTES + if branch { 4 } else { 0 };
@@ -52,38 +56,46 @@ pub(crate) fn validate(
             record[prefix.len()..size].copy_from_slice(suffix);
             let mut key = [0; RECORD_BYTES];
             key.copy_from_slice(&record[..RECORD_BYTES]);
-            if branch {
+            let (minimum, maximum) = if branch {
                 let child = PageNumber::new(u64::from(u32_at_be(&record, RECORD_BYTES)));
-                if child_maximum(&maxima, child, budget)? != key {
-                    return Err(UpdateError::Mismatch(
-                        "branch separator differs from child maximum",
-                    ));
+                let range = child_bounds(&ranges, child, budget)?;
+                if range.1 > key || previous.is_some_and(|p| p >= range.0) {
+                    return Err(UpdateError::Mismatch("invalid branch separator bounds"));
                 }
-            }
-            maximum = Some(key);
+                range
+            } else {
+                (key, key)
+            };
+            let first = bounds.map_or(minimum, |(first, _)| first);
+            bounds = Some((first, maximum));
+            previous = Some(key);
             start = end;
         }
         if branch {
-            maximum = Some(child_maximum(&maxima, parsed.tail_child, budget)?);
+            let (minimum, maximum) = child_bounds(&ranges, parsed.tail_child, budget)?;
+            if previous.is_some_and(|p| p >= minimum) {
+                return Err(UpdateError::Mismatch("invalid branch separator bounds"));
+            }
+            bounds = Some((bounds.map_or(minimum, |(first, _)| first), maximum));
         }
-        let position = maxima
+        let position = ranges
             .binary_search_by_key(&node.page(), |n| n.0)
             .map_err(|_| UpdateError::Mismatch("index node inventory"))?;
-        maxima[position].1 = maximum;
+        ranges[position].1 = bounds;
     }
     Ok(())
 }
 
-fn child_maximum(
-    maxima: &[(PageNumber, Option<[u8; RECORD_BYTES]>)],
+fn child_bounds(
+    ranges: &[(PageNumber, Option<Bounds>)],
     page: PageNumber,
     budget: &mut ResourceBudget,
-) -> Result<[u8; RECORD_BYTES], UpdateError> {
-    budget.charge_work_units((maxima.len().max(1).ilog2() + 1) as u64)?;
-    let position = maxima
+) -> Result<Bounds, UpdateError> {
+    budget.charge_work_units((ranges.len().max(1).ilog2() + 1) as u64)?;
+    let position = ranges
         .binary_search_by_key(&page, |n| n.0)
         .map_err(|_| UpdateError::Mismatch("missing index child"))?;
-    maxima[position]
+    ranges[position]
         .1
         .ok_or(UpdateError::Mismatch("empty index child"))
 }
