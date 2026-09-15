@@ -17534,3 +17534,89 @@ metadata, unrelated Notes, and both words were checked. Historical reporter,
 retention, parser-preflight and overly broad metadata-comparison failures remain
 alongside accepted outcomes. No non-Long, composite, descending, cascade,
 self-reference, schema-mutation, overflow or other-provider inference is made.
+
+
+## EXP-0269 — Paired relationship mutations and native-input continuations
+
+**Source and retained inputs.** Production and suite revision
+`1d761147ca3e415a9af6908b93a29ae19c061671`, built from main
+`db4be5ad29b522b9a41d163079d9c5d7c90a5b56`. The public-API candidate generator
+and reproducible PowerShell/Python suite are committed under
+`crates/jet3/examples/relationship_mutation_candidate.rs` and
+`oracle/windows-dao/scripts/relationship_mutation_*`. Initial inputs are both
+independently created EXP-0268 `r1-created.mdb` / `r2-created.mdb` databases.
+The provider is the same x86 DAO 3.6 / Windows Server 2022 / en-US environment
+recorded in EXP-0268; each result retains the loaded DLL identity.
+
+Accepted runs:
+
+- `20260915T205213Z-relationship-lifecycle-r2`: ten paired stages in each of two
+  replicas, followed by native writes to each output, for 22 successful pairs
+  / 44 captures. Each replica applies 356 Rust/control operations: valid parent
+  and child insertions, duplicate and null foreign keys, equal FK assignments,
+  equal/full-row assignments with payload changes, unrelated primary-key edits,
+  key/null transitions, referenced-child deletion before parent deletion, and
+  growth and edits of branched foreign indexes. Complete 1/33/4096-byte Memo/OLE
+  payloads are included. Native successor operations insert a new parent and
+  child key, move the child, change an unreferenced parent and delete rows.
+- `20260915T205446Z-relationship-continuation-r1`: all four retained native
+  successors become Rust inputs and independent DAO controls. Each has original,
+  Rust/control continuation and further native checkpoints, for 12 pairs /
+  24 captures. Rust inserts a parent/child, changes the FK with a 4096-byte Memo
+  and one-byte OLE replacement, and deletes the unreferenced parent; DAO then
+  changes the child again and deletes another child on both outputs.
+
+**Accepted comparisons.** All 34 pairs / 68 successful captures agree on complete
+schema, rows and payload bytes, relationship API/catalog/reciprocal records,
+physical key/locator inventories and both retained counter words. Across those
+captures, 9,444 Parent/Child rows, 18,636 traversal rows and 10,216 Seek outcomes
+are checked, including all returned fields. Every active payload slot is reached;
+allocation maps, ownership and metadata separation are validated; surviving
+logical locators are retained within each lineage. Foreign indexes grow to
+branches in both implementations, and Rust primary indexes do too. Tree layout
+need not be identical because DAO may compress more keys into one leaf.
+All nine unrelated Notes pages remain byte-identical within each lineage.
+Rust successful mutations retain the complete header page; native bookkeeping
+changes are recorded without requiring byte-identical overall placement.
+
+Fourteen Rust refusals (seven per replica) cover orphan insertion/field/full-row
+writes, referenced-parent field/full-row/deletion requests and resource limits.
+Every refused candidate equals its entire original input and reports the
+expected relationship/resource category. Twenty-four additional DAO refusal
+captures cover the six semantic requests on both role clones in both replicas:
+DAO returns 3201 for missing parents and 3200 for referenced parents. Complete
+rows, keys, schema, allocation and Notes remain preserved; paired failed-write
+counter/header side effects agree. Rust deliberately retains its stronger
+pre-publication whole-file preservation contract. No failed-write bookkeeping
+emulation is claimed.
+
+**Pins and retention.** Private inputs, all closed MDBs, complete results,
+Rust receipts, source archive and `just ready` log are retained in
+`shared/checks/20260915-relationship-mutation-acceptance`. No MDB bytes or provider
+binaries are committed. Main manifest SHA-256
+`63a2d698fd619c122e4fdd58505de1dda83d43952c6a6a558c5296a82e91646d`;
+result `24b1d6cbee08cd810cb7d3624e76200e323e6630f95aeced69ded08f57a386f0`;
+accepted report `dad1e7b4f6225ebb4b6bb347407bf616f8e83abe34b334d17995d0712ffeaeca`.
+Continuation manifest
+`8a2bd685c32a3f3092eea9693b05178d4d2acecb6a5e3ff562d43ad7ed7f4934`;
+result `1e4979961dcdfdd06f18bf724ad96d106b331edd68da619bf881ee73747cab64`;
+accepted report `7bf6fa1fe11a8109bb2650be3f8f0eb68c32bd453fb3bb5e781d34a9464617ae`.
+The 382-file inventory is
+`59e8c68ed212dd66cb472d55f8e2018a229c625b9305a21cbd2f9770aa4f47f7`;
+accepted pins `1cec8a0968e7cdf2d31d0c60cf5e5d3e2d18639d5ebe63f2c44ada836ef19bb9`
+include every suite/manifest/result/source identity. `just ready` passed 1,500
+test executions with zero failures, plus formatting, Clippy, documentation and
+quick acceptance; its ten ignored executions are the five normally ignored
+DAO tests encountered in each test pass. Independent Sol high review covered
+production correctness and the complete comparison assertions.
+
+**Limits and failures.** These finite results cover one enforced, non-cascading,
+non-self-referencing, single ascending Long relationship per endpoint, with
+nullable foreign keys, supported scalar indexes and Memo/OLE payloads. They do
+not establish multiple/composite/cascading/other-key relationships, related
+schema changes, overflow mutations, other collations/providers or whole-v1
+compatibility. The original uncommitted lifecycle r1 and both failed evaluator
+reports remain in the same archive. Its counter divergence led to EXP-0268's
+additive two-word correction; the final candidate was regenerated and both
+accepted suites were acquired afresh. Comparison assertions were strengthened
+to retain both words and system-index prefix preservation.

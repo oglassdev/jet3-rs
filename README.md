@@ -56,6 +56,10 @@ row replacement with stable locators across overflow growth and collapse,
 Memo/OLE payload allocation and reuse, generated IDs, and
 index maintenance for those key types with one to ten components per index. The accepted payload
 lifecycles include native DAO continuations and Rust mutation of native files.
+Related tables admit inserts, field/full-row updates and deletion for one enforced,
+non-cascading Long relationship per endpoint, including nullable foreign keys
+and Memo/OLE payloads. Orphan writes and changes to referenced parent keys are
+refused before publication.
 
 Creation and updates remain partial: schema combinations, index key types,
 allocation, and relationship mutation are restricted. Publication supports Unix
