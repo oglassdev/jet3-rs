@@ -17386,3 +17386,7 @@ free conflicts, resource limits and whole-image preservation. Bounds remain
 nullable/Required-false, CP1252, safe ASCII names and at most two tested property
 fragments. Arbitrary property/default/validation grammars, other collations and
 whole-v1 compatibility are not established.
+
+Pre-PR `just ready` passed formatting, Clippy, workspace tests, rustdoc and
+quick acceptance: 1,480 test executions, zero failures. Complete log retained
+as `ready-final.log` in the private acceptance archive.
