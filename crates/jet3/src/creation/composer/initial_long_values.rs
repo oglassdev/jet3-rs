@@ -56,16 +56,13 @@ fn external_shape(length: usize) -> (ExternalLongValueStorage, usize) {
 }
 
 fn advance(next: &mut u64, count: usize) -> Result<(), ComposeError> {
-    // SRC-0020/EXP-0057 inline coverage; no indirect growth policy is assumed.
-    let limit = MAP_BITMAP_BYTES * 8;
-    if *next >= limit || count as u64 > limit - *next {
-        return Err(UsageMapWriteError::PageOutOfMap {
-            page: PageNumber::new(limit),
-            first: PageNumber::new(0),
-            page_count: limit,
-        }
-        .into());
-    }
+    let last = next
+        .checked_add(count as u64)
+        .and_then(|end| end.checked_sub(1))
+        .ok_or(Error::Arithmetic {
+            operation: "initial payload end",
+        })?;
+    allocation_maps::check_page(last)?;
     *next += count as u64;
     Ok(())
 }
@@ -183,7 +180,7 @@ impl InitialLongValues {
                 if needed > result.pages.capacity() {
                     let capacity = needed
                         .max(result.pages.capacity() * 2)
-                        .min((MAP_BITMAP_BYTES * 8) as usize);
+                        .min(allocation_maps::PAGE_LIMIT as usize);
                     budget.charge_allocation(ByteCount::new(
                         ((capacity - result.pages.capacity()) * size_of::<PayloadPage>()) as u64,
                     ))?;
@@ -248,44 +245,30 @@ impl InitialLongValues {
     pub(super) fn append_pages(
         &self,
         plan: &mut WholeFileImagePlan,
-        map: &mut InlineUsageMapEncoder,
         budget: &mut ResourceBudget,
     ) -> Result<(), ComposeError> {
         for page in &self.pages {
-            plan.append(page.image.clone(), map, budget)?;
+            plan.append_image(page.image.clone(), budget)?;
         }
         Ok(())
     }
 
-    pub(super) fn maps(
+    pub(super) fn map(
         &self,
         column: u16,
+        available: bool,
+        maps: &mut AllocationMaps,
         budget: &mut ResourceBudget,
-    ) -> Result<[[u8; 133]; 2], ComposeError> {
-        let mut owned = InlineUsageMapEncoder::new(
-            PageNumber::new(0),
-            ByteCount::new(MAP_BITMAP_BYTES),
+    ) -> Result<[u8; 133], ComposeError> {
+        maps.row(
+            self.pages
+                .iter()
+                .enumerate()
+                .filter_map(|(offset, payload)| {
+                    (payload.column == usize::from(column) && (!available || payload.available))
+                        .then_some(self.first + offset as u64)
+                }),
             budget,
-        )?;
-        let mut available = InlineUsageMapEncoder::new(
-            PageNumber::new(0),
-            ByteCount::new(MAP_BITMAP_BYTES),
-            budget,
-        )?;
-        budget.charge_work_units(self.pages.len() as u64)?;
-        for (offset, payload) in self.pages.iter().enumerate() {
-            if payload.column != usize::from(column) {
-                continue;
-            }
-            let page = PageNumber::new(self.first + offset as u64);
-            owned.set_page(page)?;
-            if payload.available {
-                available.set_page(page)?;
-            }
-        }
-        let mut rows = [[0_u8; 133]; 2];
-        owned.encode_into(&mut rows[0], budget)?;
-        available.encode_into(&mut rows[1], budget)?;
-        Ok(rows)
+        )
     }
 }

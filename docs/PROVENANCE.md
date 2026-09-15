@@ -16460,3 +16460,102 @@ by this native-only discovery.
   passed on the unchanged production implementation. These comparisons accept
   the declared index and map-page inventories; indirect allocation, other
   schema combinations and full-v1 compatibility remain separate work.
+
+## EXP-0254 — Native inline and indirect allocation growth, deletion and reuse
+
+- Date: 2026-09-15. Accepted native format discovery; no Rust writer or
+  compatibility claim. Source context: `55b8b9d662ed0e4c5ad19fd36c4b549f91ff9c30`.
+  Private original producer, C# map observer/payload generator, input matrix,
+  analyzer and helper sources are retained with the run.
+- Run: local Windows outbox `20260915T103600Z-indirect-allocation-r2`.
+  Two fresh x86 workers per arm created indexed ordinary rows with four
+  fixed Text(255) fields, or indexed rows with deterministic 1,800-byte Memo
+  and OLE values. Both arms retained closed creation, growth, map-kind and
+  reference-count transition intervals, 1,024/16,352-range checkpoints,
+  low/tail deletion and reinsertion. The matrix bounded each worker to
+  18,000 growth pages/rows and 64 captures. All four workers completed.
+- DAO.DBEngine.36 version 3.6 loaded `dao360.dll` version 03.60.9765.0,
+  SHA-256 `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  Each worker retained its provider receipt before mutation.
+- Accepted comparisons: all 84 closed captures (19 ordinary-row and 23
+  payload checkpoints per replica) passed complete native schema, ordered
+  primary traversal/Seek and deterministic complete-row/payload digest
+  comparison. Independent raw decoding compared every row and payload byte,
+  every primary key/locator, table/index/long-value maps, active LVAL slot
+  reachability and unchanged Notes-owned bytes. Complete decoded map records,
+  page-kind/owner inventories and map changes agree across both replicas of
+  each arm. Eight additional working/previous images are retained separately.
+- Observed inline growth: at 1,023 pages the ordinary-row global free map
+  remains 133 bytes, base 0. At 1,032 pages global/table-owned maps are 137
+  bytes: tag 0, four-byte base 0 and 132 bitmap bytes. In the payload arm at
+  1,032 pages both LVAL-owned maps are also 137 bytes; table/index maps remain
+  133 bytes. These observations establish variable inline row lengths beyond
+  the writer's former fixed 1,024-bit range.
+- All observed conversions produce a 133-byte type-1 record: tag 1 followed
+  by exactly 33 little-endian u32 references. An active slot directly names
+  a `05 01 00 00` bitmap page; all other slots are zero. The represented base
+  is slot ordinal times 16,352, independently of the bitmap's storage page.
+  Conversion is observed between the following closed captures, not asserted
+  at an exact mutation or universal file-size threshold:
+
+  | Arm/map | Before/after file pages | Before row bytes | First bitmap page |
+  | --- | ---: | ---: | ---: |
+  | Rows/index | 7,932 / 8,010 | 749 | 8,008 |
+  | Rows/table owned | 14,024 / 14,083 | 1,761 | 8,010 |
+  | Rows/global free | 14,539 / 14,611 | 1,825 | 14,592 |
+  | Payload/Memo owned | 3,168 / 3,241 | 401 | 3,210 |
+  | Payload/OLE owned | 4,010 / 4,075 | 509 | 4,066 |
+  | Payload/table owned | 5,563 / 5,629 | 693 | 5,580 |
+  | Payload/index | 9,818 / 9,885 | 1,177 | 9,865 |
+  | Payload/global free | 15,135 / 15,200 | 1,897 | 15,136 |
+
+- Global set bits mean free, including represented pages beyond EOF. At
+  1,032 pages every bit in `[1032,1056)` is set. After global conversion at
+  14,611 pages every `[14611,16352)` bit is set. At the 16,386-page ordinary
+  checkpoint global references are `[14592,16352,0,...]`, and every
+  `[16386,32704)` bit is set. Global bitmap metadata pages are themselves
+  marked allocated. Table/index/LVAL owned and available maps have no set
+  bits beyond EOF. Zero indirect slots select no stored bitmap; this run
+  does not establish an implicit bitmap for an absent slot.
+- At the same ordinary checkpoint, table-owned references are
+  `[8010,16353,0,...]`; the index remains `[8008,0,...]`. At 16,400 payload
+  pages global references are `[15136,16352,0,...]`, Memo-owned references
+  `[3210,16357,0,...]`, and OLE-owned references `[4066,16354,0,...]`.
+  Every active bitmap's absolute membership agrees with its owning rows,
+  index nodes or complete payload chains.
+- Availability behavior: ordinary table availability remains an empty
+  133-byte inline map and changes base from 0 to 16,352 during deletion.
+  Payload table availability starts the deletion checkpoint as a 133-byte
+  inline map with base 15,328 and one member, then converts to indirect
+  `[16400,0,...]` with two members. That slot-0 bitmap is stored above the
+  slot-0 represented range. Both LVAL availability maps remain empty inline
+  base-0 maps spanning only 1,024 bits although owned payload pages extend
+  beyond 16,352. An owned page outside an availability map's represented
+  range can therefore be legitimately unavailable.
+- Churn: delete the first and last 64 IDs and insert IDs 100000–100127.
+  Payload deletion changes file length 16,400→16,403 pages, releases 256
+  globally free pages and converts table availability; reinsertion reuses
+  all 256 and ends at 16,405 pages. Ordinary reinsertion reuses released
+  pages but also grows 16,400→16,411. These finite observations do not imply
+  lowest-free selection or no-growth reinsertion.
+- Limits: the 1,800-byte native payloads use EXP-0061 chained storage;
+  nonempty or indirect LVAL availability is not observed. Index-owned maps
+  convert to indirect but do not activate their second slot. No claim is
+  made about a universal conversion threshold, absent-slot free polarity,
+  arbitrary map-row relocation, compaction, or release compatibility.
+- Retained failures: the first local CLI attempt had a malformed run ID and
+  did not dispatch. Run `20260915T103000Z-indirect-allocation-r1` completed
+  all 84 per-image captures, but its finalizer copied nonexistent
+  `produce.ps1` (the runner stages `script.ps1`) before serializing worker
+  summaries; the run remains failed. Its images, JSON receipts, logs and
+  frozen sources remain intact. The initial raw analyzer also incorrectly
+  required SinglePage payloads; the corrected analyzer follows existing
+  EXP-0061 chained locators and compares the same complete expected bytes.
+  No expected values or semantic comparisons were weakened.
+- Matrix: 2,673 bytes, SHA-256
+  `5e228cca9d38a01c066eed6f29dbe1872fba35596624c7b76aa5884275e1b5e2`.
+  Worker index: 2,124 bytes, SHA-256
+  `881a03e2e0f419001c833a1da43e80f55fd9c8162f93f0ede5d01fbcbfe3f5b9`.
+  Accepted report: 6,088,435 bytes, SHA-256
+  `9199fb56258241aa9d1dea6f9358c8aa5f7c46773ff90e9926ec927e61632c53`.
+  Individual worker/source pins are in private `accepted-pins.json`.

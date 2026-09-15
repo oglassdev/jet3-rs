@@ -132,7 +132,7 @@ fn composite_duplicates_cross_leaves_and_later_tables_keep_roots_and_locators() 
 }
 
 #[test]
-fn branched_corruption_and_index_map_overflow_preserve_publication() -> TestResult {
+fn branched_corruption_and_resource_limits_preserve_publication() -> TestResult {
     let directory = TestDirectory::create()?;
     let indexes = one_index(IndexKind::Ordinary);
     let table = TableSpec {
@@ -171,12 +171,6 @@ fn branched_corruption_and_index_map_overflow_preserve_publication() -> TestResu
         );
     }
     fs::write(directory.target(), &original)?;
-    let huge = vec![value.as_slice(); 204800];
-    assert!(matches!(
-        create_database_with_rows(directory.target(), &table, &huge, &mut budget()),
-        Err(CreateDatabaseError::Compose(ComposeError::UsageMap(_)))
-    ));
-    assert_eq!(fs::read(directory.target())?, original);
     let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(100));
     assert!(create_database_with_rows(directory.target(), &table, &rows, &mut limited).is_err());
     assert_eq!(fs::read(directory.target())?, original);
@@ -184,7 +178,7 @@ fn branched_corruption_and_index_map_overflow_preserve_publication() -> TestResu
 }
 
 #[test]
-fn data_and_all_index_levels_share_the_exact_inline_map_limit() -> TestResult {
+fn data_and_index_levels_extend_past_inline_map_capacity() -> TestResult {
     let directory = TestDirectory::create()?;
     let indexes = one_index(IndexKind::Ordinary);
     let table = TableSpec {
@@ -197,10 +191,9 @@ fn data_and_all_index_levels_share_the_exact_inline_map_limit() -> TestResult {
     create_database_with_rows(directory.target(), &table, &rows[..111252], &mut budget())?;
     let original = fs::read(directory.target())?;
     assert_eq!(original.len(), 1024 * crate::PAGE_BYTES);
-    assert!(matches!(
-        create_database_with_rows(directory.target(), &table, &rows, &mut budget()),
-        Err(CreateDatabaseError::Compose(ComposeError::UsageMap(_)))
-    ));
+    let grown = directory.target().with_file_name("grown.mdb");
+    create_database_with_rows(&grown, &table, &rows, &mut budget())?;
+    assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);
     assert_eq!(fs::read(directory.target())?, original);
     Ok(())
 }

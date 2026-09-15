@@ -308,7 +308,7 @@ fn later_page_corruption_and_missing_owned_pages_are_detected() -> TestResult {
 }
 
 #[test]
-fn inline_map_boundary_is_accepted_and_growth_past_it_preserves_destination() -> TestResult {
+fn initial_rows_extend_past_inline_maps_and_preserve_existing_destinations() -> TestResult {
     let directory = TestDirectory::create()?;
     let names = (0..70)
         .map(|number| format!("F{number}"))
@@ -330,14 +330,11 @@ fn inline_map_boundary_is_accepted_and_growth_past_it_preserves_destination() ->
     assert_eq!(original.len(), 1024 * crate::PAGE_BYTES);
     assert!(map_bit(&original, 21, 0, 1023)?);
     assert!(!map_bit(&original, 1, 0, 1023)?);
-    assert!(
-        matches!(create_database_with_rows(directory.target(), &table, &rows, &mut budget()),
-        Err(CreateDatabaseError::Compose(ComposeError::UsageMap(crate::UsageMapWriteError::PageOutOfMap {
-            page, page_count: 1024, ..
-        }))) if page == PageNumber::new(1024))
-    );
+    assert!(create_database_with_rows(directory.target(), &table, &rows, &mut budget()).is_err());
     assert_eq!(fs::read(directory.target())?, original);
-    assert_eq!(directory.entries()?, ["created.mdb"]);
+    let grown = directory.target().with_file_name("grown.mdb");
+    create_database_with_rows(&grown, &table, &rows, &mut budget())?;
+    assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);
     Ok(())
 }
 

@@ -13,7 +13,7 @@ impl IndexPages {
         entries: &[Entry],
         budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
-        NumericIndexPages::new(entries, (MAP_BITMAP_BYTES * 8) as usize, budget)
+        NumericIndexPages::new(entries, allocation_maps::PAGE_LIMIT as usize, budget)
             .map(|layout| Self { layout })
             .map_err(creation_error)
     }
@@ -36,11 +36,11 @@ impl IndexPages {
             .ok_or(Error::Arithmetic {
                 operation: "place initial index pages",
             })?;
-        if last > MAP_BITMAP_BYTES * 8 {
+        if last > allocation_maps::PAGE_LIMIT {
             return Err(UsageMapWriteError::PageOutOfMap {
                 page: PageNumber::new(last - 1),
                 first: PageNumber::new(0),
-                page_count: MAP_BITMAP_BYTES * 8,
+                page_count: allocation_maps::PAGE_LIMIT,
             }
             .into());
         }

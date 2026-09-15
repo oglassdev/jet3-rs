@@ -1,4 +1,5 @@
 use super::*;
+use crate::MapRowLocator;
 
 type MapRecords = [(MapRowLocator, std::ops::Range<usize>); 3];
 fn maps(f: &Fixture) -> Result<MapRecords, Box<dyn StdError>> {
@@ -151,7 +152,7 @@ fn eof_map_coverage_free_bit_and_aliases_refuse_without_publication() -> TestRes
 }
 
 #[test]
-fn last_inline_bit_is_allowed_but_map_growth_is_refused() -> TestResult {
+fn last_inline_bit_and_conversion_preserve_rows_and_metadata() -> TestResult {
     let f = Fixture::longs(0)?;
     let original = fs::read(f.path())?;
     for pages in [1023_usize, 1024] {
@@ -164,16 +165,26 @@ fn last_inline_bit_is_allowed_but_map_growth_is_refused() -> TestResult {
             &[RowValue::Long(1), RowValue::Long(2)],
             &mut budget(),
         );
-        if pages == 1023 {
-            assert_eq!(result?, RowLocator::new(PageNumber::new(1023), 0));
-            assert_eq!(fs::metadata(f.path())?.len(), 1024 * PAGE_BYTES as u64);
-        } else {
-            assert!(matches!(
-                result,
-                Err(UpdateError::Unsupported("page outside existing inline map"))
-            ));
-            assert_eq!(fs::read(f.path())?, before);
+        assert_eq!(result?, RowLocator::new(PageNumber::new(pages as u64), 0));
+        let expected_pages = if pages == 1023 { 1024 } else { 1028 };
+        assert_eq!(
+            fs::metadata(f.path())?.len(),
+            expected_pages * PAGE_BYTES as u64
+        );
+        let mut b = budget();
+        let mut db = DatabaseReader::open(f.path(), &mut b)?;
+        let definition = db.table_definition(f.root, &mut b)?;
+        let global = crate::mutation_map::MapBits::load(
+            &mut db,
+            crate::mutation_map_write::global_locator(),
+            &mut b,
+        )?;
+        for page in pages as u64..expected_pages {
+            assert!(!global.contains(PageNumber::new(page))?);
         }
+        let mut rows = db.rows(&definition, &mut b)?;
+        assert!(rows.next_row()?.is_some());
+        assert!(rows.next_row()?.is_none());
         f.clean()?;
     }
     Ok(())

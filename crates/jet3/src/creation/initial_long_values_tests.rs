@@ -125,18 +125,7 @@ fn payload_refusals_and_resource_limits_preserve_destination() -> TestResult {
             RowWriteError::TypeMismatch { .. }
         )))
     ));
-    let payload = vec![0; 2032 * 1002];
-    assert!(matches!(
-        create_database_with_rows(
-            directory.target(),
-            &table,
-            &[&[RowValue::LongBinary(&payload)]],
-            &mut budget()
-        ),
-        Err(CreateDatabaseError::Compose(ComposeError::UsageMap(
-            crate::UsageMapWriteError::PageOutOfMap { .. }
-        )))
-    ));
+    let payload = vec![0; 4096];
     let mut limited = ResourceBudget::new(
         ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(2048)),
     );
@@ -190,7 +179,7 @@ fn candidate_check_rejects_long_value_owner_pointer_and_payload_corruption() -> 
 }
 
 #[test]
-fn long_value_allocation_leaves_room_for_the_final_data_page() -> TestResult {
+fn long_value_allocation_extends_maps_for_the_final_data_page() -> TestResult {
     let directory = TestDirectory::create()?;
     let columns = [ColumnSpec::new(b"Payload", ColumnType::LongBinary)];
     let table = TableSpec {
@@ -210,17 +199,14 @@ fn long_value_allocation_leaves_room_for_the_final_data_page() -> TestResult {
     assert!(map_bit(&original, 21, 2, 1022)?);
     assert!(!map_bit(&original, 21, 2, 1023)?);
     assert!(map_bit(&original, 21, 0, 1023)?);
-    assert!(matches!(
-        create_database_with_rows(
-            directory.target(),
-            &table,
-            &[&[RowValue::LongBinary(&payload)]],
-            &mut budget()
-        ),
-        Err(CreateDatabaseError::Compose(ComposeError::UsageMap(
-            crate::UsageMapWriteError::PageOutOfMap { .. }
-        )))
-    ));
+    let grown = directory.target().with_file_name("grown.mdb");
+    create_database_with_rows(
+        &grown,
+        &table,
+        &[&[RowValue::LongBinary(&payload)]],
+        &mut budget(),
+    )?;
+    assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);
     assert_eq!(fs::read(directory.target())?, original);
     Ok(())
 }

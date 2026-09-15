@@ -131,6 +131,19 @@ impl WholeFileImagePlan {
         Ok(number)
     }
 
+    /// Appends a page whose allocation is composed after all placements are known.
+    pub(crate) fn append_image(
+        &mut self,
+        image: PageImage,
+        budget: &mut ResourceBudget,
+    ) -> Result<PageNumber, WholeFilePlanError> {
+        reserve_planned_pages(&mut self.pages, 1, budget)?;
+        let page = self.append_plan.append_image(image)?;
+        let number = page.number();
+        self.pages.push(page);
+        Ok(number)
+    }
+
     /// Replaces one retained complete image without changing page numbering.
     /// The caller remains responsible for references and allocation maps.
     pub(crate) fn replace(
@@ -157,19 +170,33 @@ fn reserve_planned_pages(
     additional: usize,
     budget: &mut ResourceBudget,
 ) -> Result<(), WholeFilePlanError> {
-    let bytes = u64::try_from(additional)
-        .ok()
-        .and_then(|count| count.checked_mul(size_of::<PlannedPage>() as u64))
+    let needed = pages
+        .len()
+        .checked_add(additional)
         .ok_or(Error::Arithmetic {
-            operation: "size whole-file planned-page storage",
+            operation: "count planned pages",
         })?;
-    budget.charge_allocation(ByteCount::new(bytes))?;
-    pages.try_reserve_exact(additional).map_err(|_| {
-        WholeFilePlanError::Resource(Error::Io {
-            operation: "reserve whole-file planned-page storage",
-            kind: std::io::ErrorKind::OutOfMemory,
+    if needed <= pages.capacity() {
+        return Ok(());
+    }
+    let capacity = needed.max(pages.capacity().saturating_mul(2));
+    let bytes = (capacity - pages.capacity())
+        .checked_mul(size_of::<PlannedPage>())
+        .ok_or(Error::Arithmetic {
+            operation: "size planned page storage",
+        })?;
+    budget.charge_allocation(ByteCount::new(bytes as u64))?;
+    budget
+        .charge_work_units((pages.len() as u64).saturating_mul(size_of::<PlannedPage>() as u64))?;
+
+    pages
+        .try_reserve_exact(capacity - pages.len())
+        .map_err(|_| {
+            WholeFilePlanError::Resource(Error::Io {
+                operation: "reserve whole-file planned-page storage",
+                kind: std::io::ErrorKind::OutOfMemory,
+            })
         })
-    })
 }
 
 #[cfg(test)]

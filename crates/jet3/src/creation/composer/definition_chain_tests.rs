@@ -216,7 +216,7 @@ fn logical_definition_allocation_and_page_encoding_obey_the_callers_budget() -> 
 }
 
 #[test]
-fn definition_chains_count_toward_the_actual_inline_page_limit() -> TestResult {
+fn definition_chains_and_catalog_maps_extend_past_inline_capacity() -> TestResult {
     let names = (0..255)
         .map(|n| format!("C{n:04}{}", "x".repeat(43)).into_bytes())
         .collect::<Vec<_>>();
@@ -233,9 +233,8 @@ fn definition_chains_count_toward_the_actual_inline_page_limit() -> TestResult {
             rows: &[],
         })
         .collect::<Vec<_>>();
-    assert!(matches!(
-        compose_database_with_table_rows(&requests, &mut budget()),
-        Err(ComposeError::CatalogPageLimit { maximum: 1024 })
-    ));
+    let plan = compose_database_with_table_rows(&requests, &mut budget())?;
+    assert!(plan.page_count() > 1024);
+    assert_eq!(plan.pages()[1].image().as_bytes()[1915], 1);
     Ok(())
 }

@@ -171,17 +171,7 @@ impl<'a> PlannedCreate<'a> {
         budget: &mut ResourceBudget,
     ) -> Result<(), ComposeError> {
         let page = PageNumber::new(self.data_end());
-        // The existing inline map covers this many pages (SRC-0020/EXP-0057).
-        // EXP-0065 observed indirect growth, but supplies no general policy.
-        let page_count = MAP_BITMAP_BYTES * 8;
-        if page.get() >= page_count {
-            return Err(UsageMapWriteError::PageOutOfMap {
-                page,
-                first: PageNumber::new(0),
-                page_count,
-            }
-            .into());
-        }
+        allocation_maps::check_page(page.get())?;
         // Candidate policy: only physically exhausted pages are unavailable.
         // This is not an inferred DAO free-space threshold (EXP-0057).
         let available = match builder.clone().append_row(minimum_row, budget) {
@@ -337,7 +327,7 @@ impl<'a> PlannedCreate<'a> {
     pub(super) fn append_pages(
         &self,
         plan: &mut WholeFileImagePlan,
-        append_map: &mut InlineUsageMapEncoder,
+        maps: &mut AllocationMaps,
         budget: &mut ResourceBudget,
     ) -> Result<(), ComposeError> {
         let definition = self.definition_pages(budget)?;
@@ -345,9 +335,9 @@ impl<'a> PlannedCreate<'a> {
         if let Some(generated) = self.initial_autoincrement {
             generated.write(&mut root, budget)?;
         }
-        plan.append(PageImage::from_bytes(root), append_map, budget)?;
+        plan.append_image(PageImage::from_bytes(root), budget)?;
         for ordinal in 0..self.plan.map_page_count() {
-            plan.append(self.map_page_at(ordinal, None, budget)?, append_map, budget)?;
+            plan.append_image(self.map_page_at(ordinal, None, maps, budget)?, budget)?;
         }
         if self.plan.property_page().is_some() {
             let mut lval = DataPageBuilder::new_long_value(budget)?;
@@ -356,12 +346,12 @@ impl<'a> PlannedCreate<'a> {
                 let length = property.encode(&mut payload, budget)?;
                 lval.append_row(&payload[..length], budget)?;
             }
-            plan.append(finish_data_builder(lval, budget)?, append_map, budget)?;
+            plan.append_image(finish_data_builder(lval, budget)?, budget)?;
         }
         if let Some(first) = self.plan.continuation_page() {
             for (ordinal, payload) in definition.continuations().enumerate() {
                 let image = definition.continuation(first, ordinal, payload, budget)?;
-                plan.append(image, append_map, budget)?;
+                plan.append_image(image, budget)?;
             }
         }
         let owner = self.plan.definition_root().get();
@@ -377,13 +367,13 @@ impl<'a> PlannedCreate<'a> {
             } else {
                 empty_index_page(owner, budget)?
             };
-            plan.append(image, append_map, budget)?;
+            plan.append_image(image, budget)?;
         }
         if let Some(values) = &self.initial_long_values {
-            values.append_pages(plan, append_map, budget)?;
+            values.append_pages(plan, budget)?;
         }
         for data in &self.initial_data {
-            plan.append(data.image.clone(), append_map, budget)?;
+            plan.append_image(data.image.clone(), budget)?;
         }
         for (position, (index, (root, _))) in self
             .initial_indexes
@@ -392,7 +382,7 @@ impl<'a> PlannedCreate<'a> {
             .enumerate()
         {
             for ordinal in 0..index.extra_page_count() {
-                plan.append(
+                plan.append_image(
                     index.image(
                         self.plan.definition_root(),
                         root,
@@ -400,7 +390,6 @@ impl<'a> PlannedCreate<'a> {
                         Some(ordinal as usize),
                         budget,
                     )?,
-                    append_map,
                     budget,
                 )?;
             }
@@ -513,13 +502,14 @@ impl<'a> PlannedCreate<'a> {
         if self.plan.map_page_count() != 1 {
             return Err(ComposeError::UnobservedMapRowLayout);
         }
-        self.map_page_at(0, foreign_index, budget)
+        self.map_page_at(0, foreign_index, &mut AllocationMaps::inline_only(), budget)
     }
 
     fn map_page_at(
         &self,
         ordinal: usize,
         foreign_index: Option<(PageNumber, u64)>,
+        maps: &mut AllocationMaps,
         budget: &mut ResourceBudget,
     ) -> Result<PageImage, ComposeError> {
         use crate::creation::schema_plan::MAP_ROWS_PER_PAGE;
@@ -537,9 +527,12 @@ impl<'a> PlannedCreate<'a> {
         let mut builder = DataPageBuilder::new(PageNumber::new(HEADER_PAGE), budget)?;
         for row in start..count.min(start + MAP_ROWS_PER_PAGE) {
             let bytes = if row < 2 {
-                self.table_map_row(row == 1, budget)?
+                self.table_map_row(row == 1, maps, budget)?
             } else if let Some((root, extra)) = foreign_index {
-                initial_index_map(root, root.get() + 1, extra, budget)?
+                maps.row(
+                    std::iter::once(root.get()).chain(root.get() + 1..root.get() + 1 + extra),
+                    budget,
+                )?
             } else if row - 2 < self.spec.indexes.len() {
                 let index = row - 2;
                 let (root, _) = self
@@ -547,12 +540,14 @@ impl<'a> PlannedCreate<'a> {
                     .index_placements()
                     .nth(index)
                     .ok_or(ComposeError::UnobservedMapRowLayout)?;
-                initial_index_map(
-                    root,
-                    self.index_extra_start(index),
-                    self.initial_indexes
-                        .get(index)
-                        .map_or(0, InitialLongIndex::extra_page_count),
+                let extra = self
+                    .initial_indexes
+                    .get(index)
+                    .map_or(0, InitialLongIndex::extra_page_count);
+                maps.row(
+                    std::iter::once(root.get()).chain(
+                        self.index_extra_start(index)..self.index_extra_start(index) + extra,
+                    ),
                     budget,
                 )?
             } else {
@@ -561,7 +556,7 @@ impl<'a> PlannedCreate<'a> {
                     .nth(offset / 2)
                     .ok_or(ComposeError::UnobservedMapRowLayout)?;
                 match &self.initial_long_values {
-                    Some(values) => values.maps(column, budget)?[offset % 2],
+                    Some(values) => values.map(column, !offset.is_multiple_of(2), maps, budget)?,
                     None => inline_map_row(&[], budget)?,
                 }
             };
@@ -573,22 +568,19 @@ impl<'a> PlannedCreate<'a> {
     fn table_map_row(
         &self,
         available: bool,
+        maps: &mut AllocationMaps,
         budget: &mut ResourceBudget,
     ) -> Result<[u8; 133], ComposeError> {
-        let mut map = InlineUsageMapEncoder::new(
-            PageNumber::new(0),
-            ByteCount::new(MAP_BITMAP_BYTES),
-            budget,
-        )?;
         let first = self.data_end() - self.initial_data.len() as u64;
-        for (offset, data) in self.initial_data.iter().enumerate() {
-            if !available || data.available {
-                map.set_page(PageNumber::new(first + offset as u64))?;
-            }
-        }
-        let mut bytes = [0; 133];
-        map.encode_into(&mut bytes, budget)?;
-        Ok(bytes)
+        maps.row(
+            self.initial_data
+                .iter()
+                .enumerate()
+                .filter_map(|(offset, data)| {
+                    (!available || data.available).then_some(first + offset as u64)
+                }),
+            budget,
+        )
     }
 }
 
@@ -665,23 +657,6 @@ fn long_value_columns<'s>(spec: &'s TableSpec<'_>) -> impl Iterator<Item = u16> 
 #[cfg(test)]
 #[path = "table_create_tests.rs"]
 mod tests;
-
-fn initial_index_map(
-    root: PageNumber,
-    first_extra: u64,
-    extra_count: u64,
-    budget: &mut ResourceBudget,
-) -> Result<[u8; 133], ComposeError> {
-    let mut map =
-        InlineUsageMapEncoder::new(PageNumber::new(0), ByteCount::new(MAP_BITMAP_BYTES), budget)?;
-    map.set_page(root)?;
-    for page in first_extra..first_extra + extra_count {
-        map.set_page(PageNumber::new(page))?;
-    }
-    let mut row = [0_u8; 133];
-    map.encode_into(&mut row, budget)?;
-    Ok(row)
-}
 
 #[path = "definition_pages.rs"]
 mod definition_pages;

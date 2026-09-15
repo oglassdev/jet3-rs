@@ -1,7 +1,7 @@
 //! EXP-0162/0227: reuse a released data page with its first physical row slot.
 use crate::{
-    DatabaseReader, FileSource, MapRowLocator, PAGE_BYTES, PageNumber, ResourceBudget,
-    TableDefinition, UpdateError,
+    DatabaseReader, FileSource, PAGE_BYTES, PageNumber, ResourceBudget, TableDefinition,
+    UpdateError,
 };
 
 pub(crate) fn find(
@@ -9,34 +9,17 @@ pub(crate) fn find(
     table: &TableDefinition,
     budget: &mut ResourceBudget,
 ) -> Result<Option<(PageNumber, [u8; PAGE_BYTES])>, UpdateError> {
-    let mut bytes = [0; PAGE_BYTES];
-    // EXP-0051: global free-page map, whose future bits may extend beyond EOF.
-    let locator = MapRowLocator::new(PageNumber::new(1), 0);
-    let page = database
-        .read_classified_page(locator.page(), &mut bytes, budget)
-        .map_err(crate::TableDefinitionError::Page)?;
-    let row = crate::locate_usage_map(page, locator, budget).map_err(UpdateError::UsageMap)?;
-    let crate::allocation::AllocationMapLayout::Inline { start_page, bitmap } =
-        crate::allocation::decode_allocation_map_layout(row.raw(), budget)
-            .map_err(UpdateError::Allocation)?
-    else {
-        return Err(UpdateError::Unsupported("indirect global allocation map"));
-    };
-    let bits = &row.raw()[bitmap];
-    let existing = database
-        .geometry()
-        .page_count()
-        .saturating_sub(start_page.get());
-    let count = existing.min(bits.len() as u64 * 8);
+    let global = crate::mutation_map::MapBits::load(
+        database,
+        crate::mutation_map_write::global_locator(),
+        budget,
+    )?;
+    let free = global.existing_pages(database.geometry().page_count(), true, budget)?;
     let owner = u32::try_from(table.root().get())
         .map_err(|_| UpdateError::Mismatch("data page owner width"))?;
     let mut candidate = [0; PAGE_BYTES];
-    for bit in 0..count {
+    for number in free {
         budget.charge_work_units(1)?;
-        if bits[(bit / 8) as usize] & (1 << (bit % 8)) == 0 {
-            continue;
-        }
-        let number = PageNumber::new(start_page.get() + bit);
         database.read_raw_page(number, &mut candidate, budget)?;
         if candidate[0] != 9 || candidate[1] != 1 || candidate[4..8] != owner.to_le_bytes() {
             continue;

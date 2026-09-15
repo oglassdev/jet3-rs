@@ -238,7 +238,7 @@ where
     if let Some(index) = index_change {
         index.stage(&mut database, &definition, &mut edits, budget)?;
     }
-    edits.publish(path, database.into_source(), budget, hook)
+    edits.publish(path, database, budget, hook)
 }
 
 #[cfg(all(test, any(unix, windows)))]
