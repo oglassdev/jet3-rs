@@ -476,7 +476,7 @@ fn append_leaf_entries(
             .len()
             .checked_add(suffix.len())
             .ok_or_else(|| resource_arithmetic("size leaf index entry"))?;
-        if full_len <= LEAF_TRAILER_LEN || suffix.len() < LEAF_TRAILER_LEN {
+        if full_len <= LEAF_TRAILER_LEN {
             return Err(IndexTreeError::TruncatedEntry {
                 page: parsed.node.page,
                 entry: entry_index,
@@ -486,22 +486,24 @@ fn append_leaf_entries(
         let key_len = full_len - LEAF_TRAILER_LEN;
         let mut raw = Vec::new();
         budget
-            .charge_allocation(ByteCount::from_usize(key_len).map_err(IndexTreeError::Resource)?)
+            .charge_allocation(ByteCount::from_usize(full_len).map_err(IndexTreeError::Resource)?)
             .map_err(IndexTreeError::Resource)?;
-        raw.try_reserve_exact(key_len)
+        raw.try_reserve_exact(full_len)
             .map_err(|_| allocation_failure("reserve raw index key"))?;
         raw.extend_from_slice(prefix);
-        let key_suffix_len = suffix.len() - LEAF_TRAILER_LEN;
-        raw.extend_from_slice(&suffix[..key_suffix_len]);
-        let trailer = &suffix[key_suffix_len..];
+        raw.extend_from_slice(suffix);
+        // EXP-0255: the shared prefix may include bytes of the row locator.
+        let trailer = &raw[key_len..];
         let row_page = PageNumber::new(u64::from(u24_at_be(trailer, 0)));
+        let row_slot = trailer[3];
         validate_reference(geometry, parsed.node.page, row_page, "leaf row page")?;
+        raw.truncate(key_len);
         let encoding = classify_key(&raw, physical, table);
         push_charged(
             output,
             IndexEntry {
                 key: IndexKey { raw, encoding },
-                row: RowLocator::new(row_page, trailer[3]),
+                row: RowLocator::new(row_page, row_slot),
             },
             budget,
             "reserve leaf index entry",
@@ -534,19 +536,25 @@ fn append_children(
             .prefix_len
             .checked_add(suffix.len())
             .ok_or_else(|| resource_arithmetic("size branch index entry"))?;
-        if full_len <= LEAF_TRAILER_LEN + BRANCH_CHILD_LEN
-            || suffix.len() < LEAF_TRAILER_LEN + BRANCH_CHILD_LEN
-        {
+        if full_len <= LEAF_TRAILER_LEN + BRANCH_CHILD_LEN {
             return Err(IndexTreeError::TruncatedEntry {
                 page: parsed.node.page,
                 entry: entry_index,
                 length: full_len,
             });
         }
-        let row_trailer = suffix.len() - LEAF_TRAILER_LEN - BRANCH_CHILD_LEN;
-        let row_page = PageNumber::new(u64::from(u24_at_be(suffix, row_trailer)));
+        // EXP-0062: parse the trailer of the complete prefix-plus-suffix entry.
+        let mut trailer = [0; LEAF_TRAILER_LEN + BRANCH_CHILD_LEN];
+        let tail = data[..parsed.prefix_len]
+            .iter()
+            .chain(suffix)
+            .skip(full_len - trailer.len());
+        for (target, byte) in trailer.iter_mut().zip(tail) {
+            *target = *byte;
+        }
+        let row_page = PageNumber::new(u64::from(u24_at_be(&trailer, 0)));
         validate_reference(geometry, parsed.node.page, row_page, "branch row page")?;
-        let child = PageNumber::new(u64::from(u32_at_be(suffix, suffix.len() - 4)));
+        let child = PageNumber::new(u64::from(u32_at_be(&trailer, LEAF_TRAILER_LEN)));
         validate_child(parsed.node.page, child, geometry)?;
         push_charged(
             pending,

@@ -16559,3 +16559,33 @@ by this native-only discovery.
   Accepted report: 6,088,435 bytes, SHA-256
   `9199fb56258241aa9d1dea6f9358c8aa5f7c46773ff90e9926ec927e61632c53`.
   Individual worker/source pins are in private `accepted-pins.json`.
+
+
+## EXP-0255 — Native index compression includes the row locator
+
+- Recorded: 2026-09-15, OpenAI Codex. Secondary analysis of the allocation
+  lifecycle acquisition at source `476b7614826b0916b5011337d5cbc5d760ef4cfe`,
+  outbox `20260915T112458Z-allocation-lifecy-b951e6`. The x86 DAO 3.6 provider
+  is the EXP-0254 provider. All four native workers completed with exit zero
+  and retained their complete records, after the host controller's 900-second
+  timeout. The original timeout report remains unchanged. Subsequent analysis
+  accepted three cases but failed on the largest native payload control when
+  Rust reported `TruncatedEntry { page: 3017, entry: 0, length: 5 }`.
+- The 8,200-row payload case has a nullable descending Long index. Independent
+  raw reconstruction and complete DAO schema, row/payload, index traversal and
+  Seek comparisons agree for the original and mutated controls. Across those
+  two files, 992 leaf entries have a stored suffix shorter than the four-byte
+  locator. Their common prefix is `ff00`: the descending null key `ff` plus
+  the first locator byte. The first suffix on page 3,017 is `0ba412`; the full
+  entry is `ff000ba412`, giving key `ff`, page 2,980 and slot 18. The prefix
+  belongs to the complete entry; the locator is decoded after concatenation,
+  as in the EXP-0062 entry grammar. Requiring its four bytes in the suffix
+  incorrectly rejects these native entries.
+- The original native control is 34,166,784 bytes, SHA-256
+  `273a7503361a92fe43dc857fceae936f3b4ea9847a408917c74c464150b90f02`.
+  The retained characterization `/tmp/jet3-allocation-prefix-locator-discovery.json`
+  is 271,376 bytes, SHA-256
+  `f7cc1ce4633afeb2b3916d5484f686b7f809b8630fa41c8d7e4b7a8fc8a313f9`.
+  It binds the input manifest, aggregate result, images and every affected
+  entry. No new native acquisition was performed for this analysis. This
+  establishes the compression fact; candidate lifecycle acceptance is separate.
