@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Run one local PowerShell script under x86 Windows PowerShell on the DAO VM.
 
-Discovery aid only: stages the script (plus optional extra files) in the shared
+Stages the script (plus optional extra files) in the shared
 inbox, runs it on the guest's local disk, and prints the captured log inline.
 Inside the script, `$env:JET3_WORK` is the guest-local working directory and
 `$env:JET3_OUTBOX` is the shared outbox directory for files to bring back.
-Nothing this produces is evidence.
+Differential evidence requires retained inputs, provider identity and complete comparisons.
 """
 
 from __future__ import annotations

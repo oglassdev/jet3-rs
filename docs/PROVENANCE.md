@@ -15141,3 +15141,39 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   page. No overflow-row, long-value, indirect-map or general free-page reuse
   semantics are inferred.
 
+
+## EXP-0223 — Multi-level unique Long mutation lifecycle and DAO continuations
+
+- Ran the reproducible `index-trees` suite on the rebuilt Windows Server 2022
+  VM with x86 `DAO.DBEngine.36` 3.6, DLL 03.60.9765.0 (SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`).
+  Initial source: `edd18b92c1281167b490c1b3ccc528a284f19667` with runner changes.
+- Outcome: **matched**, all five finite cases. Ascending primary and descending
+  unique Long indexes grow from 200 to 201 keys while also appending a data page;
+  key reorder, Text/Binary row growth and shrinkage, collapse to 200 and regrowth
+  preserve complete expected contents. One-row and three-slot tombstone cases
+  delete every row and reinsert. Narrow Long/Long rows cross the 27,800/27,801
+  boundary into a three-level tree, then reorder, collapse and regrow.
+- All 27 retained Rust checkpoints pass independent raw row/key/locator, branch
+  maximum, sibling, depth, counter and map checks. Twenty-five checkpoints have
+  full paired DAO captures; the deep reorder/collapse intermediates retain
+  images and raw Rust checks without separate DAO snapshots. Five final pairs
+  also complete DAO insertion, key update and deletion and match again.
+- A second round takes the final native controls for the primary and deep
+  cases, verifies their actual compressed nodes, inserts key 1,234,567 through
+  Rust, and compares an independent equivalent DAO insertion. Both complete
+  comparisons match, producing 202 and 27,802 rows respectively.
+- Comparisons include complete typed row/traversal sidecars, schema, selected
+  present/absent Seek results and provider/input/result identities. Every phase
+  preserves unrelated Notes data pages and its 4 KiB Memo payload. Rebuilt trees
+  keep their original root and retain surplus mapped pages for later reuse;
+  those unused pages retain their previous bytes. Stored counters follow
+  EXP-0219; last-live data-page release follows EXP-0224.
+- Private root: `shared/checks/20260915-index-tree-lifecycle-1/index-trees/`.
+  Combined forward/continuation `report.json` SHA-256
+  `7784a7caf682963f9e1ce4a5d416301d7279b4360147612dc5dcc7274a75742f`.
+  Captures are `shared/outbox/20260915T033214Z-index-trees-82a763/` and
+  `shared/outbox/20260915T033259Z-index-trees-7e8aca/`.
+- Scope remains one unique/primary present Long index, scalar rows and inline
+  maps. No composite/nonunique/null-key mutation, relationships, long-value
+  mutation, indirect allocation or general v1 compatibility is established.

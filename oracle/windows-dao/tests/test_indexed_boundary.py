@@ -26,6 +26,7 @@ def snapshot(arm, role):
 class BoundaryTests(unittest.TestCase):
     def test_full_report_and_failure_matrix(self):
         plan = json.loads(a.PLAN.read_text())
+        plan['arms'] = [arm for arm in plan['arms'] if arm['name'] != 'split']
         with tempfile.TemporaryDirectory() as tmp:
             images = Path(tmp)/'images'
             subprocess.run(['cargo','run','--quiet','-p','jet3','--example','indexed_boundary_candidate','--',str(images)],cwd=a.ROOT,check=True)
@@ -46,7 +47,7 @@ class BoundaryTests(unittest.TestCase):
                 elif defect == 'boolean': s['user_tables'][0]['rows'][1][3] = 1
                 elif defect == 'memo': s['user_tables'][1]['rows'][0][1] = 'changed'
                 elif defect == 'seek': s['seek'].pop()
-                elif defect == 'capture': bad['captures'].pop('split-control.mdb')
+                elif defect == 'capture': bad['captures'].pop('eof-control.mdb')
                 elif defect == 'operation': bad['operations']['duplicate']['numbers'] = []
                 else: bad['retention_failures'] = ['lost']
                 self.assertEqual(a.build_report(bad,images,plan)['outcome'],'no_outcome',defect)

@@ -72,21 +72,25 @@ and wider definitions in the tested layouts.
 ### Updates
 
 Public APIs implement bounded field updates, insertion into populated pages or
-one EOF page, deletion/compaction, sole physical-row page release, same-page
-scalar row replacement, and unique Long maintenance in an isolated leaf.
-Indexed EOF insertion publishes data, allocation, table counts and index
-changes together. Publication is Unix-only.
+one EOF data page, deletion/compaction, last-live-row page release, same-page
+scalar row replacement, and multi-level unique Long index maintenance. Rebuilt
+trees keep their root, reuse reserved index pages, and append nodes within inline
+maps. Indexed EOF insertion publishes data, allocation, table counts and index
+changes together. The CLI exposes full-row replacement. Publication is Unix-only.
 
 EXP-0212 covers seventeen hosted update recipes. EXP-0221 adds local DAO
 comparisons for indexed insertion/deletion, boundary insertion, native
 continuations and duplicate rejection. EXP-0219 identifies the retained index
 counter after deletion; Rust now preserves it on deletion and increments its
 prior value on insertion. EXP-0216 and EXP-0218 remain historical failed runs.
+EXP-0223 adds five tree lifecycle cases and two DAO-compressed input
+continuations, including depth-three growth and empty-table reuse. EXP-0224
+records native last-live-row release with retained deleted slots.
 
 ### Remaining work
 
 - Extend creation beyond current schema/index-key and inline-allocation bounds.
-- Extend updates to index splits, branches, compressed/composite/nonunique keys,
+- Extend updates to composite/nonunique/null index keys,
   relationship and long-value targets, free-page/slot reuse and indirect maps.
 - Cover remaining DAO inventories, stored-query preservation and broader
   failure/rollback behavior. Local VM and hosted runs may both establish
@@ -116,5 +120,6 @@ file byte-for-byte; post-publication sync errors retain their documented
 potentially-visible-change semantics.
 
 This is a concrete milestone within v1, not a substitute for the full scope or
-release gates. Indexed insertion now crosses a data-page boundary; index-leaf
-growth and the broader mutation lifecycle remain unfinished.
+release gates. Indexed insertion crosses data-page and index-leaf boundaries;
+the complete Items/Notes scenario and broader v1 inventories still require
+their recorded DAO comparisons.

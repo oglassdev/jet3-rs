@@ -210,7 +210,9 @@
         "crates/jet3/src/row_update_page.rs",
         "scripts/dao-check.py",
         "oracle/windows-dao/scripts/indexed_row_candidate.py",
-        "oracle/windows-dao/scripts/indexed_boundary.py"
+        "oracle/windows-dao/scripts/indexed_boundary.py",
+        "crates/jet3/src/unique_index.rs",
+        "oracle/windows-dao/scripts/index_tree_mutation.py"
       ]
     },
     {
@@ -258,7 +260,9 @@
         "crates/jet3/src/index_key_page.rs",
         "scripts/dao-check.py",
         "oracle/windows-dao/scripts/indexed_row_candidate.py",
-        "oracle/windows-dao/scripts/indexed_boundary.py"
+        "oracle/windows-dao/scripts/indexed_boundary.py",
+        "crates/jet3/src/unique_index.rs",
+        "oracle/windows-dao/scripts/index_tree_mutation.py"
       ]
     },
     {

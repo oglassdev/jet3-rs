@@ -32,22 +32,27 @@ share only after DAO closes every database and recordset.
 ## Repeatable verification
 
 ```sh
-python3 scripts/dao-check.py indexed-boundary indexed-rows \
+python3 scripts/dao-check.py \
   --out /path/outside/repo/new-run
 ```
 
 The command builds current Rust examples, generates candidates, records runtime
 inputs and the source revision, probes the exact provider, and compares DAO
 rows, schema, traversal, lookups, native continuations and retained counters.
-It also checks unrelated-byte preservation and duplicate/capacity refusal.
+It also checks unrelated-byte preservation and duplicate refusal.
+Omitting suite names runs all suites; provide names to select a subset.
 Every attempt uses a new directory and retains logs and a summary, including
 failures. No committed plan or separate authorization is required. Fix a failure
 and run the same command with another output directory.
 
 The boundary suite covers existing-page insertion, EOF-page insertion,
-duplicate refusal and full-root-leaf refusal with unrelated Memo data. The row
+duplicate refusal with unrelated Memo data. The row
 suite covers ascending/descending unique Long keys, the leaf capacity boundary,
 repeated deletion, subsequent native insertion and duplicate rejection.
+The `creation-tables` suite covers catalog capacity and multiple indexes on
+later tables. The `index-trees` suite covers tree growth/shrinkage, complete row
+replacement and empty-table reuse, then feeds DAO-compressed outputs back
+through Rust and compares a second DAO round.
 These finite suites do not establish general Jet 3 compatibility.
 
 `just windows-dev-probe` and the existing `windows-dev-*` recipes remain useful

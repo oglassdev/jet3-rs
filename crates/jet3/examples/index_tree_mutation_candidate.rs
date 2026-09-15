@@ -81,10 +81,9 @@ fn locate(path: &Path, id: i32) -> Result<(RowLocator, ColumnOrdinal)> {
             .field(table.columns()[0].ordinal())
             .and_then(|f| f.raw_bytes())
             == Some(id.to_le_bytes().as_slice())
+            && found.replace(row.locator()).is_some()
         {
-            if found.replace(row.locator()).is_some() {
-                return Err("duplicate Id".into());
-            }
+            return Err("duplicate Id".into());
         }
     }
     found
@@ -160,10 +159,10 @@ fn save(
     phase: &str,
     source: &Path,
     model: &BTreeMap<i32, Row>,
-    descending: bool,
     deep: bool,
     eof: bool,
 ) -> Result<()> {
+    let descending = case == "descending";
     let path = directory.join(format!("{case}-{phase}.mdb"));
     fs::copy(source, &path)?;
     let mut b = budget();
@@ -325,9 +324,7 @@ fn run(directory: &Path, case: &str, count: i32, descending: bool, deep: bool) -
         .map(|id| (id, Row::new(id, deep)))
         .collect::<BTreeMap<_, _>>();
     create(&path, &model, descending, deep)?;
-    save(
-        directory, case, "original", &path, &model, descending, deep, false,
-    )?;
+    save(directory, case, "original", &path, &model, deep, false)?;
     if case == "empty" || case == "tombstone-empty" {
         let deletes: &[(i32, &str)] = if case == "tombstone-empty" {
             &[(2, "delete-tail"), (0, "delete-first"), (1, "empty")]
@@ -336,34 +333,19 @@ fn run(directory: &Path, case: &str, count: i32, descending: bool, deep: bool) -
         };
         for &(id, phase) in deletes {
             delete(&path, &mut model, id)?;
-            save(
-                directory, case, phase, &path, &model, descending, deep, false,
-            )?;
+            save(directory, case, phase, &path, &model, deep, false)?;
         }
         let eof = insert(&path, &mut model, Row::new(-2, deep), deep)?;
-        save(
-            directory, case, "regrown", &path, &model, descending, deep, eof,
-        )?;
+        save(directory, case, "regrown", &path, &model, deep, eof)?;
     } else {
         let added = if deep { 27800 } else { -1 };
         let eof = insert(&path, &mut model, Row::new(added, deep), deep)?;
         if !deep && !eof {
             return Err("split did not also append a data page".into());
         }
-        save(
-            directory, case, "split", &path, &model, descending, deep, eof,
-        )?;
+        save(directory, case, "split", &path, &model, deep, eof)?;
         key_update(&path, &mut model, added, 1000000)?;
-        save(
-            directory,
-            case,
-            "reordered",
-            &path,
-            &model,
-            descending,
-            deep,
-            false,
-        )?;
+        save(directory, case, "reordered", &path, &model, deep, false)?;
         if !deep {
             for (phase, text, binary) in [
                 ("grown", vec![b'g'; 80], vec![0xab; 60]),
@@ -382,33 +364,19 @@ fn run(directory: &Path, case: &str, count: i32, descending: bool, deep: bool) -
                     &mut budget(),
                 )?;
                 model.insert(row.id, row);
-                save(
-                    directory, case, phase, &path, &model, descending, deep, false,
-                )?;
+                save(directory, case, phase, &path, &model, deep, false)?;
             }
         }
         delete(&path, &mut model, 1000000)?;
-        save(
-            directory,
-            case,
-            "collapsed",
-            &path,
-            &model,
-            descending,
-            deep,
-            false,
-        )?;
+        save(directory, case, "collapsed", &path, &model, deep, false)?;
         let eof = insert(&path, &mut model, Row::new(-2, deep), deep)?;
-        save(
-            directory, case, "regrown", &path, &model, descending, deep, eof,
-        )?;
+        save(directory, case, "regrown", &path, &model, deep, eof)?;
     }
     fs::remove_file(path)?;
     Ok(())
 }
 fn continue_dao(source: &Path, directory: &Path, case: &str) -> Result<()> {
     let deep = case == "deep";
-    let descending = case == "descending";
     let mut b = budget();
     let mut db = DatabaseReader::open(source, &mut b)?;
     let table = definition(&mut db, &mut b)?;
@@ -452,16 +420,7 @@ fn continue_dao(source: &Path, directory: &Path, case: &str) -> Result<()> {
     let working = directory.join("working.mdb");
     fs::copy(source, &working)?;
     let eof = insert(&working, &mut model, Row::new(1234567, deep), deep)?;
-    save(
-        directory,
-        case,
-        "continued",
-        &working,
-        &model,
-        descending,
-        deep,
-        eof,
-    )?;
+    save(directory, case, "continued", &working, &model, deep, eof)?;
     fs::remove_file(working)?;
     Ok(())
 }
