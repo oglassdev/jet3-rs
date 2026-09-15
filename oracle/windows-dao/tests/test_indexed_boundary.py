@@ -30,16 +30,21 @@ class BoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             images = Path(tmp)/'images'
             subprocess.run(['cargo','run','--quiet','-p','jet3','--example','indexed_boundary_candidate','--',str(images)],cwd=a.ROOT,check=True)
-            result = dict(document_type='dao_indexed_boundary_result',plan_sha256=a.identity(a.PLAN)['sha256'],environment=dict(process_bits=32,provider='DAO.DBEngine.36'),error=None,retention_failures=[],mutation_started=True,captures={},operations=dict(space=dict(status='inserted'),eof=dict(status='inserted'),duplicate=dict(status='duplicate',numbers=[3022])))
+            plan['images'] = {p.name: a.identity(p) for p in images.glob('*.mdb')}
+            runtime_plan = Path(tmp)/'inputs.json'
+            runtime_plan.write_text(json.dumps(plan))
+            result = dict(document_type='dao_indexed_boundary_result',plan_sha256=a.identity(runtime_plan)['sha256'],environment=dict(process_bits=32,provider='DAO.DBEngine.36'),error=None,retention_failures=[],mutation_started=True,captures={},operations=dict(space=dict(status='inserted'),eof=dict(status='inserted'),duplicate=dict(status='duplicate',numbers=[3022])))
             for arm in plan['arms']:
                 shutil.copyfile(images/f"{arm['name']}-candidate.mdb", images/f"{arm['name']}-control.mdb")
                 for role in ('original','candidate','control'):
                     name = f"{arm['name']}-{role}.mdb"
                     pin = a.identity(images/name)
-                    if role != 'control': self.assertEqual(pin,plan['images'][name])
                     result['captures'][name] = dict(before=pin,after=pin,snapshot=snapshot(arm,role))
-            report = a.build_report(result,images,plan)
+            report = a.build_report(result,images,plan,plan_path=runtime_plan)
             self.assertEqual(report['outcome'],'observed_accepted',report['reasons'])
+            wrong_pin = copy.deepcopy(plan)
+            wrong_pin['images']['eof-candidate.mdb']['sha256'] = '0' * 64
+            self.assertEqual(a.build_report(result,images,wrong_pin,plan_path=runtime_plan)['outcome'],'no_outcome')
             for defect in ('currency','boolean','memo','seek','capture','operation','retention'):
                 bad = copy.deepcopy(result)
                 s = bad['captures']['eof-candidate.mdb']['snapshot']
@@ -50,7 +55,7 @@ class BoundaryTests(unittest.TestCase):
                 elif defect == 'capture': bad['captures'].pop('eof-control.mdb')
                 elif defect == 'operation': bad['operations']['duplicate']['numbers'] = []
                 else: bad['retention_failures'] = ['lost']
-                self.assertEqual(a.build_report(bad,images,plan)['outcome'],'no_outcome',defect)
+                self.assertEqual(a.build_report(bad,images,plan,plan_path=runtime_plan)['outcome'],'no_outcome',defect)
             arm = plan['arms'][1]
             before = (images/'eof-original.mdb').read_bytes()
             after = (images/'eof-candidate.mdb').read_bytes()
