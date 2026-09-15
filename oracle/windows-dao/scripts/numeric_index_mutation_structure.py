@@ -44,7 +44,9 @@ def tree(data, root, owner, fields):
         boundaries = [position * 8 + bit for position, byte in enumerate(page[22:248]) for bit in range(8) if byte & (1 << bit)]
         require(all(prefix < end <= 1800 for end in boundaries), 'Index boundary outside entry area')
         require(int.from_bytes(page[2:4], 'little') == 1800 - (boundaries[-1] if boundaries else 0), 'Index free space mismatch')
-        require(bool(boundaries) or (not branch and prefix == 0), 'Empty branch or unmatched prefix')
+        # EXP-0246: a class-one root can retain only its tail child after deletion.
+        require(bool(boundaries) or prefix == 0, 'Empty node with unmatched prefix')
+        require(bool(boundaries) or not branch or (depth == 1 and page[21] == 1), 'Unobserved empty intermediate node')
         node = dict(page=number, depth=depth, previous=previous, next=following, tail=tail, prefix=prefix,
                     entries=len(boundaries), children=[], header_class=page[21], stale_separators=0)
         nodes.append(node)

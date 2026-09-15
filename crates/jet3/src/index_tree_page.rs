@@ -155,7 +155,11 @@ pub(crate) fn parse_node(
             expected: expected_free,
         });
     }
-    if node_kind == IndexNodeKind::Intermediate && entry_count == 0 {
+    // EXP-0246: deletion can retain a class-one root with only its tail child.
+    if node_kind == IndexNodeKind::Intermediate
+        && entry_count == 0
+        && (pending.depth != 1 || marker != 1)
+    {
         return Err(IndexTreeError::EmptyIntermediate { page: pending.page });
     }
     Ok(ParsedNode {
