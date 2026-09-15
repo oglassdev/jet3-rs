@@ -105,6 +105,12 @@ impl Column {
         {
             return Err(format!("column {} does not accept size", self.name));
         }
+        if self.allow_zero_length && !matches!(self.kind, Kind::Text | Kind::Memo) {
+            return Err(format!(
+                "column {} requires text or memo for allow_zero_length",
+                self.name
+            ));
+        }
         let kind = match self.kind {
             Kind::Boolean => ColumnType::Boolean,
             Kind::Byte => ColumnType::Byte,

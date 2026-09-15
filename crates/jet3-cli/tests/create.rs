@@ -39,6 +39,8 @@ fn create_rejects_unknown_fields_types_and_arguments() -> Result {
         r#"{"tables":[{"name":"T","columns":[{"name":"Id","type":"long"}],"rows":[[{"long":2147483648}]]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"Id","type":"long","size":4}]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"Text","type":"text","size":0}]}]}"#,
+        r#"{"tables":[{"name":"T","columns":[{"name":"Text","type":"fixed_text","size":8,"allow_zero_length":true}]}]}"#,
+        r#"{"tables":[{"name":"T","columns":[{"name":"Id","type":"long","allow_zero_length":true}]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"Text","type":"text","size":10}],"rows":[[{"text":"é"}]]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"B","type":"binary","size":2}],"rows":[[{"binary":[256]}]]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"F","type":"single"}],"rows":[[{"single":1e300}]]}]}"#,
