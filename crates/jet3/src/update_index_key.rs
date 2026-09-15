@@ -1,6 +1,6 @@
-//! Indexed fixed-field updates share the complete Long tree mutation planner.
+//! Indexed fixed-field updates share the complete numeric tree mutation planner.
 use crate::{
-    DatabaseReader, FieldUpdate, FileSource, ResourceBudget, RowValue, TableDefinition, UpdateError,
+    DatabaseReader, FieldUpdate, FileSource, ResourceBudget, TableDefinition, UpdateError,
 };
 
 pub(crate) fn plan(
@@ -8,7 +8,7 @@ pub(crate) fn plan(
     table: &TableDefinition,
     request: FieldUpdate<'_>,
     budget: &mut ResourceBudget,
-) -> Result<Option<crate::unique_index::UniqueIndex>, UpdateError> {
+) -> Result<Option<crate::index_mutation::Indexes>, UpdateError> {
     let mut indexed = false;
     for index in table.physical_indexes() {
         for key in index.fields() {
@@ -19,10 +19,7 @@ pub(crate) fn plan(
     if !indexed {
         return Ok(None);
     }
-    let mut index = crate::unique_index::load(database, table, budget)?;
-    let RowValue::Long(value) = request.value else {
-        return Err(UpdateError::Unsupported("key update requires present Long"));
-    };
-    index.replace(request.row, value, budget)?;
+    let mut index = crate::index_mutation::load(database, table, budget)?;
+    index.replace_field(database, table, request, budget)?;
     Ok(Some(index))
 }

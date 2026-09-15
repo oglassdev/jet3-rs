@@ -15404,3 +15404,150 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   `retained-artifacts.json` pins 116 local and 305 outbox files.
   Captures: `shared/outbox/20260915T050500Z-random-storage-c9d38a9-sol/`.
   Original attempt: `shared/checks/20260915-random-storage-sol-c9d38a9/`.
+
+## EXP-0230 — Numeric index counters track distinct inserts and retain key edits
+
+- Native DAO histories cover single/composite Long keys, unique/nonunique
+  indexes and include/ignore-all-null policies, each with an independent
+  primary index and a descending mirror index. Eight cases have two replicas;
+  19 checkpoints each yield 304 retained images and 912 index checkpoints.
+- In every observed index, row INSERT increments the stored prefix counter
+  only when the encoded key is included and absent from the current index.
+  Duplicate-key insertion and omitted all-null insertion retain it. This
+  includes a first null-bearing key in an including index. Deleting either
+  one duplicate or the last duplicate retains the counter; later reinsertion
+  of that now-absent key increments it again.
+- Every key UPDATE retains the counter, including merging/splitting duplicate
+  groups, present/null transitions and omitted/included transitions. Both
+  replicas agree. All complete leaf records sort by encoded key plus locator
+  in this small single-leaf inventory. Branch-boundary duplicates require
+  separate mutation verification.
+- A dependent eight-case followup (44 images) confirms that counters can be
+  lower than the current distinct-key count. Three equal inserted keys retain
+  counter 1 after two edits produce three distinct keys. Two initially omitted
+  null rows retain counter 0 after edits produce two included unique keys.
+  A general reader/mutator must not require the counter to equal or exceed
+  current live rows or distinct keys. Table live counts remain independently
+  checked against rows.
+- Independent analysis checks cumulative before/after identities, complete
+  expected typed rows, physical schema and live counts, key encoding and exact
+  locator coverage, DAO directed traversal, and capture-read preservation.
+  These observations establish counter behavior, not a Rust mutation result.
+- Private first report:
+  `shared/checks/20260915-numeric-counter-discovery/report.json`, SHA-256
+  `ae71d8f79d0fdb3923c231e730fd30d34666e9077b445dbf3ae20277c2475c77`;
+  all-transition predicate/replica check `conclusions.json`, SHA-256
+  `d1c9b57812b9b89647482799ce6cee629fc942844df2a3f9f66dd5d1639b3daf`.
+  Captures: `shared/outbox/20260915T045200Z-numeric-counters/`.
+- Followup report:
+  `shared/checks/20260915-numeric-counter-below-distinct/report.json`, SHA-256
+  `c74acabe44506d275f2596817fbf3fb8e1698c8db725b39d1c61f7afb257d1d0`.
+  Captures: `shared/outbox/20260915T045500Z-counters-below-distinct/`.
+  Both directories retain matrices, producers, analyzer and actual provider
+  environment. DAO is the fresh local 3.6 provider from EXP-0221.
+
+## EXP-0232 — Multiple numeric indexes across row and tree lifecycles
+
+- Local DAO comparison accepts three table shapes, each with three indexes,
+  an independent Long primary key and an unrelated Notes Memo table. The
+  integral case covers Byte/Integer composite keys and descending Boolean;
+  the wide case covers Currency/Double unique composite keys and descending
+  Single; the deep case covers variable-width nullable Currency/Double keys.
+  Primary, unique/nonunique, mixed directions, include-null and ignore-all-null
+  policies are represented. All fifteen lifecycle checkpoints match complete
+  DAO schema, typed rows, directed traversal and the finite full-key Seek set.
+- Integral insertion grows all three trees across leaves. Deleting and
+  reinserting rows reuses lower released data pages, with duplicate records
+  ordered by the complete encoded key and row locator. The deep composite tree
+  grows from depth two at 5,673 rows to depth three at 5,674, with all-null and
+  partial-null records included. Field edits, full-row null transitions,
+  deletions and reinsertion retain the EXP-0230 counter semantics. The wide
+  Single index retains counter zero after edits create two included keys.
+- DAO then inserts, updates and deletes on both Rust and native outputs;
+  all three resulting pairs match. Rust subsequently inserts, edits and
+  deletes from each retained native control, followed by another paired DAO
+  comparison: all three pass. The integral source contains a compressed
+  Boolean node; the deep source contains 67 compressed Double and 44 compressed
+  Currency/Double nodes. The wide source is uncompressed and retains Single
+  continuation coverage without a compression claim.
+- Independent raw analysis checks every key/locator against decoded live rows,
+  retained counters, schema, allocation membership, leaf order, sibling links,
+  depth and EXP-0225 upper fences. Rust mutation loading additionally checks
+  each reconstructed branch key's schema-permitted component shape, allowing
+  historical null-bearing fences independently of current rows. Sol review
+  identified and reproduced an overly broad branch-width guard; the corrected
+  reader refuses both shorter and longer malformed Long branch keys even
+  when their ordering bounds remain valid, preserving the full input file.
+- Notes definition, map, data and long-value page hashes stay unchanged through
+  Rust mutations and DAO read-only captures. Two duplicate requests targeting
+  the third unique index preserve the entire source. Focused corruption and
+  late resource/counter-limit tests also require exact pre-publication preservation.
+- Accepted initial comparison source:
+  `f78b49063699d5a754c2cfc3f4c94376e37d0d84`. Report:
+  `shared/outbox/20260915T052052Z-numeric-indexes-d6c182/numeric-index-mutation-report.json`,
+  SHA-256 `50548998540cdd2f9f72d1b325ad38a168321405310a525ab9d6d6eeb99b67e3`.
+  Dependent continuation source `7d1cfcec58240bada7dc6b26f73670b49a466902`
+  has identical production code and extends only the continuation inventory.
+  Report `shared/checks/20260915-numeric-continuation-successor/report.json`,
+  SHA-256 `912fdbc55a3179562e326cb6647e7d0cfccd3f20bdf5eac9617d8e2871152a88`;
+  captures `shared/outbox/20260915T052621Z-numeric-indexes-123a4e/`.
+- Earlier attempts remain retained. The first producer stopped on PowerShell
+  numeric marshalling while filling native controls, before comparing candidates:
+  `shared/checks/20260915-numeric-index-mutations-initial/numeric-indexes/report.json`,
+  SHA-256 `c525327e4d02003a573f437de9d87e5eece1208813a905a67dbcec5cf8ab59ce`.
+  Explicit typed assignments corrected it. The accepted initial comparison's
+  suite wrapper then failed a continuation-preparation assumption that the
+  wide native source would be compressed. Its unchanged failed wrapper is
+  `shared/checks/20260915-numeric-all-suites-successor/numeric-indexes/report.json`,
+  SHA-256 `cf4f749b79e189778e0795eee96e8f6786a4e1e4ceecc254c2094c1f0dacfc00`.
+  The separate dependent inventory above adds the actually compressed deep
+  source and retains the wide case.
+- The other five repeatable suites also match on `f78b490`, under
+  `shared/checks/20260915-numeric-all-suites-successor/`. Report SHA-256:
+  indexed-boundary `8f87c6ee5d2d34261debf6945b971941f9d74ca2ff2f34386a8d6b7acdebd0a9`;
+  indexed-rows `8a56dc4663cf3c5da7cac426f8bbb6a9861628b0a9bd8e5e95083f20a394c06f`;
+  creation-tables `79ab7c1bc53b4ae84a044f41b8c47c6a08302c26c245ade6c90709e11b1a4d73`;
+  index-trees `58ad81a69e886cc47c3528e49e9f8aa3c39c9dee5f1f8893f61ff1b443c699f4`;
+  index-trees/continuation `dfe63599a05c863145bd3ada7f2a359b8ffaa430e09aee9b2116c4e978f469f0`;
+  practical-lifecycle `03713bd37fe6559ee45222d01f3efe3263a4df66da2e73e61b94a794c38702e0`.
+  Provider details are retained per run: the fresh local DAO 3.6 environment
+  from EXP-0221. This is finite numeric mutation evidence, not whole-v1 completion.
+
+## EXP-0233 — Randomized numeric row mutations against DAO
+
+- GPT-5.6 Sol independently generated six seeded histories (91601–91606),
+  each with fifty requests against the integral or wide three-index schemas
+  from EXP-0232. All 270 accepted mutations replayed successfully in DAO and
+  matched complete expected typed rows. Twenty-four intentional duplicate
+  requests and six negative-zero scope refusals preserved the entire input.
+  No unexpected Rust rejection, DAO rejection or semantic mismatch occurred.
+- Each accepted checkpoint checks all three raw key/locator trees, schema-shaped
+  branch fences, retained counters and unrelated Notes page hashes. Final Rust
+  and DAO schema, directed traversal and finite typed Seek queries agree. The
+  inventory includes Byte/Integer/Currency limits, finite positive/negative
+  Single/Double extremes and subnormals, null transitions, composite and
+  descending keys, nonunique ordering and duplicates in the second/third index.
+  Currency maximum is covered by mutations, traversal and raw keys; a DAO Seek
+  coerced through Double cannot represent that extreme exactly and is excluded
+  from the successful Seek claim. This finite run does not establish full v1.
+- Production source `f78b49063699d5a754c2cfc3f4c94376e37d0d84`. Private root:
+  `shared/checks/20260915-random-numeric-sol-f78b490/`. `report.json` SHA-256
+  `13a3530fedfe4b31be722de577fe69717d5976b98ef9da37e796595071b71eff`;
+  `attempts.json` SHA-256
+  `c5aad769bc0aec2f238093b4b957d0ae6bd58793b7671beb5a941d508dc05656`.
+  Exact source archive SHA-256
+  `363d342ee52038317c0971ae27e7eebb505603b754a858c976eb7ec73b5ec92d`;
+  manifest SHA-256
+  `12b6b2c5e7aab8bd1fb0b7bd06a3c9624ebfca00530d07f3b4d0ab688dad0b9a`.
+- Accepted captures:
+  `shared/outbox/20260915T054100Z-random-numeric-sol-f78b490-4/`.
+  `result.json` SHA-256
+  `da88ca9a9e809fd1d9d3d1ca84ed54b0e2f4032a3ac2227d5dac11dff4d30c89`;
+  `environment.json` SHA-256
+  `7ce146061f9c736cef5eec6747ccec77866e9aed9f77d628a1393445bcda584e`.
+- Three earlier harness attempts remain retained separately: a missing scoped
+  identity helper before database opening; untyped Byte Seek and reversed JSON
+  writer arguments after replay; then a Currency-extreme Double Seek and lossy
+  boxed-Single capture. Their partial checkpoints remain available. Corrected
+  typed capture and representable Seek queries produced the accepted successor.
+  These harness failures are not reported as successful comparisons.

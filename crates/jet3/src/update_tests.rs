@@ -275,7 +275,7 @@ fn private_byte_corruption_is_rejected_by_streaming_verification() -> TestResult
 }
 
 #[test]
-fn nonunique_index_keys_are_refused_before_publication() -> TestResult {
+fn nonunique_index_keys_are_updated() -> TestResult {
     let fixture = simple()?;
     fs::remove_file(fixture.path())?;
     let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
@@ -295,16 +295,15 @@ fn nonunique_index_keys_are_refused_before_publication() -> TestResult {
         &[&[RowValue::Long(1)]],
         &mut budget(),
     )?;
-    let original = fs::read(fixture.path())?;
-    assert!(matches!(
-        update_field(
-            fixture.path(),
-            request(fixture.locator(0)?, RowValue::Long(3)),
-            &mut budget()
-        ),
-        Err(UpdateError::Unsupported(_))
-    ));
-    assert_eq!(fs::read(fixture.path())?, original);
+    update_field(
+        fixture.path(),
+        request(fixture.locator(0)?, RowValue::Long(3)),
+        &mut budget(),
+    )?;
+    let mut b = budget();
+    let mut db = DatabaseReader::open(fixture.path(), &mut b)?;
+    let definition = guarded_table(&mut db, b"Items", true, &mut b)?;
+    crate::index_mutation::load(&mut db, &definition, &mut b)?;
     fixture.assert_only_original()
 }
 

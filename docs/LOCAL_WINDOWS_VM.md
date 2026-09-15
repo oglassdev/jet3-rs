@@ -56,6 +56,9 @@ through Rust and compares a second DAO round. The `practical-lifecycle` suite
 creates an Items/Notes database, inserts 220 items, changes values on dense
 pages, deletes rows and inserts more, while preserving unrelated Memo data.
 A separate delete-all/reinsert arm checks released-page reuse without file growth.
+The `numeric-indexes` suite covers three simultaneous numeric indexes,
+composite and nullable keys, duplicate ordering, retained counters, tree growth
+and native-input continuations with observed prefix compression.
 These finite suites do not establish general Jet 3 compatibility.
 
 `just windows-dev-probe` and the existing `windows-dev-*` recipes remain useful

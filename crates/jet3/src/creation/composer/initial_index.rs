@@ -1,9 +1,11 @@
 //! Uncompressed trees of one/two numeric components: EXP-0062 branch/leaf/locator
 //! grammar, EXP-0126/0150 scalar directions, and EXP-0148 null components/policies.
-//! Non-Long nullable/composite keys remain candidate constructions pending DAO.
 
 use super::*;
-use crate::numeric_index_key::{MAX_COMPONENT_BYTES, NumericKeyType};
+use crate::numeric_index_entry::{
+    ENTRY_CAPACITY, EntryError, MAX_FIELDS, NumericIndexEntry as Entry, NumericIndexField,
+};
+use crate::numeric_index_key::NumericKeyType;
 use crate::{IndexNullPolicy, IndexTree, RowLocator};
 
 #[path = "initial_index_pages.rs"]
@@ -11,35 +13,10 @@ mod pages;
 use pages::IndexPages;
 
 const COMPONENT_BYTES: usize = 5;
-const MAX_FIELDS: usize = 2;
-const LOCATOR_BYTES: usize = 4;
-const ENTRY_CAPACITY: usize = MAX_FIELDS * MAX_COMPONENT_BYTES + LOCATOR_BYTES;
-
-#[derive(Debug, Clone, Copy)]
-struct LongField {
-    column: usize,
-    direction: IndexDirection,
-    kind: NumericKeyType,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Entry {
-    bytes: [u8; ENTRY_CAPACITY],
-    key_len: usize,
-    has_null: bool,
-}
-impl Entry {
-    fn key(&self) -> &[u8] {
-        &self.bytes[..self.key_len]
-    }
-    fn record(&self) -> &[u8] {
-        &self.bytes[..self.key_len + LOCATOR_BYTES]
-    }
-}
 
 #[derive(Debug, Clone)]
 pub(crate) struct InitialLongIndex {
-    fields: [LongField; MAX_FIELDS],
+    fields: [NumericIndexField; MAX_FIELDS],
     field_count: usize,
     unique: bool,
     entries: Vec<Entry>,
@@ -98,7 +75,7 @@ impl InitialLongIndex {
         if !(1..=MAX_FIELDS).contains(&index.fields.len()) {
             return Err(ComposeError::UnsupportedInitialIndexSchema);
         }
-        let mut fields = [LongField {
+        let mut fields = [NumericIndexField {
             column: 0,
             direction: IndexDirection::Ascending,
             kind: NumericKeyType::Long,
@@ -114,7 +91,7 @@ impl InitialLongIndex {
                 .get(column)
                 .and_then(|column| NumericKeyType::from_column(column.column_type()))
                 .ok_or(ComposeError::UnsupportedInitialIndexSchema)?;
-            *slot = LongField {
+            *slot = NumericIndexField {
                 column,
                 direction: field.direction,
                 kind,
@@ -156,59 +133,28 @@ impl InitialLongIndex {
         locator: RowLocator,
         budget: &mut ResourceBudget,
     ) -> Result<(), ComposeError> {
-        budget.charge_items(1)?;
-        let page = u32::try_from(locator.page().get()).map_err(|_| Error::IntegerConversion {
-            value: locator.page().get() as u128,
-            target: "24-bit index row page",
-        })?;
-        if page > 0x00ff_ffff {
-            return Err(Error::IntegerConversion {
-                value: page as u128,
-                target: "24-bit index row page",
-            }
-            .into());
-        }
         let row = self.next_row;
         self.next_row += 1;
-        let mut entry = Entry {
-            bytes: [0; ENTRY_CAPACITY],
-            key_len: 0,
-            has_null: false,
-        };
-        let mut all_null = true;
-        for field in &self.fields[..self.field_count] {
-            let value = values
-                .get(field.column)
-                .ok_or(ComposeError::UnsupportedInitialIndexSchema)?;
-            let start = entry.key_len;
-            let null = matches!(value, RowValue::Null);
-            entry.has_null |= null;
-            all_null &= null;
-            let mut component = [0; MAX_COMPONENT_BYTES];
-            let length = field
-                .kind
-                .encode(*value, field.direction, &mut component)
-                .ok_or(if field.kind == NumericKeyType::Long {
-                    ComposeError::UnsupportedInitialIndexSchema
-                } else {
-                    ComposeError::UnsupportedInitialIndexValue {
-                        row,
-                        column: field.column,
-                    }
-                })?;
-            entry.bytes[start..start + length].copy_from_slice(&component[..length]);
-            entry.key_len += length;
+        let entry = Entry::encode(
+            &self.fields[..self.field_count],
+            values,
+            self.null_policy,
+            locator,
+            budget,
+        )
+        .map_err(|error| match error {
+            EntryError::Encoding(error) => ComposeError::from(error),
+            EntryError::NullRequired => ComposeError::NullInitialIndexKey { row },
+            EntryError::UnsupportedValue { column, kind } if kind != NumericKeyType::Long => {
+                ComposeError::UnsupportedInitialIndexValue { row, column }
+            }
+            EntryError::FieldCount { .. }
+            | EntryError::MissingColumn { .. }
+            | EntryError::UnsupportedValue { .. } => ComposeError::UnsupportedInitialIndexSchema,
+        })?;
+        if let Some(entry) = entry {
+            self.entries.push(entry);
         }
-        if entry.has_null && self.null_policy == IndexNullPolicy::Required {
-            return Err(ComposeError::NullInitialIndexKey { row });
-        }
-        if all_null && self.null_policy == IndexNullPolicy::IgnoreAllNull {
-            return Ok(());
-        }
-        let key_bytes = entry.key_len;
-        entry.bytes[key_bytes..key_bytes + 3].copy_from_slice(&page.to_be_bytes()[1..]);
-        entry.bytes[key_bytes + LOCATOR_BYTES - 1] = locator.slot();
-        self.entries.push(entry);
         Ok(())
     }
 
@@ -223,7 +169,7 @@ impl InitialLongIndex {
         self.distinct = u32::from(!self.entries.is_empty());
         for pair in self.entries.windows(2) {
             if pair[0].key() == pair[1].key() {
-                if self.unique && !pair[1].has_null {
+                if self.unique && !pair[1].has_null() {
                     if self.fields[..self.field_count]
                         .iter()
                         .any(|field| field.kind != NumericKeyType::Long)
@@ -234,7 +180,7 @@ impl InitialLongIndex {
                     for (position, value) in values.iter_mut().enumerate().take(self.field_count) {
                         let start = position * COMPONENT_BYTES + 1;
                         let mut raw: [u8; 4] =
-                            pair[1].bytes[start..start + 4].try_into().map_err(|_| {
+                            pair[1].key()[start..start + 4].try_into().map_err(|_| {
                                 Error::Arithmetic {
                                     operation: "decode duplicate Long index component",
                                 }
@@ -308,16 +254,7 @@ impl InitialLongIndex {
                 .iter()
                 .zip(tree.entries())
                 .all(|(expected, actual)| {
-                    let key_bytes = expected.key_len;
-                    actual.key().raw_bytes() == expected.key()
-                        && actual.row().page().get()
-                            == u64::from(u32::from_be_bytes([
-                                0,
-                                expected.bytes[key_bytes],
-                                expected.bytes[key_bytes + 1],
-                                expected.bytes[key_bytes + 2],
-                            ]))
-                        && actual.row().slot() == expected.bytes[key_bytes + 3]
+                    actual.key().raw_bytes() == expected.key() && actual.row() == expected.locator()
                 }))
     }
 }

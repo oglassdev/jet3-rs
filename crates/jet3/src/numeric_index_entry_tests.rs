@@ -1,0 +1,268 @@
+use super::*;
+use crate::{ResourceLimitKind, ResourceLimits};
+
+fn budget() -> ResourceBudget {
+    ResourceBudget::new(ResourceLimits::default())
+}
+
+const FIELDS: [NumericIndexField; 2] = [
+    NumericIndexField {
+        column: 1,
+        direction: IndexDirection::Ascending,
+        kind: NumericKeyType::Long,
+    },
+    NumericIndexField {
+        column: 0,
+        direction: IndexDirection::Descending,
+        kind: NumericKeyType::Long,
+    },
+];
+const LOCATOR: RowLocator = RowLocator::new(PageNumber::new(0x12_3456), 255);
+
+#[test]
+fn composite_null_records_keep_direction_and_locator() -> Result<(), Box<dyn std::error::Error>> {
+    let entry = NumericIndexEntry::encode(
+        &FIELDS,
+        &[RowValue::Long(1), RowValue::Null],
+        IndexNullPolicy::Include,
+        LOCATOR,
+        &mut budget(),
+    )?
+    .ok_or("entry omitted")?;
+    // EXP-0148 ascending null followed by descending present Long.
+    assert_eq!(entry.key(), [0, 0x80, 0x7f, 0xff, 0xff, 0xfe]);
+    assert_eq!(
+        entry.record(),
+        [0, 0x80, 0x7f, 0xff, 0xff, 0xfe, 0x12, 0x34, 0x56, 255]
+    );
+    assert!(entry.has_null());
+    assert_eq!(entry.locator(), LOCATOR);
+    assert_eq!(
+        NumericIndexEntry::encode(
+            &FIELDS,
+            &[RowValue::Long(1), RowValue::Null],
+            IndexNullPolicy::IgnoreAllNull,
+            LOCATOR,
+            &mut budget(),
+        )?,
+        Some(entry)
+    );
+    assert_eq!(
+        NumericIndexEntry::encode(
+            &FIELDS,
+            &[RowValue::Null, RowValue::Null],
+            IndexNullPolicy::IgnoreAllNull,
+            LOCATOR,
+            &mut budget(),
+        )?,
+        None
+    );
+    assert_eq!(
+        NumericIndexEntry::encode(
+            &FIELDS,
+            &[RowValue::Long(1), RowValue::Null],
+            IndexNullPolicy::Required,
+            LOCATOR,
+            &mut budget(),
+        ),
+        Err(EntryError::NullRequired)
+    );
+    Ok(())
+}
+
+#[test]
+fn schema_and_value_refusals_are_structured() {
+    for fields in [&[][..], &[FIELDS[0]; 3][..]] {
+        assert_eq!(
+            NumericIndexEntry::encode(
+                fields,
+                &[],
+                IndexNullPolicy::Include,
+                LOCATOR,
+                &mut budget(),
+            ),
+            Err(EntryError::FieldCount {
+                actual: fields.len()
+            })
+        );
+    }
+    assert_eq!(
+        NumericIndexEntry::encode(
+            &FIELDS,
+            &[],
+            IndexNullPolicy::Include,
+            LOCATOR,
+            &mut budget(),
+        ),
+        Err(EntryError::MissingColumn { column: 1 })
+    );
+    for (kind, value) in [
+        (NumericKeyType::Long, RowValue::Byte(1)),
+        (NumericKeyType::Boolean, RowValue::Null),
+        (NumericKeyType::Double, RowValue::Double(-0.0)),
+        (NumericKeyType::Single, RowValue::Single(f32::INFINITY)),
+    ] {
+        assert_eq!(
+            NumericIndexEntry::encode(
+                &[NumericIndexField {
+                    column: 0,
+                    kind,
+                    ..FIELDS[0]
+                }],
+                &[value],
+                IndexNullPolicy::Include,
+                LOCATOR,
+                &mut budget(),
+            ),
+            Err(EntryError::UnsupportedValue { column: 0, kind })
+        );
+    }
+}
+
+#[test]
+fn locator_width_and_budget_are_checked() -> Result<(), Box<dyn std::error::Error>> {
+    let fields = [NumericIndexField {
+        column: 0,
+        ..FIELDS[0]
+    }];
+    let locator = RowLocator::new(PageNumber::new(0xff_ffff), 255);
+    let entry = NumericIndexEntry::encode(
+        &fields,
+        &[RowValue::Long(i32::MIN)],
+        IndexNullPolicy::Include,
+        locator,
+        &mut budget(),
+    )?
+    .ok_or("entry omitted")?;
+    assert_eq!(entry.locator(), locator);
+    assert_eq!(entry.key(), [0x7f, 0, 0, 0, 0]);
+    assert!(!entry.has_null());
+    for page in [0x100_0000, u64::MAX] {
+        assert!(matches!(
+            NumericIndexEntry::encode(
+                &fields,
+                &[RowValue::Long(1)],
+                IndexNullPolicy::Include,
+                RowLocator::new(PageNumber::new(page), 0),
+                &mut budget(),
+            ),
+            Err(EntryError::Encoding(Error::IntegerConversion {
+                target: "24-bit index row page",
+                ..
+            }))
+        ));
+    }
+    let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_item_work(0));
+    assert!(matches!(
+        NumericIndexEntry::encode(
+            &fields,
+            &[RowValue::Long(1)],
+            IndexNullPolicy::Include,
+            locator,
+            &mut limited,
+        ),
+        Err(EntryError::Encoding(Error::ResourceLimitExceeded {
+            kind: ResourceLimitKind::ItemWork,
+            ..
+        }))
+    ));
+    Ok(())
+}
+
+#[test]
+fn key_shapes_check_each_component_null_policy_and_complete_width()
+-> Result<(), Box<dyn std::error::Error>> {
+    for (kind, value) in [
+        (NumericKeyType::Boolean, RowValue::Boolean(false)),
+        (NumericKeyType::Byte, RowValue::Byte(7)),
+        (NumericKeyType::Integer, RowValue::Integer(-5)),
+        (NumericKeyType::Long, RowValue::Long(-500)),
+        (
+            NumericKeyType::Currency,
+            RowValue::Currency { scaled: 120001 },
+        ),
+        (NumericKeyType::Single, RowValue::Single(-1.25)),
+        (NumericKeyType::Double, RowValue::Double(2.5)),
+    ] {
+        for direction in [IndexDirection::Ascending, IndexDirection::Descending] {
+            let fields = [NumericIndexField {
+                column: 0,
+                kind,
+                direction,
+            }];
+            let entry = NumericIndexEntry::encode(
+                &fields,
+                &[value],
+                IndexNullPolicy::Required,
+                LOCATOR,
+                &mut budget(),
+            )?
+            .ok_or("entry")?;
+            assert!(valid_key_shape(
+                &fields,
+                IndexNullPolicy::Required,
+                entry.key()
+            ));
+            assert!(!valid_key_shape(
+                &fields,
+                IndexNullPolicy::Required,
+                &entry.key()[..entry.key().len() - 1]
+            ));
+            let mut bad = entry.key().to_vec();
+            bad.push(0);
+            assert!(!valid_key_shape(&fields, IndexNullPolicy::Required, &bad));
+            bad.pop();
+            bad[0] = 0x7e;
+            assert!(!valid_key_shape(&fields, IndexNullPolicy::Include, &bad));
+            if kind == NumericKeyType::Boolean {
+                bad[0] = entry.key()[0];
+                bad[1] = 1;
+                assert!(!valid_key_shape(&fields, IndexNullPolicy::Required, &bad));
+            }
+            let null = [if direction == IndexDirection::Ascending {
+                0
+            } else {
+                0xff
+            }];
+            assert_eq!(
+                valid_key_shape(&fields, IndexNullPolicy::Include, &null),
+                kind != NumericKeyType::Boolean
+            );
+            assert!(!valid_key_shape(
+                &fields,
+                IndexNullPolicy::IgnoreAllNull,
+                &null
+            ));
+            assert!(!valid_key_shape(&fields, IndexNullPolicy::Required, &null));
+        }
+    }
+    for values in [
+        [RowValue::Null, RowValue::Null],
+        [RowValue::Long(1), RowValue::Null],
+        [RowValue::Null, RowValue::Long(2)],
+        [RowValue::Long(1), RowValue::Long(2)],
+    ] {
+        let entry = NumericIndexEntry::encode(
+            &FIELDS,
+            &values,
+            IndexNullPolicy::Include,
+            LOCATOR,
+            &mut budget(),
+        )?
+        .ok_or("entry")?;
+        assert!(valid_key_shape(
+            &FIELDS,
+            IndexNullPolicy::Include,
+            entry.key()
+        ));
+        assert_eq!(
+            valid_key_shape(&FIELDS, IndexNullPolicy::Required, entry.key()),
+            !entry.has_null()
+        );
+        assert_eq!(
+            valid_key_shape(&FIELDS, IndexNullPolicy::IgnoreAllNull, entry.key()),
+            entry.key().len() > 2
+        );
+    }
+    Ok(())
+}

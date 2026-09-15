@@ -21,8 +21,9 @@ pub struct RowUpdate<'a> {
 /// Supports scalar/null/Boolean/Text/Binary values in relationship-free
 /// non-AutoIncrement/non-long-value tables. The page must be inline-owned and
 /// allocated, with consistent metadata and ordinary live rows or known empty
-/// `c000` tombstones. The data page and row locator remain fixed. One unique/primary
-/// present Long index is supported, including key changes in a multi-level tree.
+/// `c000` tombstones. The data page and row locator remain fixed. Up to three
+/// indexes with one or two supported numeric fields admit key and null changes,
+/// with uniqueness enforced for fully present keys.
 /// Existing checked row-encoding limits apply, including variable-offset widths.
 /// The replacement must fit the existing contiguous space. Available membership
 /// records whether a minimum encoded row and directory slot still fit; this is
@@ -75,7 +76,7 @@ where
     let mut index = if definition.physical_indexes().is_empty() {
         None
     } else {
-        Some(crate::unique_index::load(
+        Some(crate::index_mutation::load(
             &mut database,
             &definition,
             budget,
@@ -169,13 +170,7 @@ where
         edits.replace(change, budget)?;
     }
     if let Some(index) = &mut index {
-        let Some(RowValue::Long(value)) = request.values.get(usize::from(index.column.get()))
-        else {
-            return Err(UpdateError::Unsupported(
-                "replacement requires present Long key",
-            ));
-        };
-        index.replace(request.row, *value, budget)?;
+        index.replace(request.row, request.values, budget)?;
         index.stage(&mut database, &definition, &mut edits, budget)?;
     }
     edits.publish(path, database.into_source(), budget, hook)

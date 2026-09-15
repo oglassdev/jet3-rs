@@ -52,6 +52,8 @@ pub enum UpdateError {
     Directory(crate::RowDirectoryError),
     /// Replacement value or fixed layout failed checked row encoding.
     Encoding(crate::RowWriteError),
+    /// Existing indexed numeric value failed decoding.
+    Value(crate::ValueError),
     /// Available map row is malformed.
     UsageMap(crate::UsageMapError),
     /// Allocation bitmap is malformed or exhausted its budget.
@@ -78,6 +80,7 @@ impl StdError for UpdateError {
             Self::Rows(source) => Some(source),
             Self::Directory(source) => Some(source),
             Self::Encoding(source) => Some(source),
+            Self::Value(source) => Some(source),
             Self::UsageMap(source) => Some(source),
             Self::Allocation(source) => Some(source),
             Self::Publish(source) => Some(source),
@@ -104,16 +107,17 @@ conversion!(crate::TableDefinitionError, Definition);
 conversion!(crate::RowError, Rows);
 conversion!(crate::RowDirectoryError, Directory);
 conversion!(crate::RowWriteError, Encoding);
+conversion!(crate::ValueError, Value);
 conversion!(crate::PublishError, Publish);
 conversion!(crate::IndexTreeError, Index);
 
 /// Replaces one present fixed field in a relationship-free user table.
 ///
 /// Indexed tables are supported when the column is absent from every physical
-/// index. A key update additionally supports one unique/primary Long index with
-/// present keys. It rebuilds the tree using the existing root and reserved pages,
-/// appending nodes within inline maps if decompression needs more space. The row
-/// count and retained index counter remain unchanged. Other key updates are refused.
+/// index. Key updates support up to three indexes with one or two admitted
+/// numeric fields, including composite and nonunique keys. Changed trees retain
+/// their roots and reserved pages, appending nodes within inline maps as needed.
+/// Row counts and retained index counters remain unchanged.
 ///
 /// Supports Byte, Integer, Long, Currency, Single, Double, DateTime, GUID and
 /// exact-width fixed Text. Null transitions, Boolean presence bits, AutoIncrement,

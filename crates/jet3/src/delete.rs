@@ -16,10 +16,10 @@ pub struct RowDelete<'a> {
 /// Deletes one ordinary row, compacting its page or releasing an emptied page.
 ///
 /// Supports relationship-free tables without AutoIncrement or long values.
-/// One unique/primary present Long index supports deletion through an empty tree.
-/// The matching entry is removed and the complete tree is rebuilt with its existing
-/// root. Surplus index pages remain reserved for reuse; the retained index counter
-/// is unchanged. Other indexed deletions are refused.
+/// Up to three indexes with one or two supported numeric fields admit deletion,
+/// including duplicate and nullable keys. Each matching entry is removed by row
+/// locator and changed trees retain their roots. Surplus index pages remain
+/// reserved for reuse; retained index counters are unchanged.
 /// Slots must be ordinary live rows or known empty `c000` tombstones;
 /// inline maps must consistently identify the page as owned and allocated. Later rows move
 /// upward without changing their physical slot numbers or stored values. The
@@ -84,7 +84,7 @@ where
         }) {
             return Err(UpdateError::Unsupported("indexed long-value table"));
         }
-        Some(crate::unique_index::load(
+        Some(crate::index_mutation::load(
             &mut database,
             &definition,
             budget,

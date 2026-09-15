@@ -259,26 +259,19 @@ fn private_corruption_and_shared_read_budget_are_detected() -> ResultTest {
 
 #[test]
 fn unsupported_schema_refuses_and_deletion_restores_available_membership() -> ResultTest {
-    for (kind, value, indexed) in [
-        (ColumnType::AutoIncrement, RowValue::AutoIncrement, false),
-        (ColumnType::Memo, RowValue::Memo(b"payload"), false),
-        (ColumnType::Long, RowValue::Long(1), true),
+    for (kind, value) in [
+        (ColumnType::AutoIncrement, RowValue::AutoIncrement),
+        (ColumnType::Memo, RowValue::Memo(b"payload")),
     ] {
         let f = Fixture::new(2)?;
         fs::remove_file(f.path())?;
         let columns = [ColumnSpec::new(b"Id", kind)];
-        let keys = [crate::IndexColumnSpec::ascending(0)];
-        let indexes = [crate::IndexSpec {
-            name: b"Ix",
-            kind: crate::IndexKind::Ordinary,
-            fields: &keys,
-        }];
         crate::create_database_with_rows(
             f.path(),
             &TableSpec {
                 name: b"Rows",
                 columns: &columns,
-                indexes: if indexed { &indexes } else { &[] },
+                indexes: &[],
             },
             &[&[value], &[value]],
             &mut budget(),

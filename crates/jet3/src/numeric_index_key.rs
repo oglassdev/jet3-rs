@@ -18,6 +18,24 @@ pub(crate) enum NumericKeyType {
 }
 
 impl NumericKeyType {
+    pub(crate) fn encoded_length(self, marker: u8, direction: IndexDirection) -> Option<usize> {
+        let marker = if direction == IndexDirection::Descending {
+            marker ^ 0xff
+        } else {
+            marker
+        };
+        match marker {
+            0 if self != Self::Boolean => Some(1),
+            0x7f => Some(match self {
+                Self::Boolean | Self::Byte => 2,
+                Self::Integer => 3,
+                Self::Long | Self::Single => 5,
+                Self::Currency | Self::Double => 9,
+            }),
+            _ => None,
+        }
+    }
+
     pub(crate) fn from_column(column: ColumnType) -> Option<Self> {
         Some(match column {
             ColumnType::Boolean => Self::Boolean,
