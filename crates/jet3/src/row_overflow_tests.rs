@@ -326,3 +326,91 @@ fn overflow_allocation_failures_preserve_the_source_and_remove_private_files() -
     assert_eq!(fs::read_dir(&f.dir)?.count(), 1);
     Ok(())
 }
+
+#[test]
+fn valid_multi_hop_chains_are_refused_without_changing_the_image() -> TestResult {
+    let f = Fixture::new(3)?;
+    let [logical, middle, terminal] = f.locators.as_slice() else {
+        return Err("three-row fixture".into());
+    };
+    let (logical, middle, terminal) = (*logical, *middle, *terminal);
+    let mut bytes = fs::read(f.path())?;
+    let base = logical.page().get() as usize * PAGE_BYTES;
+    let body = slot(&bytes, terminal).1.to_vec();
+    let mut page = crate::PageImage::from_bytes(bytes[base..base + PAGE_BYTES].try_into()?);
+    for (locator, raw, kind) in [
+        (terminal, body, crate::row_slot::RowSlot::Storage),
+        (
+            middle,
+            crate::row_slot::pointer(terminal)?.to_vec(),
+            crate::row_slot::RowSlot::StorageLink,
+        ),
+        (
+            logical,
+            crate::row_slot::pointer(middle)?.to_vec(),
+            crate::row_slot::RowSlot::Link,
+        ),
+    ] {
+        page = crate::row_update_page::replace_physical(
+            logical.page(),
+            f.root,
+            page.as_bytes(),
+            locator.slot(),
+            &raw,
+            kind,
+            &mut budget(),
+        )?
+        .ok_or("multi-hop fixture capacity")?;
+    }
+    bytes[base..base + PAGE_BYTES].copy_from_slice(page.as_bytes());
+    let root = f.root.get() as usize * PAGE_BYTES;
+    let mut definition = crate::PageImage::from_bytes(bytes[root..root + PAGE_BYTES].try_into()?);
+    for count in [3, 2] {
+        definition =
+            crate::row_delete_page::decrement_count(definition.as_bytes(), count, &mut budget())?;
+    }
+    bytes[root..root + PAGE_BYTES].copy_from_slice(definition.as_bytes());
+    fs::write(f.path(), &bytes)?;
+    let mut work = budget();
+    let mut db = DatabaseReader::open(f.path(), &mut work)?;
+    let table = db.table_definition(f.root, &mut work)?;
+    let graph =
+        crate::row_mutation_graph::RowGraph::load(&mut db, &table, Some(logical), &mut work)?;
+    assert_eq!(graph.selected, [logical, middle, terminal]);
+    drop(db);
+    for action in 0..3 {
+        let result = match action {
+            0 => update_row(
+                f.path(),
+                f.request(0, &values(2, b"x", b"y")),
+                &mut budget(),
+            ),
+            1 => crate::update_field(
+                f.path(),
+                crate::FieldUpdate {
+                    table: b"Rows",
+                    row: logical,
+                    column: ColumnOrdinal::new(0),
+                    value: RowValue::Long(7),
+                },
+                &mut budget(),
+            ),
+            _ => crate::delete_row(
+                f.path(),
+                crate::RowDelete {
+                    table: b"Rows",
+                    row: logical,
+                },
+                &mut budget(),
+            ),
+        };
+        assert!(matches!(
+            result,
+            Err(UpdateError::Unsupported(
+                "mutation of multi-hop overflow chain"
+            ))
+        ));
+        assert_eq!(fs::read(f.path())?, bytes);
+    }
+    Ok(())
+}
