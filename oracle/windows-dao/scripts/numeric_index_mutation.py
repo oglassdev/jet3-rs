@@ -324,6 +324,38 @@ def retain_report(outbox, report):
     write(path, report); print(path)
 
 
+def aggregate(outbox):
+    """Combine immutable per-case native results on the 64-bit host."""
+    index_path = outbox / 'numeric-index-workers.json'
+    workers = json.loads(index_path.read_text(encoding='utf-8-sig'))
+    require(workers['document_type'] == 'dao_numeric_index_workers', 'Worker index type')
+    require([w['name'] for w in workers['workers']] == list(CASE_NAMES), 'Worker case inventory')
+    combined = None
+    for worker in workers['workers']:
+        require(worker['file'] == worker['name'] + '-result.json', 'Worker file name')
+        path = outbox / worker['file']
+        require(identity(path) == worker['image'], 'Worker result identity')
+        result = json.loads(path.read_text(encoding='utf-8-sig'))
+        require(result['document_type'] == 'dao_numeric_index_mutation_result' and
+                all(result[k] == workers[k] for k in ('source_revision', 'manifest_sha256', 'round')), 'Worker source/manifest/round')
+        require([c['name'] for c in result['cases']] == [worker['name']], 'One complete worker case')
+        if combined is None:
+            combined = dict(result, cases=[], retention_failures=[], error=None,
+                            worker_index=identity(index_path), worker_results=[])
+        require(result['environment'] == combined['environment'], 'Identical native provider environment')
+        combined['cases'].extend(result['cases'])
+        combined['retention_failures'].extend(result['retention_failures'])
+        combined['worker_results'].append(dict(name=worker['name'], image=worker['image'], exit_code=worker['exit_code']))
+        if result['error'] is not None or (worker['exit_code'] != 0 and all(c['status'] == 'pass' for c in result['cases'])):
+            combined['error'] = 'One or more native workers failed; see retained worker results'
+    require(combined is not None, 'Nonempty worker inventory')
+    target = outbox / 'result.json'
+    if target.exists():
+        require(json.loads(target.read_text()) == combined, 'Existing aggregate is identical')
+    else:
+        write(target, combined)
+
+
 def evaluate(candidates: Path, outbox: Path):
     manifest_path = candidates / MANIFEST; manifest = json.loads(manifest_path.read_text())
     result_path = outbox / 'result.json'; result = json.loads(result_path.read_text(encoding='utf-8-sig'))

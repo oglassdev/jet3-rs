@@ -16221,3 +16221,20 @@ planner tests, 14 table-composition tests and 19 table-definition reader tests.
   failed run and diagnostic are not replaced. The production encoder remains
   based on EXP-0248; the successor source additionally incorporates the
   independently accepted definition-chain change from EXP-0247.
+
+- The object-lifetime successor at `e8c52af` retains the same five accepted cases
+  and the same Text/GUID assignment failures. Explicit releases were insufficient;
+  this run is also failed. Additional diagnostics repeat the original and typed
+  setters after Integral-only or Binary-only control creation; all four arms in
+  each diagnostic pass. Each diagnostic uses one fresh process for its four
+  arms, not one process per arm. Their identities are:
+  - `20260915T093635Z-numeric-indexes-cfcd49/result.json`: 230,304,389 bytes, SHA-256 `1e275698c7001c0dd4ae53135a7656eb6e0a6bc2d49a4a2a9836d0af1d695109`.
+  - `20260915T093635Z-numeric-indexes-cfcd49/numeric-index-mutation-report.json`: 1,027,520 bytes, SHA-256 `af76122f14a57ec82b05fcbbd7e7aec4327fd1f034ba6b3d15aba6f487ae376d`.
+  - `20260915T093800Z-text-guid-marshalling-warm/result.json`: 1,126 bytes, SHA-256 `711e29d919625380bb37ca3a716ba4698f6c8a6ec2911876fac200165d80cf58`.
+  - `20260915T094000Z-text-guid-marshalling-binary/result.json`: 1,126 bytes, SHA-256 `7a37158dd622ca605d04c5e574fb810f38241b81b3b93f589aa10b8ab1aea743`.
+- The next harness isolates each complete lifecycle case in an x86 worker and
+  records its original result plus a pinned worker index. A 64-bit host combines
+  those native results for the unchanged semantic comparison. This avoids
+  retaining every case's snapshots in one worker; memory pressure is a plausible
+  explanation for the earlier context-dependent failure, not an established
+  cause. No failed acquisition or diagnostic is overwritten.

@@ -1,3 +1,4 @@
+param([string]$CaseName = '')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if ([IntPtr]::Size -ne 4) { throw 'Expected x86 DAO' }
@@ -241,6 +242,22 @@ function Capture([string]$Path, $Case) {
 $script:endpoint = 'manifest'
 $manifestPath = Join-Path $env:JET3_WORK 'numeric-index-mutation.json'
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+if (-not $CaseName) {
+    $workers = @(); $failed = $false
+    $shell = Join-Path $env:WINDIR 'SysWOW64\WindowsPowerShell\v1.0\powershell.exe'
+    foreach ($case in $manifest.cases) {
+        $name = [string]$case.name
+        & $shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $PSCommandPath -CaseName $name
+        $code = $LASTEXITCODE; $file = "$name-result.json"; $path = Join-Path $env:JET3_OUTBOX $file
+        $pin = if (Test-Path -LiteralPath $path) { Identity $path } else { $null }
+        $workers += @{ name = $name; exit_code = $code; file = $file; image = $pin }
+        if ($code -ne 0 -or $null -eq $pin) { $failed = $true }
+    }
+    Write-Json @{ document_type = 'dao_numeric_index_workers'; source_revision = $manifest.source_revision;
+        manifest_sha256 = (Identity $manifestPath).sha256; round = [string]$manifest.round; workers = $workers } (Join-Path $env:JET3_OUTBOX 'numeric-index-workers.json')
+    if ($failed) { exit 1 }; exit 0
+}
+if (@($manifest.cases | Where-Object { $_.name -ceq $CaseName }).Count -ne 1) { throw 'Unknown worker case' }
 $result = @{ document_type = 'dao_numeric_index_mutation_result'; source_revision = $manifest.source_revision; round = [string]$manifest.round;
     manifest_sha256 = (Identity $manifestPath).sha256; environment = @{}; cases = @(); error = $null; retention_failures = @() }
 try {
@@ -261,6 +278,7 @@ try {
             dll = @{ path = $dll[0].FileName; version = $dll[0].FileVersionInfo.FileVersion; sha256 = (Identity $dll[0].FileName).sha256 } }
     } finally { Release $engine }
     foreach ($case in $manifest.cases) {
+        if ($case.name -cne $CaseName) { continue }
         $outcome = @{ name = [string]$case.name; status = 'running'; created = $null; stages = @(); native = @{}; roles = @{}; operation = $null; error = $null }; $result.cases += ,$outcome
         try {
             if ($manifest.round -eq 'continuation') {
@@ -301,6 +319,6 @@ try {
     foreach ($file in Get-ChildItem -LiteralPath $env:JET3_WORK -File | Where-Object { $_.Extension -in @('.mdb', '.json') }) {
         try { Copy-Item -LiteralPath $file.FullName -Destination $env:JET3_OUTBOX } catch { $result.retention_failures += @{ file = $file.Name; message = $_.Exception.Message } }
     }
-    Write-Json $result (Join-Path $env:JET3_OUTBOX 'result.json')
+    Write-Json $result (Join-Path $env:JET3_OUTBOX "$CaseName-result.json")
 }
 if ($null -ne $result.error -or $result.retention_failures.Count -or @($result.cases | Where-Object { $_.status -ne 'pass' }).Count) { exit 1 }
