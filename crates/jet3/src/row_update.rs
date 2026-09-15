@@ -19,7 +19,10 @@ pub struct RowUpdate<'a> {
 /// Replaces a complete row while retaining its logical locator.
 ///
 /// Supports scalar/null/Boolean/Text/Binary values and independent Memo/OLE
-/// columns in relationship-free tables. Up to 32 indexes with one to ten
+/// columns. Enforced non-cascading single-Long relationships require matching
+/// parents and reject changes to referenced parent keys. Each assigned foreign
+/// key updates its two-word retained index state (EXP-0268), even when
+/// its value is unchanged. Up to 32 indexes with one to ten
 /// supported scalar fields admit key and null changes, with uniqueness enforced
 /// for fully present keys. Every hidden storage slot must belong to exactly one
 /// logical row. Mutation of a selected multi-hop overflow chain is refused.
@@ -46,6 +49,8 @@ pub struct RowUpdate<'a> {
 /// Pre-publication failure preserves the original; errors identify publish stages.
 /// An AutoNumber field accepts its unchanged Long value or `RowValue::AutoIncrement`
 /// to retain its value. Changing that field is refused and its counter is retained.
+/// Each endpoint may participate in only one relationship; multiple relationships
+/// and other key types, cascades, or self-references are refused.
 pub fn update_row(
     path: impl AsRef<Path>,
     request: RowUpdate<'_>,
@@ -137,6 +142,13 @@ where
     long_values.remove_selected(budget)?;
     let mut encoded = [0; PAGE_BYTES];
     let length = long_values.encode_row(&layout[..columns.len()], values, &mut encoded, budget)?;
+    crate::relationship_mutation::check(
+        &mut database,
+        &definition,
+        request.table,
+        crate::relationship_mutation::Change::Replace(request.row, values),
+        budget,
+    )?;
     let mut minimum = [0; PAGE_BYTES];
     let nulls = [RowValue::Null; u8::MAX as usize];
     let minimum_length = crate::encode_row(

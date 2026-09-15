@@ -1,4 +1,5 @@
-//! Numeric index mutations use EXP-0062/0126/0148/0150, with counters from EXP-0230.
+//! Scalar index mutations use EXP-0062/0126/0148/0150, with EXP-0230/0268 counters.
+use crate::index_counter::Change;
 use crate::numeric_index_entry::{
     EntryError, NumericIndexEntry, NumericIndexField, record_capacity, sort_cost,
 };
@@ -26,7 +27,8 @@ struct MutableIndex {
     entries: Vec<NumericIndexEntry>,
     mapped: Vec<PageNumber>,
     changed: bool,
-    increment_counter: bool,
+    foreign: bool,
+    counter: Option<Change>,
 }
 
 fn entry_error(error: EntryError) -> UpdateError {
@@ -82,7 +84,9 @@ impl MutableIndex {
         reserve(&mut self.entries, 1, budget)?;
         self.entries.insert(position, entry);
         self.changed = true;
-        self.increment_counter |= update_counter && !present;
+        if update_counter && !present {
+            self.counter = Some(Change::Increment);
+        }
         Ok(())
     }
 
@@ -107,9 +111,26 @@ impl MutableIndex {
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
     ) -> Result<(), UpdateError> {
-        if !self.changed {
-            return Ok(());
+        if self.changed {
+            self.stage_tree(database, table, edits, budget)?;
         }
+        if let Some(change) = self.counter {
+            let mut before = [0; PAGE_BYTES];
+            database.read_raw_page(table.root(), &mut before, budget)?;
+            let mut after = PageImage::from_bytes(before);
+            crate::index_counter::change(&mut after, self.ordinal, change, budget)?;
+            edits.set_image(database, table.root(), after, budget)?;
+        }
+        Ok(())
+    }
+
+    fn stage_tree(
+        &self,
+        database: &mut DatabaseReader<FileSource>,
+        table: &TableDefinition,
+        edits: &mut PageEdits,
+        budget: &mut ResourceBudget,
+    ) -> Result<(), UpdateError> {
         let physical = &table.physical_indexes()[usize::from(self.ordinal)];
         let root = physical.root();
         let layout =
@@ -162,13 +183,6 @@ impl MutableIndex {
                 .map_err(tree_error)?;
             edits.set_image(database, *page, image, budget)?;
         }
-        if self.increment_counter {
-            let mut before = [0; PAGE_BYTES];
-            database.read_raw_page(table.root(), &mut before, budget)?;
-            let mut after = PageImage::from_bytes(before);
-            crate::index_counter::increment(&mut after, self.ordinal, budget)?;
-            edits.set_image(database, table.root(), after, budget)?;
-        }
         Ok(())
     }
 }
@@ -195,6 +209,9 @@ impl Indexes {
     ) -> Result<(), UpdateError> {
         for index in &mut self.indexes {
             index.remove(row, budget)?;
+            if index.foreign {
+                index.counter = Some(Change::RemoveForeignEntry);
+            }
         }
         Ok(())
     }
@@ -205,6 +222,16 @@ impl Indexes {
         values: &[RowValue<'_>],
         budget: &mut ResourceBudget,
     ) -> Result<(), UpdateError> {
+        self.replace_selected(row, values, None, budget)
+    }
+
+    fn replace_selected(
+        &mut self,
+        row: RowLocator,
+        values: &[RowValue<'_>],
+        column: Option<crate::ColumnOrdinal>,
+        budget: &mut ResourceBudget,
+    ) -> Result<(), UpdateError> {
         for index in &mut self.indexes {
             let new = index.encode(values, row, budget)?;
             budget.charge_work_units(
@@ -212,6 +239,17 @@ impl Indexes {
                     * (2 * record_capacity(&index.fields) + size_of::<NumericIndexEntry>()) as u64,
             )?;
             let old = index.entries.iter().find(|r| r.locator() == row);
+            // EXP-0268: equal FK assignments also update the two-word retained state.
+            if index.foreign
+                && column.is_none_or(|column| {
+                    index
+                        .fields
+                        .iter()
+                        .any(|field| field.column == usize::from(column.get()))
+                })
+            {
+                index.counter = Some(Change::RemoveForeignEntry);
+            }
             if old == new.as_ref() {
                 continue;
             }
@@ -239,7 +277,12 @@ impl Indexes {
                     .get_mut(usize::from(request.column.get()))
                     .ok_or(UpdateError::NotFound("column"))?;
                 *target = request.value;
-                return self.replace(request.row, &values, row.budget_mut());
+                return self.replace_selected(
+                    request.row,
+                    &values,
+                    Some(request.column),
+                    row.budget_mut(),
+                );
             }
         }
         Err(UpdateError::NotFound("indexed row"))

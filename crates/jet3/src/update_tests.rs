@@ -500,7 +500,10 @@ fn relationship_catalog_cases(fixture: Fixture, column: ColumnOrdinal) -> TestRe
             &mut budget(),
         );
         if refused {
-            assert!(matches!(result, Err(UpdateError::Unsupported(_))));
+            assert!(matches!(
+                result,
+                Err(UpdateError::Unsupported(_) | UpdateError::Mismatch(_))
+            ));
             assert_eq!(fs::read(fixture.path())?, input);
         } else {
             result?;
@@ -518,3 +521,6 @@ mod indexed;
 
 #[path = "update_key_tests.rs"]
 mod keys;
+
+#[path = "relationship_mutation_tests.rs"]
+mod relationship_mutations;

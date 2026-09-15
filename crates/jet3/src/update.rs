@@ -36,6 +36,15 @@ pub enum UpdateError {
     Unsupported(&'static str),
     /// Source or private bytes did not match the planned update.
     Mismatch(&'static str),
+    /// A non-null child key would have no matching parent after the change.
+    RelationshipConstraint {
+        /// Definition page of the referenced parent table.
+        parent: crate::PageNumber,
+        /// Definition page of the referencing child table.
+        child: crate::PageNumber,
+        /// Child value requiring a matching parent.
+        value: i32,
+    },
     /// Resource policy or raw input failure.
     Resource(crate::Error),
     /// File operation failed.
@@ -88,7 +97,10 @@ impl StdError for UpdateError {
             Self::Allocation(source) => Some(source),
             Self::Publish(source) => Some(source),
             Self::Index(source) => Some(source),
-            Self::NotFound(_) | Self::Unsupported(_) | Self::Mismatch(_) => None,
+            Self::NotFound(_)
+            | Self::Unsupported(_)
+            | Self::Mismatch(_)
+            | Self::RelationshipConstraint { .. } => None,
         }
     }
 }
@@ -115,13 +127,14 @@ conversion!(crate::LongValueError, LongValue);
 conversion!(crate::PublishError, Publish);
 conversion!(crate::IndexTreeError, Index);
 
-/// Replaces one present fixed field in a relationship-free user table.
+/// Replaces one present fixed field in a user table.
 ///
 /// Indexed tables are supported when the column is absent from every physical
 /// index. Key updates support up to 32 indexes with one to ten admitted
 /// scalar fields, including composite and nonunique keys. Changed trees retain
 /// their roots and reserved pages, appending nodes and growing allocation maps as needed.
-/// Row counts and retained index counters remain unchanged.
+/// Row counts and ordinary index counters remain unchanged. An explicitly assigned
+/// foreign key updates its two-word retained index state (EXP-0268).
 ///
 /// Supports Byte, Integer, Long, Currency, Single, Double, DateTime, GUID and
 /// exact-width fixed Text. Null transitions, Boolean presence bits, AutoIncrement,
@@ -130,7 +143,10 @@ conversion!(crate::IndexTreeError, Index);
 /// Selected multi-hop chains are refused. A missing or
 /// unreadable relationship catalog and unresolved non-ASCII relationship endpoint
 /// names are also refused.
-/// Only the requested field, index nodes and necessary index allocation bits
+/// Enforced non-cascading relationships with one ascending Long key are checked
+/// against both endpoint tables and their reciprocal metadata. Orphan keys and
+/// referenced-parent changes return [`UpdateError::RelationshipConstraint`].
+/// Only the requested field, index nodes/counters and necessary index allocation bits
 /// change. Opaque pages and vacated index entry space remain unchanged.
 /// Locators remain valid only while the source is unchanged: callers must exclude
 /// external writers for this entire operation, as required by [`crate::atomic_update`].
@@ -138,6 +154,8 @@ conversion!(crate::IndexTreeError, Index);
 /// a post-publication sync failure is distinguished by the publication error stage.
 /// The same budget covers planning, copying, patching and streaming verification.
 /// Structural verification is not a DAO compatibility claim.
+/// Each endpoint may participate in only one relationship; multiple relationships
+/// and other key types, cascades, or self-references are refused.
 pub fn update_field(
     path: impl AsRef<Path>,
     request: FieldUpdate<'_>,
@@ -186,6 +204,13 @@ where
         column.into(),
         request.value,
         &mut replacement,
+        budget,
+    )?;
+    crate::relationship_mutation::check(
+        &mut database,
+        &definition,
+        request.table,
+        crate::relationship_mutation::Change::Field(request.row, request.column, request.value),
         budget,
     )?;
     let index_change = crate::update_index_key::plan(&mut database, &definition, request, budget)?;
@@ -272,18 +297,9 @@ fn guarded_table(
     budget: &mut ResourceBudget,
 ) -> Result<crate::TableDefinition, UpdateError> {
     let mut root = None;
-    let mut relationship_root = None;
     {
         let mut catalog = database.catalog(budget)?;
         while let Some(record) = catalog.next_record()? {
-            if record.class() == CatalogObjectClass::System
-                && record.name().raw_bytes() == b"MSysRelationships"
-            {
-                if relationship_root.is_some() {
-                    return Err(UpdateError::Mismatch("ambiguous relationship catalog"));
-                }
-                relationship_root = record.table_definition();
-            }
             if record.class() == CatalogObjectClass::User && record.name().raw_bytes() == table {
                 if root.is_some() {
                     return Err(UpdateError::Mismatch("ambiguous table name"));
@@ -297,79 +313,14 @@ fn guarded_table(
     if definition.kind() != TableDefinitionKind::User {
         return Err(UpdateError::Unsupported("non-user table"));
     }
-    if allow_indexes {
-        // EXP-0059/0062: the typed decoder validates every logical selector,
-        // physical key field and complete logical-to-physical coverage.
-        for index in definition.indexes() {
-            budget.charge_items(1)?;
-            if matches!(index.kind(), crate::IndexDefinitionKind::Relationship(_)) {
-                return Err(UpdateError::Unsupported("relationship index"));
-            }
-        }
-    } else if !definition.indexes().is_empty() || !definition.physical_indexes().is_empty() {
+    if !allow_indexes
+        && (!definition.indexes().is_empty() || !definition.physical_indexes().is_empty())
+    {
         return Err(UpdateError::Unsupported(
             "table has indexes or relationships",
         ));
     }
-    reject_catalog_relationships(
-        database,
-        relationship_root.ok_or(UpdateError::Unsupported("missing relationship catalog"))?,
-        table,
-        budget,
-    )?;
     Ok(definition)
-}
-
-// EXP-0073/0114 source these endpoint columns independently of user indexes.
-fn reject_catalog_relationships(
-    database: &mut DatabaseReader<FileSource>,
-    root: crate::PageNumber,
-    table: &[u8],
-    budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
-    let definition = database.table_definition(root, budget)?;
-    if definition.kind() != TableDefinitionKind::System {
-        return Err(UpdateError::Unsupported("relationship catalog kind"));
-    }
-    let mut endpoints = [None; 2];
-    for (position, name) in [b"szObject".as_slice(), b"szReferencedObject".as_slice()]
-        .iter()
-        .enumerate()
-    {
-        for column in definition
-            .columns()
-            .iter()
-            .filter(|column| column.name().raw_bytes() == *name)
-        {
-            if endpoints[position].is_some() || column.physical_type() != ColumnPhysicalType::Text {
-                return Err(UpdateError::Unsupported("relationship endpoint schema"));
-            }
-            endpoints[position] = Some(column.ordinal());
-        }
-    }
-    let [Some(object), Some(referenced)] = endpoints else {
-        return Err(UpdateError::Unsupported("missing relationship endpoint"));
-    };
-    let mut rows = database.rows(&definition, budget)?;
-    while let Some(row) = rows.next_row()? {
-        for ordinal in [object, referenced] {
-            let name = row
-                .field(ordinal)
-                .and_then(|field| field.raw_bytes())
-                .ok_or(UpdateError::Unsupported("null relationship endpoint"))?;
-            if name.is_empty() || !name.is_ascii() || !table.is_ascii() {
-                return Err(UpdateError::Unsupported(
-                    "unresolved relationship endpoint name",
-                ));
-            }
-            if name.eq_ignore_ascii_case(table) {
-                return Err(UpdateError::Unsupported(
-                    "table appears in relationship catalog",
-                ));
-            }
-        }
-    }
-    Ok(())
 }
 
 #[cfg(all(test, any(unix, windows)))]
