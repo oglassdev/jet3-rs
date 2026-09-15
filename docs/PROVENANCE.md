@@ -15957,3 +15957,51 @@ Accepted discovery: 8/8 cases. Inputs:
 `8073a3340a9cea5b002be8d32285bade0d63e617afa1672f37b8466d0483cdd2`.
 The report retains every original/copy hash and physical graph. This is native
 format discovery, not a compatibility claim for expanded Rust creation.
+
+## EXP-0244 — Creation with multi-page system catalogs and catalog indexes
+
+Date: 2026-09-15. Clean writer source
+`cae433a466fda7e98827cb11eaa93dd522a18509` was compared through the repeatable
+`creation-tables` suite, using `creation_tables_candidate.rs` and
+`creation_tables.py/.ps1`. All twelve candidate/control pairs passed: two
+replicas each of five empty tables, six populated tables with varying numeric
+index counts, 40 short-named tables, 30 tables with 48-byte names and 32 Long
+columns, 110 short-named tables, and 40 tables with 48-byte names and three Long
+columns. The five/six-table candidate bytes remain identical to EXP-0222.
+
+DAO comparisons include the complete user-table inventory, schema, rows,
+logical indexes, directed traversal and Seek results. The raw candidate checks
+cover every MSysObjects/MSysACEs row, all three complete key/row-locator index
+multisets, their counts, reachable nodes and ownership, and the exact global
+free-page inventory. User definition roots retain their sequential assignments;
+catalog spill pages and additional index nodes follow all user pages. This
+compact placement policy is accepted for the tested cases and does not claim
+to reproduce DAO's native growth policy. The 110-table candidate has 118 object
+rows on pages 18/241/242/243, 236 ACE rows on pages 19/244, and ACE root 13 with
+leaves 245/246. The 40-long-name candidate has object pages 18/101/102 and name
+index root 9 with leaves 103/104. Only the final catalog data page is available;
+all reachable catalog index nodes are owned. Candidate/control file sizes can
+differ while the declared DAO semantics match.
+
+The existing 127-table creation-counter limit, 1,024-page inline maps, name
+encoding, definition and index restrictions remain. A focused public-API test
+creates exactly 1,024 pages including the catalog spill, then refuses an extra
+user page because that spill would exceed the map; the existing destination
+remains byte-identical. The 128-table counter refusal remains in the executable
+suite. No catalog mutation API or larger counter/wrap policy is established.
+
+Retained inputs and runner reports:
+`checks/20260915-creation-catalog-pages-r1`; DAO outputs:
+`outbox/20260915T074257Z-creation-tables-ff2d45`. Provider identity is retained
+and checked: 32-bit DAO.DBEngine.36 version 3.6, dao360.dll 03.60.9765.0,
+SHA-256 `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+Input manifest SHA-256
+`a73556301272b3850cf17531370443df1eee156cb297d682ec90e92831dfff13`;
+result SHA-256
+`d19b142ae779c0ffcd4273dd4c3be474be9954b26e7813d7297c1235b7f2cf96`;
+comparison `creation-tables-report.json` SHA-256
+`45b159fc96fd3b5660bf34d6b20c7396738d3aff76e69e47f9d2e47a8d051dfd`;
+provider report SHA-256
+`9d390f639cf6340cd6602f519f51cbc4c6ea083417a2e549e48c321fac54a408`.
+Every input and captured file identity is retained in the manifest/result.
+`just ready` passed on the same clean writer source before acquisition.

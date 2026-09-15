@@ -157,9 +157,9 @@ impl StdError for CandidateCheckError {
 /// `budget`.
 ///
 /// Unsupported layouts fail with [`CreateDatabaseError::Compose`] before
-/// anything is written: catalog data or indexes exceeding one page, two tables
-/// whose names differ only by ASCII case, more than three indexes on a table,
-/// table, index and long-value maps exceeding their shared page, a definition
+/// anything is written: more than 127 tables, allocation beyond 1,024 pages,
+/// two tables whose names differ only by ASCII case, more than three indexes
+/// on a table, table/index/long-value maps exceeding their shared page, a definition
 /// longer than two pages,
 /// a definition longer than one page together with an index or on a later
 /// table, or a name byte above `0x7E`.
