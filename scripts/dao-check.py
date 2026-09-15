@@ -134,7 +134,7 @@ def run_suite(name, root, args, revision):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("suites", nargs="*", choices=list(SUITES), default=list(SUITES))
+    parser.add_argument("suites", nargs="*", metavar="SUITE", help="Defaults to all suites: " + ", ".join(SUITES))
     parser.add_argument("--out", type=Path, required=True, help="new directory for inputs, logs and reports")
     parser.add_argument("--shared-root", type=Path, default=os.environ.get("JET3_WINDOWS_SHARED_ROOT"))
     for name, default in [("host", "127.0.0.1"), ("port", "2222"), ("user", "jet3runner"),
@@ -142,6 +142,10 @@ def main():
                           ("remote-shared-root", r"\\host.lan\Data")]:
         parser.add_argument("--" + name, default=os.environ.get("JET3_WINDOWS_" + name.upper().replace("-", "_"), default))
     args = parser.parse_args()
+    args.suites = args.suites or list(SUITES)
+    unknown = set(args.suites) - SUITES.keys()
+    if unknown:
+        parser.error("unknown suites: " + ", ".join(sorted(unknown)))
     if args.shared_root is None:
         parser.error("--shared-root or JET3_WINDOWS_SHARED_ROOT is required")
     args.shared_root = args.shared_root.expanduser().resolve()
