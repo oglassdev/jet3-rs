@@ -209,7 +209,10 @@ fn required_null_keys_and_unsupported_key_schemas_fail_before_publication() -> T
     for indexes in [&composite, &text] {
         let table = TableSpec {
             name: b"Items",
-            columns: &[ID, CODE],
+            columns: &[
+                ID,
+                ColumnSpec::new(b"Code", ColumnType::FixedText { len: nz(8) }),
+            ],
             indexes,
         };
         assert!(matches!(

@@ -155,6 +155,8 @@ def capture(name, root, args, revision, module, images, input_path):
         report["environment_identity"] = identity(environment_path)
         from hosted_write_reanalysis import validate_environment
         validate_environment(environment)
+        if hasattr(module, "aggregate"):
+            module.aggregate(outbox)
         result_path = outbox / "result.json"
         if not result_path.exists():
             raise RuntimeError("Missing DAO result")

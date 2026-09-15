@@ -16170,3 +16170,99 @@ retained in the manifest, worker receipts and result.
 After the accepted capture, `just ready` passed with the final documentation
 and unchanged production behavior. Focused checks also passed: 32 schema
 planner tests, 14 table-composition tests and 19 table-definition reader tests.
+
+## EXP-0248 — CP1252 Text and GUID index encodings, with held-out composites
+
+- Recorded: 2026-09-15, OpenAI Codex; clean-room local native DAO discovery. Source `1cdb0c2b45d2b20e125391feeccf51afc9ed50cc`; x86 DAO 3.6 DLL SHA-256 `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`, English-US/CP1252 database. The Text column's raw encoding context is `0904e404`. All producers explicitly release COM fields and collections.
+- First matrix: outbox `20260915T085100Z-text-guid-index`, eight arms in two replicas. All 16 captures bind complete saved rows to raw index key/locators and DAO schema/traversal, with exact replica agreement and no saved-value normalization. There are 5,544 insertion attempts: 5,508 accepted and 36 DAO duplicate rejections. Text includes all 251 defined CP1252 bytes in singleton, neighboring-ASCII, repeated and separated contexts, null/empty, case/space/punctuation/expansion cases, long strings through255 bytes, and128 seeded random strings. GUID includes null, zero/all-ones, byte-order canaries, isolated bits,24 seeded random values and duplicates. Ordinary and unique indexes are observed in both directions.
+- First identities: matrix240,467 bytes SHA-256 `6a4797c9a892ff6790f1f1077b9aa7960c014365e279bc98400d7bd6139dc857`; producer13,513 bytes `6e8cfc2d18f9eb0b8deb8387d4c9a39e41b15c00da45436d23a3a52719fb82d2`; analyzer8,419 bytes `6bf4b24ee6f87c1e1919c3dedc6970aae4267c8242cd7ca4302c6faf5412776c`; native result12,092,440 bytes `71438ccb7e2c18fe8d38df6891b7b0edb4becd3d1f9662ca99c097a00cffebfc`; answered report2,511,994 bytes `6b629456a709bc25c317fef9a8f9d6f4dfcbf947372d092c4f01b31faa9aa75a`.
+- Text framing: null is `00`; present starts `7f`. Remove trailing byte20 only before deriving keys (saved row bytes remain unchanged); leading/internal spaces, NBSP and controls remain significant. Each remaining byte contributes the one/two primary bytes in the table below. Entries cover source00–FF in16 ascending rows; `----` is undefined CP1252 and supplies no encoding. The space's11 weight comes from its internal context.
+
+        0010 0010 0010 0010 0010 0010 0010 0010 0010 0011 0010 0010 0010 0010 0010 0010
+        0010 0010 0010 0010 0010 0010 0010 0010 0010 0010 0010 0010 0010 0010 0010 0010
+        0011 0012 0013 0014 0015 0016 0017 0018 0019 001a 001b 001c 001d 001e 001f 0020
+        0056 0057 0058 0059 005a 005b 005c 005d 005e 005f 0021 0022 0023 0024 0025 0026
+        0027 0060 0061 0062 0064 0066 0067 0068 0069 006a 006b 006c 006d 006f 0070 0072
+        0073 0074 0075 0076 0077 0078 007a 007b 007c 007d 007e 0028 0029 002a 002b 002c
+        002d 0060 0061 0062 0064 0066 0067 0068 0069 006a 006b 006c 006d 006f 0070 0072
+        0073 0074 0075 0076 0077 0078 007a 007b 007c 007d 007e 002e 002f 0030 0031 0010
+        0010 ---- 0018 0032 0013 0033 0034 0035 0036 0037 0076 0018 7266 ---- 0010 ----
+        ---- 0018 0018 0013 0013 0038 001e 001e 0039 003a 0076 0018 7266 ---- 0010 007d
+        0011 003b 003c 003d 003e 003f 0040 0041 0042 0043 0044 0013 0045 001e 0046 0047
+        0048 0049 0058 0059 004a 004b 004c 004d 004e 0057 004f 0013 0050 0051 0052 0053
+        0060 0060 0060 0060 0060 0060 6066 0062 0066 0066 0066 0066 006a 006a 006a 006a
+        0065 0070 0072 0072 0072 0072 0072 0054 0081 0078 0078 0078 0078 007d 007f 7676
+        0060 0060 0060 0060 0060 0060 6066 0062 0066 0066 0066 0066 006a 006a 006a 006a
+        0065 0070 0072 0072 0072 0072 0072 0055 0081 0078 0078 0078 0078 007d 007f 007d
+
+- Text secondary nibbles: primary weights60,62,66,6A,70,72,76,78,7D have neutral weight2. A non-accented source contributes2 for each such primary byte, including each half of an expansion; other primary bytes contribute no secondary nibble. An accented source replaces its neutral weight with: 3 for C0/C8/CC/D2/D9/E0/E8/EC/F2/F9; 4 for C1/C9/CD/D3/DA/DD/E1/E9/ED/F3/FA/FD; 5 for C2/CA/CE/D4/DB/E2/EA/EE/F4/FB; 6 for9F/C4/CB/CF/D6/DC/E4/EB/EF/F6/FC/FF; 7 for C3/D1/D5/E3/F1/F5; 8 for C5/E5; 9 for C7/E7; A for8A/9A. Strip trailing neutral2 nibbles, prepend one0 nibble and append one0 terminator nibble, then zero-pad to whole bytes. Append this section immediately after the primary bytes. Examples: empty or only ASCII spaces `7f00`; é `7f660400`; AéZ `7f60667e0240`; AéBéZ `7f606661667e024400`. Descending complements the complete unshortened Text component.
+- GUID framing: reorder saved physical GUID bytes3,2,1,0,5,4,7,6,8..15 into conventional display-byte order, then apply the EXP-0243 Binary chunk grammar at length16: present marker, eight bytes, nonterminal09, eight bytes, terminal08. Descending complements the marker, payload and terminal; nonterminal09 remains unchanged. Correct braced-GUID BSTR assignment accepts all declared nonduplicate values, correcting the earlier marshalling-limited absence of GUID observations in EXP-0062.
+- Whole-key shortening follows EXP-0245 for Text and GUID composites too: concatenate directed components first; above255 bytes retain253 and append the same little-endian16-bit checksum over the remaining framed bytes. Case and equivalent expansions share keys; unique Text rejects A after a, a-space after a, Æ/æ after ae and ss/SS after ß. Accents remain significant. All36 original unique rejections are native3022; this batch does not claim byte-preserving DAO failure side effects.
+- Held-out validation: freeze the complete singleton-derived map/rule before a fresh matrix of16 captures. New strings distinguish neutral eligible letters from other letters between accents, expansions, controls, trailing spaces and NBSP;128 new seeded random strings and long accent/expansion boundaries are included. Text, Text/Long, Long/Text and GUID/Long use mixed directions. All3,608 saved keys match the frozen prediction, with complete raw/DAO schema/rows/traversal, membership/maps and replica checks. No rejection or normalization occurs. Outbox `20260915T085500Z-text-guid-holdout`; matrix395,100 bytes SHA-256 `ac174a4426cf24379f8d490c4af058682d8b7f55a84ec0e9cd31ea71629f85ce`; producer13,829 bytes `ab42569f8881bf0a62b2892d469880143fde37095b570ab94477c385e8cc57d2`; analyzer9,044 bytes `05fc42eba607a846450a9a7cabd5c055c763b53ae1074589c333eb2abe828f2b`; native result9,771,494 bytes `15e1c53a27f915dacef72b7b27ad69f13b83ac4888d9326ab89dbc4fb5d79528`; answered report3,657,753 bytes `f462302a8d821bfc6a1ebeaf901da4157d2dbe45c84808794127591b962d24f6`. Inputs include the exact frozen prediction and collation map.
+- Boundary: all9,116 original and held-out keys agree. This supplies key encoding facts for the stated English-US/CP1252 context and matrices, not other locales, undefined CP1252 bytes, arbitrary schema combinations, candidate mutation acceptance or full-v1 compatibility. Physical Text values stay unchanged when trailing spaces are ignored by their index key.
+
+## EXP-0250 — Text/GUID scalar lifecycle candidate comparison
+
+- Initial candidate source `65a478d`: repeatable seven-case scalar lifecycle run at
+  `outbox/20260915T092401Z-numeric-indexes-a59345`. The original five cases
+  (Integral, Wide, Deep, Dates, Binary) pass all five checkpoints and native
+  successors; Text and GUID stop during control creation with COM assignment
+  `Specified cast is not valid` (HRESULT -2147467262). Their candidate comparison
+  has no outcome. The full run is failed and remains retained. Result: 230,304,389 bytes, SHA-256 `002259bf651d5c7b53b39d841ae4393e78d29d02ee1b83fe43c3a3f4841e97a7`;
+  comparison: 1,027,520 bytes, SHA-256 `683b4774176c02663e9dbde502883c18b8d5082836ce293622cefd2a32d97a52`.
+- A separate assignment diagnostic repeats each complete Text/GUID control
+  creation in a fresh worker, using the original Set-Cell function and an
+  explicit-string variation. All four complete without error; the failure is
+  not reproduced in isolation. Diagnostic
+  `outbox/20260915T092700Z-text-guid-marshalling/result.json`: 1,126 bytes, SHA-256 `72e693f621ccc0ee1ff0611dd6785aed6594d542fd584ef4f95f4bbde6eb1fa4`.
+  These are harness diagnostics, not candidate compatibility observations.
+- The successor harness releases every DAO field, collection and metadata item
+  explicitly, including those read during all earlier cases. The original
+  failed run and diagnostic are not replaced. The production encoder remains
+  based on EXP-0248; the successor source additionally incorporates the
+  independently accepted definition-chain change from EXP-0247.
+
+- The object-lifetime successor at `e8c52af` retains the same five accepted cases
+  and the same Text/GUID assignment failures. Explicit releases were insufficient;
+  this run is also failed. Additional diagnostics repeat the original and typed
+  setters after Integral-only or Binary-only control creation; all four arms in
+  each diagnostic pass. Each diagnostic uses one fresh process for its four
+  arms, not one process per arm. Their identities are:
+  - `20260915T093635Z-numeric-indexes-cfcd49/result.json`: 230,304,389 bytes, SHA-256 `1e275698c7001c0dd4ae53135a7656eb6e0a6bc2d49a4a2a9836d0af1d695109`.
+  - `20260915T093635Z-numeric-indexes-cfcd49/numeric-index-mutation-report.json`: 1,027,520 bytes, SHA-256 `af76122f14a57ec82b05fcbbd7e7aec4327fd1f034ba6b3d15aba6f487ae376d`.
+  - `20260915T093800Z-text-guid-marshalling-warm/result.json`: 1,126 bytes, SHA-256 `711e29d919625380bb37ca3a716ba4698f6c8a6ec2911876fac200165d80cf58`.
+  - `20260915T094000Z-text-guid-marshalling-binary/result.json`: 1,126 bytes, SHA-256 `7a37158dd622ca605d04c5e574fb810f38241b81b3b93f589aa10b8ab1aea743`.
+- The next harness isolates each complete lifecycle case in an x86 worker and
+  records its original result plus a pinned worker index. A 64-bit host combines
+  those native results for the unchanged semantic comparison. This avoids
+  retaining every case's snapshots in one worker; memory pressure is a plausible
+  explanation for the earlier context-dependent failure, not an established
+  cause. No failed acquisition or diagnostic is overwritten.
+- Accepted successor: source `925d2a00ea2b43ee6e7c30360dc2c0d541a95af1`,
+  with one fresh x86 process per complete case. All seven cases (Integral, Wide,
+  Deep, Dates, Binary, Text and GUID) pass five Rust lifecycle checkpoints,
+  native insert/update/delete continuations on both outputs, and Rust mutation
+  of retained native inputs. All 49 pairs (98 captures) match complete saved
+  values, schema, index traversal and Seek, physical key/locator records,
+  counters and unrelated Notes preservation. Text covers nulls, case/accent/
+  expansion/control bytes, trailing-space equivalence and lengths through 255;
+  GUID covers nullable display-order values and replacements. Text/GUID keys
+  use mixed-direction unique composites and descending ordinary indexes.
+  The existing refusal cases retain the complete candidate input.
+- Both rounds retain seven original native worker JSON files and a pinned
+  worker index. Their `result.json` is a host-derived aggregation, not another
+  native acquisition. Its identities and the evaluated report identities are:
+  - Round `mutations`, outbox `20260915T095143Z-numeric-indexes-00fc06`:
+    manifest: 407,202 bytes, SHA-256 `25e187c0194f717ee1ff3a11eabcc61f3090f2eecddb80fdc3681340dba50b8c`;
+    worker index: 3,332 bytes, SHA-256 `e4bd2e4ed96320dfc80c12a8e6cd679c9ea10c3b218d89ee191e9254bf3c9af6`;
+    aggregated result: 11,422,121 bytes, SHA-256 `8af8e6fd5d1a8d2c7d06427ab2d4340fd2f0d13ef1f300dcafc57b862938be4d`;
+    comparison: 1,082,185 bytes, SHA-256 `23eda7e6f3e5e9dc28636bf4d37e3d14aa5f807e339891d7d87e9a04006bfdb7`;
+  - Round `continuation`, outbox `20260915T095506Z-numeric-indexes-e59903`:
+    manifest: 596,044 bytes, SHA-256 `3c10ca383631bc2bbafc0c6542274f769b4be03c6647f53dd36e70a7d7a2ba43`;
+    worker index: 3,328 bytes, SHA-256 `72fe7487dfc6ff1f46444732e4335b4903817351877da99cf6751e6905363754`;
+    aggregated result: 1,689,982 bytes, SHA-256 `1653c9dbee7674396b1c6071135ed4f672941daff829281bec3aa5345751e3ee`;
+    comparison: 186,526 bytes, SHA-256 `0c71d31fe0389e6b4ea39929c0086d2b11a583a52774a20218a5d1ed2d19241b`;
+- This accepts the declared lifecycle inventory and English-US/CP1252 context.
+  It does not establish other Text collations, fixed Text keys, undefined
+  CP1252 characters, general schema changes or full-v1 compatibility. The two
+  earlier failed acquisitions remain independent recorded outcomes.

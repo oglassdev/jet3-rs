@@ -108,6 +108,7 @@ pub mod table_definition;
 mod table_definition_layout;
 pub mod table_definition_writer;
 pub mod text;
+mod text_index_key;
 pub mod update;
 mod update_index_key;
 mod update_pages;

@@ -1,3 +1,4 @@
+param([string]$CaseName = '')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if ([IntPtr]::Size -ne 4) { throw 'Expected x86 DAO' }
@@ -24,12 +25,15 @@ function Variant([int]$Type, $Value) {
         1 { return [bool]$Value }; 2 { return [byte]$Value }; 3 { return [int16]$Value }; 4 { return [int]$Value }
         5 { return [double]([decimal]$Value / [decimal]10000) }; 6 { return [single]$Value }; 7 { return [double]$Value }
         8 { return [datetime]::FromOADate([double]$Value) }; 9 { return ,([byte[]](Binary-Bytes ([string]$Value))) }
-        default { throw 'Unknown numeric type' }
+        10 { return [Text.Encoding]::GetEncoding(1252).GetString((Binary-Bytes ([string]$Value))) }
+        15 { return '{' + ([guid]([string]$Value)).ToString() + '}' }
+        default { throw 'Unknown scalar type' }
     }
 }
 function Set-Cell($Recordset, $Case, [int]$Column, $Value) {
-    $spec = $Case.fields[$Column]; $field = $Recordset.Fields.Item([string]$spec[0])
+    $spec = $Case.fields[$Column]; $fields = $Recordset.Fields; $field = $null
     try {
+        $field = $fields.Item([string]$spec[0])
         $script:endpoint = "$($Case.name)/assign/$($spec[0])"
         if ($null -eq $Value) { $field.Value = [DBNull]::Value; return }
         switch ([int]$spec[1]) {
@@ -38,68 +42,131 @@ function Set-Cell($Recordset, $Case, [int]$Column, $Value) {
             5 { $field.Value = [decimal]([decimal]$Value / [decimal]10000) }
             6 { $field.Value = [single]$Value }; 7 { $field.Value = [double]$Value }
             8 { $field.Value = [datetime]::FromOADate([double]$Value) }; 9 { $field.Value = [byte[]](Binary-Bytes ([string]$Value)) }
-            default { throw 'Unknown numeric type' }
+            10 { $field.Value = [Text.Encoding]::GetEncoding(1252).GetString((Binary-Bytes ([string]$Value))) }
+            15 { $field.Value = '{' + ([guid]([string]$Value)).ToString() + '}' }
+            default { throw 'Unknown scalar type' }
         }
-    } finally { Release $field }
+    } finally { Release $field; Release $fields }
 }
 function Set-Row($Recordset, $Case, $Values) {
     for ($i = 0; $i -lt $Case.fields.Count; $i++) { Set-Cell $Recordset $Case $i $Values[$i] }
 }
 function Read-Row($Recordset, [string]$Name, $Case) {
-    if ($Name -eq 'Notes') {
-        $body = $Recordset.Fields.Item('Body').Value
-        return ,([object[]]@([int]$Recordset.Fields.Item('Id').Value, $(if ($body -is [DBNull]) { $null } else { [string]$body })))
-    }
-    $values = [object[]]::new($Case.fields.Count)
-    for ($i = 0; $i -lt $values.Length; $i++) {
-        $value = $Recordset.Fields.Item([string]$Case.fields[$i][0]).Value
-        $values[$i] = if ($value -is [DBNull]) { $null } elseif ([int]$Case.fields[$i][1] -eq 5) { [long]([decimal]$value * [decimal]10000) } elseif ([int]$Case.fields[$i][1] -eq 8) { ([datetime]$value).ToOADate() } elseif ([int]$Case.fields[$i][1] -eq 9) { [BitConverter]::ToString([byte[]]$value).Replace('-', '').ToLowerInvariant() } else { $value }
-    }
+    $fields = $Recordset.Fields; $field = $null
+    $specs = if ($Name -eq 'Notes') { @(@('Id', 4), @('Body', 12)) } else { $Case.fields }
+    $values = [object[]]::new($specs.Count)
+    try {
+        for ($i = 0; $i -lt $values.Length; $i++) {
+            $field = $fields.Item([string]$specs[$i][0])
+            try {
+                $value = $field.Value
+                if ($value -is [DBNull]) { $values[$i] = $null; continue }
+                switch ([int]$specs[$i][1]) {
+                    5 { $values[$i] = [long]([decimal]$value * [decimal]10000) }
+                    8 { $values[$i] = ([datetime]$value).ToOADate() }
+                    9 { $values[$i] = [BitConverter]::ToString([byte[]]$value).Replace('-', '').ToLowerInvariant() }
+                    10 { $values[$i] = [BitConverter]::ToString([Text.Encoding]::GetEncoding(1252).GetBytes([string]$value)).Replace('-', '').ToLowerInvariant() }
+                    15 {
+                        if ([string]$value -notmatch '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}') { throw 'Unrecognized GUID value' }
+                        $values[$i] = ([guid]$Matches[0]).ToString('N')
+                    }
+                    default { $values[$i] = $value }
+                }
+            } finally { Release $field; $field = $null }
+        }
+    } finally { Release $field; Release $fields }
     return ,$values
 }
+function Read-Names($Collection) {
+    $item = $null; $names = @()
+    try {
+        for ($i = 0; $i -lt $Collection.Count; $i++) {
+            $item = $Collection.Item($i); $names += [string]$item.Name
+            Release $item; $item = $null
+        }
+    } finally { Release $item; Release $Collection }
+    return $names
+}
+function Read-Fields($Table) {
+    $fields = $Table.Fields; $field = $null; $items = @()
+    try {
+        for ($i = 0; $i -lt $fields.Count; $i++) {
+            $field = $fields.Item($i)
+            $items += @{ name = [string]$field.Name; type = [int]$field.Type; size = [int]$field.Size; attributes = [int]$field.Attributes;
+                         required = [bool]$field.Required; allow_zero_length = [bool]$field.AllowZeroLength; default_value = [string]$field.DefaultValue }
+            Release $field; $field = $null
+        }
+    } finally { Release $field; Release $fields }
+    return $items
+}
+function Read-Indexes($Table) {
+    $indexes = $Table.Indexes; $index = $fields = $field = $null; $items = @()
+    try {
+        for ($i = 0; $i -lt $indexes.Count; $i++) {
+            $index = $indexes.Item($i); $fields = $index.Fields; $keys = @()
+            for ($j = 0; $j -lt $fields.Count; $j++) {
+                $field = $fields.Item($j)
+                $keys += @{name = [string]$field.Name; attributes = [int]$field.Attributes}
+                Release $field; $field = $null
+            }
+            Release $fields; $fields = $null
+            $items += @{ name = [string]$index.Name; primary = [bool]$index.Primary; unique = [bool]$index.Unique; required = [bool]$index.Required;
+                         foreign = [bool]$index.Foreign; ignore_nulls = [bool]$index.IgnoreNulls; fields = $keys }
+            Release $index; $index = $null
+        }
+    } finally { Release $field; Release $fields; Release $index; Release $indexes }
+    return $items
+}
+
 function Read-Rows($Recordset, [string]$Name, $Case) {
     $rows = New-Object Collections.ArrayList
     while (-not $Recordset.EOF) { [void]$rows.Add((Read-Row $Recordset $Name $Case)); $Recordset.MoveNext() }
     return ,([object[]]$rows.ToArray())
 }
 function New-Control([string]$Path, $Case) {
-    $engine = $workspace = $db = $table = $field = $index = $key = $rs = $null
+    $engine = $workspaces = $workspace = $db = $tables = $table = $fields = $field = $indexes = $index = $keys = $key = $rs = $null
     try {
-        $engine = New-Object -ComObject DAO.DBEngine.36; $workspace = $engine.Workspaces.Item(0)
-        $db = $workspace.CreateDatabase($Path, ';LANGID=0x0409;CP=1252;COUNTRY=0', 32)
+        $engine = New-Object -ComObject DAO.DBEngine.36; $workspaces = $engine.Workspaces; $workspace = $workspaces.Item(0)
+        $db = $workspace.CreateDatabase($Path, ';LANGID=0x0409;CP=1252;COUNTRY=0', 32); $tables = $db.TableDefs
         foreach ($name in @('Items', 'Notes')) {
             $script:endpoint = "$([IO.Path]::GetFileName($Path))/create/$name"
-            $table = $db.CreateTableDef($name)
+            $table = $db.CreateTableDef($name); $fields = $table.Fields; $indexes = $table.Indexes
             $specs = if ($name -eq 'Items') { $Case.fields } else { @(@('Id', 4, 4), @('Body', 12, 0)) }
             foreach ($spec in $specs) {
                 $field = $table.CreateField([string]$spec[0], [int]$spec[1], [int]$spec[2])
-                $table.Fields.Append($field); Release $field; $field = $null
+                $fields.Append($field); Release $field; $field = $null
             }
             if ($name -eq 'Items') {
                 foreach ($spec in $Case.indexes) {
-                    $index = $table.CreateIndex([string]$spec.name)
+                    $index = $table.CreateIndex([string]$spec.name); $keys = $index.Fields
                     $index.Primary = [bool]$spec.primary; $index.Unique = [bool]$spec.unique
                     $index.Required = [bool]$spec.required; $index.IgnoreNulls = [bool]$spec.ignore
                     foreach ($component in $spec.fields) {
                         $column = [int]$component[0]
                         $key = $index.CreateField([string]$Case.fields[$column][0])
                         if ([bool]$component[1]) { $key.Attributes = 1 }
-                        $index.Fields.Append($key); Release $key; $key = $null
+                        $keys.Append($key); Release $key; $key = $null
                     }
-                    $table.Indexes.Append($index); Release $index; $index = $null
+                    $indexes.Append($index); Release $keys; $keys = $null; Release $index; $index = $null
                 }
             }
-            $db.TableDefs.Append($table); Release $table; $table = $null
+            $tables.Append($table); Release $indexes; $indexes = $null; Release $fields; $fields = $null; Release $table; $table = $null
         }
-        $rs = $db.OpenRecordset('Notes', 2)
-        $rs.AddNew(); $rs.Fields.Item('Id').Value = 7; $rs.Fields.Item('Body').Value = [string]('n' * 4096); $rs.Update()
-        $rs.AddNew(); $rs.Fields.Item('Id').Value = 8; $rs.Fields.Item('Body').Value = [DBNull]::Value; $rs.Update()
+        $rs = $db.OpenRecordset('Notes', 2); $fields = $rs.Fields
+        foreach ($id in @(7, 8)) {
+            $rs.AddNew()
+            $field = $fields.Item('Id'); $field.Value = [int]$id; Release $field; $field = $null
+            $field = $fields.Item('Body')
+            if ($id -eq 7) { $field.Value = [string]('n' * 4096) } else { $field.Value = [DBNull]::Value }
+            Release $field; $field = $null; $rs.Update()
+        }
+        Release $fields; $fields = $null
         $rs.Close(); Release $rs; $rs = $db.OpenRecordset('Items', 2)
         foreach ($row in $Case.initial_rows) { $rs.AddNew(); Set-Row $rs $Case $row; $rs.Update() }
     } finally {
         if ($null -ne $rs) { try { $rs.Close() } catch {} }; Release $rs
-        Release $key; Release $index; Release $field; Release $table
-        if ($null -ne $db) { try { $db.Close() } catch {} }; Release $db; Release $workspace; Release $engine
+        Release $key; Release $keys; Release $index; Release $indexes; Release $field; Release $fields; Release $table; Release $tables
+        if ($null -ne $db) { try { $db.Close() } catch {} }; Release $db; Release $workspace; Release $workspaces; Release $engine
     }
 }
 function Mutate([string]$Path, $Case, $Operations) {
@@ -133,19 +200,14 @@ function Capture([string]$Path, $Case) {
     try {
         $script:endpoint = "$([IO.Path]::GetFileName($Path))/capture"
         $engine = New-Object -ComObject DAO.DBEngine.36; $db = $engine.OpenDatabase($Path, $false, $true)
-        $snapshot = @{ version = [string]$db.Version; tables = @($db.TableDefs | ForEach-Object { [string]$_.Name } | Sort-Object);
-            queries = @($db.QueryDefs | ForEach-Object { [string]$_.Name }); relations = @($db.Relations | ForEach-Object { [string]$_.Name }); user_tables = @(); index_reads = @{} }
+        $snapshot = @{ version = [string]$db.Version; tables = @(Read-Names $db.TableDefs | Sort-Object);
+            queries = @(Read-Names $db.QueryDefs); relations = @(Read-Names $db.Relations); user_tables = @(); index_reads = @{} }
         foreach ($name in @('Items', 'Notes')) {
-            $table = $db.TableDefs.Item($name)
+            $tables = $db.TableDefs
+            try { $table = $tables.Item($name) } finally { Release $tables }
             $item = @{ name = $name; attributes = [int]$table.Attributes }
-            $item.fields = @($table.Fields | ForEach-Object {
-                @{ name = [string]$_.Name; type = [int]$_.Type; size = [int]$_.Size; attributes = [int]$_.Attributes;
-                   required = [bool]$_.Required; allow_zero_length = [bool]$_.AllowZeroLength; default_value = [string]$_.DefaultValue }
-            })
-            $item.indexes = @($table.Indexes | ForEach-Object {
-                @{ name = [string]$_.Name; primary = [bool]$_.Primary; unique = [bool]$_.Unique; required = [bool]$_.Required; foreign = [bool]$_.Foreign; ignore_nulls = [bool]$_.IgnoreNulls;
-                   fields = @($_.Fields | ForEach-Object { @{ name = [string]$_.Name; attributes = [int]$_.Attributes } }) }
-            })
+            $item.fields = @(Read-Fields $table)
+            $item.indexes = @(Read-Indexes $table)
             $rs = $db.OpenRecordset($name, 4); $item.rows = Read-Rows $rs $name $Case
             $rs.Close(); Release $rs; $rs = $null
             $snapshot.user_tables += ,$item; Release $table; $table = $null
@@ -180,6 +242,22 @@ function Capture([string]$Path, $Case) {
 $script:endpoint = 'manifest'
 $manifestPath = Join-Path $env:JET3_WORK 'numeric-index-mutation.json'
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+if (-not $CaseName) {
+    $workers = @(); $failed = $false
+    $shell = Join-Path $env:WINDIR 'SysWOW64\WindowsPowerShell\v1.0\powershell.exe'
+    foreach ($case in $manifest.cases) {
+        $name = [string]$case.name
+        & $shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $PSCommandPath -CaseName $name
+        $code = $LASTEXITCODE; $file = "$name-result.json"; $path = Join-Path $env:JET3_OUTBOX $file
+        $pin = if (Test-Path -LiteralPath $path) { Identity $path } else { $null }
+        $workers += @{ name = $name; exit_code = $code; file = $file; image = $pin }
+        if ($code -ne 0 -or $null -eq $pin) { $failed = $true }
+    }
+    Write-Json @{ document_type = 'dao_numeric_index_workers'; source_revision = $manifest.source_revision;
+        manifest_sha256 = (Identity $manifestPath).sha256; round = [string]$manifest.round; workers = $workers } (Join-Path $env:JET3_OUTBOX 'numeric-index-workers.json')
+    if ($failed) { exit 1 }; exit 0
+}
+if (@($manifest.cases | Where-Object { $_.name -ceq $CaseName }).Count -ne 1) { throw 'Unknown worker case' }
 $result = @{ document_type = 'dao_numeric_index_mutation_result'; source_revision = $manifest.source_revision; round = [string]$manifest.round;
     manifest_sha256 = (Identity $manifestPath).sha256; environment = @{}; cases = @(); error = $null; retention_failures = @() }
 try {
@@ -200,6 +278,7 @@ try {
             dll = @{ path = $dll[0].FileName; version = $dll[0].FileVersionInfo.FileVersion; sha256 = (Identity $dll[0].FileName).sha256 } }
     } finally { Release $engine }
     foreach ($case in $manifest.cases) {
+        if ($case.name -cne $CaseName) { continue }
         $outcome = @{ name = [string]$case.name; status = 'running'; created = $null; stages = @(); native = @{}; roles = @{}; operation = $null; error = $null }; $result.cases += ,$outcome
         try {
             if ($manifest.round -eq 'continuation') {
@@ -240,6 +319,6 @@ try {
     foreach ($file in Get-ChildItem -LiteralPath $env:JET3_WORK -File | Where-Object { $_.Extension -in @('.mdb', '.json') }) {
         try { Copy-Item -LiteralPath $file.FullName -Destination $env:JET3_OUTBOX } catch { $result.retention_failures += @{ file = $file.Name; message = $_.Exception.Message } }
     }
-    Write-Json $result (Join-Path $env:JET3_OUTBOX 'result.json')
+    Write-Json $result (Join-Path $env:JET3_OUTBOX "$CaseName-result.json")
 }
 if ($null -ne $result.error -or $result.retention_failures.Count -or @($result.cases | Where-Object { $_.status -ne 'pass' }).Count) { exit 1 }

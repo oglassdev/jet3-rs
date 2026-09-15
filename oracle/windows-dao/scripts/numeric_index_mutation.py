@@ -7,6 +7,8 @@ import math
 from pathlib import Path
 import shutil
 import struct
+import uuid
+import text_index_collation
 import subprocess
 
 from index_tree_mutation import identity, notes_identity, tables, require, write
@@ -17,8 +19,8 @@ ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = Path(__file__).with_suffix('.ps1')
 MANIFEST = 'numeric-index-mutation.json'
 NOTES = [[7, 'n' * 4096], [8, None]]
-SIZES = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 4, 7: 8, 8: 8, 9: 255}
-CASE_NAMES = ('integral', 'wide', 'deep', 'dates', 'binary')
+SIZES = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 4, 7: 8, 8: 8, 9: 255, 10: 255, 15: 16}
+CASE_NAMES = ('integral', 'wide', 'deep', 'dates', 'binary', 'text', 'guid')
 
 
 def initial_row(name, id):
@@ -29,6 +31,14 @@ def initial_row(name, id):
     if name == 'dates':
         dates = [-2.75, -1.25, 0.0, 0.25, 0.5, 1.75, 36526.125, 36527.875]
         return [id, dates[id % 8] if id % 11 else None, 36526 + id / 4 if id % 19 else None, id % 13]
+    if name == 'text':
+        widths = [1, 7, 8, 16, 63, 127, 168, 169, 223, 224, 247, 248, 249, 250, 251, 252, 253, 254, 255]
+        alphabet = b"aAezZ -'\xe9\xc9\xc6\xe6\xdf\x8a\x9a\xa0\x00\x1f"
+        payload = bytes(alphabet[(offset * 7 + id % 23) % len(alphabet)] for offset in range(widths[id % len(widths)]))
+        return [id, payload.hex() if id % 19 else None, id]
+    if name == 'guid':
+        payload = bytes((offset * 37 + id % 251) % 256 for offset in range(16))
+        return [id, payload.hex() if id % 19 else None, id]
     if name == 'binary':
         widths = [1, 7, 8, 9, 17, 223, 224, 225, 247, 248, 249, 250, 251, 252, 253, 254, 255]
         payload = bytes((offset * 37 + id % 23) % 256 for offset in range(widths[id % len(widths)]))
@@ -50,11 +60,14 @@ def recipe(name):
         types, count, additions, deletions, regrown = [4, 5, 7, 6], 80, range(80, 92), [0, 17, 80], [120, 121, 122]
         edits = [field(2, 3, -1.5), replace(3, [3, 30003, 3.5, 2.25]), field(4, 1, None),
                  replace(5, [5, None, None, None]), field(6, 2, None), field(7, 0, 99)]
-    elif name in ('dates', 'binary'):
-        types = [4, 8, 8, 4] if name == 'dates' else [4, 9, 4]
+    elif name in ('dates', 'binary', 'text', 'guid'):
+        types = [4, 8, 8, 4] if name == 'dates' else [4, {'binary': 9, 'text': 10, 'guid': 15}[name], 4]
         count, additions, deletions, regrown = 96, range(96, 220), range(160), range(1000, 1040)
         edits = ([field(1, 1, -1.75), field(2, 2, None), replace(3, [3, None, 36526.75, 3]), field(4, 3, -4)]
                  if name == 'dates' else [field(1, 1, 'ab'), field(2, 1, None), replace(3, [3, 'cd', 3]), field(4, 2, -40)])
+        if name in ('text', 'guid'):
+            first, second = ('41e95a', '20') if name == 'text' else ('ab' * 16, 'cd' * 16)
+            edits = [field(1, 1, first), field(2, 1, None), replace(3, [3, second, 3]), field(4, 2, -40)]
         edits.append(field(219, 0, 999))
     else:
         types, count, additions, deletions, regrown = [4, 5, 7], 5673, [5673], [5673], [6000]
@@ -65,12 +78,12 @@ def recipe(name):
     result = dict(name=name, fields=[[n, t, SIZES[t]] for n, t in zip(['Id', 'A', 'B', 'C'], types)],
                   indexes=[index('ById', [[0, False]], unique=True, primary=True),
                            index('ByPair', [[1, False], [2, True]], unique=name != 'integral', ignore=name == 'integral'),
-                           index('ByLast', [[1 if name == 'binary' else 2 if name == 'deep' else 3, True]], unique=name == 'wide', ignore=name == 'wide')],
+                           index('ByLast', [[1 if name in ('binary', 'text', 'guid') else 2 if name == 'deep' else 3, True]], unique=name == 'wide', ignore=name == 'wide')],
                   initial_rows=[initial_row(name, id) for id in range(count)], stages=[
                       dict(name='original', operations=[]), dict(name='grown', operations=[insert(id) for id in additions]),
                       dict(name='edited', operations=edits), dict(name='collapsed', operations=[dict(kind='delete', id=id) for id in deletions]),
                       dict(name='regrown', operations=[insert(id) for id in regrown])],
-                  native=[insert(9000), field(9000, 0, 9001), dict(kind='delete', id={'integral': 195, 'wide': 120, 'deep': 8, 'dates': 1000, 'binary': 1000}[name])])
+                  native=[insert(9000), field(9000, 0, 9001), dict(kind='delete', id={'integral': 195, 'wide': 120, 'deep': 8, 'dates': 1000, 'binary': 1000, 'text': 1000, 'guid': 1000}[name])])
     samples = [initial_row(name, id) for id in [0, 1, 2, 3, 4, 5, 6, 7, 80, 120, 195, 324, 500, 999, 1000, 9000, 9001, 1234567, 1234568]]
     if name == 'wide': samples.extend([[0, 0, 0.5, n] for n in [-1.5, 2.25, 4.5]])
     for index in result['indexes']:
@@ -84,9 +97,11 @@ def component(value, kind, descending):
     if value is None:
         require(kind != 1, 'Boolean null is outside admitted input')
         result = b'\0'
-    elif kind == 9:
+    elif kind == 10:
+        return text_index_collation.component(value, descending)
+    elif kind in (9, 15):
         raw = bytes.fromhex(value)
-        require(0 < len(raw) <= 255, 'Present Binary model length')
+        require((0 < len(raw) <= 255) if kind == 9 else len(raw) == 16, 'Present Binary/GUID model length')
         mask = 255 if descending else 0
         result = bytearray([127 ^ mask])
         for offset in range(0, len(raw), 8):
@@ -169,6 +184,10 @@ def raw_check(data, case, expected, counters, receipt=None, previous=None):
             if value is not None and kind in (5, 6, 7):
                 raw = bytes.fromhex(value['raw_hex'])
                 row['values'][n] = int.from_bytes(raw, 'little', signed=True) if kind == 5 else struct.unpack('<f' if kind == 6 else '<d', raw)[0]
+            elif value is not None and kind == 10:
+                row['values'][n] = value.encode('cp1252').hex()
+            elif value is not None and kind == 15:
+                row['values'][n] = uuid.UUID(bytes_le=bytes.fromhex(value['raw_hex'])).hex
     require(not lval and sorted(r['values'] for r in rows) == sorted(expected.values()), 'Complete raw scalar rows')
     require(table['row_count'] == len(expected), 'Declared live row count')
     require([[c['name'], c['type'], c['size']] for c in table['columns']] == [[name, catalog.PHYSICAL_TYPES[kind], size] for name, kind, size in case['fields']], 'Raw field schema')
@@ -222,7 +241,7 @@ def refusal_check(directory, notes):
 
 
 def inputs():
-    paths = [Path(__file__), SCRIPT, Path(raw_index.__file__), Path(raw_rows.__file__), ROOT / 'crates/jet3/examples/numeric_index_mutation_candidate.rs',
+    paths = [Path(__file__), SCRIPT, Path(text_index_collation.__file__), Path(raw_index.__file__), Path(raw_rows.__file__), ROOT / 'crates/jet3/examples/numeric_index_mutation_candidate.rs',
              ROOT / 'crates/jet3/examples/numeric_index_mutation_support/mod.rs',
              Path(__file__).with_name('index_tree_mutation.py'), Path(__file__).with_name('index_tree_mutation_structure.py'),
              Path(__file__).with_name('multi_level_index_structure.py'), Path(raw_index.catalog.__file__), Path(__file__).with_name('field_update.ps1')]
@@ -303,6 +322,38 @@ def retain_report(outbox, report):
     while path.exists() and json.loads(path.read_text()) != report:
         suffix += 1; path = outbox / f'numeric-index-mutation-report-{suffix}.json'
     write(path, report); print(path)
+
+
+def aggregate(outbox):
+    """Combine immutable per-case native results on the 64-bit host."""
+    index_path = outbox / 'numeric-index-workers.json'
+    workers = json.loads(index_path.read_text(encoding='utf-8-sig'))
+    require(workers['document_type'] == 'dao_numeric_index_workers', 'Worker index type')
+    require([w['name'] for w in workers['workers']] == list(CASE_NAMES), 'Worker case inventory')
+    combined = None
+    for worker in workers['workers']:
+        require(worker['file'] == worker['name'] + '-result.json', 'Worker file name')
+        path = outbox / worker['file']
+        require(identity(path) == worker['image'], 'Worker result identity')
+        result = json.loads(path.read_text(encoding='utf-8-sig'))
+        require(result['document_type'] == 'dao_numeric_index_mutation_result' and
+                all(result[k] == workers[k] for k in ('source_revision', 'manifest_sha256', 'round')), 'Worker source/manifest/round')
+        require([c['name'] for c in result['cases']] == [worker['name']], 'One complete worker case')
+        if combined is None:
+            combined = dict(result, cases=[], retention_failures=[], error=None,
+                            worker_index=identity(index_path), worker_results=[])
+        require(result['environment'] == combined['environment'], 'Identical native provider environment')
+        combined['cases'].extend(result['cases'])
+        combined['retention_failures'].extend(result['retention_failures'])
+        combined['worker_results'].append(dict(name=worker['name'], image=worker['image'], exit_code=worker['exit_code']))
+        if result['error'] is not None or (worker['exit_code'] != 0 and all(c['status'] == 'pass' for c in result['cases'])):
+            combined['error'] = 'One or more native workers failed; see retained worker results'
+    require(combined is not None, 'Nonempty worker inventory')
+    target = outbox / 'result.json'
+    if target.exists():
+        require(json.loads(target.read_text()) == combined, 'Existing aggregate is identical')
+    else:
+        write(target, combined)
 
 
 def evaluate(candidates: Path, outbox: Path):

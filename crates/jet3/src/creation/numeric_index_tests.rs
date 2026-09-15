@@ -249,7 +249,6 @@ fn excluded_scalar_values_and_types_never_publish() -> TestResult {
         (ColumnType::Double, RowValue::Double(f64::NEG_INFINITY)),
         (ColumnType::Double, RowValue::Double(f64::NAN)),
         (ColumnType::DateTime, RowValue::DateTime { days: f64::NAN }),
-        (ColumnType::Guid, RowValue::Guid([0; 16])),
     ] {
         let directory = TestDirectory::create()?;
         let table = TableSpec {

@@ -54,7 +54,8 @@ Creation admits up to 127 tables with multi-page system catalogs and catalog
 indexes, within the existing 1,024-page allocation limit. Table definitions may
 span linked pages on first and later tables, including populated and indexed
 schemas. It supports multi-page initial rows, explicit/generated AutoIncrement
-IDs, and up to three numeric, Date or Binary indexes per table.
+IDs, and up to three scalar indexes per table, including Date, Binary, variable
+Text and GUID.
 Indexes have one or two components and can span multiple levels. Independent
 Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
 columns themselves cannot be indexed. Each payload column has separate ownership
@@ -104,8 +105,10 @@ one EOF data page or a released target-table page, deletion/compaction,
 last-live-row page release, same-page row replacement, independent Memo/OLE
 payload mutation, and multi-level index maintenance. A table may
 have up to three indexes with one or two Boolean, Byte, Integer, Long, Currency,
-Single, Double, Date or Binary components, including mixed directions, duplicates and null
-policies. Rebuilt trees keep their roots, reuse reserved index pages, and append
+Single, Double, Date, Binary, variable Text or GUID components, including mixed
+directions, duplicates and null policies. Text keys use the observed English-US/CP1252
+collation, retaining stored row bytes while ignoring trailing ASCII spaces in keys.
+Fixed Text and other collations remain outside indexed mutation. Rebuilt trees keep their roots, reuse reserved index pages, and append
 nodes within inline maps. Indexed EOF insertion publishes data, allocation, table counts and index
 changes together. Memo/OLE insertion and full-row replacement support null,
 inline, single-page and chained payloads. Payload pages are validated against
@@ -157,6 +160,15 @@ to native inputs. Complete values, schema, traversal/Seek, key/locator records,
 counters and Notes preservation match. Native deletion can retain a class-one
 index root with a single tail child; that bounded shape is now readable and
 mutable. Original failed analyzer outcomes remain recorded separately.
+
+EXP-0248 establishes the complete defined CP1252 Text weight map and GUID
+framing, with 9,116 native keys checked across original and held-out matrices.
+EXP-0250 accepts all seven scalar lifecycle cases, including Text and GUID:
+49 paired comparisons (98 captures) cover five checkpoints, native successors
+and Rust edits to native inputs. Schema, complete values, traversal/Seek,
+physical key/locator records, counters and unrelated Notes preservation match.
+Earlier context-dependent COM assignment failures remain recorded separately;
+the accepted harness runs each case in a fresh x86 worker.
 
 ### Validation
 
