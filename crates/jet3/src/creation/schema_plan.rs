@@ -21,17 +21,15 @@
 //! then an index root when it carried one index, and no further `LvProp`
 //! page. A later create is therefore planned without the property page.
 //! `EXP-0222` combines these page roles with the `EXP-0093` index placements
-//! for up to three indexes on any table. Later continuations remain refused.
+//! for up to three indexes on any table.
 //!
-//! `EXP-0105` observed that a definition longer than its root page continues
-//! on one or two further definition pages, the root holding 2,048 logical
-//! bytes and each continuation 2,040. It observed those pages well past the
-//! appended run (`[20, 68]` and `[20, 219, 218]`) and establishes no
-//! allocation rule for them. `EXP-0107` then observed DAO accept an unindexed
-//! composed table whose single continuation was appended directly after the
-//! `LvProp` page. This module admits exactly that shape: one continuation, on
-//! an unindexed table, at the page after `LvProp`. Longer chains and a
-//! continuation beside an index remain refused rather than extrapolated.
+//! `EXP-0059` and `EXP-0105` establish definition chains: the root holds
+//! 2,048 logical bytes and each linked continuation holds 2,040. This planner
+//! assigns continuations consecutively after the map and optional `LvProp`
+//! page, before index roots. `EXP-0107` accepted one unindexed first-table
+//! continuation; `EXP-0247` compares longer, later, indexed and populated
+//! definitions, including an empty terminal continuation at exact payload
+//! boundaries. Consecutive placement is a tested construction policy.
 //!
 //! Neither experiment establishes an `Id` allocation rule beyond the observed
 //! equality with the definition root page.
@@ -47,9 +45,6 @@ use crate::{IndexFieldSpec, PageNumber, TableDefinitionKind, TableDefinitionWrit
 
 /// Largest index count `EXP-0093` observed on a created table.
 pub(crate) const MAX_OBSERVED_INDEXES: usize = 3;
-/// Largest continuation count `EXP-0107` observed DAO accept in the compact
-/// appended position.
-pub(crate) const MAX_OBSERVED_CONTINUATIONS: usize = 1;
 /// `EXP-0057`: usage-map locators hold a three-byte page number.
 const MAX_MAP_PAGE: u64 = 0x00ff_ffff;
 /// `EXP-0093`: map-page row of the table's owned-page map.
@@ -102,33 +97,6 @@ pub enum TableSchemaPlanError {
         position: usize,
         /// The unestablished byte.
         byte: u8,
-    },
-    /// The definition needs more continuation pages than `EXP-0107` observed
-    /// DAO accept in the compact appended position; `EXP-0105` observed longer
-    /// chains only under the provider's own unestablished allocation.
-    ContinuationPlacementUnestablished {
-        /// Encoded definition length.
-        length: usize,
-        /// Continuations the definition needs at the established capacities.
-        continuations: usize,
-    },
-    /// The definition needs a continuation page and the table declares an
-    /// index; no observed create carried both, so their page order is
-    /// unestablished.
-    UnobservedContinuationIndexLayout {
-        /// Continuations the definition needs.
-        continuations: usize,
-        /// Declared index count.
-        indexes: usize,
-    },
-    /// A later create needs a continuation page; `EXP-0107` observed the
-    /// compact placement only after a first create's `LvProp` page, and
-    /// `EXP-0087` observed no later create with a continuation.
-    UnobservedLaterCreateContinuation {
-        /// Encoded definition length.
-        length: usize,
-        /// Continuations the definition needs.
-        continuations: usize,
     },
     /// `EXP-0093` observed no create carrying this many indexes.
     UnobservedIndexCount {
@@ -190,8 +158,8 @@ impl std::error::Error for TableSchemaPlanError {
 /// The validated page assignment for one new user table.
 ///
 /// The appended run is the definition root, the map page, the `LvProp` page
-/// for the database's first create only, the definition continuation if one
-/// is needed, then the index roots.
+/// for the database's first create only, any definition continuations, then
+/// the index roots.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TableSchemaPlan {
     object_id: i32,
@@ -240,8 +208,8 @@ impl TableSchemaPlan {
         self.definition_len
     }
 
-    /// Returns the page holding the definition's continuation, if the
-    /// definition needs one (`EXP-0107`: directly after the `LvProp` page).
+    /// Returns the first continuation page, when the definition needs a chain.
+    /// Consecutive continuation pages follow the fixed pages.
     pub(crate) fn continuation_page(&self) -> Option<PageNumber> {
         (continuation_count(self.definition_len) > 0)
             .then(|| PageNumber::new(self.after_fixed_pages()))
@@ -298,25 +266,6 @@ pub(crate) fn plan_table_schema(
         });
     }
     let length = measure_definition(spec)?;
-    let continuations = continuation_count(length);
-    if continuations > MAX_OBSERVED_CONTINUATIONS {
-        return Err(TableSchemaPlanError::ContinuationPlacementUnestablished {
-            length,
-            continuations,
-        });
-    }
-    if continuations > 0 && !spec.indexes.is_empty() {
-        return Err(TableSchemaPlanError::UnobservedContinuationIndexLayout {
-            continuations,
-            indexes: spec.indexes.len(),
-        });
-    }
-    if !first_create && continuations > 0 {
-        return Err(TableSchemaPlanError::UnobservedLaterCreateContinuation {
-            length,
-            continuations,
-        });
-    }
     let index_fields = resolve_index_fields(spec)?;
     let plan = assign_pages(spec, first_page, first_create, length, index_fields)?;
     validate_indexes(spec, &plan)?;
@@ -411,11 +360,14 @@ fn measure_definition(spec: &TableSpec<'_>) -> Result<usize, TableSchemaPlanErro
 }
 
 /// Returns how many continuation pages a definition of `length` bytes needs
-/// at the `EXP-0105` capacities.
+/// at the `EXP-0105` capacities, retaining the `EXP-0247` empty terminal page
+/// when the logical definition ends exactly at a payload boundary.
 pub(crate) const fn continuation_count(length: usize) -> usize {
-    length
-        .saturating_sub(DEFINITION_ROOT_CAPACITY)
-        .div_ceil(CONTINUATION_CAPACITY)
+    if length < DEFINITION_ROOT_CAPACITY {
+        0
+    } else {
+        1 + (length - DEFINITION_ROOT_CAPACITY) / CONTINUATION_CAPACITY
+    }
 }
 
 /// Assigns the appended page run, refusing numbers the encoders cannot name.

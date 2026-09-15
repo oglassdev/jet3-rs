@@ -22,6 +22,7 @@ SUITES = {
     "indexed-boundary": ("indexed_boundary", "indexed_boundary_candidate"),
     "indexed-rows": ("indexed_row_candidate", "indexed_row_mutation_candidate"),
     "creation-tables": ("creation_tables", "creation_tables_candidate"),
+    "definition-chains": ("creation_definition_chains", "creation_definition_chains_candidate"),
     "index-trees": ("index_tree_mutation", "index_tree_mutation_candidate"),
     "practical-lifecycle": ("practical_lifecycle", "practical_lifecycle_candidate"),
     "numeric-indexes": ("numeric_index_mutation", "numeric_index_mutation_candidate"),
@@ -76,9 +77,9 @@ def run_suite(name, root, args, revision):
     command(["cargo", "build", "--locked", "-p", "jet3", "--example", example], root, "build")
     images = root / "images"
     stdout = command([ROOT / "target/debug/examples" / example, images], root, "generate")
-    if name in ("creation-tables", "index-trees", "practical-lifecycle", "numeric-indexes", "multiple-long-values", "long-value-lifecycle"):
+    if name in ("creation-tables", "definition-chains", "index-trees", "practical-lifecycle", "numeric-indexes", "multiple-long-values", "long-value-lifecycle"):
         module.prepare(images, revision)
-        manifest = {"creation-tables": "creation-tables.json", "index-trees": "index-tree-mutation.json",
+        manifest = {"definition-chains": "creation-definition-chains.json", "creation-tables": "creation-tables.json", "index-trees": "index-tree-mutation.json",
                     "practical-lifecycle": "practical-lifecycle.json", "numeric-indexes": "numeric-index-mutation.json",
                     "multiple-long-values": "multiple-long-value-creation.json",
                     "long-value-lifecycle": "long-value-lifecycle.json"}[name]
@@ -157,7 +158,7 @@ def capture(name, root, args, revision, module, images, input_path):
         result_path = outbox / "result.json"
         if not result_path.exists():
             raise RuntimeError("Missing DAO result")
-        if name in ("creation-tables", "index-trees", "practical-lifecycle", "numeric-indexes", "multiple-long-values", "long-value-lifecycle"):
+        if name in ("creation-tables", "definition-chains", "index-trees", "practical-lifecycle", "numeric-indexes", "multiple-long-values", "long-value-lifecycle"):
             comparison = module.evaluate(images, outbox)
             matched = comparison["status"] == "accepted"
         else:

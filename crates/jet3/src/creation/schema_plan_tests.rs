@@ -103,17 +103,13 @@ fn a_later_create_appends_no_property_page() -> PlanResult {
 }
 
 #[test]
-fn a_later_create_with_a_continuation_is_refused() {
+fn a_later_create_places_continuations_after_its_map() -> PlanResult {
     let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY + 1);
     let columns = long_columns(&names);
-    assert!(plan_table_schema(&spec(b"Wide", &columns, &[]), 23, true).is_ok());
-    assert_eq!(
-        plan_table_schema(&spec(b"Wide", &columns, &[]), 23, false),
-        Err(TableSchemaPlanError::UnobservedLaterCreateContinuation {
-            length: DEFINITION_ROOT_CAPACITY + 1,
-            continuations: 1,
-        })
-    );
+    let plan = plan_table_schema(&spec(b"Wide", &columns, &[]), 23, false)?;
+    assert_eq!(plan.continuation_page(), Some(PageNumber::new(25)));
+    assert_eq!(plan.appended_page_count(), 3);
+    Ok(())
 }
 
 #[test]
@@ -584,13 +580,14 @@ fn a_map_page_no_usage_map_locator_could_name_is_refused() -> PlanResult {
 #[test]
 fn continuation_counts_follow_the_established_capacities() {
     // EXP-0105: the root holds 2,048 logical bytes and each continuation
-    // 2,040, so the counts change one byte above each capacity.
+    // 2,040; EXP-0247 retains an empty terminal page at exact boundaries.
     for (length, expected) in [
-        (2048, 0),
+        (2047, 0),
+        (2048, 1),
         (2049, 1),
-        (4088, 1),
+        (4088, 2),
         (4089, 2),
-        (6128, 2),
+        (6128, 3),
         (6129, 3),
     ] {
         assert_eq!(continuation_count(length), expected, "length {length}");
@@ -598,8 +595,8 @@ fn continuation_counts_follow_the_established_capacities() {
 }
 
 #[test]
-fn a_definition_that_exactly_fills_its_root_page_needs_no_continuation() -> PlanResult {
-    let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY);
+fn a_definition_shorter_than_its_root_page_needs_no_continuation() -> PlanResult {
+    let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY - 1);
     let columns = long_columns(&names);
     let plan = plan_table_schema(&spec(b"Wide", &columns, &[]), 20, true)?;
     assert_eq!(plan.appended_page_count(), 3);
@@ -621,43 +618,56 @@ fn a_definition_needing_one_continuation_places_it_after_the_property_page() -> 
     let columns = long_columns(&full);
     assert_eq!(
         plan_table_schema(&spec(b"Wide", &columns, &[]), 20, true)?.appended_page_count(),
-        4
+        5
     );
     Ok(())
 }
 
 #[test]
-fn a_definition_needing_two_continuations_is_refused() {
-    // EXP-0105 observed two-continuation chains only under the provider's own
-    // allocation, so the refusal starts one byte above the continuation.
-    let length = DEFINITION_ROOT_CAPACITY + CONTINUATION_CAPACITY + 1;
-    let names = names_of_definition_len(length);
-    let columns = long_columns(&names);
-    assert_eq!(
-        plan_table_schema(&spec(b"Wide", &columns, &[]), 20, true),
-        Err(TableSchemaPlanError::ContinuationPlacementUnestablished {
-            length,
-            continuations: 2,
-        })
-    );
-}
-
-#[test]
-fn a_continuation_beside_an_index_is_refused() {
-    // No observed create carried both, so the order of the continuation and
-    // the index roots is unestablished.
-    let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY + 1);
-    let columns = long_columns(&names);
-    let indexes = [IndexSpec {
-        name: b"ByFirst",
-        fields: &[key(0)],
-        kind: IndexKind::Ordinary,
-    }];
-    assert_eq!(
-        plan_table_schema(&spec(b"Wide", &columns, &indexes), 20, true),
-        Err(TableSchemaPlanError::UnobservedContinuationIndexLayout {
-            continuations: 1,
-            indexes: 1,
-        })
-    );
+fn definition_chains_precede_index_roots_on_first_and_later_tables() -> PlanResult {
+    for length in [2048, 2049, 4088, 4089, 6128, 6129] {
+        // Index metadata is included in the encoded length, so test placement
+        // against the measured total rather than the column-only target.
+        let names = names_of_definition_len(length);
+        let columns = long_columns(&names);
+        let indexes = [
+            IndexSpec {
+                name: b"A",
+                fields: &[key(0)],
+                kind: IndexKind::Primary,
+            },
+            IndexSpec {
+                name: b"B",
+                fields: &[key(1)],
+                kind: IndexKind::Ordinary,
+            },
+            IndexSpec {
+                name: b"C",
+                fields: &[key(2)],
+                kind: IndexKind::Unique,
+            },
+        ];
+        for first in [false, true] {
+            for count in [0, 3] {
+                let plan =
+                    plan_table_schema(&spec(b"Wide", &columns, &indexes[..count]), 20, first)?;
+                let fixed = 2 + u64::from(first);
+                let continuation_count = continuation_count(plan.definition_len()) as u64;
+                assert_eq!(
+                    plan.appended_page_count(),
+                    fixed + continuation_count + count as u64
+                );
+                let expected = (0..count)
+                    .map(|n| {
+                        (
+                            PageNumber::new(20 + fixed + continuation_count + n as u64),
+                            2 + n as u8,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(plan.index_placements().collect::<Vec<_>>(), expected);
+            }
+        }
+    }
+    Ok(())
 }

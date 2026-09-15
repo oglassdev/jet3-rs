@@ -46,7 +46,8 @@ and the remaining host prerequisites.
 
 The reader has hosted DAO differential evidence for its documented capability
 inventory. Creation admits up to 127 tables with multi-page system catalogs,
-within the existing 1,024-page allocation limit and definition capacities.
+within the existing 1,024-page allocation limit. Linked table definitions support
+first and later tables, initial rows, and indexes within shared map capacities.
 It supports initial rows, explicit/generated AutoIncrement IDs, independent
 Memo/OLE columns, up to three numeric, Date or Binary indexes, and a restricted two-table
 relationship construction. Existing-file mutations include row insertion/deletion,

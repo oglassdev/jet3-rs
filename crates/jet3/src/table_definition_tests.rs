@@ -763,3 +763,6 @@ fn exact_allocation_item_and_chain_budgets_reject_one_over()
 
 #[path = "table_definition_system_tests.rs"]
 mod system;
+
+#[path = "table_definition_terminal_tests.rs"]
+mod terminal;
