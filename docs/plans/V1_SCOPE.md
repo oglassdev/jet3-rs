@@ -161,6 +161,15 @@ counters and Notes preservation match. Native deletion can retain a class-one
 index root with a single tail child; that bounded shape is now readable and
 mutable. Original failed analyzer outcomes remain recorded separately.
 
+EXP-0248 establishes the complete defined CP1252 Text weight map and GUID
+framing, with 9,116 native keys checked across original and held-out matrices.
+EXP-0250 accepts all seven scalar lifecycle cases, including Text and GUID:
+49 paired comparisons (98 captures) cover five checkpoints, native successors
+and Rust edits to native inputs. Schema, complete values, traversal/Seek,
+physical key/locator records, counters and unrelated Notes preservation match.
+Earlier context-dependent COM assignment failures remain recorded separately;
+the accepted harness runs each case in a fresh x86 worker.
+
 ### Validation
 
 The read-only library and CLI validator walk catalogued user tables with one

@@ -16238,3 +16238,31 @@ planner tests, 14 table-composition tests and 19 table-definition reader tests.
   retaining every case's snapshots in one worker; memory pressure is a plausible
   explanation for the earlier context-dependent failure, not an established
   cause. No failed acquisition or diagnostic is overwritten.
+- Accepted successor: source `925d2a00ea2b43ee6e7c30360dc2c0d541a95af1`,
+  with one fresh x86 process per complete case. All seven cases (Integral, Wide,
+  Deep, Dates, Binary, Text and GUID) pass five Rust lifecycle checkpoints,
+  native insert/update/delete continuations on both outputs, and Rust mutation
+  of retained native inputs. All 49 pairs (98 captures) match complete saved
+  values, schema, index traversal and Seek, physical key/locator records,
+  counters and unrelated Notes preservation. Text covers nulls, case/accent/
+  expansion/control bytes, trailing-space equivalence and lengths through 255;
+  GUID covers nullable display-order values and replacements. Text/GUID keys
+  use mixed-direction unique composites and descending ordinary indexes.
+  The existing refusal cases retain the complete candidate input.
+- Both rounds retain seven original native worker JSON files and a pinned
+  worker index. Their `result.json` is a host-derived aggregation, not another
+  native acquisition. Its identities and the evaluated report identities are:
+  - Round `mutations`, outbox `20260915T095143Z-numeric-indexes-00fc06`:
+    manifest: 407,202 bytes, SHA-256 `25e187c0194f717ee1ff3a11eabcc61f3090f2eecddb80fdc3681340dba50b8c`;
+    worker index: 3,332 bytes, SHA-256 `e4bd2e4ed96320dfc80c12a8e6cd679c9ea10c3b218d89ee191e9254bf3c9af6`;
+    aggregated result: 11,422,121 bytes, SHA-256 `8af8e6fd5d1a8d2c7d06427ab2d4340fd2f0d13ef1f300dcafc57b862938be4d`;
+    comparison: 1,082,185 bytes, SHA-256 `23eda7e6f3e5e9dc28636bf4d37e3d14aa5f807e339891d7d87e9a04006bfdb7`;
+  - Round `continuation`, outbox `20260915T095506Z-numeric-indexes-e59903`:
+    manifest: 596,044 bytes, SHA-256 `3c10ca383631bc2bbafc0c6542274f769b4be03c6647f53dd36e70a7d7a2ba43`;
+    worker index: 3,328 bytes, SHA-256 `72fe7487dfc6ff1f46444732e4335b4903817351877da99cf6751e6905363754`;
+    aggregated result: 1,689,982 bytes, SHA-256 `1653c9dbee7674396b1c6071135ed4f672941daff829281bec3aa5345751e3ee`;
+    comparison: 186,526 bytes, SHA-256 `0c71d31fe0389e6b4ea39929c0086d2b11a583a52774a20218a5d1ed2d19241b`;
+- This accepts the declared lifecycle inventory and English-US/CP1252 context.
+  It does not establish other Text collations, fixed Text keys, undefined
+  CP1252 characters, general schema changes or full-v1 compatibility. The two
+  earlier failed acquisitions remain independent recorded outcomes.
