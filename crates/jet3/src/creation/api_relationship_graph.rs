@@ -7,7 +7,7 @@ use crate::{CatalogObjectKind, RelationshipSide, RelationshipSpec, TableRef, Tex
 ///
 /// Table order is independent of relationship direction. Multiple endpoints,
 /// chains, self-references and two parents sharing a child FK column are admitted.
-/// Each parent needs an ascending Long primary as its first index. A child FK
+/// Each parent needs an ascending Long/AutoIncrement primary as its first index. A child FK
 /// must not already have a declared single-column index; the composer appends
 /// its foreign index, sharing it between relationships on that column.
 /// Other columns retain the normal creation planner's bounds. Generated foreign

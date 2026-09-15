@@ -282,3 +282,85 @@ fn graph_candidate_check_rejects_changed_index_names_flags_and_endpoint_columns(
     ));
     Ok(())
 }
+
+#[test]
+fn graph_creation_resolves_generated_parent_keys_before_foreign_checks() -> TestResult {
+    let directory = Directory::new()?;
+    let mut columns = COLUMNS.to_vec();
+    columns[0] = ColumnSpec::new(b"Id", ColumnType::AutoIncrement);
+    let parent = TableSpec {
+        columns: &columns,
+        ..TABLES[0]
+    };
+    let parent_rows: &[&[RowValue<'_>]] = &[
+        &[
+            RowValue::AutoIncrement,
+            RowValue::Null,
+            RowValue::Null,
+            RowValue::Null,
+        ],
+        &[
+            RowValue::AutoIncrement,
+            RowValue::Null,
+            RowValue::Null,
+            RowValue::Null,
+        ],
+    ];
+    let child_rows: &[&[RowValue<'_>]] = &[
+        &[
+            RowValue::Long(10),
+            RowValue::Long(1),
+            RowValue::Null,
+            RowValue::Null,
+        ],
+        &[
+            RowValue::Long(11),
+            RowValue::Long(2),
+            RowValue::Null,
+            RowValue::Null,
+        ],
+    ];
+    let requests = [
+        TableRows {
+            table: parent,
+            rows: parent_rows,
+        },
+        TableRows {
+            table: TABLES[1],
+            rows: child_rows,
+        },
+    ];
+    create_database_with_relationships_and_rows(
+        directory.target(),
+        &requests,
+        &[relation(b"A", 0, 1, 1)],
+        &mut budget(),
+    )?;
+    let bad_rows: &[&[RowValue<'_>]] = &[&[
+        RowValue::Long(12),
+        RowValue::Long(3),
+        RowValue::Null,
+        RowValue::Null,
+    ]];
+    let bad = [
+        requests[0],
+        TableRows {
+            table: TABLES[1],
+            rows: bad_rows,
+        },
+    ];
+    let missing = directory.0.join("orphan.mdb");
+    assert!(matches!(
+        create_database_with_relationships_and_rows(
+            &missing,
+            &bad,
+            &[relation(b"A", 0, 1, 1)],
+            &mut budget()
+        ),
+        Err(CreateDatabaseError::Compose(
+            ComposeError::OrphanInitialRelationshipKey { row: 0, value: 3 }
+        ))
+    ));
+    assert!(!missing.exists());
+    Ok(())
+}

@@ -101,10 +101,15 @@ pub(super) fn resolve<'a>(
             .column
             .resolve(child_table.columns)
             .ok_or(invalid("child column reference"))?;
-        if parent_table.columns[usize::from(parent_column)].column_type() != ColumnType::Long
-            || child_table.columns[usize::from(child_column)].column_type() != ColumnType::Long
+        // EXP-0239/0270: AutoIncrement keys use the same physical Long encoding.
+        if !matches!(
+            parent_table.columns[usize::from(parent_column)].column_type(),
+            ColumnType::Long | ColumnType::AutoIncrement
+        ) || child_table.columns[usize::from(child_column)].column_type() != ColumnType::Long
         {
-            return Err(invalid("relationship columns must both be Long"));
+            return Err(invalid(
+                "relationship requires a Long/AutoIncrement parent and Long child",
+            ));
         }
         if parent_table.indexes.first().is_none_or(|index| {
             index.kind != IndexKind::Primary
