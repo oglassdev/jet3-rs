@@ -233,7 +233,7 @@ where
     edits.publish(path, database.into_source(), budget, hook)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(crate) fn writable_table(
     database: &mut DatabaseReader<FileSource>,
     table: &[u8],
