@@ -174,6 +174,13 @@ def evaluate(candidates: Path, outbox: Path):
         require(result['error'] is None and result['retention_failures'] == [], 'Producer/retention completed')
         require(result['environment']['process_bits'] == 32 and result['environment']['provider'] == 'DAO.DBEngine.36' and result['environment']['provider_version'] == '3.6', 'Actual provider')
         require([c['name'] for c in result['cases']] == [c['name'] for c in manifest['cases']], 'Case inventory')
+        require([w['case'] for w in result['workers']] == [c['name'] for c in manifest['cases']], 'Native worker inventory')
+        for worker, capture in zip(result['workers'], result['cases']):
+            path = outbox / worker['file']
+            require(worker['exit_code'] == 0 and identity(path) == worker['image'], 'Native worker completion/identity')
+            value = json.loads(path.read_text())
+            require(value['source_revision'] == manifest['source_revision'] and value['manifest_sha256'] == report['manifest']['sha256'] and
+                    value['error'] is None and value['retention_failures'] == [] and value['environment'] == result['environment'] and value['cases'] == [capture], 'Worker source/provider/capture identity')
         for case, capture in zip(manifest['cases'], result['cases']):
             outcome = dict(name=case['name'], status='failed', checkpoints=[], error=None); report['cases'].append(outcome)
             try:
