@@ -163,7 +163,7 @@ impl StdError for CandidateCheckError {
 /// `budget`.
 ///
 /// Unsupported layouts fail with [`CreateDatabaseError::Compose`] before
-/// anything is written: creation-counter overflow, allocation beyond 1,024 pages,
+/// anything is written: creation-counter overflow, exhausted map-reference capacity,
 /// two tables whose names differ only by ASCII case, more than 32 indexes
 /// on a table, or a
 /// name byte above `0x7E`. EXP-0249 bounds table/column names to 64 bytes and
@@ -195,8 +195,8 @@ pub fn create_database(
 
 /// Creates one table containing initial rows in caller order.
 ///
-/// Rows are packed in caller order into data pages within the inline usage-map
-/// capacity. Each row must fit one page; table definitions may span linked
+/// Rows are packed in caller order into data pages within the allocation-map
+/// and resource limits. Each row must fit one page; table definitions may span linked
 /// pages. Pages with a slot and room for an all-null row are marked available;
 /// this construction
 /// policy has not been established as DAO's allocation policy.
@@ -204,7 +204,7 @@ pub fn create_database(
 /// index has one to ten supported scalar columns (including a generated AutoIncrement
 /// column), with each field ascending or descending. Multiple populated indexes
 /// use separate roots/maps and independent trees.
-/// Uncompressed branch/leaf trees grow within the existing inline-map and
+/// Uncompressed branch/leaf trees grow within the allocation-map and
 /// resource limits. Unique indexes reject repeated fully present keys while
 /// allowing repeated null-bearing keys. The index null policy includes keys,
 /// omits all-null keys, or requires every component; primary indexes require
@@ -263,7 +263,7 @@ pub fn create_database_with_rows(
 ///
 /// Each table retains the bounds described by [`create_database_with_rows`]
 /// and [`create_database`]. Tables, their LVAL pages and their row pages are
-/// placed sequentially in input order within the shared inline-map capacity.
+/// placed sequentially in input order within the map-reference and resource limits.
 /// An empty request creates an empty database. Relationships are not included.
 /// Every table and row is checked before publication; existing destinations
 /// remain untouched. This candidate construction has no general DAO guarantee.

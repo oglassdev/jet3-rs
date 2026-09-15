@@ -17,8 +17,9 @@ use std::path::Path;
 /// key types and relationships are refused. Memo/OLE payloads
 /// use independent column maps; raw caller-supplied headers are refused.
 /// If no populated page fits, a released global-free page belonging to this table
-/// is reused, or one EOF page is appended, within existing inline maps. No slot reuse,
-/// map growth or compaction is implemented. An existing selected page must fit
+/// is reused, or one EOF page is appended. Inline maps convert to indirect storage
+/// and missing bitmap slots are allocated within the existing reference row.
+/// Live-page slot reuse and compaction are not implemented. A selected page must fit
 /// the requested row and its directory slot; availability afterward reflects
 /// whether another minimum-length row and slot fit.
 ///
