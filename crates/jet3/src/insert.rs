@@ -256,10 +256,10 @@ where
     Ok(row)
 }
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, any(unix, windows)))]
 #[path = "insert_tests.rs"]
 mod tests;
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, any(unix, windows)))]
 #[path = "indexed_row_tests.rs"]
 mod indexed_tests;

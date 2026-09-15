@@ -11,3 +11,6 @@ workspace = true
 
 [dev-dependencies]
 proptest = "=1.11.0"
+
+[target.'cfg(windows)'.dependencies]
+winapi-util = "=0.1.11"

@@ -7,10 +7,10 @@
 //! Same-directory placement avoids cross-filesystem rename. Atomic replacement
 //! and crash durability remain subject to the operating system and filesystem
 //! guarantees documented for `rename` and `sync_all`; network and unusual
-//! filesystems may provide weaker guarantees. This implementation currently
-//! supports Unix because its overwrite-replace and directory-durability
-//! provider is Unix-only. Other platforms fail closed before creating a
-//! private file.
+//! filesystems may provide weaker guarantees. Unix synchronizes the containing
+//! directory after publication. Windows synchronizes file contents before
+//! publication but offers no separate directory-sync guarantee here. Other
+//! platforms fail closed before creating a private file.
 //!
 //! Callers must exclude concurrent writers to the target. This foundation does
 //! not implement database or multi-user locking.
@@ -686,7 +686,7 @@ mod path_identity {
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 mod path_identity {
     use std::fs::File;
     use std::io;
@@ -735,7 +735,7 @@ mod platform_publish {
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 mod platform_publish {
     use std::io;
     use std::path::Path;
@@ -764,6 +764,12 @@ mod platform_publish {
     }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, any(unix, windows)))]
 #[path = "atomic_tests.rs"]
 mod tests;
+
+#[cfg(windows)]
+#[path = "atomic_windows.rs"]
+mod windows;
+#[cfg(windows)]
+use windows::{path_identity, platform_publish};

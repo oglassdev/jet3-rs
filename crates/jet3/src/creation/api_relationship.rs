@@ -243,6 +243,6 @@ fn check_relationship_contents(
     Ok(())
 }
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, any(unix, windows)))]
 #[path = "relationship_tests.rs"]
 mod tests;

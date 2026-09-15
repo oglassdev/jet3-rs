@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(any(unix, windows))]
 use serde_json::{Value, json};
 use std::{
     io::Write,
