@@ -122,7 +122,10 @@ byte arrays; the CLI does not silently encode UTF-8 into the database. All
 byte array elements must be integers from 0 through 255. The CLI exposes no
 raw Memo/OLE reference headers; the library allocates payload references.
 
-An optional top-level `relationship` selects a relationship creation API:
+Text and Memo columns accept `"allow_zero_length": true` to permit present-empty
+values. The default is false; other column types reject that option when true.
+
+An optional top-level `relationship` selects the two-table relationship API:
 
 ```json
 {
@@ -139,6 +142,13 @@ empty, the CLI uses the schema-only API, including its additional supported
 index layouts; otherwise it uses the initial-row API. This interface
 adds no relationship, index, schema or payload support beyond the linked
 `jet3` library. It makes no compatibility claim beyond the underlying library and its recorded evidence.
+
+For multiple or self-referencing relationships, use `"relationships": [...]`
+with an array of the same objects. The array currently admits at most two
+enforced, non-cascading single-Long constraints and any supported unrelated
+tables. Parent primary keys may be Long or AutoIncrement; foreign columns must
+be Long. The parent primary index must be first. Supply only one of
+`relationship` and `relationships`. An empty array creates ordinary tables.
 
 `mutate` applies one public row operation to an existing database:
 

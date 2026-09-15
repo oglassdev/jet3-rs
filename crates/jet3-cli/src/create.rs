@@ -6,6 +6,7 @@ use jet3::{
     ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
     RelationshipColumn, RelationshipSpec, RowValue, TableRef, TableRows, TableSpec,
     create_database, create_database_with_relationship, create_database_with_relationship_rows,
+    create_database_with_relationships, create_database_with_relationships_and_rows,
     create_database_with_table_rows,
 };
 use serde::Deserialize;
@@ -49,6 +50,7 @@ pub(crate) fn parse_args(
 struct Request {
     tables: Vec<Table>,
     relationship: Option<Relation>,
+    relationships: Option<Vec<Relation>>,
 }
 
 #[derive(Deserialize)]
@@ -69,6 +71,8 @@ struct Column {
     #[serde(rename = "type")]
     kind: Kind,
     size: Option<NonZeroU8>,
+    #[serde(default)]
+    allow_zero_length: bool,
 }
 
 #[derive(Deserialize)]
@@ -118,7 +122,12 @@ impl Column {
             Kind::Memo => ColumnType::Memo,
             Kind::LongBinary => ColumnType::LongBinary,
         };
-        Ok(ColumnSpec::new(ascii(&self.name)?, kind))
+        let spec = ColumnSpec::new(ascii(&self.name)?, kind);
+        Ok(if self.allow_zero_length {
+            spec.with_allow_zero_length()
+        } else {
+            spec
+        })
     }
 }
 
@@ -169,6 +178,16 @@ struct Endpoint {
     column: String,
 }
 
+impl Relation {
+    fn spec(&self) -> Result<RelationshipSpec<'_>, String> {
+        Ok(RelationshipSpec {
+            name: ascii(&self.name)?,
+            parent: self.parent.spec()?,
+            child: self.child.spec()?,
+        })
+    }
+}
+
 impl Endpoint {
     fn spec(&self) -> Result<RelationshipColumn<'_>, String> {
         Ok(RelationshipColumn {
@@ -181,6 +200,9 @@ impl Endpoint {
 pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
     let request: Request = values::read_request(&command.input)
         .map_err(|e| format!("invalid creation request: {e}"))?;
+    if request.relationship.is_some() && request.relationships.is_some() {
+        return Err("specify either relationship or relationships".into());
+    }
     let columns = request
         .tables
         .iter()
@@ -270,12 +292,28 @@ pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
     let mut budget = values::budget();
     let empty = tables.iter().all(|table| table.rows.is_empty());
     let schema = tables.iter().map(|table| table.table).collect::<Vec<_>>();
-    if let Some(relation) = &request.relationship {
-        let relationship = RelationshipSpec {
-            name: ascii(&relation.name)?,
-            parent: relation.parent.spec()?,
-            child: relation.child.spec()?,
-        };
+    if let Some(relations) = &request.relationships {
+        let relationships = relations
+            .iter()
+            .map(Relation::spec)
+            .collect::<Result<Vec<_>, _>>()?;
+        if empty {
+            create_database_with_relationships(
+                &command.output,
+                &schema,
+                &relationships,
+                &mut budget,
+            )
+        } else {
+            create_database_with_relationships_and_rows(
+                &command.output,
+                &tables,
+                &relationships,
+                &mut budget,
+            )
+        }
+    } else if let Some(relation) = &request.relationship {
+        let relationship = relation.spec()?;
         if empty {
             create_database_with_relationship(&command.output, &schema, &relationship, &mut budget)
         } else {
