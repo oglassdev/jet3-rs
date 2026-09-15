@@ -17062,3 +17062,25 @@ by this native-only discovery.
   cover other collations, relationship targets, arbitrary live-slot reuse or
   every payload/schema combination. It establishes the recorded overflow
   lifecycle scope, not whole-v1 compatibility or release-commit evidence.
+
+- **Integrated branch gate:** independent code review identified that the
+  shared semantic evaluator did not itself require stable locators or actual
+  relocation. The private physical verifier was moved into
+  `row_overflow_lifecycle_structure.py` and pinned in the suite inputs. Prepare
+  now requires and retains the Rust physical report; final evaluation requires
+  both retained native-role reports in addition to complete semantic acceptance.
+  The original missing-relocation r1 images still fail the integrated verifier,
+  while r2 passes. Native successor files are mandatory for native-role checks.
+  A fresh run `20260915T181840Z-overflow-acceptance-r2` at
+  `6056618f9f91197230255df28970af9dc0b595fb` passes all 36 pairs / 72 captures
+  with the integrated gate. Inputs are `/tmp/jet3-overflow-native-r3`, and all
+  outcomes remain in that run's VM shared outbox. Manifest SHA-256
+  `1f64a1c1012bc5f5ab35863a6235561f1600c8bdf1c00213a1e372a8b72d934e`;
+  combined accepted report SHA-256
+  `eb2f9ab14184b6900bef8cc276b196e3f5d64ace63a8a1805d0d22fe9060a165`;
+  semantic report SHA-256
+  `690bf07075627d89a6a2603e3e8448680b0974bd4e88ab9c68a89bb132682111`;
+  candidate/control physical reports SHA-256
+  `2f13ee8f7757754c31b5a651e64ab6757ff4b20d2494915f5ca19ae89848c229` /
+  `ede76d1a423e3b537621269d546376abbdcb3c02c858ecb789b72756abb607a4`.
+  GPT-5.6 Sol high independently reviewed the integration and found no blockers.

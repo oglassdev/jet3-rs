@@ -276,7 +276,8 @@
         "crates/jet3/src/row_overflow_tests.rs",
         "crates/jet3/examples/row_overflow_candidate.rs",
         "oracle/windows-dao/scripts/row_overflow_lifecycle.py",
-        "oracle/windows-dao/scripts/row_overflow_lifecycle.ps1"
+        "oracle/windows-dao/scripts/row_overflow_lifecycle.ps1",
+        "oracle/windows-dao/scripts/row_overflow_lifecycle_structure.py"
       ]
     },
     {
