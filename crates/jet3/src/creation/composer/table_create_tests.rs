@@ -2,7 +2,9 @@
 //! reader to check each `EXP-0093` structure lands where the plan says.
 
 use super::super::tests::{compose_budget, inline_map_bit, read_budget};
-use super::super::{ComposeError, compose_database, compose_table_database};
+use super::super::{
+    ComposeError, catalog_row_number, compose_database, compose_table_database, creation_counter,
+};
 use crate::column_definition_writer::nz;
 use crate::creation::schema_plan::{IndexKind, IndexSpec, TableSchemaPlanError, TableSpec};
 use crate::{
@@ -429,42 +431,8 @@ fn later_creates_follow_the_observed_page_and_row_pattern() -> TestResult {
 }
 
 #[test]
-fn a_fifth_table_and_a_case_folded_duplicate_name_are_refused() {
-    let five = [
-        TableSpec {
-            name: b"T1",
-            columns: &[ID],
-            indexes: &[],
-        },
-        TableSpec {
-            name: b"T2",
-            columns: &[ID],
-            indexes: &[],
-        },
-        TableSpec {
-            name: b"T3",
-            columns: &[ID],
-            indexes: &[],
-        },
-        TableSpec {
-            name: b"T4",
-            columns: &[ID],
-            indexes: &[],
-        },
-        TableSpec {
-            name: b"T5",
-            columns: &[ID],
-            indexes: &[],
-        },
-    ];
+fn a_case_folded_duplicate_name_is_refused() {
     let mut budget = compose_budget();
-    assert!(matches!(
-        compose_database(&five, &mut budget),
-        Err(ComposeError::UnobservedTableCount {
-            count: 5,
-            observed: 4
-        })
-    ));
     let duplicate = [
         TableSpec {
             name: b"Alpha",
@@ -489,4 +457,26 @@ fn a_fifth_table_and_a_case_folded_duplicate_name_are_refused() {
             second: 2
         })
     ));
+}
+
+#[test]
+fn creation_counter_and_catalog_locators_reject_overflow() -> Result<(), ComposeError> {
+    assert_eq!(creation_counter(0)?, 0);
+    assert_eq!(creation_counter(127)?, 254);
+    assert!(matches!(
+        creation_counter(128),
+        Err(ComposeError::TableCountOverflow {
+            count: 128,
+            maximum: 127
+        })
+    ));
+    assert_eq!(catalog_row_number(255)?, 255);
+    assert!(matches!(
+        catalog_row_number(256),
+        Err(ComposeError::Encoding(crate::Error::IntegerConversion {
+            value: 256,
+            target: "u8"
+        }))
+    ));
+    Ok(())
 }

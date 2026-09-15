@@ -103,31 +103,7 @@ fn a_later_create_appends_no_property_page() -> PlanResult {
 }
 
 #[test]
-fn a_later_create_with_two_indexes_or_a_continuation_is_refused() {
-    // EXP-0087 observed later creates with at most one index and no
-    // continuation; EXP-0093 and EXP-0107 observed wider layouts only on a
-    // first create.
-    let columns = [ID, NAME];
-    let indexes = [
-        IndexSpec {
-            name: b"PrimaryKey",
-            fields: &[key(0)],
-            kind: IndexKind::Primary,
-        },
-        IndexSpec {
-            name: b"ByName",
-            fields: &[key(1)],
-            kind: IndexKind::Ordinary,
-        },
-    ];
-    assert!(plan_table_schema(&spec(b"Beta", &columns, &indexes), 23, true).is_ok());
-    assert_eq!(
-        plan_table_schema(&spec(b"Beta", &columns, &indexes), 23, false),
-        Err(TableSchemaPlanError::UnobservedLaterCreateIndexCount {
-            count: 2,
-            observed: MAX_OBSERVED_LATER_CREATE_INDEXES,
-        })
-    );
+fn a_later_create_with_a_continuation_is_refused() {
     let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY + 1);
     let columns = long_columns(&names);
     assert!(plan_table_schema(&spec(b"Wide", &columns, &[]), 23, true).is_ok());
@@ -138,6 +114,40 @@ fn a_later_create_with_two_indexes_or_a_continuation_is_refused() {
             continuations: 1,
         })
     );
+}
+
+#[test]
+fn later_indexes_have_separate_roots_and_maps_in_physical_order() -> PlanResult {
+    let columns = [ID, NAME];
+    let indexes = [
+        IndexSpec {
+            name: b"ZPrimary",
+            fields: &[key(0)],
+            kind: IndexKind::Primary,
+        },
+        IndexSpec {
+            name: b"MName",
+            fields: &[key(1)],
+            kind: IndexKind::Ordinary,
+        },
+        IndexSpec {
+            name: b"AId",
+            fields: &[key(0)],
+            kind: IndexKind::Unique,
+        },
+    ];
+    for count in 2..=3 {
+        let plan = plan_table_schema(&spec(b"Beta", &columns, &indexes[..count]), 23, false)?;
+        assert_eq!(plan.property_page(), None);
+        assert_eq!(plan.appended_page_count(), 2 + count as u64);
+        assert_eq!(
+            plan.index_placements().collect::<Vec<_>>(),
+            (0..count)
+                .map(|n| (PageNumber::new(25 + n as u64), 2 + n as u8))
+                .collect::<Vec<_>>()
+        );
+    }
+    Ok(())
 }
 
 #[test]

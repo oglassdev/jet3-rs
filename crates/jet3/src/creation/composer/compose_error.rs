@@ -90,12 +90,12 @@ pub enum ComposeError {
         /// Largest observed long-value column count.
         observed: usize,
     },
-    /// `EXP-0087` observed no database receiving this many creates.
-    UnobservedTableCount {
+    /// The table count would overflow the bounded page-zero creation counter.
+    TableCountOverflow {
         /// Requested table count.
         count: usize,
-        /// Largest observed create count.
-        observed: usize,
+        /// Largest count representable without counter overflow.
+        maximum: usize,
     },
     /// Two tables share a name under the provider's case-folding comparison.
     DuplicateTableName {
@@ -146,7 +146,7 @@ impl std::error::Error for ComposeError {
             | Self::IndexPageFull { .. }
             | Self::UnobservedMapRowLayout
             | Self::UnobservedLongValueColumnCount { .. }
-            | Self::UnobservedTableCount { .. }
+            | Self::TableCountOverflow { .. }
             | Self::DuplicateTableName { .. }
             | Self::DefinitionLengthMismatch { .. } => None,
         }

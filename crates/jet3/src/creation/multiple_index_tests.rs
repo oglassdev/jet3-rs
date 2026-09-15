@@ -249,7 +249,7 @@ fn later_index_corruption_and_publication_failures_are_detected() -> TestResult 
 }
 
 #[test]
-fn second_unique_index_refuses_duplicates_and_later_tables_keep_their_bound() -> TestResult {
+fn second_unique_index_refuses_duplicates_on_first_and_later_tables() -> TestResult {
     let directory = TestDirectory::create()?;
     let mut indexes = indexes();
     indexes[1].kind = IndexKind::Unique;
@@ -277,15 +277,14 @@ fn second_unique_index_refuses_duplicates_and_later_tables_keep_their_bound() ->
             },
             rows: &[],
         },
-        crate::TableRows {
-            table,
-            rows: &rows[..1],
-        },
+        crate::TableRows { table, rows },
     ];
-    assert!(
-        crate::create_database_with_table_rows(directory.target(), &requests, &mut budget())
-            .is_err()
-    );
+    assert!(matches!(
+        crate::create_database_with_table_rows(directory.target(), &requests, &mut budget()),
+        Err(CreateDatabaseError::Compose(
+            ComposeError::DuplicateInitialScalarIndexKey
+        ))
+    ));
     assert!(directory.entries()?.is_empty());
     Ok(())
 }
