@@ -287,7 +287,7 @@ fn rejects_self_links_cycles_wrong_owner_and_chain_exhaustion()
 }
 
 #[test]
-fn rejects_row_trailer_null_bitmap_and_item_resource_corruption()
+fn validates_row_trailers_ignores_unused_presence_bits_and_bounds_work()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut bytes = database_bytes([0, SECOND_DATA as u8, 0, 0], 0x8000, ROOT as u32);
     let page = &mut bytes[FIRST_DATA * PAGE_BYTES..(FIRST_DATA + 1) * PAGE_BYTES];
@@ -309,10 +309,10 @@ fn rejects_row_trailer_null_bitmap_and_item_resource_corruption()
     let mut database = open(&bytes, &mut budget)?;
     let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
     let mut rows = database.rows(&definition, &mut budget)?;
-    assert!(matches!(
-        rows.next_row(),
-        Err(RowError::NonzeroUnusedNullBits { .. })
-    ));
+    let row = rows
+        .next_row()?
+        .ok_or("missing row with unused presence bits")?;
+    assert_eq!(row.raw_bytes().last(), Some(&0x83));
 
     let bytes = database_bytes([0, SECOND_DATA as u8, 0, 0], 0x8000, ROOT as u32);
     let mut observed = ResourceBudget::new(limits(&bytes));

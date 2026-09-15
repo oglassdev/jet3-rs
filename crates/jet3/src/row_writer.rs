@@ -1,5 +1,5 @@
 //! Checked encoder for one logical Jet 3 data row, the inverse of the layout
-//! validated by `row.rs` (`EXP-0060`, `EXP-0172`) with scalars of `EXP-0061`.
+//! validated by `row.rs` (`EXP-0060/0172/0257/0258`) with scalars of `EXP-0061`.
 //!
 //! Memo and OLE values are supplied as already-encoded long-value bytes
 //! (12-byte header plus any inline payload); writing external LVAL pages is a
@@ -15,10 +15,6 @@ use crate::{
 
 /// `EXP-0060`: one-byte column count, so at most 255 columns.
 const MAX_COLUMN_COUNT: usize = u8::MAX as usize;
-/// `EXP-0060`: multi-variable rows are bounded to the first offset block.
-const MAX_NARROW_ROW_LEN: usize = u8::MAX as usize;
-/// `EXP-0060` / `EXP-0172`: supported single-variable boundaries stay below 512.
-const MAX_WIDE_BOUNDARY: usize = 2 * (u8::MAX as usize + 1) - 1;
 /// `EXP-0061`: every long field begins with a 12-byte header.
 const LONG_VALUE_HEADER_LEN: usize = 12;
 const NULL_MAP_MAX_LEN: usize = MAX_COLUMN_COUNT.div_ceil(8);
@@ -243,7 +239,7 @@ struct RowShape {
     fixed_size: usize,
     variable_count: usize,
     null_len: usize,
-    wide: bool,
+    jumps: usize,
     length: usize,
 }
 
@@ -382,40 +378,16 @@ fn validate(
                 operation: "size encoded-row variable trailer",
             }))?;
     }
-    if variable_count > 1 && length > MAX_NARROW_ROW_LEN {
-        return Err(RowWriteError::UnsupportedWideVariableOffsets {
-            variable_count,
-            row_length: length,
-        });
-    }
-    // EXP-0245: a one-variable row of exactly 256 bytes has no jump byte.
-    let wide = length > 256 && variable_count > 0;
-    if wide {
-        if variable_count != 1 {
-            return Err(RowWriteError::UnsupportedWideVariableOffsets {
-                variable_count,
-                row_length: length,
-            });
-        }
-        length = length
-            .checked_add(1)
-            .ok_or(RowWriteError::Resource(Error::Arithmetic {
-                operation: "size encoded-row jump byte",
-            }))?;
-        let last_boundary = 1_usize
-            .checked_add(fixed_size)
-            .and_then(|value| value.checked_add(variable_bytes))
-            .ok_or(RowWriteError::Resource(Error::Arithmetic {
-                operation: "size encoded-row variable boundary",
-            }))?;
-        if last_boundary > MAX_WIDE_BOUNDARY {
-            return Err(RowWriteError::BoundaryTooLarge {
-                index: 0,
-                boundary: last_boundary,
-                maximum: MAX_WIDE_BOUNDARY,
-            });
-        }
-    }
+    let jumps = if variable_count == 0 {
+        0
+    } else {
+        crate::row_offsets::jump_count(length)
+    };
+    length = length
+        .checked_add(jumps)
+        .ok_or(RowWriteError::Resource(Error::Arithmetic {
+            operation: "size encoded-row jump bytes",
+        }))?;
     if length > MAX_STORED_ROW_LEN {
         return Err(RowWriteError::RowTooLong {
             length,
@@ -426,7 +398,7 @@ fn validate(
         fixed_size,
         variable_count,
         null_len,
-        wide,
+        jumps,
         length,
     })
 }
@@ -665,11 +637,11 @@ fn write_row(
             let boundary = boundaries[ordinal];
             writer.write_u8((boundary & 0xff) as u8)?;
         }
-        if shape.wide {
-            // EXP-0060/0172/0245: first boundary in the second block, or none.
+        // EXP-0257: transition ordinals, from the highest threshold downward.
+        for block in (1..=shape.jumps).rev() {
             let jump = boundaries[..=shape.variable_count]
                 .iter()
-                .position(|boundary| *boundary >= 256)
+                .position(|boundary| *boundary >= 256 * block)
                 .map_or(0xff, |ordinal| ordinal as u8);
             writer.write_u8(jump)?;
         }

@@ -443,16 +443,6 @@ fn rejects_mismatches_unsupported_shapes_small_output_and_exhausted_budget() {
             variable_count: 1,
         })
     );
-    assert_eq!(
-        encode(
-            &[text(0), text(1)],
-            &[RowValue::Text(&[0; 200]), RowValue::Text(&[0; 100])]
-        ),
-        Err(RowWriteError::UnsupportedWideVariableOffsets {
-            variable_count: 2,
-            row_length: 306,
-        })
-    );
     let fixed_text = [0_u8; 255];
     let oversized_layout: Vec<_> = (0..9)
         .map(|index| {
@@ -594,11 +584,11 @@ fn rejects_wide_fixed_prefix_corruption() -> Result<(), Box<dyn std::error::Erro
 }
 
 #[test]
-fn wide_fixed_prefix_stays_within_second_boundary_block() -> Result<(), Box<dyn std::error::Error>>
+fn wide_fixed_prefix_crosses_additional_boundary_blocks() -> Result<(), Box<dyn std::error::Error>>
 {
     let columns = wide_prefix_columns();
     let layout = layouts(&columns)?;
-    for size in [0, 251] {
+    for size in [0, 251, 252, 255] {
         let payload = vec![b'x'; size];
         let raw = encode(
             &layout,
@@ -608,7 +598,19 @@ fn wide_fixed_prefix_stays_within_second_boundary_block() -> Result<(), Box<dyn 
                 RowValue::Text(&payload),
             ],
         )?;
-        assert_eq!(&raw[raw.len() - 5..], &[(260 + size) as u8, 4, 0, 1, 7]);
+        let trailer = if size == 0 {
+            vec![4, 4, 0, 1, 7]
+        } else {
+            vec![
+                (260 + size) as u8,
+                4,
+                if size == 251 { 0xff } else { 1 },
+                0,
+                1,
+                7,
+            ]
+        };
+        assert!(raw.ends_with(&trailer));
         let bytes = database_bytes(&columns, &[&raw])?;
         let mut budget = budget_for(&bytes);
         let source = SliceSource::new(&bytes, budget.read_budget())?;
@@ -622,18 +624,7 @@ fn wide_fixed_prefix_stays_within_second_boundary_block() -> Result<(), Box<dyn 
             Some(crate::RawField::Bytes(payload.as_slice()))
         );
     }
-    assert!(matches!(
-        encode(
-            &layout,
-            &[
-                RowValue::Long(2),
-                RowValue::Text(&[b'a'; 255]),
-                RowValue::Text(&[b'x'; 252])
-            ]
-        ),
-        Err(RowWriteError::BoundaryTooLarge { boundary: 512, .. })
-    ));
-    // Refuse the unsupported third block even when low offsets look valid.
+    // A missing second jump must not change the interpreted data boundary.
     let mut raw = vec![3];
     raw.extend_from_slice(&2_i32.to_le_bytes());
     raw.extend_from_slice(&[b'a'; 255]);
@@ -647,7 +638,9 @@ fn wide_fixed_prefix_stays_within_second_boundary_block() -> Result<(), Box<dyn 
     let mut rows = database.rows(&definition, &mut budget)?;
     assert!(matches!(
         rows.next_row(),
-        Err(crate::RowError::UnsupportedWideVariableOffsets { .. })
+        Err(crate::RowError::UnsupportedWideVariableOffsets { .. }
+            | crate::RowError::InvalidFixedBoundary { .. }
+            | crate::RowError::InvalidVariableBounds { .. })
     ));
     Ok(())
 }
@@ -725,3 +718,6 @@ fn boolean_zero_placeholder_does_not_relax_scalar_offsets() -> Result<(), Box<dy
 
 #[path = "row_binary_tests.rs"]
 mod binary;
+
+#[path = "row_wide_tests.rs"]
+mod wide;
