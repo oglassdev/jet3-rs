@@ -48,20 +48,19 @@ fn sole_release_preserves_all_except_observed_fields_and_three_map_bits() -> Res
     let def = db.table_definition(f.root, &mut b)?;
     assert!(db.rows(&def, &mut b)?.next_row()?.is_none());
     drop(db);
-    // Current insertion intentionally appends EOF; it does not reuse released pages.
     let locator = crate::insert_row(
         f.path(),
         b"Rows",
         &[RowValue::Long(99), RowValue::Long(-9900)],
         &mut budget(),
     )?;
+    assert_eq!(locator.page(), f.row.page());
+    assert_eq!(locator.slot(), 0);
+    let after = fs::read(f.path())?;
+    assert_eq!(after.len(), before.len());
     assert_eq!(
-        locator.page().get(),
-        before.len() as u64 / PAGE_BYTES as u64
-    );
-    assert_eq!(
-        &fs::read(f.path())?[base..base + PAGE_BYTES],
-        &expected[base..base + PAGE_BYTES]
+        &after[base + 12..base + 2038],
+        &expected[base + 12..base + 2038]
     );
     f.clean()
 }
