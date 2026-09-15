@@ -231,4 +231,3 @@ def notes_identity(data):
         pages.add(locator['page'])
         pages.update(catalog._locator_pages(data, locator, 'Notes allocation'))
     return {str(page): hashlib.sha256(data[page * 2048:(page + 1) * 2048]).hexdigest() for page in sorted(pages)}
-

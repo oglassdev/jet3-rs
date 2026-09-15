@@ -107,7 +107,11 @@
         "crates/jet3/src/creation/multiple_long_values_tests.rs",
         "crates/jet3/examples/multiple_long_value_creation_candidate.rs",
         "oracle/windows-dao/scripts/multiple_long_value_creation.ps1",
-        "oracle/windows-dao/scripts/multiple_long_value_creation.py"
+        "oracle/windows-dao/scripts/multiple_long_value_creation.py",
+        "crates/jet3/src/creation/composer/definition_chain_tests.rs",
+        "crates/jet3/examples/creation_definition_chains_candidate.rs",
+        "oracle/windows-dao/scripts/creation_definition_chains.ps1",
+        "oracle/windows-dao/scripts/creation_definition_chains.py"
       ]
     },
     {

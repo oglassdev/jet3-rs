@@ -26,10 +26,10 @@
 //! `EXP-0059` and `EXP-0105` establish definition chains: the root holds
 //! 2,048 logical bytes and each linked continuation holds 2,040. This planner
 //! assigns continuations consecutively after the map and optional `LvProp`
-//! page, before index roots. `EXP-0107` accepted that compact placement for
-//! one unindexed first-table continuation; combining the same encoders for
-//! longer, later, indexed or populated definitions is candidate policy.
-//! `EXP-0247` retains an empty terminal continuation at exact payload boundaries.
+//! page, before index roots. `EXP-0107` accepted one unindexed first-table
+//! continuation; `EXP-0247` compares longer, later, indexed and populated
+//! definitions, including an empty terminal continuation at exact payload
+//! boundaries. Consecutive placement is a tested construction policy.
 //!
 //! Neither experiment establishes an `Id` allocation rule beyond the observed
 //! equality with the definition root page.

@@ -159,10 +159,9 @@ impl StdError for CandidateCheckError {
 /// Unsupported layouts fail with [`CreateDatabaseError::Compose`] before
 /// anything is written: more than 127 tables, allocation beyond 1,024 pages,
 /// two tables whose names differ only by ASCII case, more than three indexes
-/// on a table, table/index/long-value maps exceeding their shared page, a definition
-/// longer than two pages,
-/// a definition longer than one page together with an index or on a later
-/// table, or a name byte above `0x7E`.
+/// on a table, table/index/long-value maps exceeding their shared page, or a
+/// name byte above `0x7E`. Table definitions use linked pages within the same
+/// allocation and resource limits, including indexed and later tables.
 pub fn create_database(
     path: impl AsRef<Path>,
     tables: &[TableSpec<'_>],
@@ -189,8 +188,9 @@ pub fn create_database(
 /// Creates one table containing initial rows in caller order.
 ///
 /// Rows are packed in caller order into data pages within the inline usage-map
-/// capacity. Each row and the table definition must fit one page. Pages with
-/// a slot and room for an all-null row are marked available; this construction
+/// capacity. Each row must fit one page; table definitions may span linked
+/// pages. Pages with a slot and room for an all-null row are marked available;
+/// this construction
 /// policy has not been established as DAO's allocation policy.
 /// Each table accepts up to three indexes. Each
 /// index has one or two supported scalar columns (including a generated AutoIncrement

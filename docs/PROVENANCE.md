@@ -16092,3 +16092,81 @@ the candidate run was `20260915T082300Z-tdef-candidate-mutate` (SHA-256
 `9bf4f5191e91e2073dd1649e395e3f705e39d27c4fa304c6ce14b5b1d493344e`).
 The first process crash was not reproduced in isolation; its cause remains
 unestablished, and it remains part of the failed acquisition evidence.
+
+### EXP-0247 successor: explicit DAO object lifetimes and accepted creation
+
+The boundary correction in `dece871` added exact-capacity terminal pages. Its
+shared-process successor, `20260915T082506Z-definition-chains-23b562`, accepted
+the first five cases and again crashed while mutating the generated-ID,
+96-column, 6,129-byte candidate. Source `a1c5960` retained each case in a separate
+x86 worker; `20260915T082805Z-definition-chains-e8081f` still crashed in that
+last worker. Both failed outcomes and their partial captures remain retained.
+Worker isolation alone did not resolve the failure.
+
+The same retained candidate SHA-256
+`92ffe0cd89e7a2e31d9842e17a48719a1792baa46530c2de36dc51fa0d9e1a3b`
+was used in bounded follow-ups. Mutation as the first operation passed, whereas
+prior full capture or native control creation provoked the crash; recompiling
+the identical setter did not help. A native control passed the corresponding
+create/read/mutate sequence. Independent raw comparison found the candidate's
+definition, row, index and payload references and maps internally consistent.
+Its compact page placement and index-before-payload map ordering differ from
+the native control, but the decoded schema and values matched.
+
+The suite's shared DAO helpers left temporary COM fields and collections alive
+past database closure. Six further probes passed: open, metadata, all row values,
+and index traversal with each wrapper released explicitly; and the original
+full capture or control creation followed by garbage collection/finalizers.
+A suite-local helper then released every acquired field and collection in its
+own scope. The previously failing full create/read/mutate sequence passed on
+both retained originals without forced garbage collection, with complete
+before/after schema, payloads, traversal and Seek results matching the model.
+These observations identify outstanding helper COM lifetimes as the reproduced
+confounder; they do not establish a general DAO crash mechanism or excuse the
+original failed runs.
+
+Diagnostic recipes, stdout/stderr, input/result identities and per-mode outcomes
+are retained under `checks/20260915-definition-phase-probe`,
+`checks/20260915-definition-preread-probe` and
+`checks/20260915-definition-release-probe`. Their `results.json` SHA-256 values
+are respectively
+`f1a6877a2ca90c1f0a610a854b153ee855f6a848856c8b1d9298a2627d1bccd9`,
+`a1337c0d76bfdfce83e0f522dd01eba0a56dfa1eef0dfb3a29f35196bdc4299c` and
+`12355bfee190a173e74814ab43b0935876bf3078188d71195cd4bb71e8d6422d`.
+
+Clean source `a1fa4f3` then passed the complete six-case repeatable suite at
+`checks/20260915-definition-chains-r4`, with captures in
+`outbox/20260915T084629Z-definition-chains-6d17ce`. All six creation pairs and
+six native insert/replace/delete pairs matched. The producer retained the
+control-create, candidate-read, candidate-mutate ordering within each worker
+and used no forced garbage collection. Production bytes are unchanged from
+`dece871`; the failing 6,129-byte input remains byte-identical to the retained
+original above. The provider identity is the same x86 DAO 3.6 DLL recorded in
+the discovery entry.
+
+The accepted matrix covers logical lengths 2,048/2,049, 4,088/4,089 and
+6,128/6,129; 64/96 columns; first/later placement; zero/three numeric indexes;
+0/3/17/205 initial rows; generated IDs; and independent Memo/OLE null, inline,
+single-page and chained values. Comparisons include every field, row and
+payload, directed traversal and Seek, raw complete numeric key/locator
+multisets, index counters/ownership, exact definition chains and payload
+reference coverage. Unrelated Notes definition, maps, data and payload pages
+remain byte-identical through each Items continuation. Native continuation
+acceptance establishes the tested compact definition placement, including
+exact-boundary terminal pages; it does not claim general schema, indirect-map,
+name or larger creation-counter support.
+
+Input manifest SHA-256:
+`8d88e2634f1295e1a543df6c0469aff8031fc2f4ebfa13a43d7a785a69e08ca3`;
+result SHA-256:
+`4af199a01ac45bee504ecd6a0e769f972925de3cd0233bedc1fb3514d671b66e`;
+comparison `creation-definition-chains-report.json` SHA-256:
+`21defa357964789e35d56c79c53fa6649a9b9f41c53fbace0de15ede71c4510b`;
+provider report SHA-256:
+`0c083cad46fb3104707fef5e741c0c83857ab3095505d35d4529526b9823251d`.
+Every source helper, candidate, native control and mutated image identity is
+retained in the manifest, worker receipts and result.
+
+After the accepted capture, `just ready` passed with the final documentation
+and unchanged production behavior. Focused checks also passed: 32 schema
+planner tests, 14 table-composition tests and 19 table-definition reader tests.

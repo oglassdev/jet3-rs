@@ -51,9 +51,10 @@ and roadmap #75 remain open.
 ### Creation
 
 Creation admits up to 127 tables with multi-page system catalogs and catalog
-indexes, within the existing 1,024-page allocation limit. It supports multi-page
-initial rows, explicit/generated AutoIncrement IDs, and up to three numeric, Date or Binary
-indexes per table.
+indexes, within the existing 1,024-page allocation limit. Table definitions may
+span linked pages on first and later tables, including populated and indexed
+schemas. It supports multi-page initial rows, explicit/generated AutoIncrement
+IDs, and up to three numeric, Date or Binary indexes per table.
 Indexes have one or two components and can span multiple levels. Independent
 Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
 columns themselves cannot be indexed. Each payload column has separate ownership
@@ -86,7 +87,15 @@ indexes. EXP-0244 adds twelve creation comparisons: five/six-table controls,
 long-named tables. Complete DAO user schema, rows, traversal and seeks match;
 raw checks cover every catalog/ACE row locator, index tree and allocation map.
 The 127-table creation-counter bound remains; a larger counter or wrap policy
-is separate work. Existing name and definition restrictions also remain.
+is separate work. Existing name, column-layout and allocation restrictions remain.
+
+EXP-0247 adds six creation and six native continuation pairs at logical definition
+lengths 2,048/2,049, 4,088/4,089 and 6,128/6,129 bytes. These combine first/later
+tables, 64/96 columns, zero/three indexes, up to 205 initial rows, generated IDs
+and independent Memo/OLE payloads. Complete schema, values, payloads, traversal
+and seeks match DAO, with unrelated Notes pages preserved. Exact-capacity
+definitions retain an empty terminal page; longer chains use the existing
+2,040-byte continuation payload and shared resource budget.
 
 ### Updates
 
