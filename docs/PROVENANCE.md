@@ -15907,3 +15907,53 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   test execution, arbitrary Jet compatibility, or completion of v1. MDB and
   provider bytes remain private. Independent Sol review found no actionable
   production blocker in the port.
+
+## EXP-0241 — Native multi-page catalog and access-control trees
+
+Date: 2026-09-15. The repeatable `catalog_pages_native.py/.ps1` matrix creates
+40 and 110 short-named tables, 30 tables with 48-byte names and 32 Long columns,
+and 40 tables with 48-byte names and three Long columns, each twice. Producer
+source `67a9139` and analyzer successor `fe6cf08` retain inputs, native images,
+provider identity, complete user schema/rows, and system rows/index traversals.
+The provider is 32-bit DAO.DBEngine.36 version 3.6 on Windows 10.0.20348;
+`dao360.dll` version 03.60.9765.0 SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+
+All eight originals were created successfully. Direct system reads failed for
+lack of read permission; these outcomes remain in
+`checks/20260915-catalog-pages-discovery-r1` and
+`outbox/20260915T071030Z-catalog-pages-native`. A bounded DAO permission probe
+also failed because no workgroup information file was configured. The follow-up
+uses copies whose existing MSysACEs rows 0/1 (objects 2/3, SID `0301`) have only
+ACM changed from 393216 to 393236, adding the DAO `dbSecRetrieveData` mask 20.
+No row, index, map, or original image changes are involved. DAO opens these
+copies read-only. Original and copy identities and the exact two field patches
+are retained separately. DAO enumerates system columns by name and returns null
+for protected class-`32` Binary `Owner`/`SID`; those fields are explicitly
+raw-only coverage. All other complete values, including every LvProp payload,
+match the independently decoded rows. A failed pre-normalization schema report
+is retained alongside the accepted analyzer result.
+
+Both replicas agree on the relevant layouts. The 110-table cases have 118
+MSysObjects rows on pages 18/69/132/194 and 236 MSysACEs rows on pages 19/127.
+The ACE index retains root 13 and branches to leaves 237/238. The 40-long-name
+cases have 48 MSysObjects rows on pages 18/49/90; ParentIdName retains root 9
+and branches to leaves 86/87. Owned maps include every data page and every
+reachable index node; data available maps contain only the final data page.
+The full key-plus-original-row-locator multisets match all three system
+indexes, including overflow rows under EXP-0228. Index links, prefixes,
+boundary bitmaps and branch upper fences follow EXP-0062/0225. Initial index
+counters equal distinct encoded keys. Each added user object still has its
+existing EXP-0073/0087 pair of ACE rows. These observations establish the
+multi-page map/reference grammar, not a required native growth policy;
+compact placement after user pages remains a separate writer policy requiring
+a candidate differential.
+
+Accepted discovery: 8/8 cases. Inputs:
+`checks/20260915-catalog-pages-discovery-followup-r1/inputs`; output:
+`outbox/20260915T071658Z-catalog-readable`. Result SHA-256
+`e6ff79e86c1d8b4c9f3ef1aa429b8949e7e17bd73268553c1461f636ea229922`;
+`catalog-pages-native-report-3.json` SHA-256
+`8073a3340a9cea5b002be8d32285bade0d63e617afa1672f37b8466d0483cdd2`.
+The report retains every original/copy hash and physical graph. This is native
+format discovery, not a compatibility claim for expanded Rust creation.
