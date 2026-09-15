@@ -16200,3 +16200,24 @@ planner tests, 14 table-composition tests and 19 table-definition reader tests.
 - Whole-key shortening follows EXP-0245 for Text and GUID composites too: concatenate directed components first; above255 bytes retain253 and append the same little-endian16-bit checksum over the remaining framed bytes. Case and equivalent expansions share keys; unique Text rejects A after a, a-space after a, Æ/æ after ae and ss/SS after ß. Accents remain significant. All36 original unique rejections are native3022; this batch does not claim byte-preserving DAO failure side effects.
 - Held-out validation: freeze the complete singleton-derived map/rule before a fresh matrix of16 captures. New strings distinguish neutral eligible letters from other letters between accents, expansions, controls, trailing spaces and NBSP;128 new seeded random strings and long accent/expansion boundaries are included. Text, Text/Long, Long/Text and GUID/Long use mixed directions. All3,608 saved keys match the frozen prediction, with complete raw/DAO schema/rows/traversal, membership/maps and replica checks. No rejection or normalization occurs. Outbox `20260915T085500Z-text-guid-holdout`; matrix395,100 bytes SHA-256 `ac174a4426cf24379f8d490c4af058682d8b7f55a84ec0e9cd31ea71629f85ce`; producer13,829 bytes `ab42569f8881bf0a62b2892d469880143fde37095b570ab94477c385e8cc57d2`; analyzer9,044 bytes `05fc42eba607a846450a9a7cabd5c055c763b53ae1074589c333eb2abe828f2b`; native result9,771,494 bytes `15e1c53a27f915dacef72b7b27ad69f13b83ac4888d9326ab89dbc4fb5d79528`; answered report3,657,753 bytes `f462302a8d821bfc6a1ebeaf901da4157d2dbe45c84808794127591b962d24f6`. Inputs include the exact frozen prediction and collation map.
 - Boundary: all9,116 original and held-out keys agree. This supplies key encoding facts for the stated English-US/CP1252 context and matrices, not other locales, undefined CP1252 bytes, arbitrary schema combinations, candidate mutation acceptance or full-v1 compatibility. Physical Text values stay unchanged when trailing spaces are ignored by their index key.
+
+## EXP-0250 — Text/GUID scalar lifecycle candidate comparison
+
+- Initial candidate source `65a478d`: repeatable seven-case scalar lifecycle run at
+  `outbox/20260915T092401Z-numeric-indexes-a59345`. The original five cases
+  (Integral, Wide, Deep, Dates, Binary) pass all five checkpoints and native
+  successors; Text and GUID stop during control creation with COM assignment
+  `Specified cast is not valid` (HRESULT -2147467262). Their candidate comparison
+  has no outcome. The full run is failed and remains retained. Result: 230,304,389 bytes, SHA-256 `002259bf651d5c7b53b39d841ae4393e78d29d02ee1b83fe43c3a3f4841e97a7`;
+  comparison: 1,027,520 bytes, SHA-256 `683b4774176c02663e9dbde502883c18b8d5082836ce293622cefd2a32d97a52`.
+- A separate assignment diagnostic repeats each complete Text/GUID control
+  creation in a fresh worker, using the original Set-Cell function and an
+  explicit-string variation. All four complete without error; the failure is
+  not reproduced in isolation. Diagnostic
+  `outbox/20260915T092700Z-text-guid-marshalling/result.json`: 1,126 bytes, SHA-256 `72e693f621ccc0ee1ff0611dd6785aed6594d542fd584ef4f95f4bbde6eb1fa4`.
+  These are harness diagnostics, not candidate compatibility observations.
+- The successor harness releases every DAO field, collection and metadata item
+  explicitly, including those read during all earlier cases. The original
+  failed run and diagnostic are not replaced. The production encoder remains
+  based on EXP-0248; the successor source additionally incorporates the
+  independently accepted definition-chain change from EXP-0247.
