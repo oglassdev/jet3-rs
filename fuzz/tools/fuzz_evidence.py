@@ -152,7 +152,8 @@ def _process_tree_rss(root_pid: int) -> int:
             if parent in descendants and pid not in descendants:
                 descendants.add(pid)
                 changed = True
-    return sum(rows[pid][1] for pid in descendants if pid in rows) * 1024
+    # root_pid is our Python monitor; the target and its children own the limit.
+    return sum(rows[pid][1] for pid in descendants if pid != root_pid and pid in rows) * 1024
 
 
 def _rusage_peak_rss_bytes(peak: int) -> int:

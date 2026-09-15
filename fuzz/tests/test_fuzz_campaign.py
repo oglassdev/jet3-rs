@@ -471,7 +471,7 @@ class FuzzCampaignValidationTests(unittest.TestCase):
             {"alpha", "example"},
         )
 
-    def test_runtime_rss_sampler_sums_only_the_process_tree(self) -> None:
+    def test_runtime_rss_sampler_excludes_monitor_and_keeps_target_descendants(self) -> None:
         process_table = "\n".join(
             (
                 "10 1 100",
@@ -492,7 +492,7 @@ class FuzzCampaignValidationTests(unittest.TestCase):
             return_value=completed,
         ):
             observed = fuzz_evidence._process_tree_rss(10)
-        self.assertEqual(observed, (100 + 200 + 300) * 1024)
+        self.assertEqual(observed, (200 + 300) * 1024)
 
     @unittest.skipUnless(hasattr(os, "wait4"), "requires POSIX wait4 resource usage")
     def test_observer_uses_child_high_water_rss_when_samples_miss_peak(self) -> None:

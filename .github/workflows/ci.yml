@@ -168,6 +168,14 @@ jobs:
           python3 fuzz/tools/fuzz_campaign.py smoke \
             --cargo "$(rustup which --toolchain nightly-2026-07-20 cargo)" \
             --output "$RUNNER_TEMP/jet3-fuzz-smoke-$GITHUB_SHA"
+      - name: Retain fuzz diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-smoke-${{ github.sha }}
+          path: ${{ runner.temp }}/jet3-fuzz-smoke-${{ github.sha }}
+          if-no-files-found: ignore
+          retention-days: 7
 
   miri:
     name: Miri library tests
