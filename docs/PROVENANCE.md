@@ -16351,3 +16351,21 @@ by this native-only discovery.
   - manifest: 180,470 bytes, SHA-256 `d29f7271012a45496caf4f4593a3eeb0ad0e6f62902b46e99dae22d18b61ef34`.
   - native result: 31,418,867 bytes, SHA-256 `f1f416a1b90393514095e45f9cf0b39d4562d292e7d8eaf17d2181925ef5f160`.
   - comparison: 466,830 bytes, SHA-256 `311af05af607dffddaa05c35fdaaafe8deb14b8d60279e168677835d20e684f2`.
+- Accepted successor source `503255d361636c9d71577416e318415eebda9052`, outbox
+  `20260915T095827Z-creation-tables-4b27bb`: all ten cases in two replicas pass,
+  including native insertions on both outputs. All 40 paired comparisons
+  (80 captures) match complete table/column/index names, schema, rows,
+  traversal and Seek. The independent raw comparison checks user definitions,
+  values, key/locator records and disjoint maps; complete system catalogs,
+  ACE rows and indexes; global free pages; and the 16-bit creation-counter word.
+  Native successors include overflow catalog records, decoded with their
+  complete original logical locators and hidden storage ownership.
+- Accepted identities:
+  - manifest: 180,470 bytes, SHA-256 `b88797229187b06acc1ce91ca14dfb304323b94f98556cca4368a1e224abe2b6`.
+  - native result: 31,418,867 bytes, SHA-256 `9a7626ce9bf362c873c08a1ec46a548b755ee7e67d4fa9d0960bc4a6e1df604c`.
+  - comparison: 4,980,802 bytes, SHA-256 `d243d41a65f90f78951cb170793aa5100eebfcff2448b473835f39add6baace1`.
+- The admitted creator counter follows the EXP-0249 16-bit carry rule, with
+  actual creation still bounded by the 1,024-page allocation inventory. Table
+  and column names admit at most 64 ASCII bytes; logical index names admit
+  at most 63. The native 64-byte index-name Seek failure in EXP-0249 remains
+  outside the admitted writer schema. No full-v1 compatibility is claimed.

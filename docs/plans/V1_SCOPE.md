@@ -102,6 +102,13 @@ and seeks match DAO, with unrelated Notes pages preserved. Exact-capacity
 definitions retain an empty terminal page; longer chains use the existing
 2,040-byte continuation payload and shared resource budget.
 
+EXP-0249 establishes the creation counter's 16-bit carry and native name
+boundaries. EXP-0251 adds 40 paired comparisons (80 captures): ten cases in
+two replicas, each with native insertions on both outputs. These include
+128/255/256 tables and 64-byte table/column names with 63-byte index names.
+Complete schema, values, traversal/Seek, catalog rows and physical indexes
+match. Native catalog overflow rows retain their logical index locators.
+
 ### Updates
 
 Public APIs implement bounded field updates, insertion into populated pages or
