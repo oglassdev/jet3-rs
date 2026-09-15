@@ -7,6 +7,7 @@ import importlib.util
 import json
 from pathlib import Path
 import shutil
+import subprocess
 
 from creation_tables import identity, normalized, require, write
 import multi_level_index_structure
@@ -190,16 +191,24 @@ def compare_system(observation, raw):
     for table in observation['tables']:
         decoded = raw[table['name']]; definition = decoded['definition']
         types = {'Boolean': 1, 'Integer': 3, 'Long': 4, 'Date': 8, 'Binary': 9, 'Text': 10, 'LongBinary': 11, 'Memo': 12}
-        require([[f['name'], f['type'], f['size']] for f in table['fields']] == [[c['name'], types[c['type']], c['size']] for c in definition['columns']], 'System column schema')
-        values = [r['values'] for r in decoded['rows']]
-        require(row_multiset(values) == row_multiset(table['rows']), 'Full DAO/raw system row payloads')
+        require(sorted([f['name'], f['type'], f['size']] for f in table['fields']) == sorted([c['name'], types[c['type']], c['size']] for c in definition['columns']), 'System column schema')
+        order = [next(n for n, f in enumerate(table['fields']) if f['name'] == c['name']) for c in definition['columns']]
+        masked = [n for n, c in enumerate(definition['columns']) if c['class'] == 50]
+        require([definition['columns'][n]['name'] for n in masked] == (['Owner'] if table['name'] == 'MSysObjects' else ['SID']), 'Known protected system Binary fields')
+        def dao_rows(rows):
+            reordered = [[row[n] for n in order] for row in rows]
+            require(all(row[n] is None for row in reordered for n in masked), 'DAO returns null for protected system fields')
+            return reordered
+        values = [[None if n in masked else v for n, v in enumerate(r['values'])] for r in decoded['rows']]
+        decoded['dao_raw_only_columns'] = [definition['columns'][n]['name'] for n in masked]
+        require(row_multiset(values) == row_multiset(dao_rows(table['rows'])), 'Full DAO/raw system row payloads')
         logical = {i['name']: i for i in definition['logical_indexes']}
         require(set(logical) == {i['name'] for i in table['indexes']}, 'System logical index inventory')
         for idx in table['indexes']:
             physical = definition['physical_indexes'][logical[idx['name']]['physical_index']]
             columns = [c['column'] for c in physical['keys']]
             require([f['name'] for f in idx['fields']] == [definition['columns'][c]['name'] for c in columns], 'System key fields')
-            traversal = idx['traversal']; require(row_multiset(traversal) == row_multiset(values), 'Complete system index traversal')
+            traversal = dao_rows(idx['traversal']); require(row_multiset(traversal) == row_multiset(values), 'Complete system index traversal')
             encoded = [name_key(r[1], r[2]) if len(columns) == 2 else long_key(r[0]) for r in traversal]
             require(encoded == sorted(encoded), 'System index traversal order')
 
@@ -207,9 +216,13 @@ def compare_system(observation, raw):
 def evaluate(directory, outbox):
     manifest_path = directory / MANIFEST; manifest = json.loads(manifest_path.read_text())
     result_path = outbox / 'result.json'; result = json.loads(result_path.read_text(encoding='utf-8-sig'))
-    report = dict(document_type='catalog_pages_native_report', status='failed', manifest=identity(manifest_path), result=identity(result_path), environment=result['environment'], cases=[], error=None)
+    report = dict(document_type='catalog_pages_native_report', status='failed', manifest=identity(manifest_path), result=identity(result_path), environment=result['environment'], analyzer=identity(Path(__file__)), cases=[], error=None)
     try:
-        for name, pin in manifest['sources'].items(): require(identity(ROOT / name) == pin, 'Source identity: ' + name)
+        for name, pin in manifest['sources'].items():
+            if ROOT / name == Path(__file__):
+                retained = subprocess.check_output(['git', 'show', manifest['source_revision'] + ':' + name], cwd=ROOT)
+                require(dict(size=len(retained), sha256=hashlib.sha256(retained).hexdigest()) == pin, 'Retained analyzer source identity')
+            else: require(identity(ROOT / name) == pin, 'Source identity: ' + name)
         for name, pin in manifest['files'].items(): require(identity(directory / name) == pin, 'Input identity: ' + name)
         require(result['document_type'] == 'dao_catalog_pages_native_result' and result['manifest_sha256'] == report['manifest']['sha256'] and result['source_revision'] == manifest['source_revision'], 'Producer/source binding')
         require(result['error'] is None and result['retention_failures'] == [], 'Producer and retention')
@@ -232,7 +245,7 @@ def evaluate(directory, outbox):
                     expected, changes = readable_clone(path.read_bytes())
                     require(system_path.read_bytes() == expected and changes == source['permission_changes'], 'Only exact permission field changes')
                     readable = inspect(expected); compare_system(outcome['system'], readable)
-                    checked.update(readable_file=system_path.name, readable_identity=identity(system_path), permission_changes=changes)
+                    checked.update(readable_file=system_path.name, readable_identity=identity(system_path), permission_changes=changes, dao_raw_only_columns={name: t['dao_raw_only_columns'] for name, t in readable.items()})
                 else: compare_system(outcome['system'], raw)
                 objects = raw['MSysObjects']; aces = raw['MSysACEs']
                 require(len(objects['rows']) == 8 + case['count'] and len(aces['rows']) == 16 + 2 * case['count'], 'Per-create catalog/ACE cardinality')
