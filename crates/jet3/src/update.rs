@@ -154,8 +154,9 @@ conversion!(crate::IndexTreeError, Index);
 /// a post-publication sync failure is distinguished by the publication error stage.
 /// The same budget covers planning, copying, patching and streaming verification.
 /// Structural verification is not a DAO compatibility claim.
-/// Each endpoint may participate in only one relationship; multiple relationships
-/// and other key types, cascades, or self-references are refused.
+/// Every affected enforced, non-cascading Long relationship is checked, including
+/// multiple relationships and self-references. Every resulting non-null child
+/// key must occur in its parent table. Other key types and cascades are refused.
 pub fn update_field(
     path: impl AsRef<Path>,
     request: FieldUpdate<'_>,

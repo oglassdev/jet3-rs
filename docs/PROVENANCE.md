@@ -17866,3 +17866,84 @@ payloads and definition/property boundaries. It does not establish Rust query
 creation, editing, SQL interpretation or execution, action/crosstab/DDL query
 preservation, or general rollback/crash behavior. No new binary-format grammar
 is inferred from this preservation result.
+
+## EXP-0273 — Multiple and self-referencing Long relationships
+
+**Native observation.** Source `9af90efc716c8a9d7ef015e94fe8c959654ef73e`
+produced the five graph cases in two independent DAO replicas each, accepted
+under `20260915T221615Z-multi-rel-discovery-r2`. Follow-ups
+`20260915T221928Z-self-rel-atomic-r1` and
+`20260915T222201Z-duplicate-fk-rel-r1` each accept two replicas. Provider is x86
+DAO.DBEngine.36 version 3.6, dao360.dll 03.60.9765.0 SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`, Windows
+Server 2022 build 20348, en-US. These are native observations; Rust mutation
+compatibility requires its separate differential outcome.
+
+All logical relationship records retain the EXP-0059/0114 20-byte grammar and
+`0000` context. Names are stored separately. Each record's selector equals its
+opposite record's relation ordinal. Observed `(selector, ordinal)` pairs are:
+
+- Parent with two children: parent `.rB` `(1,1)`, `.rC` `(2,1)`; ChildA `(1,1)`,
+  ChildB `(1,2)`.
+- Two child columns referencing the same parent: parent `.rB` `(1,1)`, `.rC`
+  `(2,2)`; child records `(1,1)` and `(2,2)`, physical indexes 1 and 2.
+- Two distinct parents: each has `.rB`, ParentA `(1,1)`, ParentB `(1,2)`;
+  child records `(1,1)` and `(2,1)`, physical indexes 1 and 2.
+- Three-table chain: Parent `.rB` `(1,1)`; Middle incoming `(1,1)` and outgoing
+  `.rC` `(2,1)`; Child incoming `(1,2)`.
+- Self-reference: `.rC` `(2,1)` is the primary side on physical index 0;
+  `Rel Self` `(1,2)` is the foreign side on physical index 1. Both reference
+  the owning table-definition root. A same-root reference is valid.
+
+Two distinct parent constraints on the same child FK column share one physical
+foreign index. Both child logical records reference physical index 1, while
+DAO exposes that index under the later name `Rel Same B`. Both constraints
+remain enforced; assignment updates the shared physical index once. ParentA's
+`.rB` `(1,1)` matches child `Rel Same A` `(1,1)`; ParentB's `.rB` `(1,2)` matches
+child `Rel Same B` `(2,1)`.
+
+The two relationship objects use consecutive IDs `i32::MIN` and `i32::MIN+1`,
+parent 251658243, type 8, flags 0, owner `0301` and null LvProp. Each has ACEs
+`(0301,983294,false)` and `(0201,1048575,false)`. Central rows retain append
+order with grbit 0, ccolumn 1 and icolumn 0; every row locator appears in all
+three MSysRelationships indexes. More than two relationships and later hidden
+name/ID assignment are not inferred from these observations.
+
+Successful FK assignments affect only their physical index's EXP-0268 prefix
+history; other FK columns and other tables remain unchanged. Insertion and
+deletion update each represented physical index independently. Unreferenced
+parent-key changes preserve foreign indexes. Orphan FK assignments return
+3201 while advancing page-0 bookkeeping and only the attempted foreign prefix.
+Ordinary referenced-parent deletion returns 3200 with exact input bytes. The
+self-node deletion refusal retains rows and keys but advances page 0 and its
+foreign prefix from `(4,2)` to `(3,2)`; this failed-write bookkeeping is recorded
+without changing Rust's pre-publication byte-preservation contract.
+
+In both self-atomic replicas, DAO accepts insertion `(Id=30,ParentId=30)`, one
+Edit replacing both values with `(31,31)`, and deletion of that self-linked row.
+Changing only primary 30 to 31 while retaining ParentId 30 returns 3200 and
+preserves the file exactly. Primary/foreign prefixes after insert, replacement
+and deletion are `(0,5)/(4,3)`, `(0,5)/(3,3)` and `(0,5)/(2,2)`. These results
+support checking the resulting parent and child row sets atomically.
+
+Artifacts are retained outside git in
+`shared/checks/20260915-multiple-relationship-discovery`: matrices, reproducible
+producers/analyzers, native MDBs, complete raw/index/map observations, provider
+identities, reports and run inboxes/outboxes. SHA-256s:
+
+- Main matrix: `5d4e18748b68df28901055c9748c343336bc7539287214124104ebbcce20cf0c`.
+- Main report: `8a547c791a159e45363e83fe22b6257474fdc11dab9bd47a24c29bc90054da4c`.
+- Self report: `d8cee0542914ac6a723447662a017bc57f43022f2b2acf9b94a9750a7ef0fa98`.
+- Shared-FK report: `2ec1e62ab8fec70132d3dd7c32aea801b376c66edaa833b47ea8344c54ec095b`.
+- Main analyzer: `8ac9a53e3c214e10bc09f11d3d0f559f2b7ba28ea978ef88af16600e96ed1f78`.
+- Main producer: `5901a31c13004757a622ef56c21733f9b8b0fcae7f0a66c8090981714b6eefca`.
+- Findings: `93c0bfa3330c12a1fdcadd8b40dc9b1385b4e7f4ce9065638c9646f8f3a8cbd2`.
+- Original manifest: `8e2594f976d3a8adfbd967649369c692c29bc3531ecb0fadb205feba5efd5c1c`.
+
+Interrupted main attempt `20260915T220833Z-multi-rel-discovery-r1` remains
+retained and rejected. The accepted producer captures complete properties on
+originals and complete schema/index/row metadata at subsequent checkpoints.
+Scope is ascending, enforced, non-cascading single-Long keys, at most two
+relations at an endpoint and the recorded append orders. Composite keys,
+cascades, longer cycles, schema mutation and other append orders remain
+unobserved by this discovery suite.

@@ -381,6 +381,28 @@ fn preserves_minimum_relationship_reference_without_cascade_claims()
 }
 
 #[test]
+fn reads_both_sides_of_a_self_referencing_relationship() -> Result<(), Box<dyn std::error::Error>> {
+    // EXP-0273: both reciprocal records can point back to their own definition.
+    for mut logical in [
+        relationship_definition(),
+        primary_side_relationship_definition(),
+    ] {
+        logical[LOGICAL_OFFSET + 13..LOGICAL_OFFSET + 17]
+            .copy_from_slice(&(ROOT as u32).to_le_bytes());
+        let definition = decode(&database_bytes(&logical, None))?;
+        assert_eq!(
+            definition
+                .relationships()
+                .next()
+                .ok_or("relation absent")?
+                .related_table(),
+            definition.root()
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn preserves_primary_relationship_side() -> Result<(), Box<dyn std::error::Error>> {
     let bytes = database_bytes(&primary_side_relationship_definition(), None);
     let definition = decode(&bytes)?;
