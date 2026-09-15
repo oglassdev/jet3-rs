@@ -68,8 +68,13 @@ Indexes have one to ten components and can span multiple levels. Independent
 Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
 columns themselves cannot be indexed. Each payload column has separate ownership
 and availability maps. Definitions and map rows can span multiple pages; files
-are bounded by map-reference capacity and the caller's resource budget. Relationships remain restricted to two scalar tables with one
-non-cascading, non-null Long relationship.
+are bounded by map-reference capacity and the caller's resource budget.
+Relationships support two ordered tables and one enforced, non-cascading Long
+relationship, including nullable foreign keys and a separate child primary.
+Other columns retain generated IDs, Text/Memo options, independent Memo/OLE maps
+and definition/property chains. Populated parents require one primary index;
+empty parents may retain the earlier additional unique Long index. Other
+relationship forms and more than two tables remain restricted.
 
 Schema/name combinations, index key types and relationship forms remain
 restricted. Empty OLE payloads store null. Text/Memo columns can independently

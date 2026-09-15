@@ -18,6 +18,7 @@ impl AllocationMaps {
             extra: Vec::new(),
         }
     }
+    #[cfg(test)]
     pub fn inline_only() -> Self {
         Self {
             first_extra: None,

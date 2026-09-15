@@ -51,7 +51,8 @@ index names admit 63. Linked table definitions support
 first and later tables, initial rows, and indexes with independent map pages.
 It supports initial rows, explicit/generated AutoIncrement IDs, independent
 Memo/OLE columns, up to 32 scalar indexes (including Date, Binary, fixed/variable Text and GUID), and a restricted two-table
-relationship construction. Existing-file mutations include row insertion/deletion,
+relationship construction with nullable child keys, a separate child primary,
+generated IDs, column options and Memo/OLE storage. Existing-file mutations include row insertion/deletion,
 row replacement with stable locators across overflow growth and collapse,
 Memo/OLE payload allocation and reuse, generated IDs, and
 index maintenance for those key types with one to ten components per index. The accepted payload

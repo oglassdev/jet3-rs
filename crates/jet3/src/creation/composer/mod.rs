@@ -336,20 +336,6 @@ fn objects_map_page(
     data_page(HEADER_PAGE, &rows, budget)
 }
 
-fn shared_map_page(
-    relationship_pages: &[u64],
-    budget: &mut ResourceBudget,
-) -> Result<PageImage, ComposeError> {
-    shared_map_page_with_aces(
-        relationship_pages,
-        &[MSYS_ACES_DATA_PAGE],
-        &[MSYS_ACES_DATA_PAGE],
-        &[ACES_OBJECT_ID_ROOT],
-        &mut AllocationMaps::inline_only(),
-        budget,
-    )
-}
-
 fn shared_map_page_with_aces(
     relationship_pages: &[u64],
     ace_owned: &[u64],

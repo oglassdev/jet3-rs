@@ -202,3 +202,6 @@ fn corrupted_written_page_and_wrong_endpoint_fail_publication_check() -> TestRes
 
 #[path = "relationship_rows_tests.rs"]
 mod initial_rows;
+
+#[path = "rich_relationship_tests.rs"]
+mod rich;

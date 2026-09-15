@@ -17620,3 +17620,56 @@ reports remain in the same archive. Its counter divergence led to EXP-0268's
 additive two-word correction; the final candidate was regenerated and both
 accepted suites were acquired afresh. Comparison assertions were strengthened
 to retain both words and system-index prefix preservation.
+
+
+## EXP-0270 — Rich two-table relationship creation and AutoIncrement properties
+
+**Source.** Original local DAO run
+`20260915T211000Z-rich-relationship-create-r2`, recipe source revision
+`50e3e45493f43eaccf57c85ba68adef9e00cb305`, creates two independent replicas of
+three two-table schemas. Parent has an ascending Long primary and Text label;
+Child has its own primary before the enforced, non-cascading Long relationship
+is appended. The plain arm has nullable foreign keys and Memo/OLE; the rich arm
+adds a generated AutoIncrement primary and enabled Text/Memo empty-value
+options; the boundary arm has 43 columns, eight independent Memo/OLE columns
+and 32 named Text options. Five initial child rows include null, duplicate and
+distinct valid foreign keys, null/empty values and 1/33/2036/2037/4096-byte payloads.
+
+All six controls passed the retained native/raw discovery analyzer. Child's
+foreign physical index is ordinal 1 after its existing primary at ordinal 0.
+Parent `.rB` record is `0100000000000000010100000019000000000002`; Child
+`ParentChild` is `0100000001000000020100000014000000000002`. Selector and opposite
+ordinal are both 1, contexts are 0000, and the roots point to each other. The
+single relationship catalog row retains grbit=0, ccolumn=1 and icolumn=0.
+Native foreign prefix words are `(5,4)`; ordinary primary prefixes are `(0,3)`
+and `(0,5)`. These are native construction history, not a required independent
+candidate layout. EXP-0134's `(0, distinct)` construction policy remains a
+separate hypothesis checked by subsequent native operations.
+
+DAO reports AutoIncrement Long attributes 17 and assigns child IDs 1 through 5.
+The EXP-0266 `LvProp` dictionary and named field grammar remains unchanged,
+except the AutoIncrement column has no default-false field block. All other
+fields retain their observed default/explicit records. This omission applies
+both when measuring and encoding generated column properties. Rich Child has
+160 property bytes; the boundary Child has 2,884 bytes over two fragments.
+Its logical definition is 2,730 bytes over pages 25 and 149. Eight LVAL columns
+and two indexes account for 20 distinct child map rows. Empty OLE normalizes
+to null; enabled empty Text/Memo stays present empty. Complete row values,
+payload reachability, raw keys and DAO traversal/Seek observations are retained.
+
+**Retention.** Private reproducible inputs, producers, original helper copies,
+closed MDBs and complete outputs are under
+`shared/checks/20260915-rich-relationship-discovery`. Matrix SHA-256
+`de70f73d3ebf09bc8838e30e81bcf1d8b66de15d7a1b6a7a69b3ec9ff6690522`;
+accepted discovery report
+`123ed0cd8b6cbe368634588e727d8b96ec2309cd7773dd7e88fc7bc4c4591978`;
+findings `f6047afea29cae66959e3b3e548aeab51055f19e2749ba726ba981713d27a135`;
+SHA256SUMS inventory
+`819a3612821358cd6b6da1bb5513d1147079010687e8a085e23ea952e0007dbe`.
+The loaded provider is x86 DAO.DBEngine.36 3.6, dao360.dll 03.60.9765.0 SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`, Windows
+Server 2022 build 20348, en-US. The predecessor run
+`20260915T210500Z-rich-relationship-create-r1` remains rejected and retained for
+its extra JSON array layer in field/index inventories. No native continuation
+was included in this discovery. These controls do not establish Rust
+compatibility, other relationship forms, other providers or whole-v1 support.

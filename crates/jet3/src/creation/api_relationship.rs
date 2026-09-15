@@ -7,28 +7,21 @@ use crate::{
     RelationshipSpec,
 };
 
-/// Creates two empty tables with one non-cascading Long-to-Long relationship.
+/// Creates two empty tables with one enforced, non-cascading Long relationship.
 ///
-/// The parent must be the first table and the child the second. The parent's
-/// first index must be an ascending, single-column primary index on the
-/// referenced Long column. It may have one further ascending, single-Long
-/// unique index. The child must initially have no indexes; creation adds its
-/// foreign index, named by `relationship.name`. Table and column references
-/// may use names or zero-based ordinals.
+/// The parent is first and its first index is an ascending primary on the
+/// referenced Long column. Empty creation also admits one additional ascending
+/// unique Long index on the parent. The child may start with one ascending
+/// Long/AutoIncrement primary on a different column; creation appends the foreign
+/// physical index. Names or zero-based ordinals resolve table/column references.
 ///
-/// AutoIncrement, Memo, LongBinary, continued definitions, and unsupported
-/// name bytes are refused with [`CreateDatabaseError::Compose`] before writing.
-/// The name and scalar-column bounds of [`create_database`] also apply.
-/// The atomic publication and existing-destination guarantees are the same:
-/// the written pages, catalog, user definitions, reciprocal relationships,
-/// empty rows, and empty index trees are checked before publication. All
-/// composition, writing, and checking is charged to `budget`.
-///
-/// `EXP-0118` and `EXP-0122` observed DAO accept three exact original/renamed
-/// images with these one/two-parent-index shapes. Other names and schemas
-/// compose from the same bounded encoders; they have no individual DAO
-/// result. Referential-integrity mutations, cascades, and hosted write
-/// support were not established by those read-only experiments.
+/// Other columns retain the normal table planner's properties, AutoIncrement,
+/// Memo/OLE maps and definition chains. Keys of other types, additional child
+/// indexes, cascades, self-references and more than two tables are refused.
+/// Written pages and reciprocal relationships are checked before atomic
+/// publication. The budget and existing-destination guarantees of
+/// [`create_database`] apply. Format encoders use EXP-0059/0114/0268; combining
+/// these schemas is a candidate construction, not a general compatibility claim.
 pub fn create_database_with_relationship(
     path: impl AsRef<Path>,
     tables: &[TableSpec<'_>],
@@ -49,20 +42,20 @@ pub fn create_database_with_relationship(
     .map_err(CreateDatabaseError::Publish)
 }
 
-/// Creates two tables with initial rows and one non-cascading Long relationship.
+/// Creates two related tables with initial rows, indexes and Memo/OLE payloads.
 ///
-/// Requests must contain parent then child. The parent has exactly one
-/// ascending Long primary index on its relationship column; the child starts
-/// unindexed and receives an ordinary foreign index. Both relationship keys
-/// must be non-null Long values, every child key must occur in the parent,
-/// and both index trees grow within the existing inline-map and resource
-/// limits. Repeated child keys are allowed. Other scalar columns may span data pages under
-/// the existing row bounds. AutoIncrement and long-value columns are refused.
+/// Requests contain parent then child, with one ascending Long primary on the
+/// parent's referenced column. The child may have one separate ascending
+/// Long/AutoIncrement primary. Null foreign keys are admitted; every non-null
+/// Long foreign key must exist in the parent. Duplicate child keys are allowed.
+/// Other columns support generated IDs, column options and independent Memo/OLE
+/// storage under the normal table, definition-chain and allocation-map bounds.
 ///
-/// Existing destinations are preserved, and complete written pages,
-/// reciprocal relationship metadata, rows and both index trees are checked
-/// before atomic publication. This bounded candidate construction does not
-/// establish general DAO compatibility or subsequent integrity enforcement.
+/// Both index inventories, reciprocal metadata, complete rows and payloads are
+/// checked before atomic publication. Existing destinations are preserved.
+/// Unsupported relationship forms have the same restrictions as
+/// [`create_database_with_relationship`]. DAO evidence covers only its recorded
+/// finite comparisons; Rust candidate checking alone does not establish it.
 pub fn create_database_with_relationship_rows(
     path: impl AsRef<Path>,
     requests: &[TableRows<'_>],
@@ -202,20 +195,46 @@ fn check_relationship_contents(
                 column: relationship.child.column,
                 direction: IndexDirection::Ascending,
             }];
-            let indexes = [IndexSpec {
+            let foreign = IndexSpec {
                 name: relationship.name,
                 fields: &fields,
                 kind: IndexKind::Ordinary,
-            }];
+            };
+            let indexes = [
+                requests[1]
+                    .table
+                    .indexes
+                    .first()
+                    .copied()
+                    .unwrap_or(foreign),
+                foreign,
+            ];
             let child = TableRows {
                 table: TableSpec {
-                    indexes: &indexes,
+                    indexes: if requests[1].table.indexes.is_empty() {
+                        &indexes[1..]
+                    } else {
+                        &indexes
+                    },
                     ..requests[1].table
                 },
                 rows: requests[1].rows,
             };
             let request = if position == 0 { &requests[0] } else { &child };
-            check_initial_table_rows(&mut database, request, root, position == 0, budget)?;
+            let plan = crate::creation::schema_plan::plan_table_schema_with_logical_index(
+                &request.table,
+                root.get(),
+                position == 0,
+                (position == 0).then_some(relation.name().raw_bytes()),
+            )
+            .map_err(|error| CandidateCheckError::RowEncoding(ComposeError::Schema(error)))?;
+            check_initial_table_rows_from(
+                &mut database,
+                request,
+                root,
+                root.get() + plan.appended_page_count(),
+                budget,
+            )?;
         } else {
             for ordinal in 0..definition.physical_indexes().len() {
                 let ordinal =

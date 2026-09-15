@@ -152,7 +152,7 @@ fn missing_references_wrong_types_and_unsupported_indexes_are_refused() {
     assert!(matches!(
         compose_relationship(&indexed_child, &spec, &mut budget()),
         Err(ComposeError::UnsupportedRelationship {
-            detail: "child must initially be unindexed"
+            detail: "child admits one separate ascending Long primary index"
         })
     ));
 }
@@ -181,7 +181,7 @@ fn name_collisions_and_unsupported_name_bytes_are_refused() {
 }
 
 #[test]
-fn long_value_columns_and_allocation_exhaustion_are_refused() {
+fn long_value_columns_compose_and_allocation_exhaustion_is_refused() {
     let (mut tables, spec) = renamed(false);
     let mut limited =
         ResourceBudget::new(ResourceLimits::default().with_max_allocation_bytes(ByteCount::new(0)));
@@ -191,10 +191,7 @@ fn long_value_columns_and_allocation_exhaustion_are_refused() {
         ColumnSpec::new(b"Account4", ColumnType::Long),
     ];
     tables[1].columns = &columns;
-    assert!(matches!(
-        compose_relationship(&tables, &spec, &mut budget()),
-        Err(ComposeError::UnsupportedRelationship { .. })
-    ));
+    assert!(compose_relationship(&tables, &spec, &mut budget()).is_ok());
 }
 
 #[test]
