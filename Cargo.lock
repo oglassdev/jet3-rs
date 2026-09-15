@@ -144,6 +144,7 @@ name = "jet3"
 version = "0.0.0"
 dependencies = [
  "proptest",
+ "serde_json",
  "winapi-util",
 ]
 

@@ -17390,3 +17390,233 @@ whole-v1 compatibility are not established.
 Pre-PR `just ready` passed formatting, Clippy, workspace tests, rustdoc and
 quick acceptance: 1,480 test executions, zero failures. Complete log retained
 as `ready-final.log` in the private acceptance archive.
+
+
+## EXP-0268 — Enforced Long relationship mutations and retained foreign counters
+
+**Source.** Original black-box DAO discovery at source revision
+`382e9d1ea2e71c4707bea50f1c438d8cb9cd4e1f`. Two independently created replicas
+of Parent(Id Long primary, Label Text), Child(Id Long primary, nullable ParentId
+Long, Memo, OLE), and an unrelated Notes table with exact 4096-byte Memo/OLE.
+All retained MDBs, producers, matrices, DAO captures, independent raw verifiers,
+and reports are private under
+`shared/checks/20260915-relationship-mutation-discovery` in the local VM storage.
+
+Accepted native runs:
+
+- `20260915T200100Z-relationship-mutation-r4`: 24 closed lifecycle checkpoints,
+  including successful/refused mutations, full DAO rows, schema, relationships,
+  traversals and Seeks. Main producer SHA-256
+  `ac5ce6b39131bc17258415056f89a3734945af42270e19aab60214c574a496eb`;
+  matrix `d7e88de437d7305c961b5177c59652e04e531842cfada6227bcc4795635db01d`;
+  verifier `d71bcc12d527fbbc3fea95c8a2f5ec853f7fa4b421d5f98324af6d6cfd1672b6`;
+  report `dda506e10b176c5db7af1abac827b3708a4c88cdbb8b7cd7e2d5bafca5a9e66a`.
+- `20260915T202100Z-relationship-counter-followup-r1`: four retained sources and
+  ten outputs. Zero-counter boundaries and a changed key with both its old/new
+  values still present. Producer
+  `e69e0d126fc95562414e2200bb5d89f02b094ee7381b3285c73ad7052632f976`;
+  verifier `90287c0b711362a5fa9940ef73b0d8b2f2b260ed35504e8e583c073d0d7227a1`;
+  report `7ac2c530edc4247496dce27816f2358e8b4de0ad47ce0d2de9f052cfe6792e4d`.
+- `20260915T204200Z-relationship-posctr-r1`: six fresh counter-4 clones,
+  testing equal-value FK assignments, full-row reassignment with payload edits,
+  and payload-only edits. Producer
+  `01ad45012afdc5204a7e8ec255d340c0a1be15e42a71e8a06e27a2f125816db7`;
+  result `b62074b16cf05307639de49e4c542c149d5a281469079bc8c618bd14f3298efc`;
+  verifier `749efb2f3fcd1c421edd01cfc287e18d2bea8bb4e0617074cb73230f01b01ee6`;
+  report `480eb3ffb5c4e4ba2f152529d537a8dad928361c0562979451fb97ad07b0793b`.
+
+Provider: x86 DAO.DBEngine.36 3.6, dao360.dll 03.60.9765.0, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`, Windows
+Server 2022 build 20348, en-US, Pacific Standard Time. Consolidated findings
+`5e2fc9d0a1ada720f4fa861d2f481c04b0ed1e75afa8df5ae0a50f4ccacd367c`, accepted
+pins `6b7617024809fff767538427dcc3d939214f25af8aeeb7bff178217573860f78`, and
+151-file inventory `216c879a922ccc628eddab3b4ec8c657614a5b0fdae3c94d1c11ed530fc92db5`.
+
+**Observations.** The sole MSysRelationships row has grbit=0, ccolumn=1,
+icolumn=0 and named Parent.Id / Child.ParentId endpoints. Reciprocal class-2
+logical records are Parent `0100000000000000010100000018000000000002` and Child
+`0100000001000000020100000014000000000002`. Each side's selector equals the
+other side's relationship ordinal; sides are 1/2, context 0000, and roots point
+to the other table. Parent shares physical primary index 0, flags 9; Child owns
+physical index 1, flags 0, ascending nullable Long. Nulls have physical keys
+`00 || page_be24 || row`; duplicate foreign values are admitted.
+
+Non-null child keys require an existing parent; null child keys do not. Missing
+parent updates fail with DAO 3201 / HRESULT -2146825087. Updating or deleting a
+referenced parent fails with DAO 3200 / HRESULT -2146825088. Unreferenced parent
+inserts/key changes/deletes and child inserts/key changes/null transitions,
+payload replacements/deletes succeed. Existing surviving logical locators and
+all relationship metadata remain stable.
+
+The foreign counter starts at the distinct included key count. Inserting a
+previously absent key increments it, including null when first present;
+duplicates do not. Assigning the FK field decrements it once, saturating at
+zero, including assignment of the same value and a full-row replacement that
+reasserts it. An update that never assigns the FK retains it. Equal-value
+assignments retain every byte of the FK index page even when the counter changes.
+A changed assignment decrements regardless of whether another old-key row or
+new-key row exists. Deletions retain counters. Parent and Child primary counters
+follow EXP-0230. These counters must not be treated as current live/distinct counts.
+
+The refused orphan update changes only the foreign counter and the observed
+page-zero transition byte, with rows and index entries exact. Referenced-parent
+refusals preserve the entire file. Rust refusals retain their stronger atomic
+contract: no publication and complete original bytes preserved. Successful DAO
+operations may advance page-zero bookkeeping; Rust does not copy that side effect.
+Complete raw values, payload reachability, all physical keys/locators and maps,
+DAO traversals/Seeks, cleanup, and all nine Notes pages were checked.
+
+**Limits and retained failures.** One provider and one enforced, non-cascading,
+non-self-referencing, single ascending Long relationship, with leaf foreign
+indexes. No composite/cascade/other-key/schema/multiple-relationship inference.
+This is native discovery, not Rust differential acceptance. Historical producer
+failures (character repetition, byte-array unrolling, hashing an open MDB) and
+rejected raw verifier revisions (cross-replica opaque bytes, null field slack,
+missing identity closure, unused index slack) remain alongside accepted reports;
+they do not establish format observations.
+
+
+### EXP-0268 addendum — Two-word foreign-index state corrects the initial counter interpretation
+
+The first lifecycle comparison (`20260915T202025Z-relationship-lifecycle-r1`,
+source labeled `uncommitted-local-check`) failed its native-successor counter
+comparison. Stronger immutable-metadata checks also exposed a change in the
+four-byte word before the decoded counter. Both failed reports remain retained.
+The initial one-word interpretation above is superseded by the observations
+below: foreign deletion need not retain the second word, and assignment does
+not blindly decrement it. This is independent of leaf versus branch shape.
+
+Six additional native acquisitions retained complete before/after inputs,
+operations, captures, producers, helpers and matrices, with both replicas:
+`20260915T211400Z-rel-counter-replay-r2`,
+`20260915T212300Z-rel-counter-controls-r2`,
+`20260915T212000Z-rel-null-insert-r1`,
+`20260915T212800Z-rel-leaf-counter-r2`,
+`20260915T213100Z-rel-latest-counter-r1`, and
+`20260915T213400Z-rel-delete-counter-r1`. Follow-ups use the same recorded DAO
+provider and source pins `db4be5ad29b522b9a41d163079d9c5d7c90a5b56` or
+`382e9d1ea2e71c4707bea50f1c438d8cb9cd4e1f`; exact source MDB identities and
+individual producer/matrix/result pins are retained in the consolidated bundle.
+
+For the eight-byte physical prefix beginning at `43 + physical_ordinal * 8`,
+let `(first, second)` be its two little-endian u32 words. The observed child
+foreign-index rule is:
+
+- Explicit FK assignment, including equal/null/full-row assignment, or child
+  deletion: when `first > 0`, write `(first - 1, min(second, first - 1))`.
+  When `first == 0`, retain both words.
+- Child insertion retains `first` and increments `second` only for a previously
+  absent complete encoded key. First-null insertion increments it; repeated
+  null insertion does not. Replacement does not add a distinct-key increment.
+- A non-key edit that does not assign the FK retains both. The tested ordinary
+  primary-index first words remain zero and follow the previously recorded
+  ordinary mutation behavior. This does not infer nonzero ordinary-index state.
+
+Decisive small-leaf observations include original `(4,3)` becoming `(3,3)` on
+an equal assignment and on assignment to the previously absent valid key 10;
+`(0,2)` remaining exact through equal, changed-existing and both null transitions;
+duplicate-key child deletion `(4,4) -> (3,3)`; and deletion of the sole newly
+inserted null `(3,4) -> (2,2)`. A first-null insertion `(3,3) -> (3,4)` and
+`(0,0) -> (0,1)` retains the first word in each case. Repeated nulls retain both.
+Multilevel replay and counter-0/1/2 controls give the same rule. The two words
+are mutable retained metadata, not current live or distinct-entry counts.
+
+Private durable bundle:
+`shared/checks/20260915-relationship-counter-divergence`.
+Consolidated findings SHA-256
+`001b98c97662e0ec86e300ec6484c14dc4e7b8cccff4a8d6d74094f101a2775f`;
+verifier `fb0b0fa8c8835742dad1ef810c615ed9768d3d66175c1fbba83b293e55c00ba1`;
+accepted report `d00d3f05526f6e3223bf3bfdf96ce444d3a06f2edeb673cf1288e4bb06009db3`;
+accepted pins `1e38a718fe5f98c4b91562e3912f9d2165d9cf502314379d7876ebee401e438e`;
+323-file inventory `4db2ed5f94a099602b666148662c278815f3b9d09bb9420c6b8d66de20293b8e`.
+Complete values, Memo/OLE reachability, every key/locator, maps, reciprocal
+metadata, unrelated Notes, and both words were checked. Historical reporter,
+retention, parser-preflight and overly broad metadata-comparison failures remain
+alongside accepted outcomes. No non-Long, composite, descending, cascade,
+self-reference, schema-mutation, overflow or other-provider inference is made.
+
+
+## EXP-0269 — Paired relationship mutations and native-input continuations
+
+**Source and retained inputs.** Production and suite revision
+`1d761147ca3e415a9af6908b93a29ae19c061671`, built from main
+`db4be5ad29b522b9a41d163079d9c5d7c90a5b56`. The public-API candidate generator
+and reproducible PowerShell/Python suite are committed under
+`crates/jet3/examples/relationship_mutation_candidate.rs` and
+`oracle/windows-dao/scripts/relationship_mutation_*`. Initial inputs are both
+independently created EXP-0268 `r1-created.mdb` / `r2-created.mdb` databases.
+The provider is the same x86 DAO 3.6 / Windows Server 2022 / en-US environment
+recorded in EXP-0268; each result retains the loaded DLL identity.
+
+Accepted runs:
+
+- `20260915T205213Z-relationship-lifecycle-r2`: ten paired stages in each of two
+  replicas, followed by native writes to each output, for 22 successful pairs
+  / 44 captures. Each replica applies 356 Rust/control operations: valid parent
+  and child insertions, duplicate and null foreign keys, equal FK assignments,
+  equal/full-row assignments with payload changes, unrelated primary-key edits,
+  key/null transitions, referenced-child deletion before parent deletion, and
+  growth and edits of branched foreign indexes. Complete 1/33/4096-byte Memo/OLE
+  payloads are included. Native successor operations insert a new parent and
+  child key, move the child, change an unreferenced parent and delete rows.
+- `20260915T205446Z-relationship-continuation-r1`: all four retained native
+  successors become Rust inputs and independent DAO controls. Each has original,
+  Rust/control continuation and further native checkpoints, for 12 pairs /
+  24 captures. Rust inserts a parent/child, changes the FK with a 4096-byte Memo
+  and one-byte OLE replacement, and deletes the unreferenced parent; DAO then
+  changes the child again and deletes another child on both outputs.
+
+**Accepted comparisons.** All 34 pairs / 68 successful captures agree on complete
+schema, rows and payload bytes, relationship API/catalog/reciprocal records,
+physical key/locator inventories and both retained counter words. Across those
+captures, 9,444 Parent/Child rows, 18,636 traversal rows and 10,216 Seek outcomes
+are checked, including all returned fields. Every active payload slot is reached;
+allocation maps, ownership and metadata separation are validated; surviving
+logical locators are retained within each lineage. Foreign indexes grow to
+branches in both implementations, and Rust primary indexes do too. Tree layout
+need not be identical because DAO may compress more keys into one leaf.
+All nine unrelated Notes pages remain byte-identical within each lineage.
+Rust successful mutations retain the complete header page; native bookkeeping
+changes are recorded without requiring byte-identical overall placement.
+
+Fourteen Rust refusals (seven per replica) cover orphan insertion/field/full-row
+writes, referenced-parent field/full-row/deletion requests and resource limits.
+Every refused candidate equals its entire original input and reports the
+expected relationship/resource category. Twenty-four additional DAO refusal
+captures cover the six semantic requests on both role clones in both replicas:
+DAO returns 3201 for missing parents and 3200 for referenced parents. Complete
+rows, keys, schema, allocation and Notes remain preserved; paired failed-write
+counter/header side effects agree. Rust deliberately retains its stronger
+pre-publication whole-file preservation contract. No failed-write bookkeeping
+emulation is claimed.
+
+**Pins and retention.** Private inputs, all closed MDBs, complete results,
+Rust receipts, source archive and `just ready` log are retained in
+`shared/checks/20260915-relationship-mutation-acceptance`. No MDB bytes or provider
+binaries are committed. Main manifest SHA-256
+`63a2d698fd619c122e4fdd58505de1dda83d43952c6a6a558c5296a82e91646d`;
+result `24b1d6cbee08cd810cb7d3624e76200e323e6630f95aeced69ded08f57a386f0`;
+accepted report `dad1e7b4f6225ebb4b6bb347407bf616f8e83abe34b334d17995d0712ffeaeca`.
+Continuation manifest
+`8a2bd685c32a3f3092eea9693b05178d4d2acecb6a5e3ff562d43ad7ed7f4934`;
+result `1e4979961dcdfdd06f18bf724ad96d106b331edd68da619bf881ee73747cab64`;
+accepted report `7bf6fa1fe11a8109bb2650be3f8f0eb68c32bd453fb3bb5e781d34a9464617ae`.
+The 382-file inventory is
+`59e8c68ed212dd66cb472d55f8e2018a229c625b9305a21cbd2f9770aa4f47f7`;
+accepted pins `1cec8a0968e7cdf2d31d0c60cf5e5d3e2d18639d5ebe63f2c44ada836ef19bb9`
+include every suite/manifest/result/source identity. `just ready` passed 1,500
+test executions with zero failures, plus formatting, Clippy, documentation and
+quick acceptance; its ten ignored executions are the five normally ignored
+DAO tests encountered in each test pass. Independent Sol high review covered
+production correctness and the complete comparison assertions.
+
+**Limits and failures.** These finite results cover one enforced, non-cascading,
+non-self-referencing, single ascending Long relationship per endpoint, with
+nullable foreign keys, supported scalar indexes and Memo/OLE payloads. They do
+not establish multiple/composite/cascading/other-key relationships, related
+schema changes, overflow mutations, other collations/providers or whole-v1
+compatibility. The original uncommitted lifecycle r1 and both failed evaluator
+reports remain in the same archive. Its counter divergence led to EXP-0268's
+additive two-word correction; the final candidate was regenerated and both
+accepted suites were acquired afresh. Comparison assertions were strengthened
+to retain both words and system-index prefix preservation.

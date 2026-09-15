@@ -144,6 +144,14 @@ IDs and allocation state. The CLI exposes full-row replacement. Publication
 supports Unix and Windows; Windows flushes the file before publication without
 a separate directory-sync guarantee.
 
+Tables participating in one enforced, non-cascading, single ascending Long
+relationship per endpoint support these row mutations, including nullable
+foreign keys and Memo/OLE payloads. Both reciprocal index records and the
+relationship catalog must agree; existing orphan keys and damaged indexes are
+refused. Child keys must resolve to a parent, and referenced parent keys cannot
+be changed or deleted. Multiple, composite, cascading and self-referencing
+relationships remain outside this mutation scope.
+
 EXP-0212 covers seventeen hosted update recipes. EXP-0221 adds local DAO
 comparisons for indexed insertion/deletion, boundary insertion, native
 continuations and duplicate rejection. EXP-0219 identifies the retained index
@@ -273,10 +281,19 @@ are refused before Rust publication. DAO may change internal bookkeeping on a
 failed write; Rust refusal preserves the whole file. Other property grammars,
 Required/default/validation options and other collations remain outside this batch.
 
+EXP-0268 establishes two-word foreign-index bookkeeping and enforced Long
+relationship mutations. EXP-0269 accepts 34 lifecycle/continuation pairs
+(68 successful captures), plus 24 native refusal captures. Nullable FK changes,
+equal assignments, branched indexes, Memo/OLE replacements, ordered parent/child
+deletion and Rust edits to native successors preserve complete values, schema,
+keys, counters, allocation, logical locators and unrelated Notes. Fourteen Rust
+refusals preserve their complete input. Multiple, composite, cascading and
+self-referencing relationships remain outside this comparison.
+
 ### Remaining work
 
 - Extend creation to remaining schema/index-key combinations and relationship forms.
-- Extend updates to remaining index key types/collations, relationship targets,
+- Extend updates to remaining index key types/collations, relationship forms,
   additional payload/schema combinations, broader
   data-page/live-slot reuse and multi-hop row growth.
 - Cover remaining DAO inventories, stored-query preservation and broader

@@ -102,8 +102,8 @@ impl PhysicalIndexDefinition {
         &self.sourced_prefix
     }
 
-    /// EXP-0073/0219: initial distinct-key count; deletions can leave it above
-    /// the live count. Consumers must account for the database's mutation history.
+    /// EXP-0073/0219/0268: initial distinct-key count, retained after deletion.
+    /// Foreign-key assignments can reduce it below the live count.
     pub(crate) const fn distinct_key_count(&self) -> u32 {
         u32::from_le_bytes([
             self.sourced_prefix[4],

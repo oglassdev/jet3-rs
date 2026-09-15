@@ -105,6 +105,11 @@ pub(crate) fn load(
                 return Err(UpdateError::Mismatch("overlapping index page ownership"));
             }
         }
+        budget.charge_work_units(table.indexes().len() as u64)?;
+        let foreign = table.relationships().any(|relation| {
+            relation.side() == crate::RelationshipSide::ForeignTable
+                && relation.physical_index() == ordinal
+        });
         result.indexes.push(MutableIndex {
             ordinal,
             fields,
@@ -113,7 +118,8 @@ pub(crate) fn load(
             entries: Vec::new(),
             mapped,
             changed: false,
-            increment_counter: false,
+            foreign,
+            counter: None,
         });
     }
     let mut cursor = database.rows(table, budget)?;

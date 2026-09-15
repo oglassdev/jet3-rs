@@ -15,13 +15,15 @@ pub struct RowDelete<'a> {
 
 /// Deletes one logical row and its hidden storage, compacting or releasing pages.
 ///
-/// Supports relationship-free tables, retaining any AutoNumber state. Memo/OLE fragments
+/// Retains any AutoNumber state. Enforced non-cascading single-Long relationships
+/// require deletion of referencing children before their parent. Memo/OLE fragments
 /// are removed from their independent column storage after complete reference
 /// and ownership validation; emptied payload pages become globally free.
 /// Up to 32 indexes with one to ten supported scalar fields admit deletion,
 /// including duplicate and nullable keys. Each matching entry is removed by row
 /// locator and changed trees retain their roots. Surplus index pages remain
-/// reserved for reuse; retained index counters are unchanged.
+/// reserved for reuse. Ordinary index counters are unchanged; foreign index
+/// deletion updates the two-word retained state recorded by EXP-0268.
 /// Ordinary rows and one-link overflow rows are supported. Hidden storage must
 /// be uniquely reachable from a logical row; selected multi-hop chains are refused.
 /// EXP-0262 establishes deletion of both the logical link and hidden target.
@@ -44,6 +46,8 @@ pub struct RowDelete<'a> {
 /// The same resource budget covers planning, private copying and full-file
 /// verification. Any pre-publication failure preserves the original; publication
 /// errors identify their stage, including post-publication sync failures.
+/// Each endpoint may participate in only one relationship; multiple relationships
+/// and other key types, cascades, or self-references are refused.
 pub fn delete_row(
     path: impl AsRef<Path>,
     request: RowDelete<'_>,
@@ -75,6 +79,13 @@ where
             "mutation of multi-hop overflow chain",
         ));
     }
+    crate::relationship_mutation::check(
+        &mut database,
+        &definition,
+        request.table,
+        crate::relationship_mutation::Change::Delete(request.row),
+        budget,
+    )?;
     let auto = crate::auto_number_mutation::AutoNumber::load(&definition)?;
     let mut index = if definition.indexes().is_empty() && definition.physical_indexes().is_empty() {
         None

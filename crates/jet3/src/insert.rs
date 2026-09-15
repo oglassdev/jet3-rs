@@ -14,7 +14,8 @@ use std::path::Path;
 /// fields admit primary, unique, nonunique, descending and nullable keys. Each
 /// complete tree and row/key correspondence must validate. Changed trees retain
 /// their roots, reuse reserved index pages and append nodes as needed. Other
-/// key types and relationships are refused. Memo/OLE payloads
+/// key types are refused. Enforced non-cascading single-Long relationships admit
+/// null foreign keys and require a matching parent for non-null keys. Memo/OLE payloads
 /// use independent column maps; raw caller-supplied headers are refused.
 /// If no populated page fits, a released global-free page belonging to this table
 /// is reused, or one EOF page is appended. Inline maps convert to indirect storage
@@ -46,6 +47,8 @@ use std::path::Path;
 /// Callers must exclude external writers throughout this operation on Unix or Windows.
 /// A pre-publication failure preserves the original; publication errors identify
 /// their stage. One resource budget covers planning, copying and full verification.
+/// Each endpoint may participate in only one relationship; multiple relationships
+/// and other key types, cascades, or self-references are refused.
 pub fn insert_row(
     path: impl AsRef<Path>,
     table: &[u8],
@@ -110,6 +113,13 @@ where
         crate::long_value_mutation::LongValues::load(&mut database, &definition, None, budget)?;
     let mut encoded = [0; PAGE_BYTES];
     let length = long_values.encode_row(&layout[..columns.len()], values, &mut encoded, budget)?;
+    crate::relationship_mutation::check(
+        &mut database,
+        &definition,
+        table,
+        crate::relationship_mutation::Change::Insert(values),
+        budget,
+    )?;
     let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
     long_values.stage(&mut database, &mut edits, budget)?;
     let mut observed_rows = 0_u32;

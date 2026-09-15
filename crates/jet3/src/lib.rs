@@ -99,6 +99,8 @@ pub mod page_image;
 pub mod page_kind;
 mod physical_index_definition;
 pub mod raw_page_stream;
+mod relationship_catalog;
+mod relationship_mutation;
 pub mod relationships;
 pub mod resource;
 pub mod row;
