@@ -87,6 +87,7 @@ mod memo_property;
 mod numeric_index_entry;
 mod numeric_index_key;
 mod numeric_index_pages;
+mod numeric_row_values;
 pub mod offset;
 pub mod page;
 mod page_append_plan;

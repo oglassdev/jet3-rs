@@ -113,6 +113,7 @@ fn checks_multiple_tables_index_and_inline_single_and_chained_long_values() -> T
             rows: 7,
             values: 10,
             indexes: 1,
+            indexes_with_verified_keys: 1,
             index_entries: 3,
             long_values: 4,
             long_value_bytes: 4642,
@@ -216,16 +217,22 @@ fn reports_index_ordinal_for_corrupt_node_and_leaf_row_reference() -> TestResult
 }
 
 #[test]
-fn uninterpreted_key_bytes_are_reported_without_claiming_semantic_validity() -> TestResult {
+fn malformed_key_bytes_in_a_supported_schema_are_rejected() -> TestResult {
     let mut bytes = fixture()?;
     let table = definition(&bytes, b"Items")?;
     let root = page_start(table.physical_indexes()[0].root());
-    // EXP-0062: byte 248 starts the first uncompressed key. Unknown key
-    // markers remain lossless in the existing index reader.
+    // EXP-0062: byte 248 starts the first uncompressed key.
     bytes[root + 248] = 0x12;
-    let report = validate(&bytes)??;
-    assert_eq!(report.index_entries, 3);
-    assert_eq!(report.uninterpreted_index_entries, 1);
+    assert!(matches!(
+        validate(&bytes)?,
+        Err(ValidationError::Table {
+            source: TableValidationError::IndexContents {
+                index: 0,
+                detail: "numeric index key shape"
+            },
+            ..
+        })
+    ));
     Ok(())
 }
 
@@ -293,3 +300,6 @@ fn catalog_references_and_one_cumulative_budget_are_enforced() -> TestResult {
     assert!(limited.total_work_units() < measured.total_work_units());
     Ok(())
 }
+
+#[path = "validation_index_tests.rs"]
+mod index_checks;

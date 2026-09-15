@@ -193,9 +193,12 @@ keys/locators, ownership, counters and unrelated Notes preservation match.
 
 The read-only library and CLI validator walk catalogued user tables with one
 shared resource budget: definitions, declared row counts, decoded values,
-long-value chains and physical index traversal. Reports state their coverage.
+long-value chains and physical index traversal. Every leaf reference must name
+a distinct live logical row in its table. Supported scalar key schemas also
+check row/key equality, complete key inventory, null policies, uniqueness and
+branch bounds; reports count verified and uninterpreted indexes separately.
 System and non-table contents, orphan pages, relationship constraints, and
-index key semantics or row membership remain outside these checks. Catalog
+unsupported index key schemas remain outside these checks. Catalog
 reading follows native overflow records using the shared row-locator grammar
 (EXP-0228). Validation success does not establish DAO compatibility.
 

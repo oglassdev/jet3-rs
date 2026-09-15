@@ -28,14 +28,15 @@ impl RowReferenceValidator {
         scratch: &mut [u8; PAGE_BYTES],
         budget: &mut ResourceBudget,
     ) -> Result<(), IndexTreeError> {
+        budget
+            .charge_work_units(u64::from(self.validated.len().max(1).ilog2()) + 1)
+            .map_err(IndexTreeError::Resource)?;
         let cached = self
             .validated
-            .iter()
-            .find(|(page, _)| *page == locator.page())
-            .map(|(_, row_count)| *row_count);
+            .binary_search_by_key(&locator.page(), |(page, _)| *page);
         let row_count = match cached {
-            Some(row_count) => row_count,
-            None => {
+            Ok(position) => self.validated[position].1,
+            Err(position) => {
                 let kind = database
                     .read_classified_page(locator.page(), scratch, budget)
                     .map_err(IndexTreeError::Page)?
@@ -52,12 +53,16 @@ impl RowReferenceValidator {
                         source,
                     })?;
                 let row_count = directory.row_count();
+                budget
+                    .charge_work_units((self.validated.len() - position + 1) as u64)
+                    .map_err(IndexTreeError::Resource)?;
                 push_charged(
                     &mut self.validated,
                     (locator.page(), row_count),
                     budget,
                     "reserve validated row page",
                 )?;
+                self.validated[position..].rotate_right(1);
                 row_count
             }
         };
