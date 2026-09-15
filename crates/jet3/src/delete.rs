@@ -35,8 +35,8 @@ pub struct RowDelete<'a> {
 /// objects remain exact for retained pages. Released pages change their tag, directory
 /// word and free count, and their three map bits; payload/slack and file length
 /// remain exact.
-/// Keeping page zero unchanged is a candidate construction awaiting DAO validation.
-/// This operation makes no DAO compatibility claim.
+/// EXP-0232/0238/0239 record finite numeric, long-value and AutoNumber DAO
+/// comparisons with these preservation guarantees.
 ///
 /// Callers must exclude external writers throughout this Unix-only operation.
 /// The same resource budget covers planning, private copying and full-file

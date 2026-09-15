@@ -195,28 +195,27 @@ pub fn create_database(
 /// Each table accepts up to three indexes. Each
 /// index has one or two numeric columns (including a generated AutoIncrement
 /// column), with each field ascending or descending. Multiple populated indexes
-/// combine the established separate roots/maps with independent trees; this
-/// candidate construction requires separate DAO validation.
+/// use separate roots/maps and independent trees.
 /// Uncompressed branch/leaf trees grow within the existing inline-map and
 /// resource limits. Unique indexes reject repeated fully present keys while
 /// allowing repeated null-bearing keys. The index null policy includes keys,
 /// omits all-null keys, or requires every component; primary indexes require
 /// every component. Supported components are Boolean, Byte, Integer, Long,
 /// Currency, Single and Double. Floating negative zero and nonfinite values,
-/// Boolean nulls and other key types are refused. Non-Long nullable/composite
-/// combinations are candidate generalizations awaiting DAO validation.
+/// Boolean nulls and other key types are refused. EXP-0232 records the finite
+/// numeric lifecycle comparison, including nullable/composite combinations.
 /// One AutoIncrement column accepts [`RowValue::AutoIncrement`] or an explicit Long.
 /// Generation starts at 1 independently per table and wraps through signed Long
 /// boundaries. Each inserted row advances the persisted allocation state before
 /// applying an explicit ID using the unsigned comparison established by EXP-0237.
-/// Null IDs are refused. Candidate generation requires separate DAO validation.
+/// Null IDs are refused. EXP-0239 compares explicit and wrapping initial IDs.
 /// Memo and LongBinary columns accept nonempty typed payloads or null alongside
 /// numeric indexes and generated IDs; the long-value columns themselves cannot
 /// be indexed. Every long-value column has its own owned/available map pair,
 /// in column order after the table and index maps on the shared map page.
-/// Its physical capacity bounds the column count. Multiple long-value columns
-/// and their combined placement with indexes are candidate constructions
-/// awaiting DAO validation. Raw `RowValue::LongValue` headers are refused.
+/// Its physical capacity bounds the column count. EXP-0236 compares multiple
+/// long-value columns with numeric indexes and native continuations.
+/// Raw `RowValue::LongValue` headers are refused.
 /// [`crate::ColumnSpec::with_allow_zero_length`] enables present-empty Memo on
 /// its bounded first-table schema. Its property construction is a sourced
 /// candidate pending DAO validation; empty OLE remains refused.

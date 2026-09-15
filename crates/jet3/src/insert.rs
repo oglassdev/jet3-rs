@@ -38,8 +38,9 @@ use std::path::Path;
 /// updates index nodes/maps and increments each retained counter only for a new
 /// included key. EOF insertion clears its global free
 /// bit and sets owned/available bits, marking available when a minimum encoded
-/// row still fits. All other bytes, including page zero, remain exact. This
-/// construction requires separate DAO validation and makes no compatibility claim.
+/// row still fits. AutoNumber insertion also updates its allocation state.
+/// All other bytes, including page zero, remain exact. EXP-0232/0238/0239 record
+/// the finite numeric, long-value and AutoNumber DAO comparisons.
 /// Callers must exclude external writers throughout this Unix-only operation.
 /// A pre-publication failure preserves the original; publication errors identify
 /// their stage. One resource budget covers planning, copying and full verification.

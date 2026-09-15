@@ -39,8 +39,8 @@ pub struct RowUpdate<'a> {
 /// bytes/offsets and page free-byte count change in the data page. A changed key
 /// rebuilds index nodes and may allocate them within inline maps. The page's
 /// available bit reflects remaining capacity. Table/slot counts, page zero and
-/// unrelated objects remain exact. This construction requires separate DAO
-/// validation and makes no compatibility claim.
+/// unrelated objects remain exact. EXP-0232/0238 record finite numeric and
+/// long-value replacement comparisons, including retained generated IDs.
 ///
 /// Callers must exclude external writers throughout this Unix-only operation.
 /// One resource budget covers planning, copying and complete private verification.

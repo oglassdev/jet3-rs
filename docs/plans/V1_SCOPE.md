@@ -51,7 +51,7 @@ and roadmap #75 remain open.
 ### Creation
 
 Creation fits tables within the catalog page capacity, with multi-page initial
-rows, generated AutoIncrement IDs, and up to three numeric indexes per table.
+rows, explicit/generated AutoIncrement IDs, and up to three numeric indexes per table.
 Indexes have one or two components and can span multiple levels. Independent
 Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
 columns themselves cannot be indexed. Each payload column has separate ownership
@@ -62,9 +62,8 @@ non-cascading, non-null Long relationship.
 Schema/name combinations, index key types/counts, relationship forms and inline
 allocation remain restricted. Empty OLE is refused. Empty Memo requires an
 explicit option in a restricted schema. Existing-table schema changes and
-table/relationship dropping are absent. AutoIncrement writer evidence in this
-checkpoint covers positive generated IDs; explicit IDs and signed-boundary wrap
-are outside the accepted writer comparisons described here.
+table/relationship dropping are absent. EXP-0239 adds explicit, negative and
+wrapping AutoIncrement IDs to the finite writer comparisons.
 
 EXP-0154 covers twelve hosted write recipes. EXP-0220 corrects the numeric
 sidecar comparison over retained hosted artifacts and adds the three creation
@@ -94,7 +93,7 @@ inline, single-page and chained payloads. Payload pages are validated against
 all live references and their owning column, with separate single/chained
 storage pools; deletion releases emptied payload pages for reuse. The encoded
 row must still fit the existing data page during replacement. One AutoIncrement
-column can generate IDs on insertion; replacement and deletion retain existing
+column accepts generated or explicit IDs on insertion; replacement and deletion retain existing
 IDs and allocation state. The CLI exposes full-row replacement. Publication is
 Unix-only.
 
@@ -123,6 +122,10 @@ growth, native continuations on both outputs, and Rust mutation of retained
 native controls. Unrelated Notes page hashes remain exact. Twelve rejected
 requests preserve the complete Rust input, including AutoIncrement state; these
 refusals do not claim to reproduce DAO's counter side effects on failed inserts.
+EXP-0239 adds 90 Rust mutations of retained native AutoNumber inputs and two
+explicit/wrapping initial creations. DAO continues writing to every candidate
+and control; all 184 pairs (368 captures) match complete rows, schema, allocation
+state and numeric key/locator records, with Anchor payload pages preserved.
 
 ### Validation
 
