@@ -278,7 +278,7 @@ def normalized(capture, case, rows):
         require([s['query'] for s in actual['seek']] == index['queries'], 'Finite full-key Seek inventory')
         for seek in actual['seek']:
             query_row = [None] * len(case['fields'])
-            for (column, _), value in zip(index['fields'], seek['query']): query_row[column] = value
+            for (column, _), query_value in zip(index['fields'], seek['query']): query_row[column] = query_value
             wanted_key = key(query_row, case, index)
             matches = [r for r in selected if key(r, case, index) == wanted_key]
             require(seek['row'] in matches if matches else seek['row'] is None, 'Seek returns complete matching row or absence')
