@@ -72,7 +72,7 @@ def raw_check(data, receipt, case, rows, counters, *, candidate):
     require(table['row_count'] == len(rows), 'Raw row count')
     require(table['logical_length'] == case['length'], 'Exact logical definition length')
     chain = table['pages']
-    require(len(chain) == 1 + max(0, case['length'] - 2048 + 2039) // 2040, 'Definition chain geometry')
+    require(len(chain) == 1 + (0 if case['length'] < 2048 else 1 + (case['length'] - 2048) // 2040), 'Definition chain geometry')
     require(len(set(chain)) == len(chain), 'Distinct definition pages')
     if candidate:
         first = table['root'] + 2 + int(not case['later'])

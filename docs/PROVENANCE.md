@@ -16040,3 +16040,55 @@ Every input and captured file identity is retained in the manifest/result.
 - Corrected complete evaluation: `checks/20260915-scalar-index-lifecycle-r1/secondary-report-r2.json`, 1,028,339 bytes, SHA-256 `424fae76d05b75c9eabfc9f6f6818d814af4fdf46e415432a6eec3c4a5dfd5a3`, accepts all five cases: 25 paired lifecycle checkpoints and five native successor pairs, 60 captures. The correction records exact original/current analyzer identities, verifies every unchanged acquisition pin, and changes only the shadowed variable plus the observed class-one root grammar. Original failed reports remain unchanged. Complete schema, saved rows, directed traversal/finite Seek, physical key/locator records, counters, ownership/maps and unrelated Notes pages match; both later-index duplicate refusals preserve the whole Rust input.
 - Native-input continuation: source `0cc02276010f2ba770e5c4c440b66679661ca78d` adds the narrow class-one/root-only reader acceptance. Rust inserts a row, edits its primary key, and deletes an existing row in each retained native successor control; DAO performs the same operations on independent copies. All five pairs (10 captures) match complete semantics and physical checks, including the retained one-child root and compressed composite/numeric inputs. Outbox `20260915T083922Z-numeric-indexes-b3f5e4`; native result 33,280,020 bytes, SHA-256 `7fba276f5488146f426e0163b0df9c2e538f65a82b1b1640840ce897c5d1d809`; accepted comparison 177,951 bytes, SHA-256 `63447a4c01cd1c8be16d7a54c1e61ac5635a89befb7b1c734423c7a5253c4bbb`; wrapper receipt 180,537 bytes, SHA-256 `bd7f24cd801f01f8825b418db45d1689e56b0ea6a53310c1667d4cb25d040ca8`. Notes metadata/data/payload pages remain byte-exact on every Rust mutation.
 - Boundary: this accepts the five finite scalar lifecycle recipes and native-input continuations at the stated revisions. Date uses the declared finite OA values; Binary covers one-byte through 255-byte values, null transitions, mixed directions and whole-key shortening. It does not establish Text/GUID indexes, more than three indexes/two components, nested empty branches, arbitrary allocation/schema combinations or full v1 compatibility. `just ready` passes at the continuation source; GPT-5.6 Sol high reviewed the production changes, including compact-record resource accounting and the narrowed root acceptance, with no remaining blockers.
+
+## EXP-0247 — Definition-chain boundary discovery and candidate comparison
+
+The repeatable `creation_definition_chains` suite uses public creation APIs for
+six exact logical definition lengths: 2,048, 2,049, 4,088, 4,089, 6,128 and
+6,129 bytes. It combines first/later tables, zero/three numeric indexes,
+0/3/17/205 initial rows, generated IDs, Memo/OLE and unrelated Notes payloads.
+The first source was `43c5888d7ca7e9e15678566ece7ec1f0c5e589da`.
+
+The first local DAO acquisition, `20260915T081405Z-definition-chains-2af14c`,
+failed with an unhandled DAO/COM access violation during a later candidate
+mutation. Its provider probe and crash log are retained. Guest-local partial
+files were copied without modification into
+`20260915T081700Z-definition-chains-recover`; this recovery does not turn the
+failed acquisition into an accepted comparison. The provider was x86
+DAO.DBEngine.36, version 3.6, dao360.dll 03.60.9765.0, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+
+A read-only successor, `20260915T081900Z-definition-chains-read`, captured all
+12 retained originals. All six native controls passed. Candidate definitions
+of exactly 4,088 and 6,128 bytes failed field enumeration with “Unrecognized
+database format”; the other four candidates passed. The ten readable images
+matched the independent full field, row/payload, index traversal and Seek
+model. The read capture (`reads.json`) SHA-256 is
+`c2d9a4df39f57208d1cad6a4e9c6ee128b51a57566f5346f8391bc33d9fc3656`.
+
+Native definitions at exact logical capacities retain a further linked terminal
+page with no logical payload: length 2,048 used `[20,62]`, length 4,088 used
+`[20,105,104]`, and length 6,128 used `[20,208,207,206]`. All pages repeat the
+`02 01 56 43` prefix and carry the next-page reference at `[4,8)`; the last
+reference is zero. Logical payload capacities remain the EXP-0059/0105 values
+of 2,048 bytes in the root and 2,040 bytes per continuation. Native terminal
+slack is not interpreted or copied. The one-byte-over cases use respectively
+one, two and three continuations. These observations justify including an
+empty terminal continuation when a definition ends exactly at a payload
+boundary; consecutive candidate placement is a separate construction policy.
+
+The retained structural summary is
+`checks/20260915-definition-chains-r1/definition-boundary-observations.json`,
+SHA-256 `6914761082b4da59456dc1f01f040d9c04874715230123ad18eeb1c9051d6540`.
+It records all original image hashes, chain numbers, used payload lengths and
+page headers. No broad creation compatibility is claimed by this failed run.
+
+Isolated native insert/replace/delete follow-ups on fresh copies of the retained
+6,129-byte originals both completed, and their complete captures matched the
+same independent model and each other. The control run was
+`20260915T082200Z-definition-chains-control-mutate` (`capture.json` SHA-256
+`d2ee6a046ba52c020ca8a511b633b558ddc782a5facec6dee4c191dbfb418071`);
+the candidate run was `20260915T082300Z-tdef-candidate-mutate` (SHA-256
+`9bf4f5191e91e2073dd1649e395e3f705e39d27c4fa304c6ce14b5b1d493344e`).
+The first process crash was not reproduced in isolation; its cause remains
+unestablished, and it remains part of the failed acquisition evidence.

@@ -580,13 +580,14 @@ fn a_map_page_no_usage_map_locator_could_name_is_refused() -> PlanResult {
 #[test]
 fn continuation_counts_follow_the_established_capacities() {
     // EXP-0105: the root holds 2,048 logical bytes and each continuation
-    // 2,040, so the counts change one byte above each capacity.
+    // 2,040; EXP-0247 retains an empty terminal page at exact boundaries.
     for (length, expected) in [
-        (2048, 0),
+        (2047, 0),
+        (2048, 1),
         (2049, 1),
-        (4088, 1),
+        (4088, 2),
         (4089, 2),
-        (6128, 2),
+        (6128, 3),
         (6129, 3),
     ] {
         assert_eq!(continuation_count(length), expected, "length {length}");
@@ -594,8 +595,8 @@ fn continuation_counts_follow_the_established_capacities() {
 }
 
 #[test]
-fn a_definition_that_exactly_fills_its_root_page_needs_no_continuation() -> PlanResult {
-    let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY);
+fn a_definition_shorter_than_its_root_page_needs_no_continuation() -> PlanResult {
+    let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY - 1);
     let columns = long_columns(&names);
     let plan = plan_table_schema(&spec(b"Wide", &columns, &[]), 20, true)?;
     assert_eq!(plan.appended_page_count(), 3);
@@ -617,7 +618,7 @@ fn a_definition_needing_one_continuation_places_it_after_the_property_page() -> 
     let columns = long_columns(&full);
     assert_eq!(
         plan_table_schema(&spec(b"Wide", &columns, &[]), 20, true)?.appended_page_count(),
-        4
+        5
     );
     Ok(())
 }

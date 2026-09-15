@@ -1,10 +1,12 @@
-//! EXP-0059/0105 definition payload geometry, with candidate consecutive placement.
+//! EXP-0059/0105 payload geometry and EXP-0247 empty terminal pages.
 
 use super::{ByteCount, ComposeError, Error, PAGE_BYTES, PageImage, PageNumber, ResourceBudget};
 use crate::creation::schema_plan::CONTINUATION_CAPACITY;
 
 pub(super) struct DefinitionPages {
     logical: Vec<u8>,
+    continuation_count: usize,
+    empty_terminal: bool,
 }
 
 impl DefinitionPages {
@@ -12,6 +14,9 @@ impl DefinitionPages {
         budget.check_chain_depth(
             1 + crate::creation::schema_plan::continuation_count(length) as u64,
         )?;
+        let continuation_count = crate::creation::schema_plan::continuation_count(length);
+        let empty_terminal =
+            length >= PAGE_BYTES && (length - PAGE_BYTES).is_multiple_of(CONTINUATION_CAPACITY);
         let length = length.max(PAGE_BYTES);
         budget.charge_allocation(ByteCount::from_usize(length)?)?;
         let mut logical = Vec::new();
@@ -20,7 +25,11 @@ impl DefinitionPages {
             kind: std::io::ErrorKind::OutOfMemory,
         })?;
         logical.resize(length, 0);
-        Ok(Self { logical })
+        Ok(Self {
+            logical,
+            continuation_count,
+            empty_terminal,
+        })
     }
 
     pub(super) fn logical_mut(&mut self) -> &mut [u8] {
@@ -39,8 +48,10 @@ impl DefinitionPages {
         Ok(image)
     }
 
-    pub(super) fn continuations(&self) -> std::slice::Chunks<'_, u8> {
-        self.logical[PAGE_BYTES..].chunks(CONTINUATION_CAPACITY)
+    pub(super) fn continuations(&self) -> impl Iterator<Item = &[u8]> {
+        self.logical[PAGE_BYTES..]
+            .chunks(CONTINUATION_CAPACITY)
+            .chain(self.empty_terminal.then_some([].as_slice()))
     }
 
     pub(super) fn continuation(
@@ -50,7 +61,7 @@ impl DefinitionPages {
         payload: &[u8],
         budget: &mut ResourceBudget,
     ) -> Result<PageImage, ComposeError> {
-        let next = if ordinal + 1 < self.continuations().len() {
+        let next = if ordinal + 1 < self.continuation_count {
             Some(PageNumber::new(
                 first
                     .get()

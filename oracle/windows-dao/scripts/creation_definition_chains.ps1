@@ -45,20 +45,25 @@ try {
     foreach ($case in $manifest.cases) {
         $outcome = @{ name = [string]$case.name; status = 'running'; original = @{}; native = @{}; mutations = @{}; error = $null }; $result.cases += ,$outcome
         try {
+            Write-Json $result (Join-Path $env:JET3_OUTBOX 'result.json')
             $control = Join-Path $env:JET3_WORK "$($case.name)-original-control.mdb"; New-Control $control $case
             foreach ($role in @('candidate', 'control')) {
                 $path = Join-Path $env:JET3_WORK "$($case.name)-original-$role.mdb"
                 if ($role -eq 'candidate') { Copy-Item -LiteralPath (Join-Path $env:JET3_WORK "$($case.name).mdb") -Destination $path }
                 $outcome.original[$role] = Capture $path $case
+                Copy-Item -LiteralPath $path -Destination $env:JET3_OUTBOX
+                Write-Json $result (Join-Path $env:JET3_OUTBOX 'result.json')
                 if ($outcome.original[$role].status -ne 'pass') { throw 'Original capture failed' }
                 $next = Join-Path $env:JET3_WORK "$($case.name)-native-$role.mdb"
                 Copy-Item -LiteralPath $path -Destination $next
                 $outcome.mutations[$role] = Mutate $next $case
                 $outcome.native[$role] = Capture $next $case
+                Copy-Item -LiteralPath $next -Destination $env:JET3_OUTBOX
+                Write-Json $result (Join-Path $env:JET3_OUTBOX 'result.json')
                 if ($outcome.native[$role].status -ne 'pass') { throw 'Native continuation capture failed' }
             }
             $outcome.status = 'pass'
-        } catch { $outcome.status = 'error'; $outcome.error = Failure $_ }
+        } catch { $outcome.status = 'error'; $outcome.error = Failure $_; throw }
     }
 } catch { $result.error = Failure $_ } finally {
     foreach ($file in Get-ChildItem -LiteralPath $env:JET3_WORK -File | Where-Object { $_.Extension -in @('.mdb', '.json') }) {

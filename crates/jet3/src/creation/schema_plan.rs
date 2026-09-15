@@ -29,6 +29,7 @@
 //! page, before index roots. `EXP-0107` accepted that compact placement for
 //! one unindexed first-table continuation; combining the same encoders for
 //! longer, later, indexed or populated definitions is candidate policy.
+//! `EXP-0247` retains an empty terminal continuation at exact payload boundaries.
 //!
 //! Neither experiment establishes an `Id` allocation rule beyond the observed
 //! equality with the definition root page.
@@ -359,11 +360,14 @@ fn measure_definition(spec: &TableSpec<'_>) -> Result<usize, TableSchemaPlanErro
 }
 
 /// Returns how many continuation pages a definition of `length` bytes needs
-/// at the `EXP-0105` capacities.
+/// at the `EXP-0105` capacities, retaining the `EXP-0247` empty terminal page
+/// when the logical definition ends exactly at a payload boundary.
 pub(crate) const fn continuation_count(length: usize) -> usize {
-    length
-        .saturating_sub(DEFINITION_ROOT_CAPACITY)
-        .div_ceil(CONTINUATION_CAPACITY)
+    if length < DEFINITION_ROOT_CAPACITY {
+        0
+    } else {
+        1 + (length - DEFINITION_ROOT_CAPACITY) / CONTINUATION_CAPACITY
+    }
 }
 
 /// Assigns the appended page run, refusing numbers the encoders cannot name.

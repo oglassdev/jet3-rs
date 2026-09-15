@@ -426,6 +426,25 @@ fn read_definition_chain<S: ReadAt>(
         );
         next = PageNumber::new(u64::from(u32_at(&page, 4)));
     }
+    // EXP-0247: an exact payload boundary may retain one empty terminal
+    // definition page. Its payload is slack; the link and prefix remain checked.
+    if next.get() != 0
+        && length >= PAGE_BYTES
+        && (length - PAGE_BYTES).is_multiple_of(PAGE_BYTES - CONTINUATION_PAYLOAD_OFFSET)
+    {
+        current = next;
+        walker
+            .follow(
+                current,
+                PageKind::TableDefinition,
+                database,
+                &mut page,
+                budget,
+            )
+            .map_err(TableDefinitionError::Chain)?;
+        validate_prefix(current, &page)?;
+        next = PageNumber::new(u64::from(u32_at(&page, 4)));
+    }
     if next.get() != 0 {
         return Err(TableDefinitionError::TrailingChainReference {
             page: current,
