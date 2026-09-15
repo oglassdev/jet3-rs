@@ -1,21 +1,26 @@
 //! Read-only composition of the catalog (`EXP-0058`), definition (`EXP-0059`),
 //! row (`EXP-0060`), long-value (`EXP-0061`) and index (`EXP-0062`) readers.
 //!
-//! Success covers catalogued user tables only. System records are checked by
-//! the catalog reader, but system table contents and other object kinds are
-//! skipped. Unreferenced pages, allocation slack, relationship constraints,
+//! Success covers catalogued allocation roles and user table contents. System
+//! table row values and index keys, and non-table object contents, are skipped.
+//! Unreferenced file pages, allocation slack, relationship constraints,
 //! and application compatibility are outside this check. Index references must
 //! name distinct live logical rows. Supported scalar schemas additionally check
 //! key values, null policies, uniqueness, complete row coverage and branch bounds.
 //! Unsupported key schemas remain explicitly uninterpreted; their framing and
 //! live-row membership are still checked. No index key-count prefix is compared
 //! with the live row count: `EXP-0219` permits retained counts after deletion.
+//! Catalogued allocation roles must be disjoint from incompatible owners and
+//! globally free pages. User row storage and every live payload fragment must
+//! be uniquely reachable through the owning table or column.
 
-use std::{fmt, mem::size_of};
+use std::fmt;
+
+use crate::resource::reserve;
 
 use crate::{
-    ByteCount, CatalogError, CatalogObjectClass, CatalogRecord, ColumnOrdinal, DatabaseReader,
-    Error, IndexTreeError, InlineLongValue, LongValue, LongValueChunkValue, LongValueError,
+    CatalogError, CatalogObjectClass, CatalogRecord, ColumnOrdinal, DatabaseReader, Error,
+    IndexTreeError, InlineLongValue, LongValue, LongValueChunkValue, LongValueError,
     LongValueReference, ReadAt, ResourceBudget, RowError, RowLocator, TableDefinition,
     TableDefinitionError, TableDefinitionKind, TextCodePage, ValueError, ValueKind,
 };
@@ -29,7 +34,7 @@ pub struct ValidationReport {
     pub catalog_objects: u64,
     /// User table definitions and their reachable data checked.
     pub user_tables: u64,
-    /// System objects whose contents were not checked beyond catalog metadata.
+    /// System objects whose row values and index keys were not checked.
     pub skipped_system_objects: u64,
     /// Non-system, non-table objects whose contents were not checked.
     pub skipped_other_objects: u64,
@@ -68,6 +73,8 @@ pub enum ValidationError {
         /// Specific failed check.
         source: TableValidationError,
     },
+    /// Catalogued allocation maps or shared page ownership are inconsistent.
+    Storage(StorageValidationError),
     /// Resource policy rejected validation bookkeeping.
     Resource(Error),
 }
@@ -132,6 +139,8 @@ pub enum TableValidationError {
         /// Failed consistency check.
         detail: &'static str,
     },
+    /// Physical row or Memo/OLE storage is shared, missing, or unreferenced.
+    Storage(StorageValidationError),
     /// Resource policy rejected table bookkeeping.
     Resource(Error),
 }
@@ -149,6 +158,7 @@ impl fmt::Display for ValidationError {
                 }
                 write!(f, " (id {}): {source}", table.id().get())
             }
+            Self::Storage(source) => write!(f, "validation allocations: {source}"),
             Self::Resource(source) => write!(f, "validation resources: {source}"),
         }
     }
@@ -159,6 +169,7 @@ impl std::error::Error for ValidationError {
         Some(match self {
             Self::Catalog(source) => source,
             Self::Table { source, .. } => source,
+            Self::Storage(source) => source,
             Self::Resource(source) => source,
         })
     }
@@ -178,6 +189,7 @@ impl std::error::Error for TableValidationError {
             Self::Value { source, .. } => Some(source),
             Self::LongValue { source, .. } => Some(source),
             Self::Index { source, .. } => Some(source),
+            Self::Storage(source) => Some(source),
             Self::Resource(source) => Some(source),
             Self::DefinitionKind { .. } | Self::RowCount { .. } | Self::IndexContents { .. } => {
                 None
@@ -207,10 +219,16 @@ impl<S: ReadAt> DatabaseReader<S> {
     ) -> Result<ValidationReport, ValidationError> {
         let mut report = ValidationReport::default();
         let mut tables = Vec::new();
+        let mut roots = Vec::new();
         {
             let mut catalog = self.catalog(budget).map_err(ValidationError::Catalog)?;
             while let Some(record) = catalog.next_record().map_err(ValidationError::Catalog)? {
                 add(&mut report.catalog_objects, 1).map_err(ValidationError::Resource)?;
+                if let Some(root) = record.table_definition() {
+                    reserve(&mut roots, 1, catalog.budget_mut())
+                        .map_err(ValidationError::Resource)?;
+                    roots.push(root);
+                }
                 if record.class() == CatalogObjectClass::System {
                     add(&mut report.skipped_system_objects, 1)
                         .map_err(ValidationError::Resource)?;
@@ -241,6 +259,16 @@ impl<S: ReadAt> DatabaseReader<S> {
             }
             add(&mut report.user_tables, 1).map_err(ValidationError::Resource)?;
         }
+        let mut allocation =
+            storage::AllocationState::new(self, budget).map_err(ValidationError::Storage)?;
+        for root in roots {
+            let definition = self.table_definition(root, budget).map_err(|source| {
+                ValidationError::Storage(StorageValidationError::Definition { root, source })
+            })?;
+            allocation
+                .table(self, &definition, budget)
+                .map_err(ValidationError::Storage)?;
+        }
         Ok(report)
     }
 }
@@ -252,22 +280,38 @@ fn validate_table<S: ReadAt>(
     budget: &mut ResourceBudget,
     report: &mut ValidationReport,
 ) -> Result<(), TableValidationError> {
-    let mut rows = validate_rows(database, definition, code_page, budget, report)?;
+    let mut payloads = storage::PayloadInventory::new(database, definition, budget)
+        .map_err(TableValidationError::Storage)?;
+    let mut rows = validate_rows(
+        database,
+        definition,
+        code_page,
+        budget,
+        report,
+        &mut payloads,
+    )?;
+    payloads
+        .finish(database, budget)
+        .map_err(TableValidationError::Storage)?;
     budget
         .charge_work_units(
             (rows.len() as u64).saturating_mul(u64::from(rows.len().max(1).ilog2()) + 1),
         )
         .map_err(TableValidationError::Resource)?;
     rows.sort_unstable_by_key(|row| index::key(*row));
-    for (index, _) in (0_u16..).zip(definition.physical_indexes()) {
+    for (index, physical) in (0_u16..).zip(definition.physical_indexes()) {
         let tree = database
             .index_tree(definition, index, budget)
             .map_err(|source| TableValidationError::Index { index, source })?;
         index::validate(database, definition, index, &tree, &rows, budget, report)?;
+        storage::index(database, physical, &tree, budget).map_err(TableValidationError::Storage)?;
         add(&mut report.index_entries, tree.entries().len() as u64)
             .map_err(TableValidationError::Resource)?;
         add(&mut report.indexes, 1).map_err(TableValidationError::Resource)?;
     }
+    crate::row_mutation_graph::RowGraph::load(database, definition, None, budget).map_err(
+        |source| TableValidationError::Storage(storage::shared(source, definition.maps().owned())),
+    )?;
     Ok(())
 }
 
@@ -277,6 +321,7 @@ fn validate_rows<S: ReadAt>(
     code_page: TextCodePage,
     budget: &mut ResourceBudget,
     report: &mut ValidationReport,
+    payloads: &mut storage::PayloadInventory,
 ) -> Result<Vec<RowLocator>, TableValidationError> {
     let mut locators = Vec::new();
     let mut pending: Vec<(ColumnOrdinal, LongValueReference)> = Vec::new();
@@ -349,6 +394,10 @@ fn validate_rows<S: ReadAt>(
                 };
                 add(&mut report.long_value_bytes, bytes as u64)
                     .map_err(TableValidationError::Resource)?;
+                let fragment = chunk.locator();
+                payloads
+                    .reached(fragment, column, stream.budget_mut())
+                    .map_err(TableValidationError::Storage)?;
             }
         }
         if !definition.physical_indexes().is_empty() {
@@ -375,39 +424,13 @@ fn add(count: &mut u64, amount: u64) -> Result<(), Error> {
     Ok(())
 }
 
-fn reserve<T>(
-    items: &mut Vec<T>,
-    additional: usize,
-    budget: &mut ResourceBudget,
-) -> Result<(), Error> {
-    let needed = items
-        .len()
-        .checked_add(additional)
-        .ok_or(Error::Arithmetic {
-            operation: "size validation scratch",
-        })?;
-    if needed <= items.capacity() {
-        return Ok(());
-    }
-    let capacity = needed.max(items.capacity().saturating_mul(2));
-    let bytes = (capacity - items.capacity())
-        .checked_mul(size_of::<T>())
-        .ok_or(Error::Arithmetic {
-            operation: "size validation scratch",
-        })?;
-    budget.charge_allocation(ByteCount::from_usize(bytes)?)?;
-    budget.charge_work_units(items.len() as u64)?;
-    items
-        .try_reserve_exact(capacity - items.len())
-        .map_err(|_| Error::Io {
-            operation: "reserve validation scratch",
-            kind: std::io::ErrorKind::OutOfMemory,
-        })
-}
-
 #[cfg(test)]
 #[path = "validation_tests.rs"]
 mod tests;
 
 #[path = "validation_index.rs"]
 mod index;
+
+#[path = "validation_storage.rs"]
+mod storage;
+pub use storage::StorageValidationError;

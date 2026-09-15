@@ -223,8 +223,15 @@ long-value chains and physical index traversal. Every leaf reference must name
 a distinct live logical row in its table. Supported scalar key schemas also
 check row/key equality, complete key inventory, null policies, uniqueness and
 branch bounds; reports count verified and uninterpreted indexes separately.
-System and non-table contents, orphan pages, relationship constraints, and
-unsupported index key schemas remain outside these checks. Catalog
+All catalogued table definitions, table/index/payload ownership maps and their
+metadata must remain disjoint from incompatible owners and globally free pages.
+Availability maps must be subsets of their own ownership maps; every traversed
+index page must belong to its physical index. User overflow storage and live
+Memo/OLE fragments must be uniquely reachable through the proper table or
+column, including rejection of hidden orphan rows and unreferenced payloads.
+System row values and index keys, non-table contents, unreferenced file pages,
+relationship constraints, and unsupported index key schemas remain outside
+these checks. Catalog
 reading follows native overflow records using the shared row-locator grammar
 (EXP-0228). Validation success does not establish DAO compatibility.
 
@@ -304,13 +311,23 @@ schema properties, traversal/Seek, physical keys, per-lineage counters and
 ownership agree. Thirty-six DAO refusals return the expected errors and 36 Rust
 refusals preserve the whole input. Broader relationship forms remain open.
 
+EXP-0272 checks preservation of four saved QueryDefs on six native-created
+relationship databases before and after Rust and DAO row mutations. Complete
+SQL, properties, parameters and dates remain unchanged, as do every covered
+MSysQueries/MSysObjects page and its membership. The 90 stage/successor captures
+include duplicate Rust labels; there are two meaningful mutation lineages per
+source. Thirty-six DAO refusal captures retain the same query definitions and
+storage, and 36 Rust refusal records preserve their whole input. The suite
+retains the full relationship, schema, value, index and allocation comparisons
+from EXP-0271. Query execution and action/crosstab/DDL queries are not covered.
+
 ### Remaining work
 
 - Extend creation to remaining schema/index-key combinations and relationship forms.
 - Extend updates to remaining index key types/collations, relationship forms,
   additional payload/schema combinations, broader
   data-page/live-slot reuse and multi-hop row growth.
-- Cover remaining DAO inventories, stored-query preservation and broader
+- Cover remaining DAO inventories, broader saved-query forms and
   failure/rollback behavior. Local VM and hosted runs may both establish
   evidence; preregistration and per-run approval are not required.
 - Extend validation to the remaining integrity checks.

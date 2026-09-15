@@ -2,7 +2,7 @@
 use crate::page_edits::reserve;
 use crate::row_directory::RowDirectory;
 use crate::{
-    DatabaseReader, FileSource, PAGE_BYTES, PageKind, ResourceBudget, RowLocator, TableDefinition,
+    DatabaseReader, PAGE_BYTES, PageKind, ReadAt, ResourceBudget, RowLocator, TableDefinition,
     UpdateError,
 };
 
@@ -22,8 +22,8 @@ fn key(locator: RowLocator) -> (u64, u8) {
 }
 
 impl RowGraph {
-    pub fn load(
-        database: &mut DatabaseReader<FileSource>,
+    pub fn load<S: ReadAt>(
+        database: &mut DatabaseReader<S>,
         definition: &TableDefinition,
         selected: Option<RowLocator>,
         budget: &mut ResourceBudget,

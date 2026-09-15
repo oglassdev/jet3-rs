@@ -67,7 +67,7 @@ fn validation_reports_coverage_and_counts_without_modifying_input() -> TestResul
     assert!(output.stderr.is_empty());
     let result: Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(result["ok"], true);
-    assert_eq!(result["scope"], "catalogued_user_tables");
+    assert_eq!(result["scope"], "catalogued_allocations_and_user_tables");
     assert_eq!(result["checked"]["user_tables"], 2);
     assert_eq!(result["checked"]["rows"], 3);
     assert_eq!(result["checked"]["index_entries"], 2);

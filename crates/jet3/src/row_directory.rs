@@ -178,6 +178,15 @@ impl RowDirectory {
         Ok(())
     }
 
+    pub(crate) fn validate_long_value(
+        page_number: PageNumber,
+        page: &[u8; PAGE_BYTES],
+        budget: &mut ResourceBudget,
+    ) -> Result<Self, RowDirectoryError> {
+        let owner = u32::from_le_bytes(crate::data_page_directory::LONG_VALUE_OWNER);
+        Self::validate(page_number, PageNumber::new(u64::from(owner)), page, budget)
+    }
+
     pub(crate) fn validate(
         page_number: PageNumber,
         expected_owner: PageNumber,

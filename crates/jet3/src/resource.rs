@@ -428,3 +428,33 @@ fn check_limit(kind: ResourceLimitKind, requested: u64, maximum: u64) -> Result<
 #[cfg(test)]
 #[path = "resource_tests.rs"]
 mod tests;
+
+pub(crate) fn reserve<T>(
+    items: &mut Vec<T>,
+    additional: usize,
+    budget: &mut ResourceBudget,
+) -> Result<(), Error> {
+    let needed = items
+        .len()
+        .checked_add(additional)
+        .ok_or(Error::Arithmetic {
+            operation: "size bounded vector",
+        })?;
+    if needed <= items.capacity() {
+        return Ok(());
+    }
+    let capacity = needed.max(items.capacity().saturating_mul(2));
+    let bytes = (capacity - items.capacity())
+        .checked_mul(std::mem::size_of::<T>())
+        .ok_or(Error::Arithmetic {
+            operation: "size bounded vector",
+        })?;
+    budget.charge_allocation(ByteCount::from_usize(bytes)?)?;
+    budget.charge_work_units(items.len() as u64)?;
+    items
+        .try_reserve_exact(capacity - items.len())
+        .map_err(|_| Error::Io {
+            operation: "reserve bounded vector",
+            kind: std::io::ErrorKind::OutOfMemory,
+        })
+}
