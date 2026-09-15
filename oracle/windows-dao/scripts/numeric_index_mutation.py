@@ -336,7 +336,7 @@ def prepare_continue(candidates, first_outbox, output, generator, revision):
     require(result['manifest_sha256'] == identity(candidates / MANIFEST)['sha256'], 'Continuation parent run')
     output.mkdir(parents=True, exist_ok=False); cases = []; receipts = []
     try:
-        for name in ('integral', 'wide'):
+        for name in ('integral', 'wide', 'deep'):
             case = copy.deepcopy(next(c for c in first['cases'] if c['name'] == name)); observed = next(c for c in result['cases'] if c['name'] == name)
             capture = observed['native']['control']['capture']; source = first_outbox / capture['file']
             _, rows, counters = list(expected_stages(case))[-1]
@@ -345,14 +345,15 @@ def prepare_continue(candidates, first_outbox, output, generator, revision):
             require(identity(source) == capture['before'] == capture['after'], 'Native continuation source identity')
             source_layout = raw_check(source.read_bytes(), case, rows, counters)
             compressed = {name: index['compressed'] for name, index in source_layout['indexes'].items() if index['compressed']}
-            require(any(index != 'ById' for index in compressed), 'Native source contains prefix-compressed non-Long/composite nodes')
+            if name in ('integral', 'deep'):
+                require(any(index != 'ById' for index in compressed), 'Native source contains prefix-compressed non-Long/composite nodes')
             operations = [dict(kind='insert', row=initial_row(name, 1234567)), dict(kind='field', id=1234567, column=0, value=1234568), dict(kind='delete', id=9001)]
             for operation in operations: apply(rows, operation, case, counters)
             child = output / name
             done = subprocess.run([str(generator), 'continue', str(source), str(child), name], capture_output=True, text=True)
             (output / (name + '.stdout.log')).write_text(done.stdout); (output / (name + '.stderr.log')).write_text(done.stderr)
             receipts.append(dict(name=name, source=identity(source), returncode=done.returncode))
-            require(done.returncode == 0, 'Rust compressed-input continuation: ' + name)
+            require(done.returncode == 0, 'Rust native-input continuation: ' + name)
             source_name = name + '-continuation-source.mdb'; shutil.copy2(source, output / source_name)
             for suffix in ('.mdb', '.snapshot.json'): shutil.copy2(child / (name + '-continued' + suffix), output / (name + '-continued' + suffix))
             continued = (output / (name + '-continued.mdb')).read_bytes(); receipt = json.loads((output / (name + '-continued.snapshot.json')).read_text())

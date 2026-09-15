@@ -688,6 +688,7 @@ fn main() -> Result<()> {
         let case = match name.as_str() {
             "integral" => Case::Integral,
             "wide" => Case::Wide,
+            "deep" => Case::Deep,
             _ => return Err("unsupported continuation case".into()),
         };
         return continuation(Path::new(source), Path::new(directory), case);
