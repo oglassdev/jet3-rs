@@ -131,11 +131,12 @@ def prepare(candidates: Path, revision: str):
             require(actual == notes, 'All Notes-owned bytes preserved')
         case['layout'] = layouts; case['reuse'] = reuse_check(layouts, receipts); case['notes_pages'] = notes
     refusals = json.loads((candidates / 'refusals.json').read_text())
-    require([(r['case'], r['kind']) for r in refusals] == [(c['name'], kind) for c in cases for kind in ['duplicate-later-index', 'empty-payload', 'chain-budget']], 'Refusal inventory')
+    require([(r['case'], r['kind']) for r in refusals] == [(c['name'], kind) for c in cases for kind in ['duplicate-later-index', 'caller-header' if c['name']=='ole' else 'empty-payload', 'chain-budget']], 'Refusal inventory')
     for refusal in refusals:
         require(refusal['bytes_unchanged'] and refusal['error'], 'Structured refusal')
         require(identity(candidates / refusal['file']) == identity(candidates / f'{refusal["case"]}-inserted.mdb'), 'Refusal byte preservation')
         if refusal['kind'] == 'duplicate-later-index': require('duplicate' in refusal['error'].lower(), 'Later-index duplicate refusal')
+        if refusal['kind'] == 'caller-header': require(refusal['error']=='Unsupported("caller-supplied long-value header")', 'Caller header refusal')
     return finish_prepare(candidates, revision, cases, 'lifecycle', refusals=refusals)
 
 
