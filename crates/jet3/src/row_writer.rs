@@ -201,11 +201,11 @@ pub enum RowWriteError {
         /// Maximum boundary.
         maximum: usize,
     },
-    /// The complete row cannot fit in a Jet 3 data-page row slot.
+    /// The complete row exceeds the limit for its Jet 3 row layout.
     RowTooLong {
         /// Complete encoded row length.
         length: usize,
-        /// Maximum length after the page header and one directory entry.
+        /// Maximum complete length for this row layout.
         maximum: usize,
     },
     /// The output slice cannot hold the complete row.
@@ -388,11 +388,13 @@ fn validate(
         .ok_or(RowWriteError::Resource(Error::Arithmetic {
             operation: "size encoded-row jump bytes",
         }))?;
-    if length > MAX_STORED_ROW_LEN {
-        return Err(RowWriteError::RowTooLong {
-            length,
-            maximum: MAX_STORED_ROW_LEN,
-        });
+    let maximum = if variable_count == 0 {
+        MAX_STORED_ROW_LEN
+    } else {
+        crate::row_offsets::MAX_VARIABLE_ROW_LEN
+    };
+    if length > maximum {
+        return Err(RowWriteError::RowTooLong { length, maximum });
     }
     Ok(RowShape {
         fixed_size,

@@ -134,3 +134,121 @@ fn trailer_growth_keeps_ordinal_254_distinct_from_the_unused_marker()
     assert_eq!(&last[515..518], &[255, 254, 254]);
     Ok(())
 }
+
+#[test]
+fn variable_row_capacity_includes_all_trailer_bytes() -> Result<(), Box<dyn std::error::Error>> {
+    // EXP-0260: each layout accepts physical length 2012 and rejects 2013.
+    for (variables, fixed, data_bytes) in [
+        (1, 1748, 251),
+        (8, 4, 1988),
+        (32, 4, 1961),
+        (254, 4, 1712),
+        (255, 0, 1715),
+    ] {
+        let mut columns = Vec::new();
+        let mut payloads = Vec::new();
+        if fixed > 0 {
+            columns.push(RowColumnLayout::new(
+                ColumnPhysicalType::Long,
+                ColumnStorageClass::Fixed { offset: 0 },
+                4,
+            ));
+            payloads.push(Vec::new());
+            let mut offset = 4;
+            while offset < fixed {
+                let size = (fixed - offset).min(255);
+                columns.push(RowColumnLayout::new(
+                    ColumnPhysicalType::Text,
+                    ColumnStorageClass::Fixed { offset },
+                    size,
+                ));
+                payloads.push(vec![b'F'; usize::from(size)]);
+                offset += size;
+            }
+        }
+        let fixed_count = columns.len();
+        for index in 0..variables {
+            columns.push(RowColumnLayout::new(
+                ColumnPhysicalType::Text,
+                ColumnStorageClass::Variable { index },
+                255,
+            ));
+            payloads.push(vec![
+                b'V';
+                data_bytes / usize::from(variables)
+                    + usize::from(
+                        usize::from(index) < data_bytes % usize::from(variables)
+                    )
+            ]);
+        }
+        for extra in 0..=1 {
+            if extra == 1 {
+                payloads.last_mut().ok_or("missing last field")?.push(b'X');
+            }
+            let mut values: Vec<_> = payloads.iter().map(|p| RowValue::Text(p)).collect();
+            if fixed_count > 0 {
+                values[0] = RowValue::Long(1);
+            }
+            let mut output = [0xa5; PAGE_BYTES];
+            let result = encode_row(
+                &columns,
+                &values,
+                &mut output,
+                &mut ResourceBudget::new(ResourceLimits::default()),
+            );
+            if extra == 0 {
+                assert_eq!(result?.get(), 2012);
+            } else {
+                assert_eq!(
+                    result,
+                    Err(RowWriteError::RowTooLong {
+                        length: 2013,
+                        maximum: 2012
+                    })
+                );
+                assert_eq!(output, [0xa5; PAGE_BYTES]);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn schema_minimum_accounts_for_every_jump_byte() -> Result<(), Box<dyn std::error::Error>> {
+    let names: Vec<_> = (0..40).map(|i| format!("C{i:02}")).collect();
+    for last_fixed in [180, 181] {
+        let columns: Vec<_> = names
+            .iter()
+            .enumerate()
+            .map(|(i, name)| {
+                ColumnSpec::new(
+                    name.as_bytes(),
+                    if i < 8 {
+                        ColumnType::FixedText {
+                            len: nz(if i == 7 { last_fixed } else { 255 }),
+                        }
+                    } else {
+                        ColumnType::Text { max_len: nz(255) }
+                    },
+                )
+            })
+            .collect();
+        let result = crate::table_definition_layout::validate_column_layout(
+            &columns,
+            TableDefinitionKind::User,
+            &[],
+        );
+        if last_fixed == 180 {
+            assert_eq!(result?, 32);
+        } else {
+            assert_eq!(
+                result,
+                Err(crate::TableDefinitionWriteError::RowLayoutTooLarge {
+                    minimum: 2013,
+                    maximum: 2012
+                })
+            );
+        }
+    }
+    Ok(())
+}

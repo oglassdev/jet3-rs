@@ -16779,3 +16779,46 @@ by this native-only discovery.
   failure, analysis correction or native retry occurred. Expected capacity
   refusals remain explicit. This is native format discovery, not Rust candidate
   compatibility acceptance; no other MDB implementation code was inspected.
+
+## EXP-0260 — General ordinary-row capacity across variable layouts
+
+- **Source:** fresh DAO 3.6 x86 run `20260915T123359Z-row-cap-r1` from the
+  frozen private matrix in `/tmp/jet3-row-capacity-discovery/`. Retained output
+  is `/home/alex/development/vms/jet3-windows/shared/outbox/20260915T123359Z-row-cap-r1/`.
+- **Provider:** DAO 3.6 DLL `03.60.9765.0`, x86, SHA256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  OS, CLR, PowerShell and culture are retained. The 12 completed workers contain
+  24 full native schema/value captures and 86 closed operations: 44 accepted
+  and 42 capacity refusals. Every refusal has DAO 3047, HRESULT -2146825241 and
+  a byte-identical complete before/after image. Both replicas agree exactly on
+  native values and independently decoded raw rows.
+- **Variable-row observation:** all five sampled layouts accept physical row
+  length 2012 and reject adjacent length 2013. The accepted/refused data ends
+  are respectively 2000/2001 for one variable field after a 1,749-byte fixed
+  prefix, 1993/1994 for 8 variable fields, 1966/1967 for 32, 1717/1718 for 254,
+  and 1716/1717 for 255 all-variable fields. Presence widths span 2, 5 and 32
+  bytes. Requested physical lengths through 2036 are refused.
+- **Length rule used and observed:** for an ordinary row with `P` physical
+  columns, `V > 0` stored variable columns, data end `D`, presence width
+  `N = ceil(P/8)`, and jump count `J`, `L = D + (V+1) + 1 + N + J`; `J` is the
+  least nonnegative value for which `L <= 256*(J+1)`. In every sampled variable
+  layout DAO accepts `L = 2012` and refuses `L = 2013`. This establishes the
+  ordinary variable-row writer/parser cap for the sampled grammar; the 2036-byte
+  page slot maximum remains a distinct physical framing bound.
+- **Fixed-only partial observation:** Long Id plus eight fixed Text columns at
+  physical length 2000 creates and inserts successfully in both replicas.
+  Four schemas targeting physical 2012/2013 with 8 or 16 fixed Text columns are
+  refused while appending the final field with HRESULT -2146825241, before a
+  table can be captured. This run does not claim the exact fixed-schema limit.
+- **Analysis outcome:** the frozen analyzer deliberately reports `failed`
+  because schema-creation refusal was outside its two row-operation alternatives.
+  It still marks every completed worker `captured` after complete comparisons;
+  a retained derived summary records those accepted arms and the fixed-schema
+  failures. No native retry occurred.
+- **Pins:** exact input, report, summary and per-MDB identities are in
+  `accepted-pins.json` and `images.json` beside this draft.
+- **Retained report identities:**
+  `capacity-summary.json`: 8650 bytes, SHA256
+  `192ea167307c8109d04caa95f4c79a76290893b0cdcfc88270e658072e9f8d26`.
+  `wide-row-report.json`: 796866 bytes, SHA256
+  `8bb90b61a7eddd45c5054db08ab41e9bdab1c56cf5513ed6ff681c92571d2bcf`.

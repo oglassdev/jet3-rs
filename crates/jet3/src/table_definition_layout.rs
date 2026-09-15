@@ -82,7 +82,7 @@ pub(crate) fn definition_len<'a>(
 }
 
 /// Validates every column name and class and checks that the row layout they
-/// imply still admits an all-null row in one data-page row slot.
+/// imply still admits an all-null row within its native size limit.
 ///
 /// Returns the number of variable-storage columns the layout carries.
 pub(crate) fn validate_column_layout(
@@ -130,18 +130,22 @@ pub(crate) fn validate_column_layout(
         .ok_or(TableDefinitionWriteError::Resource(Error::Arithmetic {
             operation: "size minimum encoded row",
         }))?;
-    if variables > 0 && minimum_row_len > u8::MAX as usize {
-        minimum_row_len =
-            minimum_row_len
-                .checked_add(1)
-                .ok_or(TableDefinitionWriteError::Resource(Error::Arithmetic {
-                    operation: "size minimum encoded-row jump table",
-                }))?;
+    if variables > 0 {
+        minimum_row_len = minimum_row_len
+            .checked_add(crate::row_offsets::jump_count(minimum_row_len))
+            .ok_or(TableDefinitionWriteError::Resource(Error::Arithmetic {
+                operation: "size minimum encoded-row jump table",
+            }))?;
     }
-    if minimum_row_len > MAX_STORED_ROW_LEN {
+    let maximum = if variables == 0 {
+        MAX_STORED_ROW_LEN
+    } else {
+        crate::row_offsets::MAX_VARIABLE_ROW_LEN
+    };
+    if minimum_row_len > maximum {
         return Err(TableDefinitionWriteError::RowLayoutTooLarge {
             minimum: minimum_row_len,
-            maximum: MAX_STORED_ROW_LEN,
+            maximum,
         });
     }
     Ok(variables)

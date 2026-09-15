@@ -176,11 +176,11 @@ pub enum TableDefinitionWriteError {
         /// Column whose offset could not be represented.
         ordinal: u16,
     },
-    /// Even an all-null row cannot fit in one data-page row slot.
+    /// Even an all-null row exceeds the limit for this Jet 3 row layout.
     RowLayoutTooLarge {
         /// Minimum encoded row length for the schema.
         minimum: usize,
-        /// Maximum length after the page header and one directory entry.
+        /// Maximum complete length for this row layout.
         maximum: usize,
     },
     /// A physical index has no key fields.
