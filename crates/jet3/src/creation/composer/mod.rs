@@ -149,7 +149,7 @@ pub(crate) fn compose_database(
                 second: position,
             });
         }
-        let planned = PlannedCreate::new(spec, next_page, position == 0)?;
+        let planned = PlannedCreate::new(spec, next_page, position == 0, budget)?;
         next_page = planned.page_count();
         creates.push(planned);
     }
@@ -213,8 +213,18 @@ fn compose_existing_pages(
     maps: &mut AllocationMaps,
     budget: &mut ResourceBudget,
 ) -> Result<[PageImage; EMPTY_DATABASE_PAGE_COUNT as usize], ComposeError> {
-    let object_count = (SYSTEM_OBJECT_COUNT + creates.len()) as u32;
-    let ace_count = (SYSTEM_ACE_COUNT + 2 * creates.len()) as u32;
+    compose_existing_pages_with_relationships(creates, catalog, &[], maps, budget)
+}
+
+fn compose_existing_pages_with_relationships(
+    creates: &[PlannedCreate<'_>],
+    catalog: &CatalogPages,
+    relationship_pages: &[u64],
+    maps: &mut AllocationMaps,
+    budget: &mut ResourceBudget,
+) -> Result<[PageImage; EMPTY_DATABASE_PAGE_COUNT as usize], ComposeError> {
+    let object_count = catalog.object_count()?;
+    let ace_count = catalog.ace_count()?;
     Ok([
         header_page(creates.len(), budget)?,
         global_map_page(EMPTY_DATABASE_PAGE_COUNT, budget)?,
@@ -228,7 +238,7 @@ fn compose_existing_pages(
         catalog.names_root()?,
         catalog.ids_map(maps, budget)?,
         catalog.ids_root()?,
-        catalog.shared_map(maps, budget)?,
+        catalog.shared_map(relationship_pages, maps, budget)?,
         catalog.aces_root()?,
         empty_index_page(MSYS_QUERIES_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
@@ -574,6 +584,8 @@ mod tests;
 
 #[path = "relationship_candidate.rs"]
 mod relationship_candidate;
+mod relationship_graph;
+pub(crate) use relationship_graph::{GraphImage, compose_relationship_graph};
 
 pub(crate) use relationship_candidate::{compose_relationship, compose_relationship_with_rows};
 
@@ -583,3 +595,7 @@ pub(crate) use autoincrement::InitialAutoIncrement;
 
 #[cfg(all(test, any(unix, windows)))]
 mod relationship_graph_mutation_tests;
+
+pub(crate) fn table_count_limit(count: usize) -> Result<(), ComposeError> {
+    creation_counter(count).map(|_| ())
+}

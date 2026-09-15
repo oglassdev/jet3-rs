@@ -194,13 +194,22 @@ impl CatalogPages {
         creates: &[PlannedCreate<'_>],
         budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
+        Self::new_with_extras(creates, &[], &[], budget)
+    }
+
+    pub(super) fn new_with_extras(
+        creates: &[PlannedCreate<'_>],
+        extra_objects: &[CatalogSeed<'_>],
+        extra_aces: &[AceSeed],
+        budget: &mut ResourceBudget,
+    ) -> Result<Self, ComposeError> {
         let mut next_page = creates
             .last()
             .map_or(EMPTY_DATABASE_PAGE_COUNT, PlannedCreate::page_count);
         let objects = CatalogData::build(
             MSYS_OBJECTS_ROOT,
             MSYS_OBJECTS_DATA_PAGE,
-            catalog_seeds(creates, None),
+            catalog_seeds(creates, None).chain(extra_objects.iter().copied()),
             &mut next_page,
             budget,
             |seed, output, budget| {
@@ -217,7 +226,7 @@ impl CatalogPages {
         let aces = CatalogData::build(
             MSYS_ACES_ROOT,
             MSYS_ACES_DATA_PAGE,
-            ace_seeds(creates, &[]),
+            ace_seeds(creates, extra_aces),
             &mut next_page,
             budget,
             encode_ace_row,
@@ -227,6 +236,7 @@ impl CatalogPages {
             OBJECTS_PARENT_NAME_ROOT,
             &objects.locators,
             catalog_seeds(creates, None)
+                .chain(extra_objects.iter().copied())
                 .map(|seed| OwnedIndexEntry::name(seed.parent, seed.name, 0)),
             &mut next_page,
             budget,
@@ -235,7 +245,9 @@ impl CatalogPages {
             MSYS_OBJECTS_ROOT,
             OBJECTS_ID_ROOT,
             &objects.locators,
-            catalog_seeds(creates, None).map(|seed| Ok(OwnedIndexEntry::long(seed.id, 0))),
+            catalog_seeds(creates, None)
+                .chain(extra_objects.iter().copied())
+                .map(|seed| Ok(OwnedIndexEntry::long(seed.id, 0))),
             &mut next_page,
             budget,
         )?;
@@ -243,7 +255,7 @@ impl CatalogPages {
             MSYS_ACES_ROOT,
             ACES_OBJECT_ID_ROOT,
             &aces.locators,
-            ace_seeds(creates, &[]).map(|seed| Ok(OwnedIndexEntry::long(seed.object, 0))),
+            ace_seeds(creates, extra_aces).map(|seed| Ok(OwnedIndexEntry::long(seed.object, 0))),
             &mut next_page,
             budget,
         )?;
@@ -254,6 +266,17 @@ impl CatalogPages {
             ids,
             ace_ids,
             page_count: next_page,
+        })
+    }
+
+    pub(super) fn object_count(&self) -> Result<u32, ComposeError> {
+        u32::try_from(self.objects.locators.len()).map_err(|_| ComposeError::CatalogLayout {
+            detail: "catalog object count",
+        })
+    }
+    pub(super) fn ace_count(&self) -> Result<u32, ComposeError> {
+        u32::try_from(self.aces.locators.len()).map_err(|_| ComposeError::CatalogLayout {
+            detail: "catalog access-control count",
         })
     }
 
@@ -313,11 +336,12 @@ impl CatalogPages {
     }
     pub(super) fn shared_map(
         &self,
+        relationship_pages: &[u64],
         maps: &mut AllocationMaps,
         budget: &mut ResourceBudget,
     ) -> Result<PageImage, ComposeError> {
         shared_map_page_with_aces(
-            &[],
+            relationship_pages,
             &self.aces.owned,
             &self.aces.available,
             &self.ace_ids.owned,

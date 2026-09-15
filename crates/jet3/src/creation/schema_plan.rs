@@ -292,6 +292,16 @@ pub(crate) fn plan_table_schema_with_logical_index(
     first_create: bool,
     extra_name: Option<&[u8]>,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
+    plan_table_schema_with_logical_names(spec, first_page, first_create, extra_name.as_slice())
+}
+
+/// EXP-0273: distinct relationship records can share a physical index.
+pub(crate) fn plan_table_schema_with_logical_names(
+    spec: &TableSpec<'_>,
+    first_page: u64,
+    first_create: bool,
+    extra_names: &[&[u8]],
+) -> Result<TableSchemaPlan, TableSchemaPlanError> {
     validate_table_name(spec.name)?;
     if spec.columns.is_empty() {
         return Err(TableSchemaPlanError::NoColumns);
@@ -308,26 +318,36 @@ pub(crate) fn plan_table_schema_with_logical_index(
             observed: MAX_OBSERVED_INDEXES,
         });
     }
-    if let Some(name) = extra_name {
+    let count = spec.indexes.len().saturating_add(extra_names.len());
+    if count > usize::from(u16::MAX) {
+        return Err(TableSchemaPlanError::Definition(
+            TableDefinitionWriteError::TooManyIndexes {
+                role: "logical",
+                count,
+            },
+        ));
+    }
+    for (position, &name) in extra_names.iter().enumerate() {
+        let ordinal = spec.indexes.len() + position;
         validate_name_length("logical index", name, 63)?;
-        validate_name_bytes("logical index", spec.indexes.len(), name)?;
-        validate_name(
-            "logical index",
-            spec.indexes.len() as u16,
-            name,
-            spec.indexes.iter().map(|index| index.name),
-        )
-        .map_err(TableSchemaPlanError::Definition)?;
-        for (first, index) in spec.indexes.iter().enumerate() {
-            if index.name.cmp(name) != case_folded(index.name).cmp(case_folded(name)) {
+        validate_name_bytes("logical index", ordinal, name)?;
+        let prior = spec
+            .indexes
+            .iter()
+            .map(|index| index.name)
+            .chain(extra_names[..position].iter().copied());
+        validate_name("logical index", ordinal as u16, name, prior.clone())
+            .map_err(TableSchemaPlanError::Definition)?;
+        for (first, earlier) in prior.enumerate() {
+            if earlier.cmp(name) != case_folded(earlier).cmp(case_folded(name)) {
                 return Err(TableSchemaPlanError::UnderdeterminedIndexNameOrder {
                     first,
-                    second: spec.indexes.len(),
+                    second: ordinal,
                 });
             }
         }
     }
-    let length = measure_definition(spec, extra_name)?;
+    let length = measure_definition(spec, extra_names)?;
     let index_fields = resolve_index_fields(spec)?;
     let plan = assign_pages(spec, first_page, first_create, length, index_fields)?;
     validate_indexes(spec, &plan)?;
@@ -423,27 +443,22 @@ fn validate_name_bytes(
 /// Returns the exact logical length of the definition `spec` encodes to.
 fn measure_definition(
     spec: &TableSpec<'_>,
-    extra_name: Option<&[u8]>,
+    extra_names: &[&[u8]],
 ) -> Result<usize, TableSchemaPlanError> {
-    // The writer requires one long-value map group per Memo or LongBinary
-    // column, so the group count follows from the columns.
     let long_value_maps = spec
         .columns
         .iter()
         .filter(|column| column.column_type().is_long_value())
         .count();
-    let mut names = [b"".as_slice(); MAX_OBSERVED_INDEXES + 1];
-    for (slot, index) in names.iter_mut().zip(spec.indexes) {
-        *slot = index.name;
-    }
-    if let Some(name) = extra_name {
-        names[spec.indexes.len()] = name;
-    }
     definition_len(
         spec.columns,
-        names[..spec.indexes.len() + usize::from(extra_name.is_some())]
-            .iter()
-            .copied(),
+        (0..spec.indexes.len() + extra_names.len()).map(|position| {
+            if position < spec.indexes.len() {
+                spec.indexes[position].name
+            } else {
+                extra_names[position - spec.indexes.len()]
+            }
+        }),
         spec.indexes.len(),
         long_value_maps,
     )

@@ -80,6 +80,10 @@ pub enum CandidateCheckError {
     UsageMap(crate::UsageMapError),
     /// A candidate index allocation map could not be traversed.
     Allocation(crate::AllocationMapError),
+    /// The candidate fails the catalogued allocation and user-table validator.
+    Validation(Box<crate::ValidationError>),
+    /// The candidate relationship catalog or reciprocal records are malformed.
+    Relationships(crate::UpdateError),
     /// A candidate allocation inventory is malformed.
     AllocationState(crate::UpdateError),
     /// A candidate long-value field could not be decoded.
@@ -112,6 +116,10 @@ impl fmt::Display for CandidateCheckError {
             Self::Allocation(source) => {
                 write!(formatter, "candidate allocation map failed: {source}")
             }
+            Self::Validation(source) => write!(formatter, "candidate validation failed: {source}"),
+            Self::Relationships(source) => {
+                write!(formatter, "candidate relationships failed: {source}")
+            }
             Self::AllocationState(source) => {
                 write!(formatter, "candidate allocation state failed: {source}")
             }
@@ -140,6 +148,8 @@ impl StdError for CandidateCheckError {
             Self::Index(source) => Some(source),
             Self::UsageMap(source) => Some(source),
             Self::Allocation(source) => Some(source),
+            Self::Validation(source) => Some(source),
+            Self::Relationships(source) => Some(source),
             Self::AllocationState(source) => Some(source),
             Self::Value(source) => Some(source),
             Self::LongValue(source) => Some(source),
@@ -685,27 +695,7 @@ fn check_table(
     let definition = database
         .table_definition(root, budget)
         .map_err(CandidateCheckError::Definition)?;
-    if definition.columns().len() != spec.columns.len() {
-        return Err(mismatch("column count"));
-    }
-    for (column, requested) in definition.columns().iter().zip(spec.columns) {
-        let storage_matches = matches!(
-            (column.storage(), requested.storage()),
-            (ColumnStorageClass::Fixed { .. }, ColumnStorageKind::Fixed)
-                | (
-                    ColumnStorageClass::Variable { .. },
-                    ColumnStorageKind::Variable
-                )
-        );
-        if column.name().raw_bytes() != requested.name()
-            || column.physical_type() != requested.physical_type()
-            || column.size() != requested.size()
-            || column.auto_increment() != (requested.column_type() == ColumnType::AutoIncrement)
-            || !storage_matches
-        {
-            return Err(mismatch("column"));
-        }
-    }
+    check_columns(&definition, spec)?;
     if definition.physical_indexes().len() != spec.indexes.len()
         || definition.indexes().len() != spec.indexes.len()
     {
@@ -743,6 +733,35 @@ fn check_table(
     Ok(())
 }
 
+fn check_columns(
+    definition: &crate::TableDefinition,
+    spec: &TableSpec<'_>,
+) -> Result<(), CandidateCheckError> {
+    let mismatch = |detail| CandidateCheckError::Mismatch { detail };
+    if definition.columns().len() != spec.columns.len() {
+        return Err(mismatch("column count"));
+    }
+    for (column, requested) in definition.columns().iter().zip(spec.columns) {
+        let storage_matches = matches!(
+            (column.storage(), requested.storage()),
+            (ColumnStorageClass::Fixed { .. }, ColumnStorageKind::Fixed)
+                | (
+                    ColumnStorageClass::Variable { .. },
+                    ColumnStorageKind::Variable
+                )
+        );
+        if column.name().raw_bytes() != requested.name()
+            || column.physical_type() != requested.physical_type()
+            || column.size() != requested.size()
+            || column.auto_increment() != (requested.column_type() == ColumnType::AutoIncrement)
+            || !storage_matches
+        {
+            return Err(mismatch("column"));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(all(test, any(unix, windows)))]
 #[path = "tests.rs"]
 mod tests;
@@ -750,3 +769,9 @@ mod tests;
 #[path = "api_relationship.rs"]
 mod relationship;
 pub use relationship::{create_database_with_relationship, create_database_with_relationship_rows};
+
+#[path = "api_relationship_graph.rs"]
+mod relationship_graph;
+pub use relationship_graph::{
+    create_database_with_relationships, create_database_with_relationships_and_rows,
+};

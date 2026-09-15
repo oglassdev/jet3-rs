@@ -43,7 +43,7 @@ pub(super) struct PlannedCreate<'a> {
     initial_row_count: u32,
     initial_indexes: Vec<InitialLongIndex>,
     initial_autoincrement: Option<InitialAutoIncrement>,
-    relationship: Option<LogicalIndexSpec<'a>>,
+    relationships: Vec<LogicalIndexSpec<'a>>,
 }
 
 #[derive(Debug, Clone)]
@@ -58,8 +58,9 @@ impl<'a> PlannedCreate<'a> {
         spec: &'a TableSpec<'a>,
         first_page: u64,
         first_create: bool,
+        budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
-        Self::new_with_relationship(spec, first_page, first_create, None)
+        Self::new_with_relationships(spec, first_page, first_create, &[], budget)
     }
 
     pub(super) fn new_with_relationship(
@@ -67,23 +68,72 @@ impl<'a> PlannedCreate<'a> {
         first_page: u64,
         first_create: bool,
         relationship: Option<LogicalIndexSpec<'a>>,
+        budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
-        let extra = relationship
-            .filter(|index| {
-                matches!(
-                    index.kind,
-                    LogicalIndexKindSpec::Relationship {
-                        side: crate::RelationshipSide::PrimaryTable,
-                        ..
-                    }
-                )
-            })
-            .map(|index| index.name);
-        let plan = crate::creation::schema_plan::plan_table_schema_with_logical_index(
+        Self::new_with_relationships(
             spec,
             first_page,
             first_create,
-            extra,
+            relationship.as_slice(),
+            budget,
+        )
+    }
+
+    pub(super) fn new_with_relationships(
+        spec: &'a TableSpec<'a>,
+        first_page: u64,
+        first_create: bool,
+        relations: &[LogicalIndexSpec<'a>],
+        budget: &mut ResourceBudget,
+    ) -> Result<Self, ComposeError> {
+        let mut replaced = [false; crate::creation::schema_plan::MAX_OBSERVED_INDEXES];
+        let mut names = Vec::new();
+        crate::resource::reserve(&mut names, relations.len(), budget)?;
+        budget.charge_work_units(relations.len() as u64)?;
+        for index in relations {
+            let physical = spec.indexes.get(usize::from(index.physical_index)).ok_or(
+                ComposeError::UnsupportedRelationship {
+                    detail: "relationship physical index missing",
+                },
+            )?;
+            let append = match index.kind {
+                LogicalIndexKindSpec::Relationship {
+                    side: crate::RelationshipSide::PrimaryTable,
+                    ..
+                } => true,
+                LogicalIndexKindSpec::Relationship {
+                    side: crate::RelationshipSide::ForeignTable,
+                    ..
+                } => {
+                    let slot = replaced.get_mut(usize::from(index.physical_index)).ok_or(
+                        ComposeError::UnsupportedRelationship {
+                            detail: "foreign physical index missing",
+                        },
+                    )?;
+                    let append = *slot;
+                    if !append && index.name != physical.name {
+                        return Err(ComposeError::UnsupportedRelationship {
+                            detail: "foreign record must retain its generated index name",
+                        });
+                    }
+                    *slot = true;
+                    append
+                }
+                _ => {
+                    return Err(ComposeError::UnsupportedRelationship {
+                        detail: "expected relationship record",
+                    });
+                }
+            };
+            if append {
+                names.push(index.name);
+            }
+        }
+        let plan = crate::creation::schema_plan::plan_table_schema_with_logical_names(
+            spec,
+            first_page,
+            first_create,
+            &names,
         )?;
         if spec.columns.iter().any(|column| {
             column.allow_zero_length()
@@ -91,7 +141,9 @@ impl<'a> PlannedCreate<'a> {
         }) {
             return Err(ComposeError::UnsupportedMemoOption);
         }
-
+        let mut relationships = Vec::new();
+        crate::resource::reserve(&mut relationships, relations.len(), budget)?;
+        relationships.extend_from_slice(relations);
         let long_value_count = long_value_columns(spec).count();
         Ok(Self {
             spec,
@@ -102,7 +154,7 @@ impl<'a> PlannedCreate<'a> {
             initial_row_count: 0,
             initial_indexes: Vec::new(),
             initial_autoincrement: None,
-            relationship,
+            relationships,
         })
     }
 
@@ -114,7 +166,7 @@ impl<'a> PlannedCreate<'a> {
         &mut self,
         target: PageNumber,
     ) -> Result<(), ComposeError> {
-        match self.relationship.as_mut().map(|index| &mut index.kind) {
+        match self.relationships.first_mut().map(|index| &mut index.kind) {
             Some(LogicalIndexKindSpec::Relationship { related_table, .. }) => {
                 *related_table = target;
                 Ok(())
@@ -123,6 +175,28 @@ impl<'a> PlannedCreate<'a> {
                 detail: "missing planned relationship",
             }),
         }
+    }
+
+    pub(super) fn resolve_relationship_targets(
+        &mut self,
+        roots: &[PageNumber],
+    ) -> Result<(), ComposeError> {
+        for index in &mut self.relationships {
+            if let LogicalIndexKindSpec::Relationship { related_table, .. } = &mut index.kind {
+                let position = usize::try_from(related_table.get()).map_err(|_| {
+                    ComposeError::UnsupportedRelationship {
+                        detail: "relationship table ordinal",
+                    }
+                })?;
+                *related_table =
+                    *roots
+                        .get(position)
+                        .ok_or(ComposeError::UnsupportedRelationship {
+                            detail: "relationship table ordinal",
+                        })?;
+            }
+        }
+        Ok(())
     }
 
     /// Packs rows using EXP-0060 encoding and EXP-0065 append placement.
@@ -462,22 +536,24 @@ impl<'a> PlannedCreate<'a> {
                 })
             })
             .collect::<Result<Vec<_>, ComposeError>>()?;
-        if let Some(index) = self.relationship {
-            if matches!(
+        let mut replaced = [false; crate::creation::schema_plan::MAX_OBSERVED_INDEXES];
+        budget.charge_work_units(
+            (self.relationships.len() as u64).saturating_mul(logical.len() as u64 + 1),
+        )?;
+        for &index in &self.relationships {
+            let foreign = matches!(
                 index.kind,
                 LogicalIndexKindSpec::Relationship {
-                    side: crate::RelationshipSide::PrimaryTable,
+                    side: crate::RelationshipSide::ForeignTable,
                     ..
                 }
-            ) {
-                budget
-                    .charge_allocation(ByteCount::new(size_of::<LogicalIndexSpec<'_>>() as u64))?;
-                logical.try_reserve_exact(1).map_err(|_| Error::Io {
-                    operation: "reserve relationship logical index",
-                    kind: std::io::ErrorKind::OutOfMemory,
-                })?;
-                logical.push(index);
-            } else {
+            );
+            let flag = replaced.get_mut(usize::from(index.physical_index)).ok_or(
+                ComposeError::UnsupportedRelationship {
+                    detail: "relationship physical index missing",
+                },
+            )?;
+            if foreign && !*flag {
                 let slot = logical
                     .iter_mut()
                     .find(|existing| existing.physical_index == index.physical_index)
@@ -485,7 +561,16 @@ impl<'a> PlannedCreate<'a> {
                         detail: "foreign physical index missing",
                     })?;
                 *slot = index;
+                *flag = true;
+            } else {
+                crate::resource::reserve(&mut logical, 1, budget)?;
+                logical.push(index);
             }
+        }
+        if !self.relationships.is_empty() {
+            budget.charge_work_units(
+                (logical.len() as u64).saturating_mul(u64::from(logical.len().max(1).ilog2()) + 1),
+            )?;
             logical.sort_unstable_by(|left, right| left.name.cmp(right.name));
         }
         budget.charge_allocation(ByteCount::new(
@@ -612,7 +697,7 @@ pub(crate) fn compose_database_with_table_rows(
                 second: position,
             });
         }
-        let planned = PlannedCreate::new(&request.table, next_page, position == 0)?
+        let planned = PlannedCreate::new(&request.table, next_page, position == 0, budget)?
             .with_rows(request.rows, budget)?;
         next_page = planned.page_count();
         creates.push(planned);
