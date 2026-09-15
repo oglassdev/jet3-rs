@@ -464,7 +464,7 @@ fn refusals(directory: &Path, source: &Path) -> Result<()> {
             ),
             "malformed-source" => matches!(
                 error,
-                UpdateError::Index(jet3::IndexTreeError::UnexpectedOwner { .. })
+                UpdateError::Mismatch("mapped index page kind or owner")
             ),
             _ => {
                 let mut cause: &dyn std::error::Error = &error;
