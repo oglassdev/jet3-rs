@@ -176,3 +176,75 @@ fn synthetic_consistent_page_fixture_exercises_public_insert_delete_dispatch() -
     );
     Ok(())
 }
+
+#[test]
+fn replace_updates_indexed_text_and_nulls_preserving_locator() -> Result {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("file.mdb");
+    let created = request(
+        "create",
+        &path,
+        &json!({"tables":[{
+            "name":"Rows", "columns":[{"name":"Id","type":"long"},{"name":"Name","type":"text","size":80}],
+            "indexes":[{"name":"ById","kind":"primary","fields":[{"column":"Id"}]}],
+            "rows":[[{"long":1},{"text":"One"}],[{"long":2},{"text":"Two"}]]
+        }]}),
+    )?;
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    let row = rows(&path)?[0].0;
+    for text in [json!({"text":"A longer name"}), Value::Null] {
+        let output = request(
+            "mutate",
+            &path,
+            &json!({"operation":"replace","table":"Rows","row":locator(row),"values":[{"long":-7},text]}),
+        )?;
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let response: Value = serde_json::from_slice(&output.stdout)?;
+        assert_eq!(response["operation"], "replace");
+        assert_eq!(response["row"], locator(row));
+        assert_eq!(rows(&path)?[0].1, -7);
+        let mut b = jet3::ResourceBudget::new(jet3::ResourceLimits::default());
+        let mut db = jet3::DatabaseReader::open(&path, &mut b)?;
+        let root = {
+            let mut c = db.catalog(&mut b)?;
+            let mut root = None;
+            while let Some(r) = c.next_record()? {
+                if r.name().raw_bytes() == b"Rows" {
+                    root = r.table_definition();
+                }
+            }
+            root.ok_or("Rows")?
+        };
+        let table = db.table_definition(root, &mut b)?;
+        assert_eq!(db.index_tree(&table, 0, &mut b)?.entries()[0].row(), row);
+        let mut cursor = db.rows(&table, &mut b)?;
+        let first = cursor.next_row()?.ok_or("row")?;
+        assert_eq!(
+            first
+                .field(table.columns()[1].ordinal())
+                .and_then(|f| f.raw_bytes()),
+            if text.is_null() {
+                None
+            } else {
+                Some(b"A longer name".as_slice())
+            }
+        );
+    }
+    let before = std::fs::read(&path)?;
+    let failed = request(
+        "mutate",
+        &path,
+        &json!({"operation":"replace","table":"Rows","row":locator(row),"values":[{"long":2},null]}),
+    )?;
+    assert_eq!(failed.status.code(), Some(1));
+    assert_eq!(std::fs::read(&path)?, before);
+    Ok(())
+}
