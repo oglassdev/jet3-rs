@@ -62,7 +62,7 @@ with inline and indirect allocation maps. Table and column names admit
 64 ASCII bytes and index names admit 63. Table definitions may
 span linked pages on first and later tables, including populated and indexed
 schemas. It supports multi-page initial rows, explicit/generated AutoIncrement
-IDs, and up to 32 scalar indexes per table, including Date, Binary, variable
+IDs, and up to 32 scalar indexes per table, including Date, Binary, fixed/variable
 Text and GUID.
 Indexes have one to ten components and can span multiple levels. Independent
 Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
@@ -123,10 +123,12 @@ one EOF data page or a released target-table page, deletion/compaction,
 last-live-row page release, row replacement with stable logical locators, independent Memo/OLE
 payload mutation, and multi-level index maintenance. A table may
 have up to 32 indexes with one to ten Boolean, Byte, Integer, Long, Currency,
-Single, Double, Date, Binary, variable Text or GUID components, including mixed
+Single, Double, Date, Binary, fixed/variable Text or GUID components, including mixed
 directions, duplicates and null policies. Text keys use the observed English-US/CP1252
 collation, retaining stored row bytes while ignoring trailing ASCII spaces in keys.
-Fixed Text and other collations remain outside indexed mutation. Rebuilt trees keep their roots, reuse reserved index pages, and append
+Other Text collations remain outside indexed mutation. Fixed Text values must
+contain exactly the declared number of bytes. Rebuilt trees keep their roots,
+reuse reserved index pages, and append
 nodes with allocation-map growth. Indexed EOF insertion publishes data, allocation, table counts and index
 changes together. Memo/OLE insertion and full-row replacement support null,
 inline, single-page and chained payloads. Payload pages are validated against
@@ -248,6 +250,16 @@ ordinary insertion on Rust pages holding logical links. Full-row replacement
 can reallocate the selected Memo/OLE storage; unrelated headers and values stay
 unchanged, and fixed-field updates preserve the selected payload storage too.
 This finite comparison does not establish a universal page-selection policy.
+
+EXP-0264 establishes fixed Text keys using the existing English-US/CP1252
+collation. EXP-0265 accepts 23 pairs (46 captures) for widths 1, 8, 32 and 255:
+creation, field/full-row changes, deletion/reinsertion, native successors,
+Rust edits to native inputs and unique Text refusals. Complete values, schema,
+traversal/Seek, physical keys, counters and Notes preservation agree. Rust
+refusals leave the complete file unchanged; DAO failed insertion can advance a
+historical index counter while preserving rows. Fixed Text callers supply the
+exact declared width. Other collations and empty/all-space Text are outside
+this comparison.
 
 ### Remaining work
 
