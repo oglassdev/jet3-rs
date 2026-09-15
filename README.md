@@ -45,8 +45,8 @@ and the remaining host prerequisites.
 ## Status
 
 The reader has hosted DAO differential evidence for its documented capability
-inventory. Creation packs tables and multi-page system catalogs within a
-1,024-page allocation limit. Table and column names admit 64 ASCII bytes;
+inventory. Creation packs tables and multi-page system catalogs with inline
+and indirect allocation maps. Table and column names admit 64 ASCII bytes;
 index names admit 63. Linked table definitions support
 first and later tables, initial rows, and indexes with independent map pages.
 It supports initial rows, explicit/generated AutoIncrement IDs, independent

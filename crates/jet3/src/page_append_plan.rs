@@ -170,6 +170,21 @@ impl AppendPagePlan {
         self.page_count
     }
 
+    /// Assigns an EOF slot when the caller composes allocation maps separately.
+    pub(crate) fn append_image(
+        &mut self,
+        image: PageImage,
+    ) -> Result<PlannedPage, AppendPageError> {
+        let number = PageNumber::new(self.page_count);
+        self.page_count =
+            self.page_count
+                .checked_add(1)
+                .ok_or(AppendPageError::PageCountOverflow {
+                    page_count: self.page_count,
+                })?;
+        Ok(PlannedPage { number, image })
+    }
+
     /// Assigns the next page number and marks that global-map page in use.
     ///
     /// `image` is moved through unchanged. The map and page count remain

@@ -4,7 +4,7 @@
 use super::*;
 use crate::numeric_index_pages::{IndexRecord, NumericIndexPages, TreeBuildError};
 
-const PAGE_LIMIT: u64 = MAP_BITMAP_BYTES * 8;
+const PAGE_LIMIT: u64 = allocation_maps::PAGE_LIMIT;
 
 struct CatalogData {
     images: Vec<(u64, PageImage)>,
@@ -275,26 +275,45 @@ impl CatalogPages {
     pub(super) fn aces_root(&self) -> Result<PageImage, ComposeError> {
         self.ace_ids.root()
     }
-    pub(super) fn names_map(&self, budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
-        single_map_page(&self.names.owned, budget)
+    pub(super) fn names_map(
+        &self,
+        maps: &mut AllocationMaps,
+        budget: &mut ResourceBudget,
+    ) -> Result<PageImage, ComposeError> {
+        data_page(
+            HEADER_PAGE,
+            &[&maps.row(self.names.owned.iter().copied(), budget)?],
+            budget,
+        )
     }
-    pub(super) fn ids_map(&self, budget: &mut ResourceBudget) -> Result<PageImage, ComposeError> {
-        single_map_page(&self.ids.owned, budget)
+    pub(super) fn ids_map(
+        &self,
+        maps: &mut AllocationMaps,
+        budget: &mut ResourceBudget,
+    ) -> Result<PageImage, ComposeError> {
+        data_page(
+            HEADER_PAGE,
+            &[&maps.row(self.ids.owned.iter().copied(), budget)?],
+            budget,
+        )
     }
     pub(super) fn objects_map(
         &self,
         creates: &[PlannedCreate<'_>],
+        maps: &mut AllocationMaps,
         budget: &mut ResourceBudget,
     ) -> Result<PageImage, ComposeError> {
         objects_map_page(
             creates,
             &self.objects.owned,
             &self.objects.available,
+            maps,
             budget,
         )
     }
     pub(super) fn shared_map(
         &self,
+        maps: &mut AllocationMaps,
         budget: &mut ResourceBudget,
     ) -> Result<PageImage, ComposeError> {
         shared_map_page_with_aces(
@@ -302,6 +321,7 @@ impl CatalogPages {
             &self.aces.owned,
             &self.aces.available,
             &self.ace_ids.owned,
+            maps,
             budget,
         )
     }
@@ -309,7 +329,6 @@ impl CatalogPages {
     pub(super) fn append(
         self,
         plan: &mut WholeFileImagePlan,
-        map: &mut InlineUsageMapEncoder,
         budget: &mut ResourceBudget,
     ) -> Result<(), ComposeError> {
         let images = self
@@ -329,7 +348,7 @@ impl CatalogPages {
                     detail: "catalog append page order",
                 });
             }
-            plan.append(image, map, budget)?;
+            plan.append_image(image, budget)?;
         }
         Ok(())
     }

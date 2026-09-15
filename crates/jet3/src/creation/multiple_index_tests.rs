@@ -290,7 +290,7 @@ fn second_unique_index_refuses_duplicates_on_first_and_later_tables() -> TestRes
 }
 
 #[test]
-fn aggregate_index_pages_cannot_exceed_the_inline_map() -> TestResult {
+fn aggregate_index_pages_extend_independent_maps() -> TestResult {
     let directory = TestDirectory::create()?;
     let fields = [field(0, IndexDirection::Ascending)];
     let indexes = [b"First".as_slice(), b"Second", b"Third"].map(|name| IndexSpec {
@@ -305,10 +305,7 @@ fn aggregate_index_pages_cannot_exceed_the_inline_map() -> TestResult {
     };
     let row = [RowValue::Long(1)];
     let rows = vec![row.as_slice(); 60000];
-    assert!(matches!(
-        create_database_with_rows(directory.target(), &table, &rows, &mut budget()),
-        Err(CreateDatabaseError::Compose(ComposeError::UsageMap(_)))
-    ));
-    assert!(directory.entries()?.is_empty());
+    create_database_with_rows(directory.target(), &table, &rows, &mut budget())?;
+    assert!(fs::metadata(directory.target())?.len() > 1024 * crate::PAGE_BYTES as u64);
     Ok(())
 }

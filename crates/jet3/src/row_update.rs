@@ -19,7 +19,7 @@ pub struct RowUpdate<'a> {
 /// Replaces a complete ordinary row on its current page without changing its slot.
 ///
 /// Supports scalar/null/Boolean/Text/Binary values in relationship-free
-/// tables, including independent Memo/OLE columns. The page must be inline-owned and
+/// tables, including independent Memo/OLE columns. The page must be owned and
 /// allocated, with consistent metadata and ordinary live rows or known empty
 /// `c000` tombstones. The data page and row locator remain fixed. Up to 32
 /// indexes with one to ten supported scalar fields admit key and null changes,
@@ -37,7 +37,7 @@ pub struct RowUpdate<'a> {
 /// Later row bytes and offsets shift as needed, preserving their slots and values.
 /// Shrinking leaves newly vacated slack unchanged. Only the replacement, shifted
 /// bytes/offsets and page free-byte count change in the data page. A changed key
-/// rebuilds index nodes and may allocate them within inline maps. The page's
+/// rebuilds index nodes and may grow their allocation maps. The page's
 /// available bit reflects remaining capacity. Table/slot counts, page zero and
 /// unrelated objects remain exact. EXP-0232/0238 record finite numeric and
 /// long-value replacement comparisons, including retained generated IDs.
@@ -183,7 +183,7 @@ where
         index.replace(request.row, values, budget)?;
         index.stage(&mut database, &definition, &mut edits, budget)?;
     }
-    edits.publish(path, database.into_source(), budget, hook)
+    edits.publish(path, database, budget, hook)
 }
 
 #[cfg(all(test, any(unix, windows)))]

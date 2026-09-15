@@ -120,7 +120,7 @@ conversion!(crate::IndexTreeError, Index);
 /// Indexed tables are supported when the column is absent from every physical
 /// index. Key updates support up to 32 indexes with one to ten admitted
 /// scalar fields, including composite and nonunique keys. Changed trees retain
-/// their roots and reserved pages, appending nodes within inline maps as needed.
+/// their roots and reserved pages, appending nodes and growing allocation maps as needed.
 /// Row counts and retained index counters remain unchanged.
 ///
 /// Supports Byte, Integer, Long, Currency, Single, Double, DateTime, GUID and
@@ -238,7 +238,7 @@ where
     if let Some(index) = index_change {
         index.stage(&mut database, &definition, &mut edits, budget)?;
     }
-    edits.publish(path, database.into_source(), budget, hook)
+    edits.publish(path, database, budget, hook)
 }
 
 #[cfg(all(test, any(unix, windows)))]

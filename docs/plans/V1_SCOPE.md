@@ -51,7 +51,7 @@ and roadmap #75 remain open.
 ### Creation
 
 Creation packs tables with multi-page system catalogs and catalog indexes
-within the existing 1,024-page allocation limit. Table and column names admit
+with inline and indirect allocation maps. Table and column names admit
 64 ASCII bytes and index names admit 63. Table definitions may
 span linked pages on first and later tables, including populated and indexed
 schemas. It supports multi-page initial rows, explicit/generated AutoIncrement
@@ -60,12 +60,12 @@ Text and GUID.
 Indexes have one to ten components and can span multiple levels. Independent
 Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
 columns themselves cannot be indexed. Each payload column has separate ownership
-and availability maps. Definitions and map rows can span multiple pages; the total file remains
-bounded by the inline allocation map. Relationships remain restricted to two scalar tables with one
+and availability maps. Definitions and map rows can span multiple pages; files
+are bounded by map-reference capacity and the caller's resource budget. Relationships remain restricted to two scalar tables with one
 non-cascading, non-null Long relationship.
 
-Schema/name combinations, index key types/counts, relationship forms and inline
-allocation remain restricted. Empty OLE is refused. Empty Memo requires an
+Schema/name combinations, index key types and relationship forms remain
+restricted. Empty OLE is refused. Empty Memo requires an
 explicit option in a restricted schema. Existing-table schema changes and
 table/relationship dropping are absent. EXP-0239 adds explicit, negative and
 wrapping AutoIncrement IDs to the finite writer comparisons.
@@ -120,7 +120,7 @@ Single, Double, Date, Binary, variable Text or GUID components, including mixed
 directions, duplicates and null policies. Text keys use the observed English-US/CP1252
 collation, retaining stored row bytes while ignoring trailing ASCII spaces in keys.
 Fixed Text and other collations remain outside indexed mutation. Rebuilt trees keep their roots, reuse reserved index pages, and append
-nodes within inline maps. Indexed EOF insertion publishes data, allocation, table counts and index
+nodes with allocation-map growth. Indexed EOF insertion publishes data, allocation, table counts and index
 changes together. Memo/OLE insertion and full-row replacement support null,
 inline, single-page and chained payloads. Payload pages are validated against
 all live references and their owning column, with separate single/chained
@@ -199,12 +199,23 @@ index key semantics or row membership remain outside these checks. Catalog
 reading follows native overflow records using the shared row-locator grammar
 (EXP-0228). Validation success does not establish DAO compatibility.
 
+EXP-0254 adds 84 accepted native allocation observations across two replicated
+lifecycles. Inline rows can grow beyond 1,024 bits, and indirect bitmap slots
+represent 16,352 pages each. Empty availability windows can be smaller than the
+owned inventory. Creation and mutations now implement indirect map allocation,
+including global bookkeeping for the bitmap pages themselves. EXP-0256 accepts
+16 allocation lifecycle pairs (32 captures), including Rust edits to native
+files and conversion of widened inline maps into compact indirect rows.
+Complete payloads, index contents, allocation state and Notes preservation
+match. EXP-0255 fixes native index prefixes that include row-locator bytes;
+the original timeout and reader-failure reports remain recorded separately.
+
 ### Remaining work
 
-- Extend creation beyond current schema/index-key and inline-allocation bounds.
-- Extend updates beyond current index key types/counts and component limits,
-  to relationship targets, additional payload/schema combinations, broader
-  data-page/live-slot reuse, cross-page row growth and indirect maps.
+- Extend creation to remaining schema/index-key combinations and relationship forms.
+- Extend updates to remaining index key types/collations, relationship targets,
+  additional payload/schema combinations, wider variable rows, broader
+  data-page/live-slot reuse and cross-page row growth.
 - Cover remaining DAO inventories, stored-query preservation and broader
   failure/rollback behavior. Local VM and hosted runs may both establish
   evidence; preregistration and per-run approval are not required.

@@ -230,6 +230,34 @@ fn streams_single_and_chained_external_values() -> Result<(), Box<dyn std::error
 }
 
 #[test]
+fn short_payload_uses_bounded_state_with_an_unlimited_chain_policy()
+-> Result<(), Box<dyn std::error::Error>> {
+    let bytes = database_bytes(b"abc", None);
+    let policy = limits(&bytes)
+        .with_max_chain_depth(u64::MAX)
+        .with_max_allocation_bytes(ByteCount::new(4096));
+    let mut budget = ResourceBudget::new(policy);
+    let header = external_header(3, 0x4000_0000, FIRST_LVAL);
+    let reference = decode_reference(
+        &header,
+        LongValueKind::Ole,
+        TextCodePage::Windows1252,
+        &mut budget,
+    )?;
+    let source = SliceSource::new(&bytes, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    let mut owned = database.owned_pages(PageNumber::new(ROOT as u64), &mut budget)?;
+    let mut page = [0_u8; PAGE_BYTES];
+    let mut cursor = LongValueCursor::new(&mut owned, &mut page, reference)?;
+    assert_eq!(
+        cursor.next_chunk()?.ok_or("missing payload")?.value(),
+        &LongValueChunkValue::Binary(b"abc")
+    );
+    assert!(cursor.next_chunk()?.is_none());
+    Ok(())
+}
+
+#[test]
 fn row_cursor_composes_external_long_value_streams() -> Result<(), Box<dyn std::error::Error>> {
     let bytes = database_bytes(b"abc", None);
     let mut budget = ResourceBudget::new(limits(&bytes));

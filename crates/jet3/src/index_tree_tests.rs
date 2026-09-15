@@ -527,8 +527,7 @@ fn rejects_bitmap_free_space_and_sibling_corruption() {
 
     let prefix = [0x7f, 0x80, 0, 0, 0];
     let mut short_leaf = database_bytes(4, 3, 4);
-    let mut short_leaf_entry = prefix.to_vec();
-    short_leaf_entry.extend_from_slice(&[0, 0, ROW_PAGE as u8]);
+    let short_leaf_entry = [0x7f, 0x80, 0, 0];
     write_node(
         &mut short_leaf,
         NodeSpec {
@@ -537,7 +536,7 @@ fn rejects_bitmap_free_space_and_sibling_corruption() {
             previous: 0,
             next: 0,
             tail_child: 0,
-            prefix: &prefix,
+            prefix: &prefix[..2],
             entries: &[&short_leaf_entry],
         },
     );
@@ -547,8 +546,7 @@ fn rejects_bitmap_free_space_and_sibling_corruption() {
     ));
 
     let mut short_branch = database_bytes(4, 3, 4);
-    let mut short_branch_entry = prefix.to_vec();
-    short_branch_entry.extend_from_slice(&[0, 0, ROW_PAGE as u8, 0, 0, 4, 0]);
+    let short_branch_entry = [0x7f, 0x80, 0, 0, ROW_PAGE as u8, 0, 0, 4];
     write_node(
         &mut short_branch,
         NodeSpec {
@@ -557,7 +555,7 @@ fn rejects_bitmap_free_space_and_sibling_corruption() {
             previous: 0,
             next: 0,
             tail_child: SECOND_LEAF,
-            prefix: &prefix,
+            prefix: &prefix[..2],
             entries: &[&short_branch_entry],
         },
     );
@@ -752,3 +750,6 @@ mod key_inventory;
 
 #[path = "index_tree_marker_tests.rs"]
 mod marker_tests;
+
+#[path = "index_tree_prefix_tests.rs"]
+mod prefix;

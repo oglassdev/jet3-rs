@@ -1,4 +1,5 @@
 use super::*;
+use crate::MapRowLocator;
 
 type MapRecords = [(MapRowLocator, std::ops::Range<usize>); 3];
 fn maps(f: &Fixture) -> Result<MapRecords, Box<dyn StdError>> {
@@ -151,7 +152,7 @@ fn eof_map_coverage_free_bit_and_aliases_refuse_without_publication() -> TestRes
 }
 
 #[test]
-fn last_inline_bit_is_allowed_but_map_growth_is_refused() -> TestResult {
+fn last_inline_bit_and_conversion_preserve_rows_and_metadata() -> TestResult {
     let f = Fixture::longs(0)?;
     let original = fs::read(f.path())?;
     for pages in [1023_usize, 1024] {
@@ -164,16 +165,26 @@ fn last_inline_bit_is_allowed_but_map_growth_is_refused() -> TestResult {
             &[RowValue::Long(1), RowValue::Long(2)],
             &mut budget(),
         );
-        if pages == 1023 {
-            assert_eq!(result?, RowLocator::new(PageNumber::new(1023), 0));
-            assert_eq!(fs::metadata(f.path())?.len(), 1024 * PAGE_BYTES as u64);
-        } else {
-            assert!(matches!(
-                result,
-                Err(UpdateError::Unsupported("page outside existing inline map"))
-            ));
-            assert_eq!(fs::read(f.path())?, before);
+        assert_eq!(result?, RowLocator::new(PageNumber::new(pages as u64), 0));
+        let expected_pages = if pages == 1023 { 1024 } else { 1028 };
+        assert_eq!(
+            fs::metadata(f.path())?.len(),
+            expected_pages * PAGE_BYTES as u64
+        );
+        let mut b = budget();
+        let mut db = DatabaseReader::open(f.path(), &mut b)?;
+        let definition = db.table_definition(f.root, &mut b)?;
+        let global = crate::mutation_map::MapBits::load(
+            &mut db,
+            crate::mutation_map_write::global_locator(),
+            &mut b,
+        )?;
+        for page in pages as u64..expected_pages {
+            assert!(!global.contains(PageNumber::new(page))?);
         }
+        let mut rows = db.rows(&definition, &mut b)?;
+        assert!(rows.next_row()?.is_some());
+        assert!(rows.next_row()?.is_none());
         f.clean()?;
     }
     Ok(())
@@ -339,4 +350,96 @@ fn later_table_ownership_and_minimum_row_availability() -> TestResult {
     let second = insert_row(f.path(), b"Rows", &[RowValue::Null; 7], &mut budget())?;
     assert_eq!(second.page().get(), locator.page().get() + 1);
     f.clean()
+}
+
+fn map_image(owner: u64, rows: &[&[u8]]) -> Result<[u8; PAGE_BYTES], Box<dyn StdError>> {
+    let mut b = budget();
+    let mut builder = crate::DataPageBuilder::new(PageNumber::new(owner), &mut b)?;
+    for row in rows {
+        builder.append_row(row, &mut b)?;
+    }
+    let free = u16::try_from(builder.free_bytes().get())?;
+    let mut image = builder.finish();
+    image.write_at(
+        crate::PageOffset::new(1),
+        &[1, free as u8, (free >> 8) as u8],
+        &mut b,
+    )?;
+    Ok(image.into_bytes())
+}
+
+#[test]
+fn widened_inline_maps_shrink_without_losing_adjacent_records() -> TestResult {
+    let f = Fixture::longs(0)?;
+    let records = maps(&f)?;
+    let mut before = fs::read(f.path())?;
+    let mut global =
+        before[PAGE_BYTES + records[0].1.start..PAGE_BYTES + records[0].1.end].to_vec();
+    global.extend_from_slice(&[0xff; 4]);
+    let map_page = records[1].0.page().get() as usize;
+    let available = before
+        [map_page * PAGE_BYTES + records[2].1.start..map_page * PAGE_BYTES + records[2].1.end]
+        .to_vec();
+    let sibling = [0x4d; 133];
+    before[PAGE_BYTES..2 * PAGE_BYTES].copy_from_slice(&map_image(1, &[&global, &sibling])?);
+    before[map_page * PAGE_BYTES..(map_page + 1) * PAGE_BYTES]
+        .copy_from_slice(&map_image(0, &[&[0; 137], &available])?);
+    before.resize(1056 * PAGE_BYTES, 0xb6);
+    fs::write(f.path(), &before)?;
+    let inserted = insert_row(
+        f.path(),
+        b"Rows",
+        &[RowValue::Long(7), RowValue::Long(8)],
+        &mut budget(),
+    )?;
+    assert_eq!(inserted.page().get(), 1056);
+    let after = fs::read(f.path())?;
+    let mut b = budget();
+    let mut db = DatabaseReader::open(f.path(), &mut b)?;
+    for (locator, _) in &records {
+        let map = crate::mutation_map::MapBits::load(&mut db, *locator, &mut b)?;
+        assert_eq!(map.row.len(), 133);
+        assert_eq!(map.row[0], 1);
+        assert_eq!(map.contains(inserted.page())?, locator != &records[0].0);
+    }
+    let image: &[u8; PAGE_BYTES] = after[PAGE_BYTES..2 * PAGE_BYTES].try_into()?;
+    let page = crate::classify_page(PageNumber::new(1), image, &mut b)?;
+    assert_eq!(
+        crate::locate_usage_map(page, MapRowLocator::new(PageNumber::new(1), 1), &mut b)?.raw(),
+        sibling
+    );
+    for (number, original) in before.chunks_exact(PAGE_BYTES).enumerate() {
+        if number == 1 || number == map_page || number as u64 == f.root.get() {
+            continue;
+        }
+        assert_eq!(
+            &after[number * PAGE_BYTES..(number + 1) * PAGE_BYTES],
+            original
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn oversized_indirect_map_is_rejected_without_writing() -> TestResult {
+    let f = Fixture::longs(0)?;
+    let records = maps(&f)?;
+    let mut before = fs::read(f.path())?;
+    let map_page = records[1].0.page().get() as usize;
+    let mut owned = [0; 137];
+    owned[0] = 1;
+    before[map_page * PAGE_BYTES..(map_page + 1) * PAGE_BYTES]
+        .copy_from_slice(&map_image(0, &[&owned, &[0; 133]])?);
+    fs::write(f.path(), &before)?;
+    assert!(
+        insert_row(
+            f.path(),
+            b"Rows",
+            &[RowValue::Long(7), RowValue::Long(8)],
+            &mut budget()
+        )
+        .is_err()
+    );
+    assert_eq!(fs::read(f.path())?, before);
+    Ok(())
 }

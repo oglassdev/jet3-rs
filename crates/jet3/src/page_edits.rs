@@ -45,6 +45,7 @@ pub(crate) struct PageEdits {
     first_append: u64,
     changes: Vec<Change>,
     append: Vec<PageImage>,
+    maps: Vec<crate::mutation_map_write::PendingMap>,
 }
 
 impl PageEdits {
@@ -53,6 +54,7 @@ impl PageEdits {
             first_append: page_count,
             changes: Vec::new(),
             append: Vec::new(),
+            maps: Vec::new(),
         }
     }
 
@@ -144,7 +146,7 @@ impl PageEdits {
         Ok(())
     }
 
-    /// EXP-0051/0057/0065: global free bits and inline index-map membership.
+    /// Delays map storage growth until row, payload and index placements are fixed.
     pub fn map_bit(
         &mut self,
         database: &mut DatabaseReader<FileSource>,
@@ -154,45 +156,137 @@ impl PageEdits {
         desired: bool,
         budget: &mut ResourceBudget,
     ) -> Result<(), UpdateError> {
+        budget.charge_work_units(self.maps.len() as u64)?;
+        let position =
+            if let Some(position) = self.maps.iter().position(|map| map.bits.locator == locator) {
+                position
+            } else {
+                let bits = crate::mutation_map::MapBits::load(database, locator, budget)?;
+                for previous in &self.maps {
+                    if bits.overlaps(&previous.bits, budget)? {
+                        return Err(UpdateError::Mismatch("aliased mutation allocation maps"));
+                    }
+                }
+                reserve(&mut self.maps, 1, budget)?;
+                self.maps
+                    .push(crate::mutation_map_write::PendingMap::new(bits));
+                self.maps.len() - 1
+            };
+        self.maps[position].change(member, expected, desired, self.first_append, budget)
+    }
+
+    pub(crate) fn map_record(
+        &mut self,
+        database: &mut DatabaseReader<FileSource>,
+        locator: MapRowLocator,
+        expected: &[u8],
+        desired: &[u8],
+        budget: &mut ResourceBudget,
+    ) -> Result<(), UpdateError> {
         let mut before = [0; PAGE_BYTES];
-        let page = database
-            .read_classified_page(locator.page(), &mut before, budget)
-            .map_err(crate::TableDefinitionError::Page)?;
-        let row = crate::locate_usage_map(page, locator, budget).map_err(UpdateError::UsageMap)?;
-        let crate::allocation::AllocationMapLayout::Inline { start_page, bitmap } =
-            crate::allocation::decode_allocation_map_layout(row.raw(), budget)
-                .map_err(UpdateError::Allocation)?
-        else {
-            return Err(UpdateError::Unsupported("indirect index allocation"));
-        };
-        let bit = member
-            .get()
-            .checked_sub(start_page.get())
-            .filter(|bit| *bit / 8 < bitmap.len() as u64)
-            .ok_or(UpdateError::Unsupported(
-                "page outside index allocation map",
-            ))?;
-        let offset = row.range().start + bitmap.start + (bit / 8) as usize;
-        let mask = 1 << (bit % 8);
+        database.read_raw_page(locator.page(), &mut before, budget)?;
         budget.charge_work_units(self.changes.len() as u64)?;
-        // Combine several allocations in the same byte without losing earlier bits.
-        let mut after = self
+        let mut current = self
             .changes
             .iter()
-            .find(|c| c.page == locator.page())
-            .map_or_else(|| PageImage::from_bytes(before), |c| c.after.clone());
-        let old = after.as_bytes()[offset];
-        if (old & mask != 0) != expected {
-            return Err(UpdateError::Mismatch("index map membership"));
+            .find(|change| change.page == locator.page())
+            .map_or_else(
+                || PageImage::from_bytes(before),
+                |change| change.after.clone(),
+            );
+        let page =
+            crate::classify_page(locator.page(), current.as_bytes(), budget).map_err(|error| {
+                UpdateError::Definition(crate::TableDefinitionError::Page(
+                    crate::DatabasePageError::Classification(error),
+                ))
+            })?;
+        let record =
+            crate::locate_usage_map(page, locator, budget).map_err(UpdateError::UsageMap)?;
+        if record.raw() != expected {
+            return Err(UpdateError::Mismatch(
+                "allocation record changed during staging",
+            ));
         }
-        let value = if desired { old | mask } else { old & !mask };
-        after.write_at(PageOffset::new(offset as u64), &[value], budget)?;
-        if let Some(existing) = self.changes.iter_mut().find(|c| c.page == locator.page()) {
-            existing.after = after;
+        let range = record.range();
+        if expected.len() == desired.len() {
+            current.write_at(PageOffset::from_usize(range.start)?, desired, budget)?;
+        } else {
+            // SRC-0020 supplies the data-page owner field; EXP-0162 supplies row movement.
+            let bytes = current.as_bytes();
+            let owner = PageNumber::new(u64::from(u32::from_le_bytes([
+                bytes[4], bytes[5], bytes[6], bytes[7],
+            ])));
+            current = crate::row_update_page::replace(
+                locator.page(),
+                owner,
+                bytes,
+                locator.row(),
+                desired,
+                budget,
+            )?;
+        }
+        if let Some(change) = self
+            .changes
+            .iter_mut()
+            .find(|change| change.page == locator.page())
+        {
+            change.after = current;
         } else {
             self.replace(
                 PageChange {
                     page: locator.page(),
+                    before: &before,
+                    after: current.as_bytes(),
+                },
+                budget,
+            )?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn patch_bytes(
+        &mut self,
+        database: &mut DatabaseReader<FileSource>,
+        page: PageNumber,
+        offset: usize,
+        bytes: &[u8],
+        budget: &mut ResourceBudget,
+    ) -> Result<(), UpdateError> {
+        if page.get() >= self.first_append {
+            let ordinal = usize::try_from(page.get() - self.first_append)
+                .map_err(|_| UpdateError::Mismatch("bitmap append ordinal"))?;
+            self.append
+                .get_mut(ordinal)
+                .ok_or(UpdateError::Mismatch("bitmap append page"))?
+                .write_at(PageOffset::from_usize(offset)?, bytes, budget)?;
+            return Ok(());
+        }
+        budget.charge_work_units(self.changes.len() as u64)?;
+        if let Some(change) = self.changes.iter_mut().find(|change| change.page == page) {
+            let end = offset
+                .checked_add(bytes.len())
+                .filter(|end| *end <= PAGE_BYTES)
+                .ok_or(UpdateError::Mismatch("map patch bounds"))?;
+            for (at, value) in (offset..end).zip(bytes) {
+                if change.after.as_bytes()[at] != change.before[at]
+                    && change.after.as_bytes()[at] != *value
+                {
+                    return Err(UpdateError::Mismatch(
+                        "allocation patch overlaps content edit",
+                    ));
+                }
+            }
+            change
+                .after
+                .write_at(PageOffset::from_usize(offset)?, bytes, budget)?;
+        } else {
+            let mut before = [0; PAGE_BYTES];
+            database.read_raw_page(page, &mut before, budget)?;
+            let mut after = PageImage::from_bytes(before);
+            after.write_at(PageOffset::from_usize(offset)?, bytes, budget)?;
+            self.replace(
+                PageChange {
+                    page,
                     before: &before,
                     after: after.as_bytes(),
                 },
@@ -202,10 +296,36 @@ impl PageEdits {
         Ok(())
     }
 
+    fn finish_maps(
+        &mut self,
+        database: &mut DatabaseReader<FileSource>,
+        budget: &mut ResourceBudget,
+    ) -> Result<(), UpdateError> {
+        if self.maps.is_empty() {
+            return Ok(());
+        }
+        crate::mutation_map_guard::validate(database, &self.maps, budget)?;
+        let mut maps = std::mem::take(&mut self.maps);
+        let global_position = maps.iter().position(|map| map.is_global());
+        let global = if let Some(position) = global_position {
+            maps.remove(position)
+        } else {
+            crate::mutation_map_write::PendingMap::new(crate::mutation_map::MapBits::load(
+                database,
+                crate::mutation_map_write::global_locator(),
+                budget,
+            )?)
+        };
+        for map in maps {
+            map.apply(database, self, budget)?;
+        }
+        global.apply(database, self, budget)
+    }
+
     pub fn publish<H, HE>(
-        self,
+        mut self,
         path: &Path,
-        source: FileSource,
+        mut database: DatabaseReader<FileSource>,
         budget: &mut ResourceBudget,
         hook: H,
     ) -> Result<(), UpdateError>
@@ -213,6 +333,8 @@ impl PageEdits {
         H: FnMut(PublishStage) -> Result<(), HE>,
         HE: StdError + Send + Sync + 'static,
     {
+        self.finish_maps(&mut database, budget)?;
+        let source = database.into_source();
         let mut changes = Vec::new();
         reserve(&mut changes, self.changes.len(), budget)?;
         changes.extend(self.changes.iter().map(|c| PageChange {

@@ -27,6 +27,7 @@ SUITES = {
     "practical-lifecycle": ("practical_lifecycle", "practical_lifecycle_candidate"),
     "numeric-indexes": ("numeric_index_mutation", "numeric_index_mutation_candidate"),
     "index-capacity": ("index_capacity", "index_capacity_candidate"),
+    "allocation-lifecycle": ("allocation_lifecycle", "allocation_candidate"),
     "multiple-long-values": ("multiple_long_value_creation", "multiple_long_value_creation_candidate"),
     "long-value-lifecycle": ("long_value_lifecycle", "long_value_lifecycle_candidate"),
 }
@@ -78,10 +79,10 @@ def run_suite(name, root, args, revision):
     command(["cargo", "build", "--locked", "-p", "jet3", "--example", example], root, "build")
     images = root / "images"
     stdout = command([ROOT / "target/debug/examples" / example, images], root, "generate")
-    if name in ("creation-tables", "definition-chains", "index-trees", "practical-lifecycle", "numeric-indexes", "index-capacity", "multiple-long-values", "long-value-lifecycle"):
+    if name in ("creation-tables", "definition-chains", "index-trees", "practical-lifecycle", "numeric-indexes", "index-capacity", "allocation-lifecycle", "multiple-long-values", "long-value-lifecycle"):
         module.prepare(images, revision)
         manifest = {"definition-chains": "creation-definition-chains.json", "creation-tables": "creation-tables.json", "index-trees": "index-tree-mutation.json",
-                    "practical-lifecycle": "practical-lifecycle.json", "numeric-indexes": "numeric-index-mutation.json", "index-capacity": "index-capacity.json",
+                    "practical-lifecycle": "practical-lifecycle.json", "numeric-indexes": "numeric-index-mutation.json", "index-capacity": "index-capacity.json", "allocation-lifecycle": "allocation-lifecycle.json",
                     "multiple-long-values": "multiple-long-value-creation.json",
                     "long-value-lifecycle": "long-value-lifecycle.json"}[name]
         input_path = images / manifest
@@ -98,7 +99,7 @@ def run_suite(name, root, args, revision):
             else:
                 module.patch_check(before, after, arm)
     report = capture(name, root, args, revision, module, images, input_path)
-    if name in ("index-trees", "numeric-indexes", "index-capacity", "long-value-lifecycle"):
+    if name in ("index-trees", "numeric-indexes", "index-capacity", "allocation-lifecycle", "long-value-lifecycle"):
         continuation_root = root / "continuation"
         continuation_root.mkdir()
         continued = continuation_root / "images"
@@ -106,7 +107,7 @@ def run_suite(name, root, args, revision):
             module.prepare_continue(images, Path(report["captures"]), continued,
                                     ROOT / "target/debug/examples" / example, revision)
             continuation = capture(name, continuation_root, args, revision, module, continued,
-                                   continued / {"numeric-indexes": "numeric-index-mutation.json", "index-capacity": "index-capacity.json",
+                                   continued / {"numeric-indexes": "numeric-index-mutation.json", "index-capacity": "index-capacity.json", "allocation-lifecycle": "allocation-lifecycle.json",
                                                 "index-trees": "index-tree-mutation.json",
                                                 "long-value-lifecycle": "long-value-lifecycle.json"}[name])
             report["continuation"] = continuation
@@ -132,7 +133,7 @@ def capture(name, root, args, revision, module, images, input_path):
     )
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + name[:17] + "-" + uuid.uuid4().hex[:6]
     remote = [sys.executable, ROOT / "scripts/windows-dao-ps.py", wrapper,
-              "--run-id", run_id, "--shared-root", args.shared_root, "--timeout", "900"]
+              "--run-id", run_id, "--shared-root", args.shared_root, "--timeout", str(args.timeout)]
     for option in ("host", "port", "user", "identity", "remote_shared_root"):
         remote.extend(["--" + option.replace("_", "-"), getattr(args, option)])
     extras = {p.name: p for p in sorted(images.iterdir()) if p.is_file()}
@@ -142,7 +143,7 @@ def capture(name, root, args, revision, module, images, input_path):
     outbox = args.shared_root / "outbox" / run_id
     failure = None
     try:
-        command(remote, root, "windows", timeout=960)
+        command(remote, root, "windows", timeout=args.timeout + 60)
     except (RuntimeError, subprocess.TimeoutExpired) as error:
         failure = str(error)
     report = dict(document_type="dao_suite_report", suite=name, source_revision=revision,
@@ -161,7 +162,7 @@ def capture(name, root, args, revision, module, images, input_path):
         result_path = outbox / "result.json"
         if not result_path.exists():
             raise RuntimeError("Missing DAO result")
-        if name in ("creation-tables", "definition-chains", "index-trees", "practical-lifecycle", "numeric-indexes", "index-capacity", "multiple-long-values", "long-value-lifecycle"):
+        if name in ("creation-tables", "definition-chains", "index-trees", "practical-lifecycle", "numeric-indexes", "index-capacity", "allocation-lifecycle", "multiple-long-values", "long-value-lifecycle"):
             comparison = module.evaluate(images, outbox)
             matched = comparison["status"] == "accepted"
         else:
@@ -187,12 +188,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("suites", nargs="*", metavar="SUITE", help="Defaults to all suites: " + ", ".join(SUITES))
     parser.add_argument("--out", type=Path, required=True, help="new directory for inputs, logs and reports")
+    parser.add_argument("--timeout", type=int, default=900, help="seconds allowed for each Windows round")
     parser.add_argument("--shared-root", type=Path, default=os.environ.get("JET3_WINDOWS_SHARED_ROOT"))
     for name, default in [("host", "127.0.0.1"), ("port", "2222"), ("user", "jet3runner"),
                           ("identity", str(Path.home() / ".ssh/jet3-dao")),
                           ("remote-shared-root", r"\\host.lan\Data")]:
         parser.add_argument("--" + name, default=os.environ.get("JET3_WINDOWS_" + name.upper().replace("-", "_"), default))
     args = parser.parse_args()
+    if args.timeout <= 0:
+        parser.error("--timeout must be positive")
     args.suites = args.suites or list(SUITES)
     unknown = set(args.suites) - SUITES.keys()
     if unknown:

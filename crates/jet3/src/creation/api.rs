@@ -80,6 +80,8 @@ pub enum CandidateCheckError {
     UsageMap(crate::UsageMapError),
     /// A candidate index allocation map could not be traversed.
     Allocation(crate::AllocationMapError),
+    /// A candidate allocation inventory is malformed.
+    AllocationState(crate::UpdateError),
     /// A candidate long-value field could not be decoded.
     Value(crate::ValueError),
     /// A candidate external payload could not be streamed.
@@ -110,6 +112,9 @@ impl fmt::Display for CandidateCheckError {
             Self::Allocation(source) => {
                 write!(formatter, "candidate allocation map failed: {source}")
             }
+            Self::AllocationState(source) => {
+                write!(formatter, "candidate allocation state failed: {source}")
+            }
             Self::Value(source) => write!(formatter, "candidate value failed: {source}"),
             Self::LongValue(source) => write!(formatter, "candidate long value failed: {source}"),
             Self::Rows(source) => write!(formatter, "candidate row scan failed: {source}"),
@@ -135,6 +140,7 @@ impl StdError for CandidateCheckError {
             Self::Index(source) => Some(source),
             Self::UsageMap(source) => Some(source),
             Self::Allocation(source) => Some(source),
+            Self::AllocationState(source) => Some(source),
             Self::Value(source) => Some(source),
             Self::LongValue(source) => Some(source),
             Self::Rows(source) => Some(source),
@@ -157,7 +163,7 @@ impl StdError for CandidateCheckError {
 /// `budget`.
 ///
 /// Unsupported layouts fail with [`CreateDatabaseError::Compose`] before
-/// anything is written: creation-counter overflow, allocation beyond 1,024 pages,
+/// anything is written: creation-counter overflow, exhausted map-reference capacity,
 /// two tables whose names differ only by ASCII case, more than 32 indexes
 /// on a table, or a
 /// name byte above `0x7E`. EXP-0249 bounds table/column names to 64 bytes and
@@ -189,8 +195,8 @@ pub fn create_database(
 
 /// Creates one table containing initial rows in caller order.
 ///
-/// Rows are packed in caller order into data pages within the inline usage-map
-/// capacity. Each row must fit one page; table definitions may span linked
+/// Rows are packed in caller order into data pages within the allocation-map
+/// and resource limits. Each row must fit one page; table definitions may span linked
 /// pages. Pages with a slot and room for an all-null row are marked available;
 /// this construction
 /// policy has not been established as DAO's allocation policy.
@@ -198,7 +204,7 @@ pub fn create_database(
 /// index has one to ten supported scalar columns (including a generated AutoIncrement
 /// column), with each field ascending or descending. Multiple populated indexes
 /// use separate roots/maps and independent trees.
-/// Uncompressed branch/leaf trees grow within the existing inline-map and
+/// Uncompressed branch/leaf trees grow within the allocation-map and
 /// resource limits. Unique indexes reject repeated fully present keys while
 /// allowing repeated null-bearing keys. The index null policy includes keys,
 /// omits all-null keys, or requires every component; primary indexes require
@@ -257,7 +263,7 @@ pub fn create_database_with_rows(
 ///
 /// Each table retains the bounds described by [`create_database_with_rows`]
 /// and [`create_database`]. Tables, their LVAL pages and their row pages are
-/// placed sequentially in input order within the shared inline-map capacity.
+/// placed sequentially in input order within the map-reference and resource limits.
 /// An empty request creates an empty database. Relationships are not included.
 /// Every table and row is checked before publication; existing destinations
 /// remain untouched. This candidate construction has no general DAO guarantee.
@@ -524,29 +530,17 @@ fn check_initial_index_map(
     tree: &crate::IndexTree,
     budget: &mut ResourceBudget,
 ) -> Result<(), CandidateCheckError> {
-    let mut bytes = [0; crate::PAGE_BYTES];
-    let page = database
-        .read_classified_page(location.page(), &mut bytes, budget)
-        .map_err(|error| CandidateCheckError::Definition(TableDefinitionError::Page(error)))?;
-    let record = crate::locate_usage_map(
-        page,
+    let map = crate::mutation_map::MapBits::load(
+        database,
         crate::MapRowLocator::new(location.page(), location.row()),
         budget,
     )
-    .map_err(CandidateCheckError::UsageMap)?;
-    let crate::AllocationMap::Inline(map) = crate::decode_allocation_map(record.raw(), budget)
-        .map_err(CandidateCheckError::Allocation)?
-    else {
-        return Err(CandidateCheckError::Mismatch {
-            detail: "initial index map kind",
-        });
-    };
-    let mut pages = map.allocated_pages(database.geometry());
-    let mut count = 0;
-    while let Some(page) = pages
-        .next_page(budget)
-        .map_err(CandidateCheckError::Allocation)?
-    {
+    .map_err(CandidateCheckError::AllocationState)?;
+    let pages = map
+        .existing_pages(database.geometry().page_count(), false, budget)
+        .map_err(CandidateCheckError::AllocationState)?;
+    let count = pages.len();
+    for page in pages {
         budget
             .charge_work_units(tree.nodes().len() as u64)
             .map_err(CandidateCheckError::Read)?;
@@ -555,7 +549,6 @@ fn check_initial_index_map(
                 detail: "initial index map pages",
             });
         }
-        count += 1;
     }
     if count != tree.nodes().len() {
         return Err(CandidateCheckError::Mismatch {

@@ -384,40 +384,53 @@ impl<'cursor, 'operation, S: ReadAt> LongValueCursor<'cursor, 'operation, S> {
         page: &'cursor mut [u8; PAGE_BYTES],
         reference: LongValueReference,
     ) -> Result<Self, LongValueError> {
-        let maximum = owned.budget_mut().limits().max_chain_depth();
-        let capacity = usize::try_from(maximum).map_err(|_| {
-            LongValueError::Resource(Error::IntegerConversion {
-                value: u128::from(maximum),
-                target: "usize",
-            })
-        })?;
-        let bytes =
-            maximum
-                .checked_mul(size_of::<RowLocator>() as u64)
-                .ok_or(LongValueError::Resource(Error::Arithmetic {
-                    operation: "size long-value visited state",
-                }))?;
-        owned
-            .budget_mut()
-            .charge_allocation(ByteCount::new(bytes))
-            .map_err(LongValueError::Resource)?;
-        let mut visited = Vec::new();
-        visited.try_reserve_exact(capacity).map_err(|_| {
-            LongValueError::Resource(Error::Io {
-                operation: "reserve long-value visited state",
-                kind: std::io::ErrorKind::OutOfMemory,
-            })
-        })?;
         Ok(Self {
             owned,
             page,
             reference,
             next: Some(reference.target),
-            visited,
+            visited: Vec::new(),
             emitted: 0,
             decoded_emitted: 0,
             failed: false,
         })
+    }
+
+    fn reserve_visited(&mut self) -> Result<(), LongValueError> {
+        if self.visited.len() < self.visited.capacity() {
+            return Ok(());
+        }
+        let maximum = self.owned.budget_mut().limits().max_chain_depth();
+        let capacity = (self.visited.capacity().saturating_mul(2).max(1) as u64).min(maximum);
+        let capacity = usize::try_from(capacity).map_err(|_| {
+            LongValueError::Resource(Error::IntegerConversion {
+                value: u128::from(capacity),
+                target: "usize",
+            })
+        })?;
+        let bytes = (capacity - self.visited.capacity())
+            .checked_mul(size_of::<RowLocator>())
+            .ok_or(LongValueError::Resource(Error::Arithmetic {
+                operation: "size long-value visited state",
+            }))?;
+        self.owned
+            .budget_mut()
+            .charge_allocation(ByteCount::new(bytes as u64))
+            .map_err(LongValueError::Resource)?;
+        self.owned
+            .budget_mut()
+            .charge_work_units(
+                (self.visited.len() as u64).saturating_mul(size_of::<RowLocator>() as u64),
+            )
+            .map_err(LongValueError::Resource)?;
+        self.visited
+            .try_reserve_exact(capacity - self.visited.len())
+            .map_err(|_| {
+                LongValueError::Resource(Error::Io {
+                    operation: "reserve long-value visited state",
+                    kind: std::io::ErrorKind::OutOfMemory,
+                })
+            })
     }
 
     pub(crate) fn budget_mut(&mut self) -> &mut ResourceBudget {
@@ -467,6 +480,7 @@ impl<'cursor, 'operation, S: ReadAt> LongValueCursor<'cursor, 'operation, S> {
             .budget_mut()
             .charge_items(1)
             .map_err(LongValueError::Resource)?;
+        self.reserve_visited()?;
         self.visited.push(locator);
         let kind = self
             .owned

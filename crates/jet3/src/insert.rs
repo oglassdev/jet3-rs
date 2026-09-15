@@ -1,8 +1,7 @@
 //! Existing-row insertion composed from EXP-0060/0061 encoding and EXP-0162 slots.
 use crate::{
-    AllocationMap, ColumnPhysicalType, ColumnStorageClass, DatabaseReader, FileSource,
-    InlineAllocationMap, MapRowLocator, PAGE_BYTES, PublishStage, ResourceBudget, RowColumnLayout,
-    RowLocator, RowValue, UpdateError,
+    ColumnPhysicalType, ColumnStorageClass, DatabaseReader, PAGE_BYTES, PublishStage,
+    ResourceBudget, RowColumnLayout, RowLocator, RowValue, UpdateError,
 };
 use std::convert::Infallible;
 use std::error::Error as StdError;
@@ -18,8 +17,9 @@ use std::path::Path;
 /// key types and relationships are refused. Memo/OLE payloads
 /// use independent column maps; raw caller-supplied headers are refused.
 /// If no populated page fits, a released global-free page belonging to this table
-/// is reused, or one EOF page is appended, within existing inline maps. No slot reuse,
-/// map growth or compaction is implemented. An existing selected page must fit
+/// is reused, or one EOF page is appended. Inline maps convert to indirect storage
+/// and missing bitmap slots are allocated within the existing reference row.
+/// Live-page slot reuse and compaction are not implemented. A selected page must fit
 /// the requested row and its directory slot; availability afterward reflects
 /// whether another minimum-length row and slot fit.
 ///
@@ -53,22 +53,6 @@ pub fn insert_row(
     insert_with_hook(path.as_ref(), table, values, budget, |_| {
         Ok::<(), Infallible>(())
     })
-}
-
-fn inline_map<'a>(
-    database: &mut DatabaseReader<FileSource>,
-    locator: MapRowLocator,
-    bytes: &'a mut [u8; PAGE_BYTES],
-    budget: &mut ResourceBudget,
-) -> Result<InlineAllocationMap<'a>, UpdateError> {
-    let page = database
-        .read_classified_page(locator.page(), bytes, budget)
-        .map_err(crate::TableDefinitionError::Page)?;
-    let record = crate::locate_usage_map(page, locator, budget).map_err(UpdateError::UsageMap)?;
-    match crate::decode_allocation_map(record.raw(), budget).map_err(UpdateError::Allocation)? {
-        AllocationMap::Inline(map) => Ok(map),
-        _ => Err(UpdateError::Unsupported("indirect insertion map")),
-    }
 }
 
 fn insert_with_hook<H, HE>(
@@ -146,39 +130,24 @@ where
     if let Some(auto) = auto {
         auto.write(&mut patched_definition, budget)?;
     }
-    let mut owned_bytes = [0; PAGE_BYTES];
-    let owned = inline_map(
-        &mut database,
-        definition.maps().owned(),
-        &mut owned_bytes,
-        budget,
-    )?;
-    let mut available_bytes = [0; PAGE_BYTES];
-    let available = inline_map(
-        &mut database,
-        definition.maps().available(),
-        &mut available_bytes,
-        budget,
-    )?;
-    let geometry = database.geometry();
-    let mut candidates = available.allocated_pages(geometry);
+    let owned =
+        crate::mutation_map::MapBits::load(&mut database, definition.maps().owned(), budget)?;
+    let available =
+        crate::mutation_map::MapBits::load(&mut database, definition.maps().available(), budget)?;
+    if owned.overlaps(&available, budget)? {
+        return Err(UpdateError::Mismatch("aliased table maps"));
+    }
+    let owned_pages = owned.existing_pages(database.geometry().page_count(), false, budget)?;
+    let mut candidates = available
+        .existing_pages(database.geometry().page_count(), false, budget)?
+        .into_iter();
     let mut source_page = [0; PAGE_BYTES];
     let selected = loop {
-        let Some(page) = candidates
-            .next_page(budget)
-            .map_err(UpdateError::Allocation)?
-        else {
+        let Some(page) = candidates.next() else {
             break None;
         };
-        let mut owned_pages = owned.allocated_pages(geometry);
-        let mut member = false;
-        while let Some(owner_page) = owned_pages
-            .next_page(budget)
-            .map_err(UpdateError::Allocation)?
-        {
-            member |= owner_page == page;
-        }
-        if !member {
+        budget.charge_work_units((owned_pages.len().max(1).ilog2() + 1) as u64)?;
+        if owned_pages.binary_search(&page).is_err() {
             return Err(UpdateError::Mismatch("available page not owned"));
         }
         database.read_raw_page(page, &mut source_page, budget)?;
@@ -252,7 +221,7 @@ where
         },
         budget,
     )?;
-    edits.publish(path, database.into_source(), budget, hook)?;
+    edits.publish(path, database, budget, hook)?;
     Ok(row)
 }
 

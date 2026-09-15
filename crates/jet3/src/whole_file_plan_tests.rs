@@ -61,7 +61,7 @@ fn complete_plan_preserves_existing_and_appended_images_in_slot_order() -> TestR
     assert_eq!(plan.page_count(), 22);
     assert_eq!(
         plan_budget.allocation_bytes(),
-        ByteCount::new(planned_page_storage(22))
+        ByteCount::new(planned_page_storage(40))
     );
     assert!(!map.is_set(PageNumber::new(20))?);
     assert!(!map.is_set(PageNumber::new(21))?);
@@ -131,7 +131,7 @@ fn constructor_budget_rejection_precedes_storage_reservation() {
 fn append_budget_rejection_preserves_plan_and_global_map() -> TestResult {
     let existing = existing_images();
     let initial_storage = planned_page_storage(EMPTY_DATABASE_PAGE_COUNT);
-    let appended_storage = planned_page_storage(1);
+    let appended_storage = planned_page_storage(EMPTY_DATABASE_PAGE_COUNT);
     let mut plan_budget = ResourceBudget::new(
         ResourceLimits::new(ReadLimits::default())
             .with_max_allocation_bytes(ByteCount::new(initial_storage)),

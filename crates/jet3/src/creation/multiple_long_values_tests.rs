@@ -419,7 +419,7 @@ fn per_column_header_allocation_is_charged_before_row_encoding() -> TestResult {
 }
 
 #[test]
-fn combined_external_columns_share_the_inline_page_limit() -> TestResult {
+fn combined_external_columns_extend_independent_maps() -> TestResult {
     let directory = TestDirectory::create()?;
     let columns = [NOTE, ColumnSpec::new(b"Blob", ColumnType::LongBinary)];
     let table = TableSpec {
@@ -442,17 +442,14 @@ fn combined_external_columns_share_the_inline_page_limit() -> TestResult {
     assert!(map_bit(&original, 21, 4, 523)?);
     assert!(map_bit(&original, 21, 4, 1022)?);
     assert!(map_bit(&original, 21, 0, 1023)?);
-    assert!(matches!(
-        create_database_with_rows(
-            directory.target(),
-            &table,
-            &[&[first, RowValue::LongBinary(&payload)]],
-            &mut budget()
-        ),
-        Err(CreateDatabaseError::Compose(ComposeError::UsageMap(
-            crate::UsageMapWriteError::PageOutOfMap { .. }
-        )))
-    ));
+    let grown = directory.target().with_file_name("grown.mdb");
+    create_database_with_rows(
+        &grown,
+        &table,
+        &[&[first, RowValue::LongBinary(&payload)]],
+        &mut budget(),
+    )?;
+    assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);
     assert_eq!(fs::read(directory.target())?, original);
     Ok(())
 }

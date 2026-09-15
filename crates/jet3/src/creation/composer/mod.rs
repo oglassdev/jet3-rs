@@ -27,6 +27,9 @@ use crate::{
     TableDefinitionWriteError, UsageMapWriteError, encode_row, encode_table_definition,
 };
 
+mod allocation_maps;
+use allocation_maps::AllocationMaps;
+
 const HEADER_PAGE: u64 = 0;
 const GLOBAL_MAP_PAGE: u64 = 1;
 const MSYS_OBJECTS_ROOT: u64 = 2;
@@ -101,7 +104,7 @@ pub(crate) fn compose_empty_database(
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, ComposeError> {
     let catalog = CatalogPages::new(&[], budget)?;
-    let images = compose_existing_pages(&[], &catalog, budget)?;
+    let images = compose_existing_pages(&[], &catalog, &mut AllocationMaps::inline_only(), budget)?;
     WholeFileImagePlan::from_existing_pages(images, budget).map_err(Into::into)
 }
 
@@ -158,13 +161,14 @@ fn compose_planned_creates(
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, ComposeError> {
     let catalog = CatalogPages::new(creates, budget)?;
-    let images = compose_existing_pages(creates, &catalog, budget)?;
+    let mut maps = AllocationMaps::new(catalog.page_count());
+    let images = compose_existing_pages(creates, &catalog, &mut maps, budget)?;
     let mut plan = WholeFileImagePlan::from_existing_pages(images, budget)?;
-    let mut append_map = global_map(EMPTY_DATABASE_PAGE_COUNT, budget)?;
     for planned in creates {
-        planned.append_pages(&mut plan, &mut append_map, budget)?;
+        planned.append_pages(&mut plan, &mut maps, budget)?;
     }
-    catalog.append(&mut plan, &mut append_map, budget)?;
+    catalog.append(&mut plan, budget)?;
+    maps.finish(&mut plan, budget)?;
     Ok(plan)
 }
 
@@ -206,25 +210,25 @@ pub(crate) fn initial_row_layout(
 fn compose_existing_pages(
     creates: &[PlannedCreate<'_>],
     catalog: &CatalogPages,
+    maps: &mut AllocationMaps,
     budget: &mut ResourceBudget,
 ) -> Result<[PageImage; EMPTY_DATABASE_PAGE_COUNT as usize], ComposeError> {
     let object_count = (SYSTEM_OBJECT_COUNT + creates.len()) as u32;
     let ace_count = (SYSTEM_ACE_COUNT + 2 * creates.len()) as u32;
-    let page_count = catalog.page_count();
     Ok([
         header_page(creates.len(), budget)?,
-        global_map_page(page_count, budget)?,
+        global_map_page(EMPTY_DATABASE_PAGE_COUNT, budget)?,
         msys_objects_definition(object_count, budget)?,
         msys_aces_definition(ace_count, object_count, budget)?,
         msys_queries_definition(budget)?,
         msys_relationships_definition(0, [0; 3], budget)?,
-        catalog.objects_map(creates, budget)?,
+        catalog.objects_map(creates, maps, budget)?,
         single_map_page(&[], budget)?,
-        catalog.names_map(budget)?,
+        catalog.names_map(maps, budget)?,
         catalog.names_root()?,
-        catalog.ids_map(budget)?,
+        catalog.ids_map(maps, budget)?,
         catalog.ids_root()?,
-        catalog.shared_map(budget)?,
+        catalog.shared_map(maps, budget)?,
         catalog.aces_root()?,
         empty_index_page(MSYS_QUERIES_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
@@ -296,13 +300,14 @@ fn objects_map_page(
     creates: &[PlannedCreate<'_>],
     owned: &[u64],
     available: &[u64],
+    maps: &mut AllocationMaps,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
-    let owned = inline_map_row(owned, budget)?;
-    let available = inline_map_row(available, budget)?;
+    let owned = maps.row(owned.iter().copied(), budget)?;
+    let available = maps.row(available.iter().copied(), budget)?;
     let empty = inline_map_row(&[], budget)?;
     let long_value_pages = creates.first().and_then(PlannedCreate::property_page);
-    let lvprop = inline_map_row(long_value_pages.as_slice(), budget)?;
+    let lvprop = maps.row(long_value_pages.into_iter(), budget)?;
     let rows: [&[u8]; 15] = [
         &owned, &available, &empty, &empty, &empty, &empty, &empty, &empty, &empty, &empty,
         &lvprop, &lvprop, &empty, &empty, &empty,
@@ -319,6 +324,7 @@ fn shared_map_page(
         &[MSYS_ACES_DATA_PAGE],
         &[MSYS_ACES_DATA_PAGE],
         &[ACES_OBJECT_ID_ROOT],
+        &mut AllocationMaps::inline_only(),
         budget,
     )
 }
@@ -328,14 +334,15 @@ fn shared_map_page_with_aces(
     ace_owned: &[u64],
     ace_available: &[u64],
     ace_index: &[u64],
+    maps: &mut AllocationMaps,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
-    let ace_owned = inline_map_row(ace_owned, budget)?;
-    let ace_available = inline_map_row(ace_available, budget)?;
-    let ace_index = inline_map_row(ace_index, budget)?;
+    let ace_owned = maps.row(ace_owned.iter().copied(), budget)?;
+    let ace_available = maps.row(ace_available.iter().copied(), budget)?;
+    let ace_index = maps.row(ace_index.iter().copied(), budget)?;
     let empty = inline_map_row(&[], budget)?;
     let query_index = inline_map_row(&[QUERIES_INDEX_ROOT], budget)?;
-    let relation_data = inline_map_row(relationship_pages, budget)?;
+    let relation_data = maps.row(relationship_pages.iter().copied(), budget)?;
     let relation_name = inline_map_row(&[RELATIONSHIPS_NAME_ROOT], budget)?;
     let relation_object = inline_map_row(&[RELATIONSHIPS_OBJECT_ROOT], budget)?;
     let relation_referenced = inline_map_row(&[RELATIONSHIPS_REFERENCED_ROOT], budget)?;

@@ -1,8 +1,8 @@
-//! Exact inline-map membership patches from SRC-0020, EXP-0051/0057/0065/0162.
-use crate::allocation::{AllocationMapLayout, decode_allocation_map_layout};
+//! Exact allocation-map membership patches from SRC-0020, EXP-0051/0057/0065/0162.
+use crate::mutation_map::MapBits;
 use crate::{
-    DatabaseReader, FileSource, MapRowLocator, PAGE_BYTES, PageNumber, ResourceBudget,
-    TableDefinition, UpdateError,
+    DatabaseReader, FileSource, MapRowLocator, PageNumber, ResourceBudget, TableDefinition,
+    UpdateError,
 };
 
 pub(crate) enum AllocationChange {
@@ -61,7 +61,8 @@ pub(crate) fn plan(
         definition.maps().owned(),
         definition.maps().available(),
     ];
-    let mut ranges = std::array::from_fn::<_, 3, _>(|_| 0..0);
+    let mut maps = Vec::new();
+    crate::page_edits::reserve(&mut maps, locators.len(), budget)?;
     for (role, locator) in locators.iter().copied().enumerate() {
         if locator.page() == definition.root()
             || locator.page() == page
@@ -71,39 +72,25 @@ pub(crate) fn plan(
                 "overlapping allocation map references",
             ));
         }
-        let mut bytes = [0; PAGE_BYTES];
-        let classified = database
-            .read_classified_page(locator.page(), &mut bytes, budget)
-            .map_err(crate::TableDefinitionError::Page)?;
-        let record =
-            crate::locate_usage_map(classified, locator, budget).map_err(UpdateError::UsageMap)?;
-        let range = record.range();
-        if (0..role).any(|prior| {
-            locators[prior].page() == locator.page()
-                && range.start < ranges[prior].end
-                && ranges[prior].start < range.end
-        }) {
-            return Err(UpdateError::Mismatch("overlapping allocation map records"));
+        let map = MapBits::load(database, locator, budget)?;
+        for previous in &maps {
+            if map.overlaps(previous, budget)? {
+                return Err(UpdateError::Mismatch("overlapping allocation map storage"));
+            }
         }
-        ranges[role] = range.clone();
-        let AllocationMapLayout::Inline { start_page, bitmap } =
-            decode_allocation_map_layout(record.raw(), budget).map_err(UpdateError::Allocation)?
-        else {
-            return Err(UpdateError::Unsupported("indirect allocation patch map"));
-        };
-        let bit = page
-            .get()
-            .checked_sub(start_page.get())
-            .filter(|bit| *bit / 8 < bitmap.len() as u64)
-            .ok_or(UpdateError::Unsupported("page outside existing inline map"))?;
-        let offset = range.start + bitmap.start + (bit / 8) as usize;
-        let mask = 1_u8 << (bit % 8);
-        let old = bytes[offset];
-        if (old & mask != 0) != expected[role] {
+        let present =
+            if role == 0 && page.get() >= database.geometry().page_count() && !map.represents(page)
+            {
+                true
+            } else {
+                map.contains(page)?
+            };
+        if present != expected[role] {
             return Err(UpdateError::Mismatch(
                 "allocation patch membership mismatch",
             ));
         }
+        maps.push(map);
     }
     Ok(MapPatches {
         locators,
@@ -120,21 +107,5 @@ pub(crate) fn available(
     member: PageNumber,
     budget: &mut ResourceBudget,
 ) -> Result<bool, UpdateError> {
-    let locator = definition.maps().available();
-    let mut bytes = [0; PAGE_BYTES];
-    let page = database
-        .read_classified_page(locator.page(), &mut bytes, budget)
-        .map_err(crate::TableDefinitionError::Page)?;
-    let row = crate::locate_usage_map(page, locator, budget).map_err(UpdateError::UsageMap)?;
-    let AllocationMapLayout::Inline { start_page, bitmap } =
-        decode_allocation_map_layout(row.raw(), budget).map_err(UpdateError::Allocation)?
-    else {
-        return Err(UpdateError::Unsupported("indirect available map"));
-    };
-    let bit = member
-        .get()
-        .checked_sub(start_page.get())
-        .filter(|bit| *bit / 8 < bitmap.len() as u64)
-        .ok_or(UpdateError::Unsupported("page outside existing inline map"))?;
-    Ok(row.raw()[bitmap.start + (bit / 8) as usize] & (1 << (bit % 8)) != 0)
+    MapBits::load(database, definition.maps().available(), budget)?.contains(member)
 }

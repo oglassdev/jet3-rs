@@ -23,11 +23,11 @@ pub struct RowDelete<'a> {
 /// locator and changed trees retain their roots. Surplus index pages remain
 /// reserved for reuse; retained index counters are unchanged.
 /// Slots must be ordinary live rows or known empty `c000` tombstones;
-/// inline maps must consistently identify the page as owned and allocated. Later rows move
+/// allocation maps must consistently identify the page as owned and allocated. Later rows move
 /// upward without changing their physical slot numbers or stored values. The
 /// deleted slot becomes an empty tombstone; existing tombstone flags are retained.
 /// A page containing one live row is released through its existing
-/// inline global/owned/available maps. Its physical slot count is retained and
+/// global/owned/available maps. Its physical slot count is retained and
 /// all slots become empty tombstones. Inconsistent free/count metadata is refused.
 /// On retained unindexed pages, only shifted row bytes, affected directory offsets,
 /// free-byte count, table row count and available membership change. Availability
@@ -158,7 +158,7 @@ where
         index.remove(request.row, budget)?;
         index.stage(&mut database, &definition, &mut edits, budget)?;
     }
-    edits.publish(path, database.into_source(), budget, hook)
+    edits.publish(path, database, budget, hook)
 }
 
 #[cfg(all(test, any(unix, windows)))]

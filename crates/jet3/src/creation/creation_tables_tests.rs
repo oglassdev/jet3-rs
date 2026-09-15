@@ -247,7 +247,7 @@ fn catalog_data_and_index_pages_grow_with_complete_row_locators() -> TestResult 
 }
 
 #[test]
-fn catalog_spill_refuses_exhausted_inline_maps_without_publication() -> TestResult {
+fn catalog_spill_extends_maps_without_overwriting_existing_destination() -> TestResult {
     let directory = TestDirectory::create()?;
     let names = (0..40).map(|n| format!("T{n:02}")).collect::<Vec<_>>();
     let payload = [b'x'; 200];
@@ -273,17 +273,11 @@ fn catalog_spill_refuses_exhausted_inline_maps_without_publication() -> TestResu
     assert_eq!(before.len(), 1024 * crate::PAGE_BYTES);
     requests[39].rows = &rows;
     let result = create_database_with_table_rows(directory.target(), &requests, &mut budget());
-    assert!(
-        matches!(
-            result,
-            Err(CreateDatabaseError::Compose(
-                ComposeError::CatalogPageLimit { maximum: 1024 }
-            ))
-        ),
-        "{result:?}"
-    );
+    assert!(result.is_err());
     assert_eq!(fs::read(directory.target())?, before);
-    assert_eq!(directory.entries()?, ["created.mdb"]);
+    let grown = directory.target().with_file_name("grown.mdb");
+    create_database_with_table_rows(&grown, &requests, &mut budget())?;
+    assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);
     Ok(())
 }
 
