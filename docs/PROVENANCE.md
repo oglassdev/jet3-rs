@@ -17222,3 +17222,171 @@ This establishes the declared finite fixed Text lifecycle with default
 AllowZeroLength false and the EXP-0248 English-US/CP1252 collation. It does not
 establish other collations, empty/all-space Text behavior, every schema or
 relationship combination, universal allocation choices, or full v1 completion.
+
+
+## EXP-0266 — Column AllowZeroLength properties and empty-value storage
+
+The private native suite `/tmp/jet3-empty-values-discovery` extends EXP-0200/0208
+at source `148b9d7dcfc171048c39848828352c492a5be2f7`. Twelve first/later-table
+cases compare explicit false/true variable Text, fixed Text and Memo properties
+through four closed checkpoints each. Three additional cases compare a mixed
+nine-field table with one independent toggle and a 28-field table with long
+names. The producer records complete fields, properties, values, operation
+failures, provider identity and retained MDBs. These are native observations;
+Rust candidate differential acceptance is separate.
+
+- Property payloads begin `KKD\0` and the EXP-0208 33-byte dictionary block
+  naming Required and AllowZeroLength. Named field blocks follow in schema
+  order. A block begins with its total u32 little-endian length, u16 tag 1,
+  nested u32 length `6 + name_bytes`, u16 name length and exact name bytes.
+- Long and OLE blocks contain the nine-byte Required-false record
+  `09 00 01 01 00 00 01 00 00`, giving total length `21 + name_bytes`.
+  Variable Text, fixed Text and Memo prepend the AllowZeroLength record
+  `09 00 01 01 01 00 01 00 VV`, where `VV` is 00 or ff, giving total length
+  `30 + name_bytes`. This confirms the existing 23-byte Id block and extends
+  the named framing to spaces/underscores, mixed types and first/later tables.
+- Otherwise-identical false/true cases differ at exactly the selected Boolean
+  value byte. The mixed table payload is 398 bytes. The long-name case has
+  26 Text fields plus Id and OLE; its 2,276-byte property payload uses the
+  existing chained long-value descriptor and two linked fragments. Property
+  storage remains separate from user Memo/OLE storage.
+- Variable Text and Memo reject an empty insert/update with native 3315 when
+  AllowZeroLength is false, preserving their old rows. With true they retain
+  present zero-byte values, distinct from Null. Fixed Text width 32 accepts an
+  empty assignment under either setting and stores 32 ASCII spaces; short
+  values are right-space-padded. Callers of the fixed-width Rust API continue
+  to supply its exact declared width.
+
+Initial retained source pins (bytes / SHA-256):
+
+| Directory | Artifact | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| native-r1 | matrix.json | 4711 | `af57d29035525b1f0380b0ce4db740f880c5bf56cf7689f50f9389846306d1f0` |
+| native-r1 | producer.ps1 | 15336 | `c4403daeaafd97f045ccb4c646afc39bc56a842c067d86998631c675bad8af8c` |
+| native-r1 | workers.json | 2853 | `497108cf06d12d0a408fa3ee0d426f776e5453c7e4c9983ff84e1955f9301b4e` |
+| multi-native-r3 | multi-matrix.json | 8540 | `3dc60fbe0161376f51972fd53157a221a807831d7d1b4ac4648720810266f443` |
+| multi-native-r3 | multi-producer.ps1 | 20032 | `324d9d716a31a6a995502693c438bf23b872410843f3c323fa86d86bdc22e1d9` |
+| multi-native-r3 | workers.json | 992 | `d79c5e88d9f58f486cd4658e2936f0b36567bf1c19c57aad62c3e89741559034` |
+
+Worker indexes pin every native result, which in turn pins complete captures.
+The two failed mixed-suite setup attempts remain under `multi-native-r1-failed`
+and `multi-native-r2-failed`; an unset diagnostic endpoint and OLE scalar COM
+conversion were corrected before the accepted third acquisition. No arbitrary
+property types, defaults, Required-true constraints or general collation
+semantics are inferred from this Boolean-property matrix. Final raw/map and
+preservation analysis is recorded additively below when complete.
+
+### EXP-0266 final native analysis and corrected OLE seeds
+
+The independent analysis completed all 60 closed images from native-r2
+(`20260915T193345Z-empty-values-r2`, 48 images) and multi-r3 (12 images).
+Complete raw rows/payloads, column properties and their locators, owned/available
+and global maps, provider/capture identities, and exact unrelated Notes Preserve
+bytes passed. These are native observations; Rust candidate acceptance is separate.
+The first single-field run retained valid Text/Memo/property observations, but
+its intended external OLE seeds were Null because of PowerShell scalar-array
+construction. It is superseded only for OLE cleanup. Corrected r2 starts with
+two inline and two 4,096-byte chained OLE values in each repetition. Empty Value
+assignment and DBNull plus empty AppendChunk save Null; all six formerly owned
+pages become globally free, with unchanged EOF and no active LVAL slots.
+Failed multi-field setup and diagnostic runs remain retained.
+
+- Source: `148b9d7dcfc171048c39848828352c492a5be2f7`.
+- Corrected r2 matrix SHA-256:
+  `e8fd7a502d89e705e16a528a600abba4cf7b25f960c0e0b07c819d219cff6f71`;
+  producer `0e0b052a5861cdb9613c6fc841c43675b05fd26b015ac252f4e19bca78f27565`.
+- Final analyzer SHA-256:
+  `5eb93d81a07c9ab61d4c46d5ac38844ff7156cb4d5edf47514a40479f586d508`;
+  report `8d8be2a4e8570726f0d0dfb50a4da24ac82aa0700debf2e08178b391ee8a5f23`.
+- Accepted-pins SHA-256:
+  `5825b1f15978d26b5f45d4136a482c50920519a012a7951f3b8d51468599c0ca`;
+  recursive identities `92b6476a34c71ef7b6aaf7a397356e865e79f400272eef5753d7c53c4d56b781`.
+- Private reproducible scripts, inputs, outputs and analysis archived at
+  `shared/checks/20260915-empty-values-discovery` under the local VM root.
+- Review: GPT-5.6 Sol high; nullable/Required-false, safe ASCII, CP1252,
+  explicit AllowZeroLength false/true, at most two property fragments.
+  Required true, arbitrary default/validation properties and other collations
+  remain outside these observations.
+
+## EXP-0267 — Empty Text/Memo properties and OLE-null lifecycle differentials
+
+Recorded 2026-09-15; accepted local Windows DAO differential at source
+`382e9d1ea2e71c4707bea50f1c438d8cb9cd4e1f`. Native format inputs are EXP-0266.
+The reproducible public-API generator is `crates/jet3/examples/empty_value_candidate.rs`;
+the complete comparison and x86 producer are `empty_value_lifecycle.py/.ps1`
+under `oracle/windows-dao/scripts` with their retained shared helpers.
+The loaded DAO3.6 x86 DLL is 03.60.9765.0, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`,
+on Windows10.0.20348, PowerShell5.1.20348.558, CLR4.0.30319.42000, en-US.
+
+Four cases combine Long primary keys, variable/fixed Text, three independently
+configured Memo columns, OLE, and three scalar/composite indexes. One creates
+Items after Notes; one has 26 additional alternating-option, 64-byte-named Text
+columns; one uses unique Text with an empty key. Each starts with 48 rows.
+Payloads include Null, present-empty, inline and external lengths1/32/33/4096.
+Explicit empty OLE requests go through the writer/DAO setters before expected
+values normalize to Null. The independent physical reader still requires Null,
+so an inline-empty OLE descriptor cannot pass via model normalization.
+
+The mutation run accepts 16 lifecycle/native pairs and three refusal pairs;
+the continuation run accepts four Rust-versus-DAO mutations of DAO-created
+inputs. All 23 pairs / 46 captures match 2,432 Items row observations,
+7,296 complete traversal records and 10,082 finite full-key Seeks. Rust makes
+216 successful lifecycle mutations and 12 native-input continuation mutations.
+Checks include every field/payload, exact schema and field options, physical
+key/locator inventory, historical counters, ownership/availability/global maps,
+337-byte single-page or 2,781-byte two-fragment column properties, and exact
+unrelated Notes definition/data/Memo/maps. Secondary retained-report checks
+require property header, complete payload, fragment locators and page hashes to
+remain identical through all stages/native successors and both native-input outputs.
+
+Rust rejects empty Text/Memo when the selected column disallows it, a duplicate
+empty unique key, and exhausted work budget with whole-image preservation.
+Both DAO roles return exactly3315 for disallowed Text insert/Memo replacement
+and exactly3022 for the duplicate empty key; complete post-failure semantics,
+raw structure and counters match. DAO's failed duplicate insert advances ById
+48→49 while other counters remain45/48. The 3315 cases retain counters48/39/46
+(ById/ByCode/ByPair). Every native failed-write image differs internally from
+its before image; Rust's byte-preserving refusal is an intentional atomicity
+contract, not a claim of identical DAO failure-side bookkeeping.
+
+Both native runs accepted on their first acquisition. Earlier local generator,
+focused-test and preparation attempts remain private; they establish no DAO
+compatibility. The EXP-0266 native producer failures remain historical.
+
+Run `20260915T193714Z-empty-value-acceptance-r1`:
+
+- `empty-value-lifecycle-report.json`: 96,230 bytes; SHA-256 `82daf99401694bc47776a43c9db9bb1978ee491d6dc319681c1036d38eea35c6`.
+- `empty-value-lifecycle.json`: 1,731,747 bytes; SHA-256 `821bdff44c87d56d68589d513135e58a68d85546053ca674bb57bd4942baa533`.
+- `numeric-index-mutation-report.json`: 583,006 bytes; SHA-256 `845efdb2753e89a2b436d011cff9ae145606d162ecff6bfed09fc522a203aebe`.
+- `numeric-index-workers.json`: 2,082 bytes; SHA-256 `4fad9983d5f8cd9692258114f1d20bdf88a961b88105942f3a580cd1351de0d0`.
+- `result.json`: 43,260,852 bytes; SHA-256 `f4f3904fc60899fd4cab416808df9f77401754f302a2b5cba26db4724ea5539d`.
+
+Run `20260915T194103Z-empty-value-continuation-r1`:
+
+- `empty-value-lifecycle-report.json`: 213 bytes; SHA-256 `0ad9e8fbac96abb16d7ecf8bf0b8059e2732ef702465de0e41f026e6f2e7ed04`.
+- `empty-value-lifecycle.json`: 2,398,836 bytes; SHA-256 `e80ea1b012aaa37fc9ce9efbb5893aabc028b2d73fb19a7f184761efbd9c90b3`.
+- `numeric-index-mutation-report.json`: 149,014 bytes; SHA-256 `b83055a42d5706c2b10889730eecaeb4bd240b6216cf423f986fb35fd6182e35`.
+- `numeric-index-workers.json`: 2,081 bytes; SHA-256 `53694b682998a799edbd10b4a1fc4356ffe45771cdcd29a2b6292423f59c982c`.
+- `result.json`: 9,436,866 bytes; SHA-256 `9636ccd56628a89b0a5b13118e261e02a820928d89cc9637fa11a40f3d4fc79c`.
+
+Aggregate and property-preservation summary SHA-256
+`f36246ad1b9e4862b868e7caee7ac78aeee6c0b783d2362fba99afa7ea568a58`;
+secondary script SHA-256
+`a2daffaa7d4d53fccb24b8e258c95d9f1d570f774449e7c0321178ce89840a14`.
+Private candidate inputs, continuation inputs, diagnostics and summary are
+archived at `shared/checks/20260915-empty-value-acceptance`; native images/results
+remain in the named outboxes. No MDB bytes are committed.
+
+Independent GPT-5.6 Sol high production review closed allocation-ownership,
+Text-only publication and chain-depth findings; a separate Sol high harness
+review found no acceptance blockers. Focused tests cover per-column/later-table
+behavior, chained properties, malformed records, map ownership aliases/global
+free conflicts, resource limits and whole-image preservation. Bounds remain
+nullable/Required-false, CP1252, safe ASCII names and at most two tested property
+fragments. Arbitrary property/default/validation grammars, other collations and
+whole-v1 compatibility are not established.
+
+Pre-PR `just ready` passed formatting, Clippy, workspace tests, rustdoc and
+quick acceptance: 1,480 test executions, zero failures. Complete log retained
+as `ready-final.log` in the private acceptance archive.

@@ -20,7 +20,8 @@
 //! `EXP-0087` observed three further creates in the same database, each
 //! appending a definition root numbered equal to its `Id`, then its map page,
 //! then an index root when it carried one index, and no further `LvProp`
-//! page. A later create is therefore planned without the property page.
+//! page. EXP-0266 adds single or chained property pages when a later table
+//! carries explicit column options.
 //! `EXP-0222` combines these page roles with the `EXP-0093` index placements
 //! for up to three indexes on any table.
 //!
@@ -169,15 +170,15 @@ impl std::error::Error for TableSchemaPlanError {
 
 /// The validated page assignment for one new user table.
 ///
-/// The appended run is the definition root, the map page, the `LvProp` page
-/// for the database's first create only, any definition continuations, then
+/// The appended run is the definition root, map pages, any `LvProp` pages,
+/// definition continuations, then
 /// the index roots.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TableSchemaPlan {
     object_id: i32,
     definition_root: PageNumber,
-    /// Whether the run carries the first-create `LvProp` page.
-    property_page: bool,
+    /// Number of single or chained catalog property pages.
+    property_pages: usize,
     /// Exact logical length of the encoded definition.
     definition_len: usize,
     /// Table maps, index maps and independent long-value map pairs.
@@ -214,10 +215,9 @@ impl TableSchemaPlan {
         )
     }
 
-    /// Returns the page holding the catalog row's `LvProp` long value, which
-    /// only the database's first create appends (`EXP-0087`, `EXP-0093`).
+    /// Returns the first catalog property page (EXP-0093/0266).
     pub(crate) const fn property_page(&self) -> Option<PageNumber> {
-        if self.property_page {
+        if self.property_pages != 0 {
             Some(PageNumber::new(
                 self.definition_root.get() + 1 + self.map_page_count() as u64,
             ))
@@ -226,9 +226,13 @@ impl TableSchemaPlan {
         }
     }
 
-    /// Returns the first page after the root, map, and any `LvProp` page.
+    pub(crate) const fn property_page_count(&self) -> usize {
+        self.property_pages
+    }
+
+    /// Returns the first page after the root, map, and any `LvProp` pages.
     const fn after_fixed_pages(&self) -> u64 {
-        self.definition_root.get() + 1 + self.map_page_count() as u64 + self.property_page as u64
+        self.definition_root.get() + 1 + self.map_page_count() as u64 + self.property_pages as u64
     }
 
     /// Returns the exact logical length of the encoded definition.
@@ -271,8 +275,8 @@ impl TableSchemaPlan {
 }
 
 /// Validates `spec` and assigns its appended pages starting at `first_page`,
-/// the database's current page count. Only the database's first create
-/// (`first_create`) appends the catalog row's `LvProp` page.
+/// the database's current page count. The first create reserves a property
+/// page; explicit column options reserve payload pages on any table.
 pub(crate) fn plan_table_schema(
     spec: &TableSpec<'_>,
     first_page: u64,
@@ -432,9 +436,22 @@ fn assign_pages(
             .filter(|column| column.column_type().is_long_value())
             .count();
     let map_pages = map_rows.div_ceil(MAP_ROWS_PER_PAGE);
+    // EXP-0266: column properties also occur on later tables and can be chained.
+    let property_pages = crate::column_properties::ColumnProperties::new(spec.columns).map_or(
+        usize::from(first_create),
+        |properties| {
+            if properties.len() <= crate::long_value_writer::MAX_SINGLE_PAGE_PAYLOAD {
+                1
+            } else {
+                properties
+                    .len()
+                    .div_ceil(crate::long_value_writer::MAX_CHAINED_FRAGMENT)
+            }
+        },
+    );
     let needed = 1
         + map_pages as u64
-        + first_create as u64
+        + property_pages as u64
         + continuation_count(definition_len) as u64
         + spec.indexes.len() as u64;
     // `EXP-0093` numbers the object equal to its definition root, and
@@ -456,7 +473,7 @@ fn assign_pages(
     Ok(TableSchemaPlan {
         object_id,
         definition_root: PageNumber::new(first_page),
-        property_page: first_create,
+        property_pages,
         definition_len,
         map_rows,
         index_fields,

@@ -2,7 +2,7 @@
 use crate::allocation::{AllocationMapLayout, EXTENDED_BITMAP_BITS, decode_allocation_map_layout};
 use crate::page_edits::reserve;
 use crate::{
-    DatabaseReader, FileSource, MapRowLocator, PAGE_BYTES, PageKind, PageNumber, ResourceBudget,
+    DatabaseReader, MapRowLocator, PAGE_BYTES, PageKind, PageNumber, ReadAt, ResourceBudget,
     UpdateError,
 };
 use std::ops::Range;
@@ -23,8 +23,8 @@ pub(crate) struct BitSpan {
 }
 
 impl MapBits {
-    pub fn load(
-        database: &mut DatabaseReader<FileSource>,
+    pub fn load<S: ReadAt>(
+        database: &mut DatabaseReader<S>,
         locator: MapRowLocator,
         budget: &mut ResourceBudget,
     ) -> Result<Self, UpdateError> {

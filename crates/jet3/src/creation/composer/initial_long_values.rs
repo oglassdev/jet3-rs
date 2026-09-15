@@ -71,7 +71,7 @@ fn advance(next: &mut u64, count: usize) -> Result<(), ComposeError> {
 /// The running page number also makes publication's expected headers deterministic.
 pub(crate) fn encode_initial_row(
     layout: &[RowColumnLayout],
-    allow_empty_memo: bool,
+    columns: &[ColumnSpec<'_>],
     values: &[RowValue<'_>],
     row: usize,
     next: &mut u64,
@@ -102,6 +102,26 @@ pub(crate) fn encode_initial_row(
     })?;
     for (ordinal, value) in values.iter().enumerate() {
         budget.charge_items(1)?;
+        if matches!(value, RowValue::Text([]) | RowValue::Memo([]))
+            && matches!(
+                layout[ordinal].storage(),
+                crate::ColumnStorageClass::Variable { .. }
+            )
+            && matches!(
+                (value, layout[ordinal].physical_type()),
+                (RowValue::Text(_), ColumnPhysicalType::Text)
+                    | (RowValue::Memo(_), ColumnPhysicalType::Memo)
+            )
+            && !columns
+                .get(ordinal)
+                .is_some_and(ColumnSpec::allow_zero_length)
+        {
+            return Err(RowWriteError::ZeroLengthNotAllowed {
+                ordinal: ordinal as u16,
+                physical_type: layout[ordinal].physical_type(),
+            }
+            .into());
+        }
         let (payload, expected) = match value {
             RowValue::Memo(payload) => (*payload, ColumnPhysicalType::Memo),
             RowValue::LongBinary(payload) => (*payload, ColumnPhysicalType::LongBinary),
@@ -114,9 +134,10 @@ pub(crate) fn encode_initial_row(
             }
             .into());
         }
-        // EXP-0200: opted-in Memo retains a present zero-length inline value.
-        if payload.is_empty() && !(allow_empty_memo && expected == ColumnPhysicalType::Memo) {
-            return Err(refusal(row, "empty payload"));
+        // EXP-0200: empty OLE saves as null, without a long-value descriptor.
+        if payload.is_empty() && expected == ColumnPhysicalType::LongBinary {
+            lowered[ordinal] = RowValue::Null;
+            continue;
         }
         budget.check_decoded_value(ByteCount::new(payload.len() as u64))?;
         budget.charge_work_units((HEADER_LEN + payload.len().min(INLINE_LIMIT)) as u64)?;

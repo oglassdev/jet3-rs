@@ -357,12 +357,12 @@ fn every_external_column_is_checked_and_refusals_preserve_the_destination() -> T
             Err(CreateDatabaseError::Compose(_))
         ));
     }
-    let opted_in = [NOTE.with_allow_zero_length(), columns[1], columns[2]];
+    let invalid_option = [NOTE, columns[1].with_allow_zero_length(), columns[2]];
     assert!(matches!(
         create_database_with_rows(
             directory.target(),
             &TableSpec {
-                columns: &opted_in,
+                columns: &invalid_option,
                 ..table
             },
             rows,
@@ -399,7 +399,7 @@ fn per_column_header_allocation_is_charged_before_row_encoding() -> TestResult {
     assert!(matches!(
         crate::creation::composer::encode_initial_row(
             &layout,
-            false,
+            table.columns,
             &[RowValue::Memo(b"a"), RowValue::LongBinary(b"bb")],
             0,
             &mut next,

@@ -239,7 +239,12 @@ fn checkpoint(directory: &Path, path: &Path, case: Case, phase: &str) -> Result<
 }
 fn refusals(directory: &Path, path: &Path, case: Case, reports: &mut Vec<String>) -> Result<()> {
     let original = fs::read(path)?;
-    for kind in ["duplicate-later-index", "empty-payload", "chain-budget"] {
+    let invalid_payload = if case.name == "ole" {
+        "caller-header"
+    } else {
+        "empty-payload"
+    };
+    for kind in ["duplicate-later-index", invalid_payload, "chain-budget"] {
         let target = directory.join(format!("{}-refused-{kind}.mdb", case.name));
         fs::write(&target, &original)?;
         let n = if kind == "empty-payload" { 0 } else { 8192 };
@@ -249,7 +254,7 @@ fn refusals(directory: &Path, path: &Path, case: Case, reports: &mut Vec<String>
             .enumerate()
             .map(|(c, t)| payload(999, c, *t, Some(n)))
             .collect::<Vec<_>>();
-        let row = values(
+        let mut row = values(
             case,
             999,
             if kind == "duplicate-later-index" {
@@ -260,6 +265,9 @@ fn refusals(directory: &Path, path: &Path, case: Case, reports: &mut Vec<String>
             true,
             &payloads,
         );
+        if kind == "caller-header" {
+            row[2] = RowValue::LongValue(&[0; 12]);
+        }
         let mut b = if kind == "chain-budget" {
             ResourceBudget::new(ResourceLimits::default().with_max_chain_depth(2))
         } else {

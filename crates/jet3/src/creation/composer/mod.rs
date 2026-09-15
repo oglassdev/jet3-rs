@@ -306,11 +306,32 @@ fn objects_map_page(
     let owned = maps.row(owned.iter().copied(), budget)?;
     let available = maps.row(available.iter().copied(), budget)?;
     let empty = inline_map_row(&[], budget)?;
-    let long_value_pages = creates.first().and_then(PlannedCreate::property_page);
-    let lvprop = maps.row(long_value_pages.into_iter(), budget)?;
+    let long_value_pages = creates
+        .iter()
+        .flat_map(|create| create.property_pages(false));
+    let lvprop = maps.row(long_value_pages, budget)?;
+    let lvprop_available = maps.row(
+        creates
+            .iter()
+            .flat_map(|create| create.property_pages(true)),
+        budget,
+    )?;
     let rows: [&[u8]; 15] = [
-        &owned, &available, &empty, &empty, &empty, &empty, &empty, &empty, &empty, &empty,
-        &lvprop, &lvprop, &empty, &empty, &empty,
+        &owned,
+        &available,
+        &empty,
+        &empty,
+        &empty,
+        &empty,
+        &empty,
+        &empty,
+        &empty,
+        &empty,
+        &lvprop,
+        &lvprop_available,
+        &empty,
+        &empty,
+        &empty,
     ];
     data_page(HEADER_PAGE, &rows, budget)
 }

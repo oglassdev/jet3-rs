@@ -15,9 +15,8 @@
 //! compact `EXP-0107` construction as candidate allocation policy.
 //!
 //! `EXP-0091` supplies the null catalog `LvProp` form with a retained mapped
-//! long-value page. The EXP-0208 Memo opt-in instead populates that page with
-//! its named boolean properties. This composition remains a candidate until
-//! separate DAO validation.
+//! long-value page. EXP-0208/0266 explicit Text/Memo options populate named
+//! boolean properties on any table, using single or chained LVAL pages.
 //!
 //! Each Memo or LongBinary column takes one owned/available map-row pair
 //! (`EXP-0077`). Pairs follow the table and index maps in column order, bounded
@@ -54,25 +53,17 @@ struct InitialDataPage {
 }
 
 impl<'a> PlannedCreate<'a> {
-    /// Plans `spec` as the create that appends at `first_page`; only the
-    /// database's first create carries the `LvProp` page.
+    /// Plans `spec` at `first_page`, including explicit catalog property pages.
     pub(super) fn new(
         spec: &'a TableSpec<'a>,
         first_page: u64,
         first_create: bool,
     ) -> Result<Self, ComposeError> {
         let plan = plan_table_schema(spec, first_page, first_create)?;
-        if spec.columns.iter().any(ColumnSpec::allow_zero_length)
-            && (!first_create
-                || spec.columns.len() != 2
-                || !spec.indexes.is_empty()
-                || spec.columns[0].column_type() != ColumnType::Long
-                || spec.columns[0].name() != b"Id"
-                || spec.columns[0].allow_zero_length()
-                || spec.columns[1].column_type() != ColumnType::Memo
-                || !spec.columns[1].allow_zero_length()
-                || crate::memo_property::MemoProperty::new(spec.columns[1].name()).is_none())
-        {
+        if spec.columns.iter().any(|column| {
+            column.allow_zero_length()
+                && !crate::column_properties::has_zero_length_property(column.physical_type())
+        }) {
             return Err(ComposeError::UnsupportedMemoOption);
         }
 
@@ -132,7 +123,7 @@ impl<'a> PlannedCreate<'a> {
             };
             let length = encode_initial_row(
                 &layout,
-                self.spec.columns.iter().any(ColumnSpec::allow_zero_length),
+                self.spec.columns,
                 row,
                 ordinal,
                 &mut next_payload,
@@ -204,7 +195,7 @@ impl<'a> PlannedCreate<'a> {
     }
 
     pub(super) fn property_header(&self) -> Result<Option<[u8; 12]>, ComposeError> {
-        self.memo_property()
+        self.column_properties()
             .map(|property| {
                 let page = self
                     .plan
@@ -212,7 +203,11 @@ impl<'a> PlannedCreate<'a> {
                     .ok_or(ComposeError::UnsupportedMemoOption)?;
                 crate::long_value_writer::external_long_value_header(
                     property.len(),
-                    crate::ExternalLongValueStorage::SinglePage,
+                    if self.plan.property_page_count() == 1 {
+                        crate::ExternalLongValueStorage::SinglePage
+                    } else {
+                        crate::ExternalLongValueStorage::Chained
+                    },
                     crate::RowLocator::new(page, 0),
                 )
                 .map_err(|_| ComposeError::UnsupportedMemoOption)
@@ -220,18 +215,16 @@ impl<'a> PlannedCreate<'a> {
             .transpose()
     }
 
-    pub(super) fn memo_property(&self) -> Option<crate::memo_property::MemoProperty<'a>> {
-        self.spec
-            .columns
-            .iter()
-            .find(|column| column.allow_zero_length())
-            .and_then(|column| crate::memo_property::MemoProperty::new(column.name()))
+    fn column_properties(&self) -> Option<crate::column_properties::ColumnProperties<'a>> {
+        crate::column_properties::ColumnProperties::new(self.spec.columns)
     }
 
-    /// Returns the page holding the catalog row's `LvProp` long value, present
-    /// only on the database's first create.
-    pub(super) fn property_page(&self) -> Option<u64> {
-        self.plan.property_page().map(|page| page.get())
+    pub(super) fn property_pages(&self, available: bool) -> impl Iterator<Item = u64> + Clone {
+        self.plan
+            .property_page()
+            .filter(|_| !available || self.plan.property_page_count() == 1)
+            .into_iter()
+            .flat_map(|page| page.get()..page.get() + self.plan.property_page_count() as u64)
     }
 
     /// Returns the page count once every appended page is in place.
@@ -322,7 +315,7 @@ impl<'a> PlannedCreate<'a> {
     }
 
     /// Appends the create's pages in `EXP-0093` order: definition root, map
-    /// page, the first create's long-value page, definition continuations,
+    /// pages, catalog property pages, definition continuations,
     /// then the index roots.
     pub(super) fn append_pages(
         &self,
@@ -339,15 +332,7 @@ impl<'a> PlannedCreate<'a> {
         for ordinal in 0..self.plan.map_page_count() {
             plan.append_image(self.map_page_at(ordinal, None, maps, budget)?, budget)?;
         }
-        if self.plan.property_page().is_some() {
-            let mut lval = DataPageBuilder::new_long_value(budget)?;
-            if let Some(property) = self.memo_property() {
-                let mut payload = [0; crate::memo_property::MAX_PAYLOAD];
-                let length = property.encode(&mut payload, budget)?;
-                lval.append_row(&payload[..length], budget)?;
-            }
-            plan.append_image(finish_data_builder(lval, budget)?, budget)?;
-        }
+        self.append_property_pages(plan, budget)?;
         if let Some(first) = self.plan.continuation_page() {
             for (ordinal, payload) in definition.continuations().enumerate() {
                 let image = definition.continuation(first, ordinal, payload, budget)?;
@@ -664,3 +649,6 @@ mod definition_pages;
 #[cfg(test)]
 #[path = "definition_chain_tests.rs"]
 mod definition_chain_tests;
+
+#[path = "column_property_pages.rs"]
+mod column_property_pages;

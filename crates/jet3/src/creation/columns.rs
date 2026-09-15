@@ -135,19 +135,20 @@ impl<'a> ColumnSpec<'a> {
         }
     }
 
-    /// Opts this Memo column into distinct empty-string values.
+    /// Enables distinct empty-string values on this Text or Memo column.
     ///
-    /// Candidate construction from EXP-0200/0208, awaiting DAO validation.
-    /// Supported only on the first unindexed table with Long `Id` followed by
-    /// one Memo column with an ASCII alphanumeric name. Other combinations
-    /// fail composition. Empty OLE remains unsupported.
+    /// The option is independent per column and is stored on first or later,
+    /// indexed or unindexed tables using EXP-0266 named properties. Fixed Text
+    /// accepts the property but still requires exactly its declared byte width.
+    /// Other column types reject the option. Empty OLE payloads store null
+    /// without an option.
     #[must_use]
     pub const fn with_allow_zero_length(mut self) -> Self {
         self.allow_zero_length = true;
         self
     }
 
-    /// Whether distinct empty Memo strings were requested.
+    /// Whether distinct empty Text or Memo strings were requested.
     #[must_use]
     pub const fn allow_zero_length(&self) -> bool {
         self.allow_zero_length

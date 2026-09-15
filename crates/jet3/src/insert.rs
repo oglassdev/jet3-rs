@@ -105,6 +105,7 @@ where
         }
         *target = column.into();
     }
+    crate::empty_value_policy::check(&mut database, &definition, values, budget)?;
     let mut long_values =
         crate::long_value_mutation::LongValues::load(&mut database, &definition, None, budget)?;
     let mut encoded = [0; PAGE_BYTES];

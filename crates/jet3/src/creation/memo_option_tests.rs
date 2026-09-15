@@ -3,6 +3,9 @@ use super::TestDirectory;
 use crate::{ByteCount, ColumnOrdinal, ColumnSpec, ColumnType, ResourceLimits, RowValue};
 use std::fs;
 
+#[path = "empty_value_options_tests.rs"]
+mod empty_options;
+
 fn budget() -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::default())
 }
@@ -15,8 +18,9 @@ fn columns(name: &[u8]) -> [ColumnSpec<'_>; 2] {
 
 #[test]
 fn memo_property_encoder_matches_observed_named_block() -> Result<(), Box<dyn StdError>> {
-    let property = crate::memo_property::MemoProperty::new(b"M").ok_or("name")?;
-    let mut output = [0; crate::memo_property::MAX_PAYLOAD];
+    let fields = columns(b"M");
+    let property = crate::column_properties::ColumnProperties::new(&fields).ok_or("name")?;
+    let mut output = [0; 154];
     let n = property.encode(&mut output, &mut budget())?;
     let expected = "4b4b4400210000008000080052657175697265640f00416c6c6f775a65726f4c656e67746817000000010008000000020049640900010100000100001f00000001000700000001004d0900010101000100ff090001010000010000";
     let decoded: Result<Vec<_>, _> = expected
@@ -36,8 +40,9 @@ fn memo_property_encoder_matches_observed_named_block() -> Result<(), Box<dyn St
             .encode(&mut output, &mut ResourceBudget::new(limited))
             .is_err()
     );
-    for invalid in [b"".as_slice(), b"bad name", &[b'x'; 65], &[0xff]] {
-        assert!(crate::memo_property::MemoProperty::new(invalid).is_none());
+    for invalid in [b"".as_slice(), &[b'x'; 65], &[0xff]] {
+        let fields = columns(invalid);
+        assert!(crate::column_properties::ColumnProperties::new(&fields).is_none());
     }
     Ok(())
 }
@@ -129,7 +134,7 @@ fn memo_option_publishes_distinct_empty_null_and_nonempty() -> Result<(), Box<dy
 }
 
 #[test]
-fn memo_option_refuses_unimplemented_schema_and_default_empty() -> Result<(), Box<dyn StdError>> {
+fn memo_option_refuses_nontext_types_and_default_empty() -> Result<(), Box<dyn StdError>> {
     let dir = TestDirectory::create()?;
     let invalids = [
         [
@@ -140,11 +145,6 @@ fn memo_option_refuses_unimplemented_schema_and_default_empty() -> Result<(), Bo
             ColumnSpec::new(b"Id", ColumnType::Long),
             ColumnSpec::new(b"M", ColumnType::LongBinary).with_allow_zero_length(),
         ],
-        [
-            ColumnSpec::new(b"Other", ColumnType::Long),
-            ColumnSpec::new(b"M", ColumnType::Memo).with_allow_zero_length(),
-        ],
-        columns(b"bad name"),
     ];
     for (n, columns) in invalids.iter().enumerate() {
         let path = dir.path.join(n.to_string());
@@ -185,11 +185,6 @@ fn memo_option_refuses_unimplemented_schema_and_default_empty() -> Result<(), Bo
         columns: &opted,
         indexes: &[],
     };
-    assert!(matches!(
-        create_database(dir.path.join("later"), &[table, later], &mut budget()),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::UnsupportedMemoOption
-        ))
-    ));
+    create_database(dir.path.join("later"), &[table, later], &mut budget())?;
     Ok(())
 }
