@@ -60,6 +60,8 @@ Creation and updates remain partial: schema combinations, index key types,
 allocation, and relationship mutation are restricted. Publication supports Unix
 and Windows. Windows flushes the file before publication without a separate
 directory-sync guarantee.
+Creation produces identical MDB bytes for the same ordered request and library
+version, independently of the destination path and successful resource limits.
 The read-only library and CLI validator check user-table rows, values, index
 membership and supported scalar key semantics within a shared budget. It checks
 key completeness, null rules, uniqueness and branch bounds, and reports indexes

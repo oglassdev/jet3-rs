@@ -356,3 +356,6 @@ mod creation_tables;
 
 #[path = "wide_variable_tests.rs"]
 mod wide_variable;
+
+#[path = "determinism_tests.rs"]
+mod determinism;

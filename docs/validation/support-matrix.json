@@ -362,9 +362,14 @@
     },
     {
       "id": "output.deterministic_configuration",
-      "implementation": "not_started",
-      "verification": "unverified",
-      "evidence": []
+      "implementation": "implemented",
+      "verification": "internal_only",
+      "evidence": [
+        "crates/jet3/src/creation/mod.rs",
+        "crates/jet3/src/creation/determinism_tests.rs",
+        "crates/jet3/src/creation/composer/catalog_rows.rs",
+        "crates/jet3/src/creation/composer/composer_tests.rs"
+      ]
     },
     {
       "id": "safety.malformed_input_bounds_and_limits",

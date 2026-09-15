@@ -50,6 +50,13 @@ and roadmap #75 remain open.
 
 ### Creation
 
+Creation is deterministic by default: the same ordered request and library
+version produce identical MDB bytes, independently of destination paths and
+successful resource limits. Public API tests cover empty files, multi-page
+catalogs and definitions, generated IDs, composite indexes, Memo/OLE payloads
+and relationship metadata. This is an internal output guarantee; it adds no DAO
+compatibility claim. No separate output configuration is required.
+
 Creation packs tables with multi-page system catalogs and catalog indexes
 with inline and indirect allocation maps. Table and column names admit
 64 ASCII bytes and index names admit 63. Table definitions may
@@ -237,8 +244,7 @@ schema. This covers appended variable columns with an unchanged fixed prefix.
 - Cover remaining DAO inventories, stored-query preservation and broader
   failure/rollback behavior. Local VM and hosted runs may both establish
   evidence; preregistration and per-run approval are not required.
-- Extend validation to the remaining integrity checks; resolve deterministic-
-  output configuration, currently marked not started in the support ledger.
+- Extend validation to the remaining integrity checks.
 - Meet all three release gates on a release commit. Evidence covers its recorded
   revisions and finite recipes; no whole-v1 compatibility is claimed.
 
