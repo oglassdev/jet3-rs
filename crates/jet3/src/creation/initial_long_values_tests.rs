@@ -91,6 +91,31 @@ fn multiple_payloads_and_data_pages_keep_distinct_references() -> TestResult {
 }
 
 #[test]
+fn empty_ole_creation_has_the_same_storage_as_null() -> TestResult {
+    let null = TestDirectory::create()?;
+    let empty = TestDirectory::create()?;
+    let columns = [ID, ColumnSpec::new(b"Payload", ColumnType::LongBinary)];
+    let table = TableSpec {
+        name: b"Items",
+        columns: &columns,
+        indexes: &[],
+    };
+    for (directory, value) in [(&null, RowValue::Null), (&empty, RowValue::LongBinary(b""))] {
+        create_database_with_rows(
+            directory.target(),
+            &table,
+            &[
+                &[RowValue::Long(1), value],
+                &[RowValue::Long(2), RowValue::LongBinary(b"x")],
+            ],
+            &mut budget(),
+        )?;
+    }
+    assert_eq!(fs::read(empty.target())?, fs::read(null.target())?);
+    Ok(())
+}
+
+#[test]
 fn payload_refusals_and_resource_limits_preserve_destination() -> TestResult {
     let directory = TestDirectory::create()?;
     let columns = [ColumnSpec::new(b"Payload", ColumnType::LongBinary)];
@@ -106,14 +131,17 @@ fn payload_refusals_and_resource_limits_preserve_destination() -> TestResult {
         &mut budget(),
     )?;
     let original = fs::read(directory.target())?;
-    for value in [RowValue::LongBinary(&[]), RowValue::LongValue(&[0; 12])] {
-        assert!(matches!(
-            create_database_with_rows(directory.target(), &table, &[&[value]], &mut budget()),
-            Err(CreateDatabaseError::Compose(
-                ComposeError::InitialLongValue { .. }
-            ))
-        ));
-    }
+    assert!(matches!(
+        create_database_with_rows(
+            directory.target(),
+            &table,
+            &[&[RowValue::LongValue(&[0; 12])]],
+            &mut budget()
+        ),
+        Err(CreateDatabaseError::Compose(
+            ComposeError::InitialLongValue { .. }
+        ))
+    ));
     assert!(matches!(
         create_database_with_rows(
             directory.target(),

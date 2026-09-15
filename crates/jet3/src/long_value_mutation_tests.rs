@@ -769,3 +769,6 @@ fn overflow_rows_preserve_complete_payloads_and_column_ownership() -> TestResult
     fixture.validate()?;
     Ok(())
 }
+
+#[path = "empty_long_value_mutation_tests.rs"]
+mod empty;

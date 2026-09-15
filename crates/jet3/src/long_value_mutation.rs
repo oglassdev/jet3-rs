@@ -120,6 +120,11 @@ impl LongValues {
                 }
                 .into());
             }
+            // EXP-0200: empty OLE saves as null, without a long-value descriptor.
+            if payload.is_empty() && kind == ColumnPhysicalType::LongBinary {
+                lowered[ordinal] = RowValue::Null;
+                continue;
+            }
             if payload.is_empty() {
                 return Err(UpdateError::Unsupported("empty long-value payload"));
             }

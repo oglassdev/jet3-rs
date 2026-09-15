@@ -114,6 +114,11 @@ pub(crate) fn encode_initial_row(
             }
             .into());
         }
+        // EXP-0200: empty OLE saves as null, without a long-value descriptor.
+        if payload.is_empty() && expected == ColumnPhysicalType::LongBinary {
+            lowered[ordinal] = RowValue::Null;
+            continue;
+        }
         // EXP-0200: opted-in Memo retains a present zero-length inline value.
         if payload.is_empty() && !(allow_empty_memo && expected == ColumnPhysicalType::Memo) {
             return Err(refusal(row, "empty payload"));

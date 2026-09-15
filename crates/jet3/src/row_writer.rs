@@ -106,7 +106,7 @@ pub enum RowValue<'a> {
     /// Memo payload in database-code-page bytes, for database creation and row mutations.
     /// The standalone row encoder requires the lower-level `LongValue` form.
     Memo(&'a [u8]),
-    /// OLE payload bytes, for `create_database_with_rows`.
+    /// OLE payload bytes for database creation and row mutations; empty saves as null.
     /// The standalone row encoder requires the lower-level `LongValue` form.
     LongBinary(&'a [u8]),
     /// Already-encoded Memo/OLE header plus inline payload.
