@@ -16403,3 +16403,35 @@ by this native-only discovery.
   - report: 2,272,459 bytes, SHA-256 `47aa66ab87ed31557091f67d27cf7b909c72b2aeec1a3ed7acfb975a95f7e8b5`.
 - This establishes finite index limits and map-locator facts, not candidate
   creation/mutation acceptance or full-v1 compatibility.
+
+## EXP-0253 — Native index limits and multiple map-page lifecycles
+
+- Initial candidate source `c817de7`: the 4/13/14/32-index cases pass all
+  three Rust checkpoints and their native successor pairs (16 pairs,
+  32 captures), including full composite Seek for 3/9/10 fields. The mixed
+  ten-type case fails during native control creation at Text field J with
+  `Specified cast is not valid`, HRESULT -2147467262. There is no candidate
+  outcome for that case, and the index-capacity run remains failed.
+- The independent Memo/OLE suite at the same source accepts all eight cases:
+  16 pairs (32 captures) including native successors. New first/later-table
+  cases combine eight payload columns with three/two numeric indexes and
+  generated IDs. Packed map rows span two pages, including an ownership/
+  availability pair split at row 14/0. Full schema, every payload byte,
+  directed traversal/Seek, raw key/locator records, map ownership and unrelated
+  Notes payloads match. Existing six cases remain accepted.
+- Initial identities:
+  - `index-capacity`, outbox `20260915T101615Z-index-capacity-33f71c`:
+    result: 1,134,711 bytes, SHA-256 `773d19a7000f60a08c9003e8d481ed557e4c8319d238d9f5a3c617dd4bf91a45`.
+    comparison: 81,407 bytes, SHA-256 `149a550c5b58498b07c2453862f69ed90f5c1ffb31317d39e82f95e352e59940`.
+  - `multiple-long-values`, outbox `20260915T101652Z-multiple-long-val-b649e8`:
+    result: 24,705,569 bytes, SHA-256 `2901bfcb8ab996840e5a71988f407cd6fe7fb31becc2378c8a74d251f15bdb3d`.
+    comparison: 253,978 bytes, SHA-256 `967c701d9aa05077f46ddc71b071bec9daccf3efe2af6c49785629140cb9c2c2`.
+- Assignment diagnostic `20260915T101900Z-mixed-assignment` repeats the complete
+  24-row mixed control with the original setter and with reflection-based COM
+  property assignment, in that order within one fresh process. The original
+  fails at J with the same HRESULT; explicit property dispatch completes.
+  Result: 1,502 bytes, SHA-256 `61534258147abc25ca945f205c99903b2aad5a876539006b62421c11bdfd22ae`.
+  This identifies a usable assignment path, not full mixed-case acceptance or
+  the cause of the runtime's cast failure. The successor producer uses that
+  path for typed values and retains exact Currency conversion. All earlier
+  files remain unchanged.

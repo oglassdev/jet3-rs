@@ -17,6 +17,19 @@ foreach ($source in @($helper, $scalarHelper)) {
         Invoke-Expression $found[0].Extent.Text
     }
 }
+function Set-Cell($Recordset, $Case, [int]$Column, $Value) {
+    $spec = $Case.fields[$Column]; $fields = $Recordset.Fields; $field = $null
+    try {
+        $field = $fields.Item([string]$spec[0])
+        $script:endpoint = "$($Case.name)/assign/$($spec[0])"
+        $converted = Variant ([int]$spec[1]) $Value
+        if ([int]$spec[1] -eq 5 -and $null -ne $Value) {
+            $converted = [decimal]([decimal]$Value / [decimal]10000)
+        }
+        $arguments = [object[]]::new(1); $arguments[0] = $converted
+        [void]$field.GetType().InvokeMember('Value', [Reflection.BindingFlags]::SetProperty, $null, $field, $arguments)
+    } finally { Release $field; Release $fields }
+}
 function Seek-Composite($Recordset, $Case, $Index, $Query) {
     if ($Query.Count -ne $Index.fields.Count) { throw 'Incomplete composite Seek arguments' }
     $values = [object[]]::new($Query.Count)
