@@ -33,6 +33,8 @@ def record_width(record, fields):
 
 
 index.record_width = record_width
+# Catalog ASCII names are bounded below the whole-key shortening threshold.
+index.shortened_record = lambda record, fields, branch: False
 
 
 def long_key(value): return b'\x7f' + ((value & 0xffffffff) ^ 0x80000000).to_bytes(4, 'big')

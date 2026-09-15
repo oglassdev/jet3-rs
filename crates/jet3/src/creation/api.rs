@@ -157,10 +157,12 @@ impl StdError for CandidateCheckError {
 /// `budget`.
 ///
 /// Unsupported layouts fail with [`CreateDatabaseError::Compose`] before
-/// anything is written: more than 127 tables, allocation beyond 1,024 pages,
+/// anything is written: creation-counter overflow, allocation beyond 1,024 pages,
 /// two tables whose names differ only by ASCII case, more than three indexes
 /// on a table, table/index/long-value maps exceeding their shared page, or a
-/// name byte above `0x7E`. Table definitions use linked pages within the same
+/// name byte above `0x7E`. EXP-0249 bounds table/column names to 64 bytes and
+/// index names to 63; it establishes the 16-bit creation counter carry.
+/// Table definitions use linked pages within the same
 /// allocation and resource limits, including indexed and later tables.
 pub fn create_database(
     path: impl AsRef<Path>,

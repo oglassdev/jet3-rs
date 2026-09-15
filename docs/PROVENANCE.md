@@ -16266,3 +16266,106 @@ planner tests, 14 table-composition tests and 19 table-definition reader tests.
   It does not establish other Text collations, fixed Text keys, undefined
   CP1252 characters, general schema changes or full-v1 compatibility. The two
   earlier failed acquisitions remain independent recorded outcomes.
+
+## EXP-0249 — Native creation state and ASCII name boundaries
+
+Two replicas of same-handle and close/reopen-after-each histories created fresh
+Jet 3 databases, stopping independently at 0, 1, 2, 126, 127, 128, 129, 254,
+255, 256 and 257 empty one-Long-column tables. All 44 immutable final images
+matched their complete DAO schema and raw system catalog row/index/map model.
+All 256 two-byte commit-state words matched between replicas of each history.
+
+With the first table created through the CreateDatabase handle, word zero at
+[1536,1538) was 0x0101 for an empty file and 0x0103 for each nonempty file. The
+same-handle history retained word one at [1538,1540) as 0x0100 through 257 tables.
+The reopen history had word one 0x0100 + 2*(n-1), including 128→0x01fe,
+129→0x0200, 256→0x02fe and 257→0x0300. The remaining 254 words stayed 0x0100.
+
+A minimal successor closed the empty database first, then reopened before
+each table creation, matching the current writer's prior observed history.
+Two replicas at 127, 128, 255 and 256 tables all matched full schema and raw
+catalog checks. Word zero stayed 0x0101; word one was 0x0100+2*n: 0x01fe,
+0x0200, 0x02fe and 0x0300 respectively. The remaining 254 words stayed 0x0100.
+This establishes carry within the two-byte slot in these histories, not an
+8-bit wrap, arbitrary session-slot selection, or a 16-bit wrap policy.
+
+The name matrix independently created a table, column or primary index named
+N + repeated lowercase a + Z at lengths 57, 58, 63, 64 and 65, with two replicas.
+Table and column lengths through 64 passed exact metadata, rows, ordered index
+traversal and present/absent Seek. Length 65 was refused at CreateTableDef or
+CreateField with Invalid argument (HRESULT -2146825287). Index lengths 57, 58
+and 63 passed; length 65 was refused at CreateIndex with that same error.
+
+Both 64-byte index-name cases created the exact schema, inserted rows 2 and 1,
+and traversed them as 1 and 2. Their first absent Seek(0) failed with Reserved
+error (-1038), HRESULT -2146825288. Independent retained-image analysis found
+exact full logical names, rows and complete raw numeric key/locator records.
+This is a partial native failure and does not establish full 64-byte index-name
+support.
+
+The initial acquisition failed before appending any table because live DAO
+handles deny host FileStream header reads; an unset diagnostic endpoint first
+masked that error. Both failed outputs remain retained. Successors used
+independent stopping-count files and read only closed images. They made no
+permission modifications or raw byte patches.
+
+Inputs: checks/20260915-creation-capacity-r2 and -r3; outcomes:
+outbox/20260915T091100Z-creation-capacity and
+outbox/20260915T091900Z-creation-capacity. Provider: x86 DAO.DBEngine.36 3.6,
+dao360.dll 03.60.9765.0, SHA-256
+4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac.
+
+R2 result SHA-256:
+b26e49ed423464256dcc62ec340090d6e210b6e287729b969a5095064336c7fd
+R2 comparison SHA-256:
+fc95df924f8933869bcd39eda77868f9dd3b68b7da8ab0e2d37160af4d35ab0e
+R3 result SHA-256:
+5f6723430c9566d40cc62c08a37017be1cbd6d797da4d699ecf3087ae5d5c8bc
+R3 comparison SHA-256:
+fe56a423e8dcc7fb09f2fa3bea057ec1fc22849dbe40b389c237537d02707142
+Separate index64-read-analysis.json SHA-256:
+13506d24b0e7ee4f657f2ba3cf795918cce24cecc19b4188d04e92c01d33ae33
+
+The scripts, recipe, source/helper identities, provider probes, all successful
+and refused outcomes, and all closed MDB identities remain in these roots.
+No candidate writer compatibility or support-matrix movement is established
+by this native-only discovery.
+
+## EXP-0251 — Creation counter/name boundaries and native successors
+
+- Candidate source `5a7a3f5`: ten creation cases in two replicas, including
+  128/255/256 tables and 64-byte table/column names with 63-byte index names.
+  Every case also receives native insertions on its first and last table.
+  Outbox `20260915T095619Z-creation-tables-77360f` retains all 80 complete,
+  successful native captures, but the overall comparison fails: the native
+  successor analyzer used an older catalog-discovery helper that refuses
+  active overflow rows. The failure is `table 2 page 18 row 21: active overflow
+  rows are outside this experiment`; there is no accepted candidate outcome
+  from this run.
+- The successor analyzer reads the native catalog through the existing
+  EXP-0228/0241 overflow-aware catalog decoder. This retains complete system
+  row payload, ownership, hidden-target and index-key/locator checks. A local
+  diagnostic passes those checks on all 40 retained native successors; the
+  original failed comparison is unchanged. A fresh run binds the correction.
+- Failed run identities:
+  - manifest: 180,470 bytes, SHA-256 `d29f7271012a45496caf4f4593a3eeb0ad0e6f62902b46e99dae22d18b61ef34`.
+  - native result: 31,418,867 bytes, SHA-256 `f1f416a1b90393514095e45f9cf0b39d4562d292e7d8eaf17d2181925ef5f160`.
+  - comparison: 466,830 bytes, SHA-256 `311af05af607dffddaa05c35fdaaafe8deb14b8d60279e168677835d20e684f2`.
+- Accepted successor source `503255d361636c9d71577416e318415eebda9052`, outbox
+  `20260915T095827Z-creation-tables-4b27bb`: all ten cases in two replicas pass,
+  including native insertions on both outputs. All 40 paired comparisons
+  (80 captures) match complete table/column/index names, schema, rows,
+  traversal and Seek. The independent raw comparison checks user definitions,
+  values, key/locator records and disjoint maps; complete system catalogs,
+  ACE rows and indexes; global free pages; and the 16-bit creation-counter word.
+  Native successors include overflow catalog records, decoded with their
+  complete original logical locators and hidden storage ownership.
+- Accepted identities:
+  - manifest: 180,470 bytes, SHA-256 `b88797229187b06acc1ce91ca14dfb304323b94f98556cca4368a1e224abe2b6`.
+  - native result: 31,418,867 bytes, SHA-256 `9a7626ce9bf362c873c08a1ec46a548b755ee7e67d4fa9d0960bc4a6e1df604c`.
+  - comparison: 4,980,802 bytes, SHA-256 `d243d41a65f90f78951cb170793aa5100eebfcff2448b473835f39add6baace1`.
+- The admitted creator counter follows the EXP-0249 16-bit carry rule, with
+  actual creation still bounded by the 1,024-page allocation inventory. Table
+  and column names admit at most 64 ASCII bytes; logical index names admit
+  at most 63. The native 64-byte index-name Seek failure in EXP-0249 remains
+  outside the admitted writer schema. No full-v1 compatibility is claimed.

@@ -45,8 +45,9 @@ and the remaining host prerequisites.
 ## Status
 
 The reader has hosted DAO differential evidence for its documented capability
-inventory. Creation admits up to 127 tables with multi-page system catalogs,
-within the existing 1,024-page allocation limit. Linked table definitions support
+inventory. Creation packs tables and multi-page system catalogs within a
+1,024-page allocation limit. Table and column names admit 64 ASCII bytes;
+index names admit 63. Linked table definitions support
 first and later tables, initial rows, and indexes within shared map capacities.
 It supports initial rows, explicit/generated AutoIncrement IDs, independent
 Memo/OLE columns, up to three scalar indexes (including Date, Binary, Text and GUID), and a restricted two-table

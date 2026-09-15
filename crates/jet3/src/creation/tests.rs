@@ -294,7 +294,7 @@ fn a_definition_spanning_one_continuation_is_created_and_reopens() -> TestResult
 }
 
 #[test]
-fn creation_counter_and_case_folded_duplicates_are_refused_before_writing() -> TestResult {
+fn case_folded_duplicates_are_refused_before_writing() -> TestResult {
     let directory = TestDirectory::create()?;
     let target = directory.target();
     let table = |name: &'static [u8]| TableSpec {
@@ -302,24 +302,6 @@ fn creation_counter_and_case_folded_duplicates_are_refused_before_writing() -> T
         columns: &[ID],
         indexes: &[],
     };
-    let names = (0..128).map(|n| format!("T{n:02}")).collect::<Vec<_>>();
-    let tables = names
-        .iter()
-        .map(|name| TableSpec {
-            name: name.as_bytes(),
-            columns: &[ID],
-            indexes: &[],
-        })
-        .collect::<Vec<_>>();
-    assert!(matches!(
-        create_database(&target, &tables, &mut budget()),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::TableCountOverflow {
-                count: 128,
-                maximum: 127
-            }
-        ))
-    ));
     let duplicate = [table(b"Alpha"), table(b"ALPHA")];
     match create_database(&target, &duplicate, &mut budget()) {
         Err(CreateDatabaseError::Compose(ComposeError::DuplicateTableName {

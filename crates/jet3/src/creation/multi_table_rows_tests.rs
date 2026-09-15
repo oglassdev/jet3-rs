@@ -161,9 +161,9 @@ fn table_limit_duplicate_names_and_later_failure_preserve_destination() -> TestR
     create_database_with_table_rows(directory.target(), &[first, second], &mut budget())?;
     let original = fs::read(directory.target())?;
     assert!(matches!(
-        create_database_with_table_rows(directory.target(), &[first; 128], &mut budget()),
+        create_database_with_table_rows(directory.target(), &vec![first; 32640], &mut budget()),
         Err(CreateDatabaseError::Compose(
-            ComposeError::TableCountOverflow { count: 128, .. }
+            ComposeError::TableCountOverflow { count: 32640, .. }
         ))
     ));
     let duplicate = TableRows {

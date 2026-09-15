@@ -11,53 +11,124 @@ function Identity([string]$Path) {
 }
 function Failure($Record) { return @{ endpoint = $script:endpoint; message = $Record.Exception.Message; hresult = $Record.Exception.HResult } }
 function Read-Row($Recordset, $Table) {
-    $values = [object[]]::new($Table.columns.Count)
-    for ($i = 0; $i -lt $values.Length; $i++) { $values[$i] = [int]$Recordset.Fields.Item([string]$Table.columns[$i]).Value }
+    $values = [object[]]::new($Table.columns.Count); $fields = $Recordset.Fields; $field = $null
+    try {
+        for ($i = 0; $i -lt $values.Length; $i++) {
+            $field = $fields.Item([string]$Table.columns[$i]); $values[$i] = [int]$field.Value
+            Release $field; $field = $null
+        }
+    } finally { Release $field; Release $fields }
     return ,$values
 }
+
 function Read-Rows($Recordset, $Table) {
     $rows = New-Object Collections.ArrayList
     while (-not $Recordset.EOF) { [void]$rows.Add((Read-Row $Recordset $Table)); $Recordset.MoveNext() }
     return ,([object[]]$rows.ToArray())
 }
+function Read-Names($Collection) {
+    $item = $null; $names = @()
+    try {
+        for ($i = 0; $i -lt $Collection.Count; $i++) {
+            $item = $Collection.Item($i); $names += [string]$item.Name
+            Release $item; $item = $null
+        }
+    } finally { Release $item; Release $Collection }
+    return $names
+}
+function Read-Fields($Table) {
+    $fields = $Table.Fields; $field = $null; $items = @()
+    try {
+        for ($i = 0; $i -lt $fields.Count; $i++) {
+            $field = $fields.Item($i)
+            $items += @{ name = [string]$field.Name; type = [int]$field.Type; size = [int]$field.Size; attributes = [int]$field.Attributes;
+                         required = [bool]$field.Required; default_value = [string]$field.DefaultValue }
+            Release $field; $field = $null
+        }
+    } finally { Release $field; Release $fields }
+    return $items
+}
+function Read-Indexes($Table) {
+    $indexes = $Table.Indexes; $index = $fields = $field = $null; $items = @()
+    try {
+        for ($i = 0; $i -lt $indexes.Count; $i++) {
+            $index = $indexes.Item($i); $fields = $index.Fields; $keys = @()
+            for ($j = 0; $j -lt $fields.Count; $j++) {
+                $field = $fields.Item($j)
+                $keys += @{name = [string]$field.Name; attributes = [int]$field.Attributes}
+                Release $field; $field = $null
+            }
+            Release $fields; $fields = $null
+            $items += @{ name = [string]$index.Name; primary = [bool]$index.Primary; unique = [bool]$index.Unique; required = [bool]$index.Required;
+                         foreign = [bool]$index.Foreign; ignore_nulls = [bool]$index.IgnoreNulls; fields = $keys }
+            Release $index; $index = $null
+        }
+    } finally { Release $field; Release $fields; Release $index; Release $indexes }
+    return $items
+}
+
 function New-Control([string]$Path, $Arm) {
-    $engine = $workspace = $db = $table = $field = $index = $key = $rs = $null
+    $engine = $workspaces = $workspace = $db = $tables = $table = $fields = $field = $indexes = $index = $keys = $key = $rs = $null
     try {
         $engine = New-Object -ComObject DAO.DBEngine.36
-        $workspace = $engine.Workspaces.Item(0)
+        $workspaces = $engine.Workspaces; $workspace = $workspaces.Item(0)
         $script:endpoint = 'create_database'
-        $db = $workspace.CreateDatabase($Path, ';LANGID=0x0409;CP=1252;COUNTRY=0', 32)
+        $db = $workspace.CreateDatabase($Path, ';LANGID=0x0409;CP=1252;COUNTRY=0', 32); $tables = $db.TableDefs
         foreach ($spec in $Arm.tables) {
             $script:endpoint = "create_table/$($spec.name)"
-            $table = $db.CreateTableDef([string]$spec.name)
+            $table = $db.CreateTableDef([string]$spec.name); $fields = $table.Fields; $indexes = $table.Indexes
             foreach ($name in $spec.columns) {
                 $field = $table.CreateField([string]$name, 4, 4)
-                $table.Fields.Append($field); Release $field; $field = $null
+                $fields.Append($field); Release $field; $field = $null
             }
             foreach ($requested in $spec.indexes) {
-                $index = $table.CreateIndex([string]$requested.name)
+                $index = $table.CreateIndex([string]$requested.name); $keys = $index.Fields
                 $index.Primary = [bool]$requested.primary
                 $index.Unique = [bool]$requested.unique
                 $index.Required = [bool]$requested.primary
                 $index.IgnoreNulls = $false
                 $key = $index.CreateField([string]$spec.columns[[int]$requested.column])
                 if ($requested.descending) { $key.Attributes = 1 }
-                $index.Fields.Append($key); Release $key; $key = $null
-                $table.Indexes.Append($index); Release $index; $index = $null
+                $keys.Append($key); Release $key; $key = $null
+                $indexes.Append($index); Release $keys; $keys = $null; Release $index; $index = $null
             }
-            $db.TableDefs.Append($table); Release $table; $table = $null
-            $rs = $db.OpenRecordset([string]$spec.name, 2)
+            $tables.Append($table); Release $indexes; $indexes = $null; Release $fields; $fields = $null; Release $table; $table = $null
+            $rs = $db.OpenRecordset([string]$spec.name, 2); $fields = $rs.Fields
             foreach ($row in $spec.rows) {
                 $rs.AddNew()
-                for ($i = 0; $i -lt $spec.columns.Count; $i++) { $rs.Fields.Item([string]$spec.columns[$i]).Value = [int]$row[$i] }
+                for ($i = 0; $i -lt $spec.columns.Count; $i++) {
+                    $field = $fields.Item([string]$spec.columns[$i]); $field.Value = [int]$row[$i]; Release $field; $field = $null
+                }
                 $rs.Update()
             }
-            $rs.Close(); Release $rs; $rs = $null
+            Release $fields; $fields = $null; $rs.Close(); Release $rs; $rs = $null
         }
     } finally {
         if ($null -ne $rs) { try { $rs.Close() } catch {} }; Release $rs
-        Release $key; Release $index; Release $field; Release $table
-        if ($null -ne $db) { try { $db.Close() } catch {} }; Release $db; Release $workspace; Release $engine
+        Release $key; Release $keys; Release $index; Release $indexes; Release $field; Release $fields; Release $table; Release $tables
+        if ($null -ne $db) { try { $db.Close() } catch {} }; Release $db; Release $workspace; Release $workspaces; Release $engine
+    }
+}
+function Continue-File([string]$Source, [string]$Destination, $Arm) {
+    Copy-Item -LiteralPath $Source -Destination $Destination
+    $engine = $db = $rs = $fields = $field = $null
+    try {
+        $engine = New-Object -ComObject DAO.DBEngine.36; $db = $engine.OpenDatabase($Destination, $false, $false)
+        foreach ($operation in $Arm.native) {
+            $script:endpoint = "native/$($operation.table)/insert"
+            $spec = @($Arm.tables | Where-Object { $_.name -ceq $operation.table })[0]
+            $rs = $db.OpenRecordset([string]$operation.table, 2); $fields = $rs.Fields
+            $rs.AddNew()
+            for ($i = 0; $i -lt $spec.columns.Count; $i++) {
+                $field = $fields.Item([string]$spec.columns[$i]); $field.Value = [int]$operation.row[$i]
+                Release $field; $field = $null
+            }
+            $rs.Update(); Release $fields; $fields = $null; $rs.Close(); Release $rs; $rs = $null
+        }
+    } finally {
+        Release $field; Release $fields
+        if ($null -ne $rs) { try { $rs.Close() } catch {} }; Release $rs
+        if ($null -ne $db) { try { $db.Close() } catch {} }; Release $db; Release $engine
     }
 }
 function Capture([string]$Path, $Arm) {
@@ -70,20 +141,16 @@ function Capture([string]$Path, $Arm) {
         $engine = New-Object -ComObject DAO.DBEngine.36
         $db = $engine.OpenDatabase($Path, $false, $true)
         $snapshot.version = [string]$db.Version
-        $snapshot.inventory = @($db.TableDefs | ForEach-Object { [string]$_.Name } | Sort-Object)
-        $snapshot.relations = @($db.Relations | ForEach-Object { [string]$_.Name })
-        $snapshot.queries = @($db.QueryDefs | ForEach-Object { [string]$_.Name })
+        $snapshot.inventory = @(Read-Names $db.TableDefs | Sort-Object)
+        $snapshot.relations = @(Read-Names $db.Relations)
+        $snapshot.queries = @(Read-Names $db.QueryDefs)
         foreach ($spec in $Arm.tables) {
             $script:endpoint = "capture/$($spec.name)/metadata"
-            $table = $db.TableDefs.Item([string]$spec.name)
+            $tables = $db.TableDefs
+            try { $table = $tables.Item([string]$spec.name) } finally { Release $tables }
             $observation = @{ name = [string]$table.Name; attributes = [int]$table.Attributes }
-            $observation.columns = @($table.Fields | ForEach-Object {
-                @{ name = [string]$_.Name; type = [int]$_.Type; size = [int]$_.Size; attributes = [int]$_.Attributes; required = [bool]$_.Required; default_value = [string]$_.DefaultValue }
-            })
-            $observation.indexes = @($table.Indexes | ForEach-Object {
-                @{ name = [string]$_.Name; primary = [bool]$_.Primary; unique = [bool]$_.Unique; required = [bool]$_.Required; ignore_nulls = [bool]$_.IgnoreNulls; foreign = [bool]$_.Foreign;
-                   fields = @($_.Fields | ForEach-Object { @{ name = [string]$_.Name; attributes = [int]$_.Attributes } }) }
-            })
+            $observation.columns = @(Read-Fields $table)
+            $observation.indexes = @(Read-Indexes $table)
             $script:endpoint = "capture/$($spec.name)/rows"
             $rs = $db.OpenRecordset([string]$spec.name, 4)
             $observation.rows = Read-Rows $rs $spec
@@ -123,7 +190,7 @@ try {
     foreach ($arm in $manifest.arms) {
         foreach ($replica in 1..2) {
             $prefix = "$($arm.name)-r$replica"
-            $pair = @{ arm = [string]$arm.name; replica = $replica; captures = @{} }; $result.pairs += ,$pair
+            $pair = @{ arm = [string]$arm.name; replica = $replica; captures = @{}; native = @{} }; $result.pairs += ,$pair
             $source = Join-Path $env:JET3_WORK "$($arm.name).mdb"
             $actual = Identity $source
             if ($actual.sha256 -cne $arm.image.sha256 -or $actual.size -ne $arm.image.size) { throw 'Candidate identity differs' }
@@ -133,6 +200,10 @@ try {
             foreach ($role in @('candidate', 'control')) {
                 $pair.captures[$role] = Capture (Join-Path $env:JET3_WORK "$prefix-$role.mdb") $arm
                 if ($pair.captures[$role].status -ne 'pass') { throw 'Capture failed' }
+                $native = Join-Path $env:JET3_WORK "$prefix-native-$role.mdb"
+                Continue-File (Join-Path $env:JET3_WORK "$prefix-$role.mdb") $native $arm
+                $pair.native[$role] = Capture $native $arm
+                if ($pair.native[$role].status -ne 'pass') { throw 'Native successor capture failed' }
             }
         }
     }

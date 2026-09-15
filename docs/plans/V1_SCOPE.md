@@ -50,8 +50,9 @@ and roadmap #75 remain open.
 
 ### Creation
 
-Creation admits up to 127 tables with multi-page system catalogs and catalog
-indexes, within the existing 1,024-page allocation limit. Table definitions may
+Creation packs tables with multi-page system catalogs and catalog indexes
+within the existing 1,024-page allocation limit. Table and column names admit
+64 ASCII bytes and index names admit 63. Table definitions may
 span linked pages on first and later tables, including populated and indexed
 schemas. It supports multi-page initial rows, explicit/generated AutoIncrement
 IDs, and up to three scalar indexes per table, including Date, Binary, variable
@@ -87,8 +88,11 @@ indexes. EXP-0244 adds twelve creation comparisons: five/six-table controls,
 40 and 110 short-named tables, 30 long-named tables with 32 columns, and 40
 long-named tables. Complete DAO user schema, rows, traversal and seeks match;
 raw checks cover every catalog/ACE row locator, index tree and allocation map.
-The 127-table creation-counter bound remains; a larger counter or wrap policy
-is separate work. Existing name, column-layout and allocation restrictions remain.
+EXP-0249 establishes carry in the 16-bit creation counter and native ASCII
+name boundaries. Creation writes the observed closed-empty/reopen-per-create
+history without wrapping the counter; actual allocation and resource limits
+bound table count. A 64-byte index name failed native Seek, so creation
+admits 63 bytes for index names and 64 for table/column names.
 
 EXP-0247 adds six creation and six native continuation pairs at logical definition
 lengths 2,048/2,049, 4,088/4,089 and 6,128/6,129 bytes. These combine first/later
@@ -97,6 +101,13 @@ and independent Memo/OLE payloads. Complete schema, values, payloads, traversal
 and seeks match DAO, with unrelated Notes pages preserved. Exact-capacity
 definitions retain an empty terminal page; longer chains use the existing
 2,040-byte continuation payload and shared resource budget.
+
+EXP-0249 establishes the creation counter's 16-bit carry and native name
+boundaries. EXP-0251 adds 40 paired comparisons (80 captures): ten cases in
+two replicas, each with native insertions on both outputs. These include
+128/255/256 tables and 64-byte table/column names with 63-byte index names.
+Complete schema, values, traversal/Seek, catalog rows and physical indexes
+match. Native catalog overflow rows retain their logical index locators.
 
 ### Updates
 

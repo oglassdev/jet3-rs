@@ -37,19 +37,21 @@ def prepare(candidates, revision):
     ]
     arms = []
     for line in (candidates / 'cases.tsv').read_text().splitlines():
-        name, count, width, rows, name_width = line.split('\t')
-        count, width, rows, name_width = map(int, (count, width, rows, name_width))
-        tables = [dict(name=f'T{n:02}' + 'x' * (name_width - 3),
-                       columns=[f'C{c:02}' for c in range(width)],
-                       indexes=specs[:[3, 0, 1, 2, 3, 3][n % 6]] if rows else [],
+        name, count, width, rows, name_width, schema_width = line.split('\t')
+        count, width, rows, name_width, schema_width = map(int, (count, width, rows, name_width, schema_width))
+        arm_indexes = [dict(index, name=index['name'].ljust(min(schema_width, 63), 'i')) for index in specs]
+        tables = [dict(name=f'T{n:02}'.ljust(name_width, 'x'),
+                       columns=[f'C{c:02}'.ljust(schema_width, 'c') for c in range(width)],
+                       indexes=arm_indexes[:[3, 0, 1, 2, 3, 3][n % 6]] if rows else [],
                        rows=[[r, r % 3, r - 8] for r in range(rows)])
                   for n in range(count)]
-        arms.append(dict(name=name, image=identity(candidates / (name + '.mdb')), tables=tables))
+        arms.append(dict(name=name, image=identity(candidates / (name + '.mdb')), tables=tables,
+                         native=[dict(table=t['name'], row=[1000 + c for c in range(len(t['columns']))]) for t in (tables[0], tables[-1])]))
     require([(a['name'], len(a['tables'])) for a in arms] ==
-            [('five-empty', 5), ('six-indexed', 6), ('catalog-short', 40), ('catalog-wide', 30), ('catalog-aces', 110), ('catalog-names', 40)],
+            [('five-empty', 5), ('six-indexed', 6), ('catalog-short', 40), ('catalog-wide', 30), ('catalog-aces', 110), ('catalog-names', 40), ('counter-128', 128), ('counter-255', 255), ('counter-256', 256), ('names-boundary', 6)],
             'Candidate arm inventory and catalog capacities')
     require((candidates / 'refusals.tsv').read_text() ==
-            'creation-counter\t128\tTableCountOverflow\n', 'Capacity refusals')
+            'creation-counter\t32640\tTableCountOverflow\n', 'Capacity refusals')
     manifest = dict(document_type='creation_tables_inputs', source_revision=revision,
                     producer_sha256=identity(PRODUCER)['sha256'],
                     analyzer_sha256=identity(Path(__file__))['sha256'],
@@ -101,6 +103,40 @@ def long_key(value, descending):
     return bytes(b ^ 255 for b in encoded) if descending else encoded
 
 
+def native_arm(arm):
+    result = copy.deepcopy(arm)
+    for operation in arm['native']:
+        next(t for t in result['tables'] if t['name'] == operation['table'])['rows'].append(operation['row'])
+    return result
+
+
+def native_contents(data, arm):
+    catalog = indexes.catalog
+    from catalog_pages_native import inspect
+    system = inspect(data)
+    objects = system['MSysObjects']
+    name_slot, id_slot = [catalog._ordinal(objects['definition'], n) for n in ('Name', 'Id')]
+    roots = {r['values'][name_slot]: r['values'][id_slot] for r in objects['rows']}
+    for spec in arm['tables']:
+        table = catalog._definition(data, roots[spec['name']])
+        require([c['name'] for c in table['columns']] == spec['columns'], 'Native full column names')
+        pages, lval = catalog._table_pages(data, table)
+        rows = catalog._table_rows(data, table, pages)
+        require(not lval and table['row_count'] == len(rows) and sorted(r['values'] for r in rows) == sorted(spec['rows']), 'Native complete rows')
+        logical = {i['name']: i['physical_index'] for i in table['logical_indexes']}
+        require(set(logical) == {i['name'] for i in spec['indexes']}, 'Native full index inventory')
+        owned = set(pages)
+        for index in spec['indexes']:
+            physical = table['physical_indexes'][logical[index['name']]]
+            nodes, entries = indexes.tree(data, physical['root'], table['root'])
+            wanted = sorted(long_key(row['values'][index['column']], index['descending']) +
+                            row['page'].to_bytes(3, 'big') + bytes([row['row']]) for row in rows)
+            require(entries == wanted, 'Native complete index key/locator records')
+            mapped = set(catalog._locator_pages(data, physical['map'], 'native index map'))
+            require({n['page'] for n in nodes} <= mapped and not owned.intersection(mapped), 'Native distinct data/index ownership')
+            owned.update(mapped)
+
+
 def raw_layout(data, arm):
     catalog = indexes.catalog
     catalog.MAX_ROWS_PER_PAGE = 256
@@ -108,7 +144,7 @@ def raw_layout(data, arm):
     name_slot, id_slot = [catalog._ordinal(definition, n) for n in ('Name', 'Id')]
     roots = {r['values'][name_slot]: r['values'][id_slot] for r in records}
     require(len(records) == 8 + len(arm['tables']), 'Raw catalog count')
-    require(data[1538] == 2 * len(arm['tables']), 'Bounded creation counter')
+    require(int.from_bytes(data[1538:1540], 'little') == 0x0100 + 2 * len(arm['tables']), 'EXP-0249 creation counter word')
     next_root = 20
     observations = []
     for position, spec in enumerate(arm['tables']):
@@ -176,11 +212,22 @@ def evaluate(candidates, outbox):
                     images[role] = identity(path)
                     require(capture['before'] == capture['after'] == images[role], 'DAO read retained identical bytes')
                     snapshots[role] = normalized(capture['snapshot'], arm)
-                    counters[role] = path.read_bytes()[1538]
+                    counters[role] = int.from_bytes(path.read_bytes()[1538:1540], 'little')
                 require(snapshots['candidate'] == snapshots['control'], 'Complete DAO semantic comparison')
                 require(images['candidate'] == arm['image'], 'Candidate unchanged from generated input')
                 raw = raw_layout((outbox / pair['captures']['candidate']['file']).read_bytes(), arm)
-                report['observations'].append(dict(arm=arm['name'], replica=replica, images=images, counters=counters, layout=raw))
+                expected_native = native_arm(arm); native_snapshots = {}; native_images = {}
+                require(set(pair['native']) == {'candidate', 'control'}, 'Native successor roles')
+                for role in ('candidate', 'control'):
+                    capture = pair['native'][role]
+                    path = outbox / f"{arm['name']}-r{replica}-native-{role}.mdb"
+                    require(capture['file'] == path.name and capture['status'] == 'pass' and capture['error'] is None, 'Native successor capture')
+                    native_images[role] = identity(path)
+                    require(capture['before'] == capture['after'] == native_images[role], 'Immutable native successor capture')
+                    native_snapshots[role] = normalized(capture['snapshot'], expected_native)
+                    native_contents(path.read_bytes(), expected_native)
+                require(native_snapshots['candidate'] == native_snapshots['control'], 'Native successor complete semantics')
+                report['observations'].append(dict(arm=arm['name'], replica=replica, images=images, counters=counters, layout=raw, native=native_images))
         report['status'] = 'accepted'
     except Exception as error:
         report['error'] = str(error)
