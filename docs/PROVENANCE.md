@@ -15796,3 +15796,61 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   requests preserve source bytes, unlike DAO's observed failed-insert counter
   consumption; this difference remains explicit. Random AutoNumber mode and
   custom increment settings are outside this result.
+
+## EXP-0240 — Randomized Memo/OLE lifecycle and final suite verification
+
+- GPT-5.6 Sol high independently exercised exact source
+  `f4c49c4804e6cd9d85d76c7dbfc76f2e372ee5a0` with six reproducible seeds:
+  17011/17027 Memo, 17041 OLE, 17053/17077 four mixed columns, and 17093
+  mixed columns with generated Auto IDs. Each scheduled fifty operations.
+  All 264 accepted operations replay successfully through DAO; 24 duplicate
+  and twelve empty-payload Rust refusals preserve exact source bytes. Four
+  regenerated chain-depth refusals also preserve their complete sources.
+- Accepted insert/replace/delete operations span null and
+  1/31/32/33/512/2036/2037/2048/4096/8243-byte payloads. Shared pages,
+  deleted siblings, clear/refill and released-page reuse occur. Every native
+  checkpoint passes the independent row model, complete numeric key/locator
+  trees, retained counters, long-value ownership/availability/reference checks
+  and unrelated Notes page hashes. All six final pairs agree on full schema,
+  rows/payloads, directed traversal and Seek. The Auto case has fourteen
+  generated insertions and state advances from 12 through 26.
+- Private checks: `shared/checks/20260915-random-lval-auto-sol-f4c49c4-2/`.
+  Accepted report SHA-256
+  `5e31b0aac49583dea9c8ede87bd4e0dc2d11fd5c2ab3d3b7110324ea8adef22f`;
+  run ledger SHA-256
+  `aa059536b6b877197b35639c7a7dfac2e2b13513cbaa2103f92695d2cbd13693`;
+  manifest SHA-256
+  `b54de8e7dd1f0bcf709ec31a7701f17156334fc4275622f7067f9b71ff2bc425`.
+  Native replay outbox: `shared/outbox/20260915T070100Z-random-lval-auto-sol/`;
+  result SHA-256
+  `7dac44fd13d0d949b4f5775343098e660b77c3960099c2ae2b7438ee5789c0d1`.
+  Read-only Rust-output capture:
+  `shared/outbox/20260915T070300Z-random-lval-rust-capture/`;
+  result SHA-256
+  `7b92e77eed6757f9b57b73eac1c8f17187dd41e64e7db613a3978f7db9fdc98e`.
+  The ledger pins producers, generator, CLI, analyzer and actual DAO environment.
+- An earlier preparation used an advanced/dirty checkout and was excluded
+  before dispatch. A zero-mutation wrapper failure is separately retained.
+  The replay acquisition itself completed all 264 mutations and six native
+  final captures, then failed while copying a staged Rust file onto itself.
+  That failure remains recorded; its mutations were not redispatched. The
+  separate read-only companion supplies the missing six Rust-output captures,
+  and the combined analyzer checks this exact failure and retained identities.
+- These finite random cases use ASCII Memo, deterministic binary payloads and
+  three one-component Long indexes. The Auto arm generates IDs; explicit and
+  wrapping values are covered by EXP-0239. Rust refusals are not replayed into
+  the native control chains and make no native failure-side-effect claim.
+- Final repeatable sweep at source
+  `ce7d910db429def2517509d3e3a5ccbdb3530f70` passes all eight suites:
+  indexed-boundary, indexed-rows, creation-tables, index-trees,
+  practical-lifecycle, numeric-indexes, multiple-long-values and
+  long-value-lifecycle, including each declared native-input continuation.
+  Private root: `shared/checks/20260915-long-values-final-sweep/`;
+  receipt summary SHA-256
+  `f922b7170e47fe737761052f5dd0841b69df3a85ccb97f764d27c65fb10f976a`.
+  It pins all eight complete reports and their exact outboxes. The only code
+  change after the reviewed writer was an analyzer unit-test correction:
+  current generated fixtures use runtime pins instead of obsolete historical
+  bytes; the historical acquisition plan remains unchanged and wrong-pin
+  rejection is still tested. `just ready` passed the writer tree, and the
+  corrected focused analyzer test and CI contract job pass.
