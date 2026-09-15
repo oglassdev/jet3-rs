@@ -4,7 +4,9 @@
 use crate::data_page_directory::{DataPageEntry, PAGE_BYTES};
 use crate::row::decode_pointer;
 use crate::row_directory::RowDirectory;
-use crate::{ByteCount, Error, OwnedPages, PageKind, PageNumber, ReadAt, RowError, RowLocator};
+use crate::{
+    ByteCount, CatalogError, Error, OwnedPages, PageKind, PageNumber, ReadAt, RowError, RowLocator,
+};
 
 #[derive(Debug)]
 pub(crate) struct CatalogOverflow {
@@ -27,25 +29,34 @@ impl CatalogOverflow {
         entry: &DataPageEntry,
         source: &'row [u8; PAGE_BYTES],
         owned: &mut OwnedPages<'_, S>,
-    ) -> Result<&'row [u8], RowError> {
+    ) -> Result<&'row [u8], CatalogError> {
         if !entry.overflow() {
             return Ok(&source[entry.range()]);
         }
-        let slot = u8::try_from(entry.row()).map_err(|_| {
-            RowError::Resource(Error::IntegerConversion {
-                value: u128::from(entry.row()),
-                target: "u8",
-            })
+        let pointer = source[entry.range()].try_into().map_err(|_| {
+            CatalogError::InvalidOverflowPointerLength {
+                page,
+                row: entry.row(),
+                length: entry.range().len(),
+            }
         })?;
-        let logical = RowLocator::new(page, slot);
+        self.follow(root, (page, entry.row()), pointer, owned)
+            .map_err(CatalogError::Overflow)
+    }
+
+    fn follow<S: ReadAt>(
+        &mut self,
+        root: PageNumber,
+        logical: (PageNumber, u16),
+        mut pointer: [u8; 4],
+        owned: &mut OwnedPages<'_, S>,
+    ) -> Result<&[u8], RowError> {
         let mut current = logical;
-        let mut pointer = source[entry.range()]
-            .try_into()
-            .map_err(|_| RowError::InvalidOverflowTarget { locator: logical })?;
         self.chain.clear();
         loop {
             let target = decode_pointer(pointer);
-            if target == current {
+            let address = (target.page(), u16::from(target.slot()));
+            if address == current {
                 return Err(RowError::SelfLink { locator: target });
             }
             let length = u64::try_from(self.chain.len()).map_err(|_| {
@@ -58,7 +69,7 @@ impl CatalogOverflow {
             budget
                 .charge_work_units(length)
                 .map_err(RowError::Resource)?;
-            if target == logical || self.chain.contains(&target) {
+            if address == logical || self.chain.contains(&target) {
                 return Err(RowError::Cycle { locator: target });
             }
             let depth = length
@@ -106,7 +117,7 @@ impl CatalogOverflow {
             pointer = self.page[stored.range()]
                 .try_into()
                 .map_err(|_| RowError::InvalidOverflowTarget { locator: target })?;
-            current = target;
+            current = address;
         }
     }
 }

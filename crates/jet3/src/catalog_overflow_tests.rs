@@ -86,7 +86,8 @@ fn malformed_catalog_overflow_exhausts_cursor() -> Result<(), Box<dyn std::error
         catalog.next_record()?.ok_or("missing self")?;
         let error = catalog
             .next_record()
-            .expect_err("must reject overflow corruption");
+            .err()
+            .ok_or("must reject overflow corruption")?;
         match (case, &error) {
             (
                 0,
@@ -94,7 +95,7 @@ fn malformed_catalog_overflow_exhausts_cursor() -> Result<(), Box<dyn std::error
                     ..
                 })),
             )
-            | (1 | 4 | 7, CatalogError::Overflow(RowError::InvalidOverflowTarget { .. }))
+            | (1 | 4, CatalogError::Overflow(RowError::InvalidOverflowTarget { .. }))
             | (
                 2,
                 CatalogError::Overflow(RowError::Directory(RowDirectoryError::MissingRow {
@@ -103,9 +104,10 @@ fn malformed_catalog_overflow_exhausts_cursor() -> Result<(), Box<dyn std::error
             )
             | (3, CatalogError::Overflow(RowError::UnexpectedOwnedPageKind { .. }))
             | (5, CatalogError::Overflow(RowError::SelfLink { .. }))
+            | (7, CatalogError::InvalidOverflowPointerLength { .. })
             | (8, CatalogError::Overflow(RowError::Allocation(_)))
             | (6, CatalogError::Overflow(RowError::Cycle { .. })) => {}
-            _ => panic!("case {case}: {error:?}"),
+            _ => return Err(format!("case {case}: {error:?}").into()),
         }
         let work = catalog.budget_mut().total_work_units();
         assert!(catalog.next_record()?.is_none());
@@ -136,6 +138,34 @@ fn catalog_overflow_depth_limit_is_not_swallowed_during_discovery()
         } else {
             assert!(result.is_ok());
         }
+    }
+    Ok(())
+}
+
+#[test]
+fn catalog_source_slot_is_not_limited_by_the_target_locator_width()
+-> Result<(), Box<dyn std::error::Error>> {
+    for row in [255, 256, 1000] {
+        let mut bytes = overflow_bytes(true);
+        let mut rows = vec![Vec::new(); row];
+        rows.push(vec![0, 5, 0, 0]);
+        write_rows(&mut bytes[3 * PAGE_BYTES..4 * PAGE_BYTES], &rows);
+        for slot in 0..row {
+            bytes[3 * PAGE_BYTES + 11 + 2 * slot] |= 0xc0;
+        }
+        bytes[3 * PAGE_BYTES + 11 + 2 * row] |= 0x40;
+        let mut budget = operation(&bytes);
+        let mut database = open(&bytes, &mut budget)?;
+        let mut catalog = database.catalog(&mut budget)?;
+        assert_eq!(
+            catalog
+                .next_record()?
+                .ok_or("missing moved self")?
+                .id()
+                .get(),
+            1
+        );
+        assert!(catalog.next_record()?.is_none());
     }
     Ok(())
 }

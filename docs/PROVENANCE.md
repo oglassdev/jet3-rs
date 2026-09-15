@@ -15294,3 +15294,16 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   265 of 267 images passed, these two failed catalog discovery, and all input
   hashes remained unchanged. This retained-artifact analysis acquires no new
   DAO data and makes no whole-database compatibility claim.
+
+
+### EXP-0228 read-only validation verification
+
+- At `8e6a22350a5a55d8f751393cd9d13fbb2de9910a`, the validator accepted
+  all 267 retained images, including both native wide-catalog controls.
+  Every input retained its exact SHA-256. The corpus includes the clean
+  EXP-0223 suites and their native continuation images; this is a finite
+  read-only integrity check, not a new DAO differential or coverage of the
+  integrity checks explicitly excluded by the validator report.
+- Private report:
+  `shared/checks/20260915-validator-overflow-fixed/report.json`, SHA-256
+  `b158c865a5a723a62df3fed4cc4ba6fa6c4aedb809d0011a39b9ff2c358d3525`.

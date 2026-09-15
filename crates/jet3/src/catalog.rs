@@ -33,6 +33,15 @@ pub enum CatalogError {
     Record(CatalogRecordError),
     /// An overflow catalog row has an invalid locator, target, or chain.
     Overflow(crate::RowError),
+    /// An active catalog overflow row does not contain one four-byte locator.
+    InvalidOverflowPointerLength {
+        /// Page containing the active catalog slot.
+        page: PageNumber,
+        /// Zero-based catalog directory ordinal.
+        row: u16,
+        /// Observed pointer byte count.
+        length: usize,
+    },
     /// An owned page is not a data page.
     UnexpectedOwnedPageKind {
         /// Owned page that violated the catalog data-page invariant.
@@ -84,6 +93,11 @@ impl fmt::Display for CatalogError {
             Self::UnexpectedOwnedPageKind { page, actual } => write!(
                 formatter,
                 "catalog-owned page {} must be data, found {actual:?}",
+                page.get()
+            ),
+            Self::InvalidOverflowPointerLength { page, row, length } => write!(
+                formatter,
+                "catalog page {} row {row} has overflow pointer length {length}, expected 4",
                 page.get()
             ),
             Self::RootNotFound => formatter.write_str("no self-identifying catalog root found"),
@@ -198,10 +212,13 @@ impl<'operation, S: ReadAt> CatalogCursor<'operation, S> {
                     .next_active(&self.page)
                     .map_err(CatalogError::Record)?
                 {
-                    let bytes = self
-                        .overflow
-                        .resolve(self.root, *page, &row, &self.page, &mut self.owned)
-                        .map_err(CatalogError::Overflow)?;
+                    let bytes = self.overflow.resolve(
+                        self.root,
+                        *page,
+                        &row,
+                        &self.page,
+                        &mut self.owned,
+                    )?;
                     let view = decode_catalog_record(bytes, self.owned.budget_mut())
                         .map_err(CatalogError::Record)?;
                     return finish_record(
@@ -363,8 +380,11 @@ fn candidate_self_identifies<S: ReadAt>(
             let Some(row) = row else { break };
             let bytes = match overflow.resolve(candidate, page, &row, &page_bytes, &mut owned) {
                 Ok(bytes) => bytes,
-                Err(source) if recoverable_overflow_error(&source) => continue,
-                Err(source) => return Err(CatalogError::Overflow(source)),
+                Err(CatalogError::Overflow(ref source)) if recoverable_overflow_error(source) => {
+                    continue;
+                }
+                Err(CatalogError::InvalidOverflowPointerLength { .. }) => continue,
+                Err(source) => return Err(source),
             };
             let record = match decode_catalog_record(bytes, owned.budget_mut()) {
                 Ok(record) => record,

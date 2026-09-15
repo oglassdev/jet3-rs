@@ -76,10 +76,10 @@ fn fixture() -> TestResult<Vec<u8>> {
     clippy::result_large_err,
     reason = "Exercise the allocation-free public error."
 )]
-fn validate(bytes: &[u8]) -> Result<ValidationReport, ValidationError> {
+fn validate(bytes: &[u8]) -> TestResult<Result<ValidationReport, ValidationError>> {
     let mut budget = budget();
-    let mut database = open(bytes, &mut budget).unwrap();
-    database.validate(TextCodePage::Windows1252, &mut budget)
+    let mut database = open(bytes, &mut budget)?;
+    Ok(database.validate(TextCodePage::Windows1252, &mut budget))
 }
 
 fn definition(bytes: &[u8], name: &[u8]) -> TestResult<TableDefinition> {
@@ -103,7 +103,7 @@ fn page_start(page: PageNumber) -> usize {
 #[test]
 fn checks_multiple_tables_index_and_inline_single_and_chained_long_values() -> TestResult {
     let bytes = fixture()?;
-    let report = validate(&bytes)?;
+    let report = validate(&bytes)??;
     assert_eq!(
         report,
         ValidationReport {
@@ -137,7 +137,7 @@ fn rejects_system_definition_kind_for_a_user_catalog_table() -> TestResult {
         definition(&bytes, b"Payload")?.kind(),
         TableDefinitionKind::System
     );
-    assert!(matches!(validate(&bytes), Err(ValidationError::Table {
+    assert!(matches!(validate(&bytes)?, Err(ValidationError::Table {
         table,
         source: TableValidationError::DefinitionKind {
             expected: TableDefinitionKind::User,
@@ -162,7 +162,7 @@ fn reports_table_and_stream_position_for_corrupt_row_and_live_count() -> TestRes
     let mut changed = original.clone();
     changed[page_start(locator.page()) + PAGE_BYTES - row_length] = 0;
     assert!(
-        matches!(validate(&changed), Err(ValidationError::Table { table, source:
+        matches!(validate(&changed)?, Err(ValidationError::Table { table, source:
         TableValidationError::Rows { completed_rows: 0, source: RowError::ColumnCountMismatch { .. } }
     }) if table.name().raw_bytes() == b"Items")
     );
@@ -171,7 +171,7 @@ fn reports_table_and_stream_position_for_corrupt_row_and_live_count() -> TestRes
     let count = page_start(table.root()) + 12;
     changed[count..count + 4].copy_from_slice(&4_u32.to_le_bytes());
     assert!(matches!(
-        validate(&changed),
+        validate(&changed)?,
         Err(ValidationError::Table {
             source: TableValidationError::RowCount {
                 declared: 4,
@@ -193,14 +193,14 @@ fn reports_index_ordinal_for_corrupt_node_and_leaf_row_reference() -> TestResult
     let mut changed = original.clone();
     changed[root + 4..root + 8].fill(0);
     assert!(
-        matches!(validate(&changed), Err(ValidationError::Table { table, source:
+        matches!(validate(&changed)?, Err(ValidationError::Table { table, source:
         TableValidationError::Index { index: 0, source: IndexTreeError::UnexpectedOwner { .. } }
     }) if table.name().raw_bytes() == b"Items")
     );
     let mut changed = original;
     changed[root + 248 + 8] = 255;
     assert!(matches!(
-        validate(&changed),
+        validate(&changed)?,
         Err(ValidationError::Table {
             source: TableValidationError::Index {
                 index: 0,
@@ -223,7 +223,7 @@ fn uninterpreted_key_bytes_are_reported_without_claiming_semantic_validity() -> 
     // EXP-0062: byte 248 starts the first uncompressed key. Unknown key
     // markers remain lossless in the existing index reader.
     bytes[root + 248] = 0x12;
-    let report = validate(&bytes)?;
+    let report = validate(&bytes)??;
     assert_eq!(report.index_entries, 3);
     assert_eq!(report.uninterpreted_index_entries, 1);
     Ok(())
@@ -244,14 +244,14 @@ fn reports_source_row_and_column_for_reachable_long_value_failure() -> TestResul
         .value(column, TextCodePage::Windows1252)?
         .ok_or("missing value")?;
     let ValueKind::LongValue(LongValue::External(reference)) = value.kind() else {
-        panic!("expected external")
+        return Err("expected external".into());
     };
     let target = reference.target();
     // EXP-0061: external value pages carry the four-byte LVAL owner marker.
     let mut changed = original.clone();
     changed[page_start(target.page()) + 4] ^= 1;
     assert!(
-        matches!(validate(&changed), Err(ValidationError::Table { table, source:
+        matches!(validate(&changed)?, Err(ValidationError::Table { table, source:
         TableValidationError::LongValue { row, column: actual, source: LongValueError::InvalidOwner { .. } }
     }) if table.name().raw_bytes() == b"Notes" && row == source_row && actual == column)
     );
@@ -266,7 +266,7 @@ fn catalog_references_and_one_cumulative_budget_are_enforced() -> TestResult {
     // EXP-0058: catalog table identifiers must point to table-definition pages.
     changed[page_start(table.root())] = 4;
     assert!(matches!(
-        validate(&changed),
+        validate(&changed)?,
         Err(ValidationError::Catalog(
             CatalogError::UnexpectedTableDefinitionReference { .. }
         ))
@@ -280,7 +280,8 @@ fn catalog_references_and_one_cumulative_budget_are_enforced() -> TestResult {
     let mut database = open(&original, &mut limited)?;
     let error = database
         .validate(TextCodePage::Windows1252, &mut limited)
-        .unwrap_err();
+        .err()
+        .ok_or("expected validation failure")?;
     let mut source: &dyn std::error::Error = &error;
     while let Some(next) = source.source() {
         source = next;

@@ -73,7 +73,12 @@ fn validation_reports_coverage_and_counts_without_modifying_input() -> TestResul
     assert_eq!(result["checked"]["index_entries"], 2);
     assert_eq!(result["checked"]["long_value_bytes"], 4096);
     assert_eq!(result["coverage_limits"]["skipped_system_objects"], 8);
-    assert!(result["resources"]["bytes_read"].as_u64().unwrap() > before.len() as u64);
+    assert!(
+        result["resources"]["bytes_read"]
+            .as_u64()
+            .ok_or("missing bytes_read count")?
+            > before.len() as u64
+    );
     assert_eq!(std::fs::read(&path)?, before);
     Ok(())
 }
@@ -105,7 +110,12 @@ fn invalid_content_budget_and_open_failures_are_json_errors() -> TestResult {
     let output = run(&path, &[])?;
     assert_eq!(output.status.code(), Some(1));
     let error: Value = serde_json::from_slice(&output.stderr)?;
-    assert!(error["message"].as_str().unwrap().contains("RowCount"));
+    assert!(
+        error["message"]
+            .as_str()
+            .ok_or("missing error message")?
+            .contains("RowCount")
+    );
     assert_eq!(std::fs::read(&path)?, changed);
     Ok(())
 }
