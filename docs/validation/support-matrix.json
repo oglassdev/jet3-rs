@@ -143,7 +143,13 @@
         "crates/jet3/src/row.rs",
         "crates/jet3/src/value.rs",
         "crates/jet3/src/row_tests.rs",
-        "crates/jet3/src/value_tests.rs"
+        "crates/jet3/src/value_tests.rs",
+        "crates/jet3/src/row_layout.rs",
+        "crates/jet3/src/row_offsets.rs",
+        "crates/jet3/src/row_wide_tests.rs",
+        "crates/jet3/src/creation/wide_variable_tests.rs",
+        "oracle/windows-dao/scripts/wide_row_lifecycle.py",
+        "oracle/windows-dao/scripts/wide_row_lifecycle_structure.py"
       ]
     },
     {
@@ -259,7 +265,9 @@
         "crates/jet3/src/mutation_map_guard.rs",
         "crates/jet3/src/creation/composer/allocation_maps.rs",
         "oracle/windows-dao/scripts/allocation_lifecycle.py",
-        "oracle/windows-dao/scripts/allocation_lifecycle_structure.py"
+        "oracle/windows-dao/scripts/allocation_lifecycle_structure.py",
+        "crates/jet3/examples/wide_row_candidate.rs",
+        "oracle/windows-dao/scripts/wide_row_lifecycle.py"
       ]
     },
     {

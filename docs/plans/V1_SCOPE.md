@@ -210,11 +210,26 @@ Complete payloads, index contents, allocation state and Notes preservation
 match. EXP-0255 fixes native index prefixes that include row-locator bytes;
 the original timeout and reader-failure reports remain recorded separately.
 
+EXP-0257/0258 establish multiblock variable-row trailers through 255 variable
+columns, including the shared final-boundary/sentinel byte and unchanged old
+rows after appending variable columns. EXP-0260/0261 establish complete row
+limits of 2,003 bytes for fixed-only rows and 2,012 for variable rows; schema
+planning, encoding and decoding apply those limits. Long-value page slots
+retain their separate physical capacity.
+
+EXP-0259 accepts 42 lifecycle pairs (84 native captures), covering eight wide
+schema families, native successors, Rust edits of native inputs and two
+expanded-schema continuations. Complete values, payloads, index traversal/Seek,
+physical keys/locators, allocation and unrelated Notes agree. A separate reader
+comparison passes all 76 retained discovery captures (372 rows). Untouched old
+rows retain their raw bodies; rewritten and inserted rows use the current
+schema. This covers appended variable columns with an unchanged fixed prefix.
+
 ### Remaining work
 
 - Extend creation to remaining schema/index-key combinations and relationship forms.
 - Extend updates to remaining index key types/collations, relationship targets,
-  additional payload/schema combinations, wider variable rows, broader
+  additional payload/schema combinations, broader
   data-page/live-slot reuse and cross-page row growth.
 - Cover remaining DAO inventories, stored-query preservation and broader
   failure/rollback behavior. Local VM and hosted runs may both establish

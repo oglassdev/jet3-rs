@@ -16855,3 +16855,75 @@ by this native-only discovery.
   are pinned in `accepted-pins.json` and `images.json` beside this draft.
 - **Answered report identity:** 81652 bytes, SHA256
   `0931af7ca1279a293e470c9c5b2edff82058b3f0da9d08f1c46569fd12ec06c6`.
+
+## EXP-0259 — Wide-row lifecycles and retained native row comparisons
+
+- **Outcome:** 42 accepted Rust/DAO lifecycle pairs (84 complete native
+  captures): 40 pairs in the repeatable wide-row suite and two pairs over
+  retained rows whose variable schema was expanded. These are finite
+  interoperability results, not whole-v1 acceptance.
+- **Main suite:** source `1fb238cf308fb1c1adc176f9b14bdf802db7ae80`, eight
+  cases: 2/3/8/32/254 variable columns, fixed prefixes of 260/767 bytes, and
+  mixed Text/Binary/Memo/OLE storage. Each has 16 initial rows, a sparse/null
+  replacement, regrowth before further insertion, four inserts, two deletes
+  and an Id change. Every case has a Long primary index; smaller cases also
+  have a Text index. Three native successor operations run on candidate and
+  control, followed by Rust edits of the retained native controls.
+- **Checks:** all schema and field properties, complete values and payloads,
+  physical variable boundaries/jumps, index traversal/Seek and full key/locator
+  records, allocation maps and unrelated Notes preservation agree. Three
+  corruptions (jump ordinal, end low byte and stored variable count) produce
+  structured Rust refusals and preserve the entire malformed input. Independent
+  raw decoding rejects each corruption as well.
+- **Provider:** fresh x86 workers use DAO 3.6 DLL `03.60.9765.0`, SHA256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  Complete OS/CLR/PowerShell/culture and closed image identities are retained.
+  Both main acquisition rounds and their comparisons pass without retries.
+- **Main artifacts:** `/tmp/jet3-wide-native-r1/`, with original generated
+  inputs in `/tmp/jet3-wide-native-r1-images/`. Native outboxes are
+  `20260915T123703Z-wide-rows-1c83e5` and
+  `20260915T123755Z-wide-rows-fbce57` under the VM shared outbox.
+  The combined controller report is 783959 bytes, SHA256
+  `b45ebc343d0fe6f36b54c988ccbc759c3f4b5fc65a0b78dc5c07cc085949e158`;
+  the continuation report is 163627 bytes, SHA256
+  `2ffa7887d6e6c82fb5a2822555d217513ca1a94fb8d90adcd0f11070165d685f`.
+  First manifest/result SHA256 values are respectively
+  `c5e70930fb42ad6fdae4a007307ee1a17b86e45ea120e7f0c8701272315dd0f9` /
+  `0b202a31c520eb71e3d6316ba461183f839a5c2967495085f34604882d707536`;
+  continuation manifest/result values are
+  `6decc70e826d954adf9a85451769924b75c8f433e6c8ab7e3592cac5e40c57e0` /
+  `198ab8ed279049a1dae047d78b886fcf34c30021dd4ce24fa8bed62888ccfb72`.
+- **Expanded-schema addendum:** two fresh workers in
+  `20260915T124117Z-old-row-r1` compare Rust replacement of Id1 and insertion
+  of Id4 into the two EXP-0257 expanded-schema images with their retained
+  native final controls. Complete schema, values and canonical row bytes agree.
+  Untouched Id2/Id3 retain exact old physical P3/V2 bytes beneath the P9
+  definition. Unassigned presence bits are retained and excluded only from
+  canonical comparison as established in EXP-0257. All four read-only captures
+  preserve their images. Sources and exact intermediate images are under
+  `/tmp/jet3-wide-row-discovery/old-row-continuation/`; the candidate uses
+  production `4b8666b` with harness `cc5cb4641b33ca83f84065362cb5041355511f80`.
+  Accepted report: 32929 bytes, SHA256
+  `843e101d57d8c0f3929f5435f457c0f701db988d6d9965add749a5fe6c35de52`;
+  manifest SHA256
+  `6da8b27d2f0b08532807127bb80b884cda3149adf2ef2dd5824989424b7b9f63`.
+  An initial local helper's raw-class assumption was corrected before native
+  acquisition; its original source remains retained. No native failure occurred.
+- **Reader comparison:** final production `1dc089d` also reads all 76 retained
+  EXP-0257/0258 captures, totaling 372 rows. DAO names/types/sizes/storage,
+  every typed value, complete raw rows, logical/storage locators and counts
+  agree, with exact input preservation. Private report
+  `/tmp/jet3-wide-native-reader/comparison-r3.json`: 53055 bytes, SHA256
+  `f57a6d46d1f7e1e863c42cf9f919c02eea6e009979395e7c09fb441f450197f2`.
+  The initial adapter compared raw class flags with different DAO attribute
+  numbers and stopped at the first empty schema; corrected storage-class
+  comparison passes. Original report/source remain retained, without a native
+  retry or a changed field-value expectation.
+- **Final capacity guards:** EXP-0260/0261 add native size limits after the
+  main acquisition. Regeneration at `1dc089d` produces byte-identical main
+  and native-continuation images. The 30-image comparison report has SHA256
+  `4154aa64d091b92171f32037ed3e163b582389b11eaa2a2038fd46d18d04ae4b`;
+  the 16-image continuation comparison has SHA256
+  `f39d1038802b826507347aeee1a2501843f38efd2dc61199ab705a008bd4c001`.
+  These checks cover the retained finite candidates; arbitrary schema history
+  and cross-page row growth remain outside this lifecycle suite.
