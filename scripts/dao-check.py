@@ -23,6 +23,7 @@ SUITES = {
     "indexed-rows": ("indexed_row_candidate", "indexed_row_mutation_candidate"),
     "creation-tables": ("creation_tables", "creation_tables_candidate"),
     "index-trees": ("index_tree_mutation", "index_tree_mutation_candidate"),
+    "practical-lifecycle": ("practical_lifecycle", "practical_lifecycle_candidate"),
 }
 
 
@@ -72,9 +73,10 @@ def run_suite(name, root, args, revision):
     command(["cargo", "build", "--locked", "-p", "jet3", "--example", example], root, "build")
     images = root / "images"
     stdout = command([ROOT / "target/debug/examples" / example, images], root, "generate")
-    if name in ("creation-tables", "index-trees"):
+    if name in ("creation-tables", "index-trees", "practical-lifecycle"):
         module.prepare(images, revision)
-        manifest = "creation-tables.json" if name == "creation-tables" else "index-tree-mutation.json"
+        manifest = {"creation-tables": "creation-tables.json", "index-trees": "index-tree-mutation.json",
+                    "practical-lifecycle": "practical-lifecycle.json"}[name]
         input_path = images / manifest
     else:
         receipts = json.loads(stdout) if name == "indexed-rows" else None
@@ -148,7 +150,7 @@ def capture(name, root, args, revision, module, images, input_path):
         result_path = outbox / "result.json"
         if not result_path.exists():
             raise RuntimeError("Missing DAO result")
-        if name in ("creation-tables", "index-trees"):
+        if name in ("creation-tables", "index-trees", "practical-lifecycle"):
             comparison = module.evaluate(images, outbox)
             matched = comparison["status"] == "accepted"
         else:
