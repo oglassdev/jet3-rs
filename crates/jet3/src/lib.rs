@@ -45,6 +45,7 @@ pub mod binary_writer;
 pub mod candidate;
 pub mod catalog;
 mod catalog_name_key;
+mod catalog_overflow;
 pub mod catalog_record;
 pub mod catalog_record_writer;
 pub mod column_definition;
@@ -105,6 +106,7 @@ mod update_index_key;
 mod update_pages;
 pub mod usage_map;
 pub mod usage_map_writer;
+pub mod validation;
 pub mod value;
 mod whole_file_plan;
 
@@ -205,6 +207,7 @@ pub use usage_map_writer::{
     EXTENDED_BITMAP_BITS, ExtendedUsageMapEncoder, InlineUsageMapEncoder, UsageMapWriteError,
     encode_indirect_references, indirect_record_len,
 };
+pub use validation::{TableValidationError, ValidationError, ValidationReport};
 pub use value::{CurrencyValue, DateTimeValue, DecodedValue, GuidValue, ValueError, ValueKind};
 pub use whole_file_plan::WholeFilePlanError;
 

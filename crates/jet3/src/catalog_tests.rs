@@ -299,3 +299,6 @@ fn catalog_errors_expose_context_and_nested_sources() -> Result<(), Box<dyn std:
     }
     Ok(())
 }
+
+#[path = "catalog_overflow_tests.rs"]
+mod overflow;

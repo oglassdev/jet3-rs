@@ -5,7 +5,9 @@
 
 use std::fmt;
 
-use crate::data_page_directory::{DataPageDirectory, DataPageDirectoryError, PAGE_BYTES};
+use crate::data_page_directory::{
+    DataPageDirectory, DataPageDirectoryError, DataPageEntry, PAGE_BYTES,
+};
 use crate::{ByteCount, Error, PageNumber, ResourceBudget};
 
 // EXP-0058: minimum catalog record fields and reverse trailer entries.
@@ -363,24 +365,18 @@ impl CatalogPageDirectory {
         budget: &mut ResourceBudget,
     ) -> Result<Self, CatalogRecordError> {
         let inner = DataPageDirectory::validate(page, budget).map_err(map_directory_error)?;
-        let mut validation = inner.clone();
-        while let Some(entry) = validation.next_entry(page) {
-            if !entry.hidden() && entry.overflow() {
-                return Err(CatalogRecordError::ActiveOverflowRow { row: entry.row() });
-            }
-        }
         Ok(Self { inner })
     }
 
-    pub(crate) fn next_active<'page>(
+    pub(crate) fn next_active(
         &mut self,
-        page: &'page [u8; PAGE_BYTES],
-    ) -> Result<Option<&'page [u8]>, CatalogRecordError> {
+        page: &[u8; PAGE_BYTES],
+    ) -> Result<Option<DataPageEntry>, CatalogRecordError> {
         while let Some(entry) = self.inner.next_entry(page) {
             if entry.hidden() {
                 continue;
             }
-            return Ok(Some(&page[entry.range()]));
+            return Ok(Some(entry));
         }
         Ok(None)
     }

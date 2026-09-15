@@ -17,6 +17,7 @@ mod create;
 mod inspect;
 mod mutate;
 mod snapshot;
+mod validate;
 mod values;
 
 use jet3::{
@@ -82,6 +83,7 @@ enum Command {
     Probe(ProbeOptions),
     Snapshot(snapshot::SnapshotCommand),
     Inspect(inspect::InspectCommand),
+    Validate(validate::ValidateCommand),
     Create(create::CreateCommand),
     Mutate(mutate::MutationCommand),
 }
@@ -97,11 +99,12 @@ fn main() -> ExitCode {
     match command {
         Command::Help => exit_after_write(
             write_stdout(&format!(
-                "{HELP}{}\n{}\n{}\n{}",
+                "{HELP}{}\n{}\n{}\n{}\n{}",
                 snapshot::HELP,
                 inspect::HELP,
                 create::HELP,
-                mutate::HELP
+                mutate::HELP,
+                validate::HELP
             )),
             0,
         ),
@@ -138,6 +141,10 @@ fn main() -> ExitCode {
             Ok(output) => exit_after_write(write_stdout(&output.json), u8::from(!output.complete)),
             Err(message) => exit_after_write(write_stderr(&(serde_json::json!({"ok": false, "error": "inspect_failed", "message": message}).to_string() + "\n")), 1),
         },
+        Command::Validate(command) => match validate::run(&command) {
+            Ok(json) => exit_after_write(write_stdout(&json), 0),
+            Err(message) => exit_after_write(write_stderr(&(serde_json::json!({"ok": false, "error": "validation_failed", "message": message}).to_string() + "\n")), 1),
+        },
     }
 }
 
@@ -163,6 +170,9 @@ fn parse_args(arguments: impl Iterator<Item = OsString>) -> Result<Command, &'st
     }
     if first == "inspect" {
         return inspect::parse_args(arguments).map(Command::Inspect);
+    }
+    if first == "validate" {
+        return validate::parse_args(arguments).map(Command::Validate);
     }
     if first != "probe" {
         return Err("unknown_command");

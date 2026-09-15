@@ -88,6 +88,17 @@ impl TableDefinition {
         self.logical_length
     }
 
+    /// Returns the declared live row count (`EXP-0073`).
+    #[must_use]
+    pub const fn row_count(&self) -> u32 {
+        u32::from_le_bytes([
+            self.raw_header[12],
+            self.raw_header[13],
+            self.raw_header[14],
+            self.raw_header[15],
+        ])
+    }
+
     #[must_use]
     /// Returns the table's free-space and owned-page map locations.
     pub const fn maps(&self) -> TableMapLocations {

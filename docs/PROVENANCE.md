@@ -15267,3 +15267,43 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   The outbox rename is documented by the retained `run-id-correction.json`.
 - Scope remains the recorded scalar, one-unique-Long and inline-map cases;
   this finite differential does not establish general v1 compatibility.
+
+
+## EXP-0228 — Native catalog overflow uses the ordinary hidden-row locator
+
+- Read-only validation of the retained EXP-0223 creation-capacity controls
+  found two DAO-created wide-schema files whose catalog root 2 owns data
+  pages 18 and 61. Page 18 slot 21 is an active overflow row containing
+  `003d0000`: slot 0 on page 61, using the EXP-0060 four-byte locator.
+- Page 61 slot 0 is hidden, non-overflow, and owned by root 2. Its 109 bytes
+  decode with the EXP-0058 catalog fields and name trailer: user table
+  identifier 59, kind 1, flags 0, name `T13` followed by 45 `x` bytes.
+  Both replicas have this structure. The hidden storage record is reached
+  through the active locator and is not a second catalog object.
+- Catalog reading composes EXP-0060 overflow pointer, ownership, hidden-target
+  and chain checks with EXP-0058 record decoding. This observation establishes
+  catalog use of that shared grammar; it does not extend creation capacity.
+- Private retained sources are under
+  `shared/outbox/20260915T033813Z-creation-tables-7e1a0b/`:
+  `catalog-wide-r1-control.mdb` SHA-256
+  `b9f055c5552da96ceed7b7bc5de1ac38d98bcd7ee42a6ab60a89b1824b0fa7e4`;
+  `catalog-wide-r2-control.mdb` SHA-256
+  `7d8e11b9a525466e790e9b4d28e4bec6bbdb6b7b601c70dad2e82de046247608`.
+  These were accepted paired DAO captures in the clean EXP-0223 all-suite run.
+  The discovery report is `shared/checks/20260915-validator/report.json`:
+  265 of 267 images passed, these two failed catalog discovery, and all input
+  hashes remained unchanged. This retained-artifact analysis acquires no new
+  DAO data and makes no whole-database compatibility claim.
+
+
+### EXP-0228 read-only validation verification
+
+- At `8e6a22350a5a55d8f751393cd9d13fbb2de9910a`, the validator accepted
+  all 267 retained images, including both native wide-catalog controls.
+  Every input retained its exact SHA-256. The corpus includes the clean
+  EXP-0223 suites and their native continuation images; this is a finite
+  read-only integrity check, not a new DAO differential or coverage of the
+  integrity checks explicitly excluded by the validator report.
+- Private report:
+  `shared/checks/20260915-validator-overflow-fixed/report.json`, SHA-256
+  `b158c865a5a723a62df3fed4cc4ba6fa6c4aedb809d0011a39b9ff2c358d3525`.

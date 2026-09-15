@@ -87,6 +87,16 @@ EXP-0223 adds five tree lifecycle cases and two DAO-compressed input
 continuations, including depth-three growth and empty-table reuse. EXP-0224
 records native last-live-row release with retained deleted slots.
 
+### Validation
+
+The read-only library and CLI validator walk catalogued user tables with one
+shared resource budget: definitions, declared row counts, decoded values,
+long-value chains and physical index traversal. Reports state their coverage.
+System and non-table contents, orphan pages, relationship constraints, and
+index key semantics or row membership remain outside these checks. Catalog
+reading follows native overflow records using the shared row-locator grammar
+(EXP-0228). Validation success does not establish DAO compatibility.
+
 ### Remaining work
 
 - Extend creation beyond current schema/index-key and inline-allocation bounds.
@@ -95,8 +105,8 @@ records native last-live-row release with retained deleted slots.
 - Cover remaining DAO inventories, stored-query preservation and broader
   failure/rollback behavior. Local VM and hosted runs may both establish
   evidence; preregistration and per-run approval are not required.
-- Implement general database validation; resolve deterministic-output
-  configuration, currently marked not started in the support ledger.
+- Extend validation to the remaining integrity checks; resolve deterministic-
+  output configuration, currently marked not started in the support ledger.
 - Meet all three release gates on a release commit. Evidence covers its recorded
   revisions and finite recipes; no whole-v1 compatibility is claimed.
 

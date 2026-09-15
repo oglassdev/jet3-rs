@@ -755,7 +755,7 @@ fn validate_unused_null_bits(
     Ok(())
 }
 
-fn decode_pointer(raw: [u8; OVERFLOW_POINTER_LEN]) -> RowLocator {
+pub(crate) fn decode_pointer(raw: [u8; OVERFLOW_POINTER_LEN]) -> RowLocator {
     let page = u32::from_le_bytes([raw[1], raw[2], raw[3], 0]);
     RowLocator::new(PageNumber::new(u64::from(page)), raw[0])
 }
