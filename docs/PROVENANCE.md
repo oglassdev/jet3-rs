@@ -15854,3 +15854,56 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   bytes; the historical acquisition plan remains unchanged and wrong-pin
   rejection is still tested. `just ready` passed the writer tree, and the
   corrected focused analyzer test and CI contract job pass.
+
+
+## EXP-0242 — Native Windows publication and practical lifecycle
+
+- Recorded: 2026-09-15. Local Windows validation of the publication port at
+  `c066713df087e5b6d1c6956b3bca6d4230dc1d86`, compiled with Rust 1.96.0 for
+  `x86_64-pc-windows-gnu`. The subsequent rebase and documentation changes do
+  not change the tested library or example sources. No new Jet encoding is
+  inferred from the operating-system tests.
+- On the rebuilt Windows Server 2022 VM (`10.0.20348.0`), the native library
+  executable ran on local NTFS: 608 passed, zero failed, five ignored. This
+  includes all 15 publication tests and the enabled creation/row/field/Memo/OLE
+  mutation suites. Fault injection covers every pre-publication stage, private
+  path substitution, and removal of a read-only private file; rejected writes
+  preserve the original. This is internal implementation verification.
+- Native test outbox `20260915T074000Z-windows-publication`: `result.json`
+  697 bytes, SHA-256
+  `7ef8333e301718fb2c212e2f758a4f1409bcb88c7b3e3e409b4b68147eb6b31d`;
+  `library-tests.txt` 115502 bytes, SHA-256
+  `7e13c50bb44420e96604092c8de39ed20646bbb3d9e981216478a43981d2cdae`.
+- The same-source `practical_lifecycle_candidate.exe` then creates and mutates
+  both databases entirely on Windows NTFS. Its binary SHA-256 is
+  `398972a30ab92367b6e1748ad02f2bf5f7a88b696698e80814f1635da51f2c24`.
+  Generation outbox `20260915T074500Z-windows-native-generation` retains every
+  candidate, snapshot and refusal image. `generation.json` is 499 bytes,
+  SHA-256 `2308f7d613d6de1748bcd8b6ab0fba7de9a568ae5df7ed5e7ee4a998d7983cb3`.
+- The existing practical-lifecycle analyzer and native DAO producer compare
+  those retained Windows outputs against fresh DAO controls. All eight pairs
+  (16 captures) pass: Items has 0/220/220/212/252 rows through initial creation,
+  insertion, replacement, deletion and reinsertion; a separate 3/0/1-row
+  lifecycle reuses the released data page without file growth. Complete schema,
+  rows, index traversal and 262 declared Seek queries per capture match. The
+  Notes metadata, data and 4096-byte Memo payload pages remain unchanged.
+  Duplicate, wrong-type, malformed-source and resource-limit refusals preserve
+  their complete inputs.
+- DAO outbox `20260915T072456Z-practical-lifecyc-936800` records x86
+  `DAO.DBEngine.36` 3.6 and actual provider identity. `result.json` is 6726346
+  bytes, SHA-256
+  `e021defbfe8a75787762591075cc7d4acb0f0fb31f502efe812c4aa71fad4cbe`;
+  `practical-lifecycle-report.json` is 12140 bytes, SHA-256
+  `cef2fcc3c1c4e6b53cd7972b5227bd0e52f315933d8e77a0e42330bf75a6d0bc`.
+  The retained suite receipt in
+  `checks/20260915-windows-publication/practical-dao/report.json` is 14732 bytes,
+  SHA-256 `b13356e51f876ce75b845cc7f4d8bdaeb96688aff4d35a1cc5216a74a2f2e2ed`.
+  Guest timestamps and host run identifiers are retained as recorded; the
+  guest clock is offset from the host.
+- Boundary: native NTFS publication and the stated practical lifecycle only.
+  Windows flushes file contents before publication but has no separate
+  directory-entry synchronization guarantee. These runs do not establish
+  crash recovery, concurrent-writer behavior, other filesystems, CLI integration
+  test execution, arbitrary Jet compatibility, or completion of v1. MDB and
+  provider bytes remain private. Independent Sol review found no actionable
+  production blocker in the port.

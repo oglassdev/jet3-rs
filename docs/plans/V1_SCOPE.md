@@ -127,6 +127,8 @@ EXP-0239 adds 90 Rust mutations of retained native AutoNumber inputs and two
 explicit/wrapping initial creations. DAO continues writing to every candidate
 and control; all 184 pairs (368 captures) match complete rows, schema, allocation
 state and numeric key/locator records, with Anchor payload pages preserved.
+EXP-0242 adds native Windows NTFS publication tests and all eight practical
+lifecycle DAO pairs using databases created and mutated entirely on Windows.
 
 ### Validation
 
