@@ -61,7 +61,14 @@ impl Case {
             .iter()
             .zip([
                 (b"ById".as_slice(), IndexKind::Primary),
-                (b"ByCode", IndexKind::Ordinary),
+                (
+                    b"ByCode",
+                    if self.name == "fixed8" {
+                        IndexKind::Unique
+                    } else {
+                        IndexKind::Ordinary
+                    },
+                ),
                 (
                     b"ByCodeDesc",
                     IndexKind::Ordinary.with_null_policy(jet3::IndexNullPolicy::IgnoreAllNull),
@@ -72,6 +79,14 @@ impl Case {
             .collect()
     }
     fn code(&self, seed: i32) -> Vec<u8> {
+        if self.name == "fixed8" {
+            return match seed {
+                1 => b"a       ".to_vec(),
+                100 => b"c       ".to_vec(),
+                101 => b"d       ".to_vec(),
+                _ => format!("{seed:08}").into_bytes(),
+            };
+        }
         if seed % 11 == 0 {
             let mut bytes = vec![b' '; usize::from(self.width.get())];
             bytes[0] = if (seed / 11) % 2 == 0 { b'A' } else { b'a' };
@@ -140,7 +155,13 @@ fn mutate(path: &Path, model: &mut BTreeMap<i32, Row>, operation: Operation) -> 
 fn refusals(directory: &Path, source: &Path, case: &Case) -> Result<()> {
     let original = fs::read(source)?;
     let mut receipts = Vec::new();
-    for name in ["width", "duplicate", "resource"] {
+    for name in [
+        "width",
+        "duplicate-insert",
+        "duplicate-field",
+        "duplicate-row",
+        "resource",
+    ] {
         let before = directory.join(format!("refusal-{name}-before.mdb"));
         let after = directory.join(format!("refusal-{name}-after.mdb"));
         fs::write(&before, &original)?;
@@ -157,8 +178,34 @@ fn refusals(directory: &Path, source: &Path, case: &Case) -> Result<()> {
                 },
                 &mut budget(),
             )
+        } else if name == "duplicate-field" {
+            jet3::update_field(
+                &after,
+                FieldUpdate {
+                    table: b"Items",
+                    row: locate(&after, 2)?,
+                    column: column_ordinal(&after, 1)?,
+                    value: RowValue::Text(b"A       "),
+                },
+                &mut budget(),
+            )
+        } else if name == "duplicate-row" {
+            let mut row = case.row(2);
+            row[1] = Scalar::Text(b"A       ".to_vec());
+            jet3::update_row(
+                &after,
+                RowUpdate {
+                    table: b"Items",
+                    row: locate(&after, 2)?,
+                    values: &values(&row),
+                },
+                &mut budget(),
+            )
         } else {
-            let row = case.row(if name == "duplicate" { 1 } else { 9999 });
+            let mut row = case.row(9999);
+            if name == "duplicate-insert" {
+                row[1] = Scalar::Text(b"A       ".to_vec());
+            }
             let mut work = if name == "resource" {
                 ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(0))
             } else {

@@ -89,6 +89,36 @@ function Seek-Composite($Recordset, $Case, $Index, $Query) {
         default { throw 'Unsupported composite Seek width' }
     }
 }
+function Refuse-Unique([string]$Path, $Case, $Operation) {
+    $before = Identity $Path; $engine = $db = $rs = $null
+    $errorDetail = $null; $numbers = @()
+    try {
+        $engine = New-Object -ComObject DAO.DBEngine.36; $db = $engine.OpenDatabase($Path, $false, $false)
+        $rs = $db.OpenRecordset('Items', 1); $rs.Index = 'ById'
+        $script:endpoint = "$([IO.Path]::GetFileName($Path))/refuse/$($Operation.kind)"
+        if ($Operation.kind -eq 'insert') { $rs.AddNew(); Set-Row $rs $Case $Operation.row }
+        else {
+            $rs.Seek('=', [int]$Operation.id); if ($rs.NoMatch) { throw 'Refusal target absent' }
+            $rs.Edit()
+            if ($Operation.kind -eq 'field') { Set-Cell $rs $Case ([int]$Operation.column) $Operation.value }
+            else { Set-Row $rs $Case $Operation.row }
+        }
+        try { $rs.Update() } catch {
+            $errorDetail = Failure $_
+            $errors = $engine.Errors
+            try {
+                for ($i = 0; $i -lt $errors.Count; $i++) {
+                    $item = $errors.Item($i)
+                    try { $numbers += [int]$item.Number } finally { Release $item }
+                }
+            } finally { Release $errors }
+        }
+    } finally {
+        if ($null -ne $rs) { try { if ($rs.EditMode -ne 0) { $rs.CancelUpdate() }; $rs.Close() } catch {} }; Release $rs
+        if ($null -ne $db) { try { $db.Close() } catch {} }; Release $db; Release $engine
+    }
+    return @{ before = $before; error = $errorDetail; numbers = $numbers; capture = (Capture $Path $Case) }
+}
 function Capture([string]$Path, $Case) {
     $before = Identity $Path; $engine = $db = $table = $rs = $null
     $status = 'pass'; $errorDetail = $null; $snapshot = @{}
@@ -167,7 +197,7 @@ try {
     } finally { Release $engine }
     foreach ($case in $manifest.cases) {
         if ($case.name -cne $CaseName) { continue }
-        $outcome = @{ name = [string]$case.name; status = 'running'; created = $null; stages = @(); native = @{}; roles = @{}; operation = $null; error = $null }; $result.cases += ,$outcome
+        $outcome = @{ name = [string]$case.name; status = 'running'; created = $null; stages = @(); native = @{}; roles = @{}; refusals = @(); operation = $null; error = $null }; $result.cases += ,$outcome
         try {
             if ($manifest.round -eq 'continuation') {
                 foreach ($role in @('candidate', 'control')) {
@@ -198,6 +228,15 @@ try {
                     Copy-Item -LiteralPath (Join-Path $env:JET3_WORK "$($case.name)-regrown-$role.mdb") -Destination $path
                     $native = @{ mutation = (Mutate $path $case $case.native); capture = (Capture $path $case) }; $outcome.native[$role] = $native
                     if ($native.capture.status -ne 'pass') { throw 'Native follow-up capture failed' }
+                }
+                foreach ($refusal in $case.refusals) {
+                    $attempt = @{ name = [string]$refusal.name; operation = $refusal.operation; roles = @{} }
+                    $outcome.refusals += ,$attempt
+                    foreach ($role in @('candidate', 'control')) {
+                        $path = Join-Path $env:JET3_WORK "$($case.name)-$($refusal.name)-$role.mdb"
+                        Copy-Item -LiteralPath (Join-Path $env:JET3_WORK "$($case.name)-original-$role.mdb") -Destination $path
+                        $attempt.roles[$role] = Refuse-Unique $path $case $refusal.operation
+                    }
                 }
             }
             $outcome.status = 'pass'
