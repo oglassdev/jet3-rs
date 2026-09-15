@@ -15071,3 +15071,18 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
 - This validates the finite isolated-leaf mutation inventory and indexed
   data-page growth. Rust index splits, general relationships, long-value
   mutation and broader allocation remain outside these suites.
+
+
+### EXP-0221 — Reviewed committed-source verification
+
+- Repeated both suites after review on clean revision
+  `7411ace15224ace05a15d7428b70338fe85ab7ef`: all twelve boundary and 96 indexed-row
+  captures matched again. Reports distinguish live distinct keys from the
+  retained counter and include result/environment identities.
+- Final private root: `shared/checks/20260914-indexed-lifecycle-final/`.
+  Boundary report SHA-256
+  `991b0bf3408ca4abba441c10b013ed0f495bda52aa802b27938da39e75209c03`;
+  indexed-row report SHA-256
+  `fca4905947535ff03e94d0331b4c60f75f69e79b9a384aa34bd61fa2c08b06a8`.
+- Independent GPT-5.6 Sol high review found no remaining correctness blockers.
+  `just ready`, 506 oracle tests and the focused float corruption tests passed.
