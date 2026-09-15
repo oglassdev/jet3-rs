@@ -120,7 +120,9 @@ fn preserve(
     let mut expected = before.to_vec();
     let root = table.root().get() as usize * PAGE_BYTES;
     expected[root + 12..root + 16].copy_from_slice(&after[root + 12..root + 16]);
-    expected[root + 47..root + 51].copy_from_slice(&after[root + 47..root + 51]);
+    let counter = u32::from_le_bytes(before[root + 47..root + 51].try_into()?);
+    let counter = counter + u32::from(insertion);
+    expected[root + 47..root + 51].copy_from_slice(&counter.to_le_bytes());
     let leaf = table.physical_indexes()[0].root();
     let base = leaf.get() as usize * PAGE_BYTES;
     let count = crate::index_tree_page::boundaries(page(after, leaf)?).count();
@@ -211,6 +213,59 @@ fn indexed_rows_insert_delete_and_repeat_preserve_three_page_scope() -> TestResu
     }
     Ok(())
 }
+#[test]
+fn indexed_rows_retain_deleted_key_counters_and_reject_overflow() -> TestResult {
+    for initial in [6_u32, u32::MAX] {
+        let f = Fixture::new(3, false, IndexKind::Primary)?;
+        let root = f.definition()?.root().get() as usize * PAGE_BYTES;
+        let mut bytes = fs::read(f.path())?;
+        bytes[root + 47..root + 51].copy_from_slice(&initial.to_le_bytes());
+        fs::write(f.path(), &bytes)?;
+        let row = f.rows()?[0].1;
+        crate::delete_row(
+            f.path(),
+            RowDelete {
+                table: b"Rows",
+                row,
+            },
+            &mut budget(),
+        )?;
+        let row = f.rows()?[0].1;
+        crate::update_field(
+            f.path(),
+            crate::FieldUpdate {
+                table: b"Rows",
+                row,
+                column: crate::ColumnOrdinal::new(0),
+                value: RowValue::Long(100),
+            },
+            &mut budget(),
+        )?;
+        let before = fs::read(f.path())?;
+        assert_eq!(&before[root + 47..root + 51], &initial.to_le_bytes());
+        let result = insert_row(
+            f.path(),
+            b"Rows",
+            &[RowValue::Long(99), RowValue::Long(1)],
+            &mut budget(),
+        );
+        if initial == u32::MAX {
+            assert!(matches!(
+                result,
+                Err(UpdateError::Unsupported("index counter overflow"))
+            ));
+            assert_eq!(fs::read(f.path())?, before);
+        } else {
+            result?;
+            let after = fs::read(f.path())?;
+            assert_eq!(&after[root + 47..root + 51], &(initial + 1).to_le_bytes());
+            assert_eq!(f.rows()?.len(), 3);
+        }
+        f.validate()?;
+    }
+    Ok(())
+}
+
 #[test]
 fn indexed_rows_actual_leaf_capacity_and_last_row_refuse_without_publication() -> TestResult {
     let f = Fixture::new(199, false, IndexKind::Primary)?;
@@ -339,7 +394,7 @@ fn indexed_rows_corrupt_keys_counts_map_and_leaf_framing_refuse() -> TestResult 
         (index + 20, 1),
         (index + 23, 0),
         (table.root().get() as usize * PAGE_BYTES + 12, 9),
-        (table.root().get() as usize * PAGE_BYTES + 47, 9),
+        (table.root().get() as usize * PAGE_BYTES + 47, 2),
         (map_start + 5, 0xff),
     ] {
         let mut bytes = original.clone();

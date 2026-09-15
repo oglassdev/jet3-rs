@@ -28,6 +28,22 @@ def observations(value, case):
 
 
 class CreationIndexTests(unittest.TestCase):
+    def test_raw_dao_float_sidecars_and_nonfinite_rejection(self):
+        case=expansion.inventory()['scenarios'][1]
+        value=snapshot(case); actual=copy.deepcopy(observations(value,case))
+        for obs in actual:
+            for row in obs['rows']+[s['row'] for s in obs['seeks']]:
+                if row['B']['kind']=='double': row['B']['value']=str(row['B']['value'])
+            for seek in obs['seeks']: seek['query'][1]=str(seek['query'][1])
+        saved=copy.deepcopy(actual)
+        expansion.assert_indexes(actual,value)
+        self.assertEqual(actual,saved)
+        for bad in ('NaN','Infinity','-Infinity',True,None):
+            broken=copy.deepcopy(actual);broken[0]['seeks'][0]['query'][1]=bad
+            with self.assertRaises(expansion.fail): expansion.assert_indexes(broken,value)
+        broken=copy.deepcopy(actual);broken[0]['rows'][0]['B']['raw_hex']='00'*8
+        with self.assertRaises(expansion.fail): expansion.assert_indexes(broken,value)
+
     def test_deterministic_recipes_and_separate_historical_runtime(self):
         cases = expansion.inventory()['scenarios']
         self.assertEqual([len(c['tables'][0]['rows']) for c in cases], [27801, 126, 201])

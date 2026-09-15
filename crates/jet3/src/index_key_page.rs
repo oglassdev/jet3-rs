@@ -76,18 +76,16 @@ pub(crate) fn replace(
     Ok(image)
 }
 
-// EXP-0073: table row count at [12,16), physical prefix distinct count at [4,8).
-// A unique present-key replacement preserves both counts.
+// EXP-0073/0219: the prefix counter retains deleted keys; live rows do not.
 pub(crate) fn check_counts(
     table: &[u8; PAGE_BYTES],
     prefix: &[u8; 8],
     rows: usize,
 ) -> Result<(), UpdateError> {
-    let expected = u32::try_from(rows)
-        .map_err(|_| UpdateError::Mismatch("key count range"))?
-        .to_le_bytes();
-    if table[12..16] != expected || prefix[4..8] != expected {
-        return Err(UpdateError::Mismatch("table or distinct key count"));
+    let expected = u32::try_from(rows).map_err(|_| UpdateError::Mismatch("key count range"))?;
+    let stored = u32::from_le_bytes([prefix[4], prefix[5], prefix[6], prefix[7]]);
+    if table[12..16] != expected.to_le_bytes() || stored < expected {
+        return Err(UpdateError::Mismatch("table or index counter"));
     }
     Ok(())
 }
@@ -138,14 +136,16 @@ pub(crate) fn encode_record(
     Ok(record)
 }
 
-// EXP-0059 first physical prefix follows the 43-byte header; EXP-0073 count.
-// Callers require exactly one physical index and have already validated old counts.
-pub(crate) fn set_distinct_count(
+// EXP-0059/0219: increment the retained counter on unique present-key insertion.
+// Callers require exactly one physical index and have validated its old counter.
+pub(crate) fn increment_counter(
     image: &mut PageImage,
-    count: usize,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    let count = u32::try_from(count).map_err(|_| UpdateError::Mismatch("distinct key count"))?;
+    let bytes = image.as_bytes();
+    let count = u32::from_le_bytes([bytes[47], bytes[48], bytes[49], bytes[50]])
+        .checked_add(1)
+        .ok_or(UpdateError::Unsupported("index counter overflow"))?;
     image.write_at(PageOffset::new(47), &count.to_le_bytes(), budget)?;
     Ok(())
 }

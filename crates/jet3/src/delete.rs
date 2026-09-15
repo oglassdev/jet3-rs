@@ -18,8 +18,8 @@ pub struct RowDelete<'a> {
 /// Supports relationship-free tables without AutoIncrement or long values.
 /// One unique/primary present Long index additionally supports retained-page
 /// deletion when its complete tree is an uncompressed root leaf. The matching
-/// leaf entry is removed, its boundary/free and physical distinct-key count are
-/// updated, and unused leaf bytes remain exact. Other indexed deletions are refused.
+/// leaf entry is removed and its boundary/free fields are updated. The retained
+/// index counter and unused leaf bytes remain exact. Other indexed deletions are refused.
 /// Slots must be ordinary live rows or known empty `c000` tombstones;
 /// the page must already appear in its inline available map. Later rows move
 /// upward without changing their physical slot numbers or stored values. The
@@ -134,7 +134,7 @@ where
     }
     let mut source_definition = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut source_definition, budget)?;
-    let mut patched_definition =
+    let patched_definition =
         crate::row_delete_page::decrement_count(&source_definition, observed_rows, budget)?;
     if let Some(leaf) = &mut index {
         if matches!(patched_page, crate::row_delete_page::Deletion::Released(_)) {
@@ -143,7 +143,6 @@ where
             ));
         }
         let after = leaf.remove(request.row, budget)?;
-        crate::index_key_page::set_distinct_count(&mut patched_definition, leaf.count, budget)?;
         return crate::update_pages::publish_changes(
             path,
             database.into_source(),

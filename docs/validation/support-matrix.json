@@ -95,7 +95,9 @@
         "oracle/windows-dao/scripts/hosted_write_reanalysis.py",
         "crates/jet3/src/creation/api.rs",
         "crates/jet3/src/creation/tests.rs",
-        "crates/jet3/src/creation/multi_table_rows_tests.rs"
+        "crates/jet3/src/creation/multi_table_rows_tests.rs",
+        "oracle/windows-dao/protocol/v1_2/creation-index-scenarios.json",
+        "oracle/windows-dao/scripts/dao_creation_index_diff.py"
       ]
     },
     {
@@ -203,7 +205,10 @@
         "oracle/windows-dao/scripts/dao_row_replacement_diff.py",
         "crates/jet3-testkit/src/row_replacement_fixture.rs",
         "crates/jet3/src/row_update.rs",
-        "crates/jet3/src/row_update_page.rs"
+        "crates/jet3/src/row_update_page.rs",
+        "scripts/dao-check.py",
+        "oracle/windows-dao/scripts/indexed_row_candidate.py",
+        "oracle/windows-dao/scripts/indexed_boundary.py"
       ]
     },
     {
@@ -248,7 +253,10 @@
         "oracle/windows-dao/scripts/Invoke-DaoIndexedUpdateV12.ps1",
         "crates/jet3-testkit/src/indexed_update_fixture.rs",
         "crates/jet3/src/update_index_key.rs",
-        "crates/jet3/src/index_key_page.rs"
+        "crates/jet3/src/index_key_page.rs",
+        "scripts/dao-check.py",
+        "oracle/windows-dao/scripts/indexed_row_candidate.py",
+        "oracle/windows-dao/scripts/indexed_boundary.py"
       ]
     },
     {

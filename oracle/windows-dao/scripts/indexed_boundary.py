@@ -144,10 +144,10 @@ def verify_inputs():
     return plan
 
 
-def build_report(result, outbox, plan):
+def build_report(result, outbox, plan, *, plan_path=None):
     observations, reasons = [], []
     try:
-        require(result['document_type'] == 'dao_indexed_boundary_result' and result['plan_sha256'] == identity(PLAN)['sha256'] and result['environment'] == dict(process_bits=32,provider='DAO.DBEngine.36') and result['error'] is None and result['retention_failures'] == [] and result['mutation_started'] is True, 'Acquisition failure')
+        require(result['document_type'] == 'dao_indexed_boundary_result' and result['plan_sha256'] == identity(plan_path or PLAN)['sha256'] and result['environment'] == dict(process_bits=32,provider='DAO.DBEngine.36') and result['error'] is None and result['retention_failures'] == [] and result['mutation_started'] is True, 'Acquisition failure')
         require(set(result['captures']) == {f"{a['name']}-{r}.mdb" for a in plan['arms'] for r in ('original','candidate','control')}, 'Complete captures')
         require(set(result['operations']) == {'space','eof','duplicate'}, 'Operations inventory')
         for name in ('space','eof'): require(result['operations'][name] == dict(status='inserted'), 'Native insertion')
@@ -172,7 +172,7 @@ def build_report(result, outbox, plan):
             patch = patch_check((outbox/f"{arm['name']}-original.mdb").read_bytes(),(outbox/f"{arm['name']}-candidate.mdb").read_bytes(),arm)
             observations.append(dict(arm=arm['name'],patch=patch,raw=raw_counts))
     except (ValueError,KeyError,TypeError,OSError,catalog.DecodeError) as error: reasons.append(str(error))
-    return dict(document_type='dao_indexed_boundary_report',outcome='no_outcome' if reasons else 'observed_accepted',plan_sha256=identity(PLAN)['sha256'],reasons=reasons,observations=observations,development_only=True,compatibility_claim=False,support_matrix_movement=False)
+    return dict(document_type='dao_indexed_boundary_report',outcome='no_outcome' if reasons else 'observed_accepted',plan_sha256=identity(plan_path or PLAN)['sha256'],reasons=reasons,observations=observations,development_only=plan_path is None,compatibility_claim=False,support_matrix_movement=False)
 
 
 def preflight(images):
