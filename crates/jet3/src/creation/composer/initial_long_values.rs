@@ -196,7 +196,7 @@ impl InitialLongValues {
                         })?;
                 }
                 if storage == ExternalLongValueStorage::SinglePage {
-                    result.push(column, payload, budget)?;
+                    result.push(column, storage, payload, budget)?;
                 } else {
                     let mut bytes = [0_u8; PAGE_BYTES];
                     for (offset, fragment) in chained_fragments(payload).enumerate() {
@@ -206,7 +206,7 @@ impl InitialLongValues {
                         budget.charge_work_units(fragment.len() as u64)?;
                         let length = encode_chained_row(fragment, next, &mut bytes)
                             .map_err(|_| refusal(row, "chained payload encoding"))?;
-                        result.push(column, &bytes[..length], budget)?;
+                        result.push(column, storage, &bytes[..length], budget)?;
                     }
                 }
             }
@@ -217,19 +217,22 @@ impl InitialLongValues {
     fn push(
         &mut self,
         column: usize,
+        storage: ExternalLongValueStorage,
         bytes: &[u8],
         budget: &mut ResourceBudget,
     ) -> Result<(), ComposeError> {
         let mut builder = DataPageBuilder::new_long_value(budget)?;
         builder.append_row(bytes, budget)?;
-        // Candidate policy: a page is available if another nonempty row fits.
-        let available = match builder.clone().append_row(&[0], budget) {
-            Ok(_) => true,
-            Err(PageImageError::PageFull { .. } | PageImageError::RowSlotsExhausted { .. }) => {
-                false
-            }
-            Err(error) => return Err(error.into()),
-        };
+        // EXP-0234: chained pages stay unavailable, including short terminal
+        // fragments. Single-page availability remains bounded by physical room.
+        let available = storage == ExternalLongValueStorage::SinglePage
+            && match builder.clone().append_row(&[0], budget) {
+                Ok(_) => true,
+                Err(PageImageError::PageFull { .. } | PageImageError::RowSlotsExhausted { .. }) => {
+                    false
+                }
+                Err(error) => return Err(error.into()),
+            };
         self.pages.push(PayloadPage {
             image: finish_data_builder(builder, budget)?,
             column,

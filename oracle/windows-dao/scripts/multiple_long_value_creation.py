@@ -155,6 +155,7 @@ def storage_inventory(data, receipt, table, maps):
                 raw = page[entry['start']:entry['end']]
                 state = pages.setdefault(str(number), dict(column=column, kinds=set(), slots=set(), available=number in maps[column]['available']))
                 require(state['column'] == column, 'Independent live payload column')
+                require(slot not in state['slots'], 'Each live payload slot is referenced once')
                 state['kinds'].add(reference['storage']); state['slots'].add(slot)
                 if reference['storage'] == 'SinglePage':
                     length += len(raw); break
@@ -162,6 +163,21 @@ def storage_inventory(data, receipt, table, maps):
                 length += len(raw) - 4
                 locator = (int.from_bytes(raw[1:4], 'little'), raw[0])
             require(length == reference['length'], 'Complete external storage length')
+    for column, mapping in maps.items():
+        for number in mapping['owned']:
+            page = raw_index.catalog._page(data, number, 'owned LVAL page')
+            live, empty_siblings = set(), []
+            for entry in raw_index.catalog._row_directory(page, number):
+                slot = entry['row']; word = int.from_bytes(page[10 + 2 * slot:12 + 2 * slot], 'little')
+                if word & 0xe000:
+                    require(word & 0xe000 == 0xc000 and entry['start'] == entry['end'], 'Only empty c000 LVAL siblings')
+                    empty_siblings.append(dict(slot=slot, word=f'{word:04x}', offset=entry['start']))
+                else:
+                    require(entry['start'] < entry['end'], 'Nonempty active payload slot')
+                    live.add(slot)
+            state = pages.setdefault(str(number), dict(column=column, kinds=set(), slots=set(), available=number in mapping['available']))
+            require(live == state['slots'], 'All active payload slots have live column references')
+            state['empty_siblings'] = empty_siblings
     return {page: dict(value, kinds=sorted(value['kinds']), slots=sorted(value['slots'])) for page, value in pages.items()}
 
 

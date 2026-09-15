@@ -155,8 +155,7 @@ fn mixed_columns_indexes_and_generated_ids_keep_independent_payloads_and_maps() 
                 let chained = payload.len() > 2036;
                 let fragment_size = if chained { 2032 } else { 2036 };
                 for fragment in payload.chunks(fragment_size) {
-                    expected_pages[group]
-                        .push((next, fragment.len() + if chained { 4 } else { 0 } <= 2033));
+                    expected_pages[group].push((next, !chained && fragment.len() <= 2033));
                     next += 1;
                 }
             }
