@@ -32,7 +32,10 @@
       "evidence": [
         "crates/jet3/src/validation.rs",
         "crates/jet3/src/validation_tests.rs",
-        "crates/jet3-cli/src/validate.rs"
+        "crates/jet3-cli/src/validate.rs",
+        "crates/jet3/src/validation_index.rs",
+        "crates/jet3/src/validation_index_tests.rs",
+        "crates/jet3/src/index_mutation_structure.rs"
       ]
     },
     {

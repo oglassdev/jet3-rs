@@ -9,7 +9,8 @@ validate: check reachable user-table data without modifying the file
     [--max-input-bytes <bytes>] [--max-work-units <units>]
 
 Checks catalog records, user definitions, row counts, values, Memo/OLE chains,
-and supported physical index traversal. Skips system-object contents and other
+index row membership, and supported scalar keys and branch bounds.
+Skips system-object contents and other
 object kinds. Success is not whole-file validity or a compatibility claim.
 ";
 
@@ -91,16 +92,18 @@ pub fn run(command: &ValidateCommand) -> Result<String, String> {
             "values": report.values,
             "indexes": report.indexes,
             "index_entries": report.index_entries,
+            "indexes_with_verified_keys": report.indexes_with_verified_keys,
             "long_values": report.long_values,
             "long_value_bytes": report.long_value_bytes,
         },
         "coverage_limits": {
             "skipped_system_objects": report.skipped_system_objects,
             "skipped_other_objects": report.skipped_other_objects,
+            "uninterpreted_indexes": report.uninterpreted_indexes,
             "uninterpreted_index_entries": report.uninterpreted_index_entries,
             "not_checked": ["system_object_contents", "non_table_object_contents",
                 "unreferenced_pages_and_allocation_slack", "relationship_constraints",
-                "index_key_semantics_and_row_membership", "application_compatibility"],
+                "unsupported_index_key_schemas", "application_compatibility"],
         },
         "resources": {
             "bytes_read": budget.read_budget().total_read().get(),

@@ -1,6 +1,6 @@
 use super::*;
 use crate::numeric_index_key::NumericKeyType;
-use crate::{ColumnOrdinal, ColumnPhysicalType, ColumnType, RowView, TextCodePage, ValueKind};
+use crate::{ColumnPhysicalType, ColumnType};
 
 pub(crate) fn load(
     database: &mut DatabaseReader<FileSource>,
@@ -129,7 +129,7 @@ pub(crate) fn load(
             return Err(UpdateError::Unsupported("overflow indexed row"));
         }
         let locator = row.locator();
-        let values = row_values(&mut row, &result.columns)?;
+        let values = crate::numeric_row_values::read(&mut row, &result.columns)?;
         let budget = row.budget_mut();
         for index in &mut result.indexes {
             if let Some(entry) = index.encode(&values, locator, budget)? {
@@ -198,46 +198,4 @@ pub(crate) fn load(
         }
     }
     Ok(result)
-}
-
-pub(super) fn row_values<'value>(
-    row: &mut RowView<'value, '_>,
-    columns: &[bool; u8::MAX as usize],
-) -> Result<[RowValue<'value>; u8::MAX as usize], UpdateError> {
-    let mut values = [RowValue::Null; u8::MAX as usize];
-    for (ordinal, selected) in columns.iter().enumerate() {
-        if !selected {
-            continue;
-        }
-        let value = row
-            .value(
-                ColumnOrdinal::new(ordinal as u16),
-                TextCodePage::Windows1252,
-            )?
-            .ok_or(UpdateError::NotFound("index key column"))?;
-        values[ordinal] = match value.kind() {
-            ValueKind::Null => RowValue::Null,
-            ValueKind::Boolean(v) => RowValue::Boolean(*v),
-            ValueKind::Byte(v) => RowValue::Byte(*v),
-            ValueKind::Integer(v) => RowValue::Integer(*v),
-            ValueKind::Long(v) => RowValue::Long(*v),
-            ValueKind::Currency(v) => RowValue::Currency { scaled: v.scaled() },
-            ValueKind::Single(v) => RowValue::Single(*v),
-            ValueKind::Double(v) => RowValue::Double(*v),
-            ValueKind::DateTime(v) => RowValue::DateTime { days: v.days() },
-            ValueKind::Binary(_) => RowValue::Binary(
-                row.field(ColumnOrdinal::new(ordinal as u16))
-                    .and_then(|field| field.raw_bytes())
-                    .ok_or(UpdateError::Mismatch("missing binary key bytes"))?,
-            ),
-            ValueKind::Text(_) => RowValue::Text(
-                row.field(ColumnOrdinal::new(ordinal as u16))
-                    .and_then(|field| field.raw_bytes())
-                    .ok_or(UpdateError::Mismatch("missing text key bytes"))?,
-            ),
-            ValueKind::Guid(value) => RowValue::Guid(value.display_bytes()),
-            _ => return Err(UpdateError::Unsupported("non-numeric index value")),
-        };
-    }
-    Ok(values)
 }

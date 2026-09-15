@@ -2,7 +2,7 @@
 use crate::index_tree_page::{ENTRY_AREA_OFFSET, boundaries, parse_node, u32_at_be};
 use crate::numeric_index_entry::{ENTRY_CAPACITY, NumericIndexField, valid_key_shape};
 use crate::{
-    DatabaseReader, FileSource, IndexNodeKind, IndexNullPolicy, IndexTree, PAGE_BYTES, PageNumber,
+    DatabaseReader, IndexNodeKind, IndexNullPolicy, IndexTree, PAGE_BYTES, PageNumber, ReadAt,
     ResourceBudget, TableDefinition, UpdateError,
 };
 
@@ -18,8 +18,8 @@ impl Record {
 }
 type Bounds = (Record, Record);
 
-pub(crate) fn validate(
-    database: &mut DatabaseReader<FileSource>,
+pub(crate) fn validate<S: ReadAt>(
+    database: &mut DatabaseReader<S>,
     table: &TableDefinition,
     tree: &IndexTree,
     fields: &[NumericIndexField],

@@ -234,7 +234,7 @@ impl Indexes {
         let mut cursor = database.rows(table, budget)?;
         while let Some(mut row) = cursor.next_row()? {
             if row.locator() == request.row {
-                let mut values = load::row_values(&mut row, &self.columns)?;
+                let mut values = crate::numeric_row_values::read(&mut row, &self.columns)?;
                 let target = values
                     .get_mut(usize::from(request.column.get()))
                     .ok_or(UpdateError::NotFound("column"))?;

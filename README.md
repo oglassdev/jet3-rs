@@ -60,8 +60,10 @@ Creation and updates remain partial: schema combinations, index key types,
 allocation, and relationship mutation are restricted. Publication supports Unix
 and Windows. Windows flushes the file before publication without a separate
 directory-sync guarantee.
-The read-only library and CLI validator check user-table rows, values and index
-traversal within a shared budget; its report states the coverage limits.
+The read-only library and CLI validator check user-table rows, values, index
+membership and supported scalar key semantics within a shared budget. It checks
+key completeness, null rules, uniqueness and branch bounds, and reports indexes
+whose key schemas remain uninterpreted.
 Atomic publication and rollback verification remain internal-only. Local and
 hosted DAO differential runs establish evidence for their recorded capabilities
 and source revisions. AutoIncrement comparisons include explicit IDs, negative

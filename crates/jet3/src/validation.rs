@@ -4,21 +4,20 @@
 //! Success covers catalogued user tables only. System records are checked by
 //! the catalog reader, but system table contents and other object kinds are
 //! skipped. Unreferenced pages, allocation slack, relationship constraints,
-//! index key ordering/semantics, index completeness, index-to-row key equality,
-//! live-row membership of index references and application compatibility are
-//! outside this check. Index key bytes with an
-//! unsupported encoding remain uninterpreted; traversal still checks their
-//! framing and page/slot references. No index key-count prefix is compared
+//! and application compatibility are outside this check. Index references must
+//! name distinct live logical rows. Supported scalar schemas additionally check
+//! key values, null policies, uniqueness, complete row coverage and branch bounds.
+//! Unsupported key schemas remain explicitly uninterpreted; their framing and
+//! live-row membership are still checked. No index key-count prefix is compared
 //! with the live row count: `EXP-0219` permits retained counts after deletion.
 
 use std::{fmt, mem::size_of};
 
 use crate::{
     ByteCount, CatalogError, CatalogObjectClass, CatalogRecord, ColumnOrdinal, DatabaseReader,
-    Error, IndexKeyEncoding, IndexTreeError, InlineLongValue, LongValue, LongValueChunkValue,
-    LongValueError, LongValueReference, ReadAt, ResourceBudget, RowError, RowLocator,
-    TableDefinition, TableDefinitionError, TableDefinitionKind, TextCodePage, ValueError,
-    ValueKind,
+    Error, IndexTreeError, InlineLongValue, LongValue, LongValueChunkValue, LongValueError,
+    LongValueReference, ReadAt, ResourceBudget, RowError, RowLocator, TableDefinition,
+    TableDefinitionError, TableDefinitionKind, TextCodePage, ValueError, ValueKind,
 };
 
 /// Counts produced only after every in-scope reader finishes successfully.
@@ -42,7 +41,11 @@ pub struct ValidationReport {
     pub indexes: u64,
     /// Leaf entries traversed across those indexes.
     pub index_entries: u64,
-    /// Entries whose key encoding the index reader leaves unsupported.
+    /// Physical indexes whose complete keys match the live row values.
+    pub indexes_with_verified_keys: u64,
+    /// Physical indexes with a key schema outside the admitted scalar encodings.
+    pub uninterpreted_indexes: u64,
+    /// Entries in indexes whose key schema remains uninterpreted.
     pub uninterpreted_index_entries: u64,
     /// Non-null inline and external Memo/OLE values checked.
     pub long_values: u64,
@@ -122,6 +125,13 @@ pub enum TableValidationError {
         /// Index reader failure, including page/row references.
         source: IndexTreeError,
     },
+    /// Leaf membership, supported key semantics or branch bounds disagree with the table.
+    IndexContents {
+        /// Zero-based physical index ordinal.
+        index: u16,
+        /// Failed consistency check.
+        detail: &'static str,
+    },
     /// Resource policy rejected table bookkeeping.
     Resource(Error),
 }
@@ -169,7 +179,9 @@ impl std::error::Error for TableValidationError {
             Self::LongValue { source, .. } => Some(source),
             Self::Index { source, .. } => Some(source),
             Self::Resource(source) => Some(source),
-            Self::DefinitionKind { .. } | Self::RowCount { .. } => None,
+            Self::DefinitionKind { .. } | Self::RowCount { .. } | Self::IndexContents { .. } => {
+                None
+            }
         }
     }
 }
@@ -240,20 +252,18 @@ fn validate_table<S: ReadAt>(
     budget: &mut ResourceBudget,
     report: &mut ValidationReport,
 ) -> Result<(), TableValidationError> {
-    validate_rows(database, definition, code_page, budget, report)?;
+    let mut rows = validate_rows(database, definition, code_page, budget, report)?;
+    budget
+        .charge_work_units(
+            (rows.len() as u64).saturating_mul(u64::from(rows.len().max(1).ilog2()) + 1),
+        )
+        .map_err(TableValidationError::Resource)?;
+    rows.sort_unstable_by_key(|row| index::key(*row));
     for (index, _) in (0_u16..).zip(definition.physical_indexes()) {
         let tree = database
             .index_tree(definition, index, budget)
             .map_err(|source| TableValidationError::Index { index, source })?;
-        budget
-            .charge_items(tree.entries().len() as u64)
-            .map_err(TableValidationError::Resource)?;
-        for entry in tree.entries() {
-            if entry.key().encoding() == IndexKeyEncoding::Unsupported {
-                add(&mut report.uninterpreted_index_entries, 1)
-                    .map_err(TableValidationError::Resource)?;
-            }
-        }
+        index::validate(database, definition, index, &tree, &rows, budget, report)?;
         add(&mut report.index_entries, tree.entries().len() as u64)
             .map_err(TableValidationError::Resource)?;
         add(&mut report.indexes, 1).map_err(TableValidationError::Resource)?;
@@ -267,7 +277,8 @@ fn validate_rows<S: ReadAt>(
     code_page: TextCodePage,
     budget: &mut ResourceBudget,
     report: &mut ValidationReport,
-) -> Result<(), TableValidationError> {
+) -> Result<Vec<RowLocator>, TableValidationError> {
+    let mut locators = Vec::new();
     let mut pending: Vec<(ColumnOrdinal, LongValueReference)> = Vec::new();
     reserve(&mut pending, definition.long_value_maps().len(), budget)
         .map_err(TableValidationError::Resource)?;
@@ -340,6 +351,11 @@ fn validate_rows<S: ReadAt>(
                     .map_err(TableValidationError::Resource)?;
             }
         }
+        if !definition.physical_indexes().is_empty() {
+            reserve(&mut locators, 1, cursor.owned.budget_mut())
+                .map_err(TableValidationError::Resource)?;
+            locators.push(locator);
+        }
         add(&mut count, 1).map_err(TableValidationError::Resource)?;
     }
     if count != u64::from(definition.row_count()) {
@@ -348,7 +364,8 @@ fn validate_rows<S: ReadAt>(
             actual: count,
         });
     }
-    add(&mut report.rows, count).map_err(TableValidationError::Resource)
+    add(&mut report.rows, count).map_err(TableValidationError::Resource)?;
+    Ok(locators)
 }
 
 fn add(count: &mut u64, amount: u64) -> Result<(), Error> {
@@ -391,3 +408,6 @@ fn reserve<T>(
 #[cfg(test)]
 #[path = "validation_tests.rs"]
 mod tests;
+
+#[path = "validation_index.rs"]
+mod index;
