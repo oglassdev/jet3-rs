@@ -256,26 +256,31 @@ fn a_definition_needing_two_continuations_is_refused_before_any_page_is_built() 
 }
 
 #[test]
-fn a_table_with_both_an_index_and_a_long_value_column_is_refused() {
-    // No observed create carried both, so their map-page row order is unobserved.
+fn a_long_value_map_pair_follows_the_index_map() -> TestResult {
     let columns = [ID, NOTE];
     let indexes = [IndexSpec {
         name: b"ById",
         fields: &[field(0, IndexDirection::Ascending)],
         kind: IndexKind::Ordinary,
     }];
-    let mut budget = compose_budget();
-    assert!(matches!(
-        compose_table_database(
-            &TableSpec {
-                name: b"Mixed",
-                columns: &columns,
-                indexes: &indexes,
-            },
-            &mut budget,
-        ),
-        Err(ComposeError::UnobservedMapRowLayout)
-    ));
+    let bytes = create_bytes(&TableSpec {
+        name: b"Mixed",
+        columns: &columns,
+        indexes: &indexes,
+    })?;
+    let mut budget = read_budget(bytes.len());
+    let source = SliceSource::new(&bytes, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
+    let group = definition.long_value_maps().first().ok_or("missing maps")?;
+    assert_eq!(group.owned(), MapRowLocator::new(PageNumber::new(21), 3));
+    assert_eq!(
+        group.available(),
+        MapRowLocator::new(PageNumber::new(21), 4)
+    );
+    assert!(inline_map_bit(&bytes, 21, 2, 23)?);
+    assert!(!inline_map_bit(&bytes, 21, 3, 23)?);
+    Ok(())
 }
 
 #[test]
@@ -296,22 +301,30 @@ fn a_create_that_cannot_be_planned_reports_the_schema_error() {
 }
 
 #[test]
-fn a_second_long_value_column_is_refused() {
-    // EXP-0087's only long-value create, Beta, carried one Memo column, and
-    // the one multi-group layout on record (MSysObjects) is not consecutive.
+fn multiple_long_value_map_pairs_follow_column_order() -> TestResult {
     let columns = [ID, NOTE, ColumnSpec::new(b"Blob", ColumnType::LongBinary)];
-    let mut budget = compose_budget();
-    assert!(matches!(
-        compose_table_database(
-            &TableSpec {
-                name: b"Wide",
-                columns: &columns,
-                indexes: &[],
-            },
-            &mut budget,
-        ),
-        Err(ComposeError::UnobservedLongValueColumnCount { observed: 1 })
-    ));
+    let bytes = create_bytes(&TableSpec {
+        name: b"Wide",
+        columns: &columns,
+        indexes: &[],
+    })?;
+    let mut budget = read_budget(bytes.len());
+    let source = SliceSource::new(&bytes, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
+    assert_eq!(definition.long_value_maps().len(), 2);
+    for (position, group) in definition.long_value_maps().iter().enumerate() {
+        assert_eq!(group.column(), ColumnOrdinal::new(position as u16 + 1));
+        assert_eq!(
+            group.owned(),
+            MapRowLocator::new(PageNumber::new(21), 2 + 2 * position as u8)
+        );
+        assert_eq!(
+            group.available(),
+            MapRowLocator::new(PageNumber::new(21), 3 + 2 * position as u8)
+        );
+    }
+    Ok(())
 }
 
 /// The exact `EXP-0087` create sequence: Alpha, Beta, Gamma, then Delta.

@@ -15,7 +15,20 @@ const INLINE_LIMIT: usize = 32;
 #[derive(Debug, Clone)]
 pub(super) struct InitialLongValues {
     first: u64,
-    pages: Vec<(PageImage, bool)>,
+    pages: Vec<PayloadPage>,
+}
+
+#[derive(Debug, Clone)]
+struct PayloadPage {
+    image: PageImage,
+    column: usize,
+    available: bool,
+}
+
+struct PayloadHeader {
+    column: usize,
+    bytes: [u8; HEADER_LEN + INLINE_LIMIT],
+    length: usize,
 }
 
 pub(crate) fn initial_payload_start(
@@ -71,16 +84,25 @@ pub(crate) fn encode_initial_row(
     if values.len() != layout.len() || values.len() > u8::MAX as usize {
         return encode_row(layout, values, output, budget).map_err(Into::into);
     }
-    budget.charge_work_units(2 * values.len() as u64)?;
+    budget.charge_work_units(4 * values.len() as u64)?;
     let mut lowered = [RowValue::Null; u8::MAX as usize];
     lowered[..values.len()].copy_from_slice(values);
-    let mut header = [0_u8; HEADER_LEN + INLINE_LIMIT];
     if values
         .iter()
         .any(|value| matches!(value, RowValue::LongValue(_)))
     {
         return Err(refusal(row, "caller-supplied long-value header"));
     }
+    let count = values
+        .iter()
+        .filter(|value| matches!(value, RowValue::Memo(_) | RowValue::LongBinary(_)))
+        .count();
+    budget.charge_allocation(ByteCount::new((count * size_of::<PayloadHeader>()) as u64))?;
+    let mut headers = Vec::new();
+    headers.try_reserve_exact(count).map_err(|_| Error::Io {
+        operation: "reserve initial long-value headers",
+        kind: std::io::ErrorKind::OutOfMemory,
+    })?;
     for (ordinal, value) in values.iter().enumerate() {
         budget.charge_items(1)?;
         let (payload, expected) = match value {
@@ -101,6 +123,7 @@ pub(crate) fn encode_initial_row(
         }
         budget.check_decoded_value(ByteCount::new(payload.len() as u64))?;
         budget.charge_work_units((HEADER_LEN + payload.len().min(INLINE_LIMIT)) as u64)?;
+        let mut header = [0_u8; HEADER_LEN + INLINE_LIMIT];
         let length = if payload.len() <= INLINE_LIMIT {
             encode_inline_long_value(payload, &mut header)
                 .map_err(|_| refusal(row, "inline payload encoding"))?
@@ -113,11 +136,16 @@ pub(crate) fn encode_initial_row(
             header[..HEADER_LEN].copy_from_slice(&external);
             HEADER_LEN
         };
-        // The single-column schema restriction ensures this backing buffer is unique.
-        lowered[ordinal] = RowValue::LongValue(&header[..length]);
-        return encode_row(layout, &lowered[..values.len()], output, budget).map_err(Into::into);
+        headers.push(PayloadHeader {
+            column: ordinal,
+            bytes: header,
+            length,
+        });
     }
-    encode_row(layout, values, output, budget).map_err(Into::into)
+    for header in &headers {
+        lowered[header.column] = RowValue::LongValue(&header.bytes[..header.length]);
+    }
+    encode_row(layout, &lowered[..values.len()], output, budget).map_err(Into::into)
 }
 
 impl InitialLongValues {
@@ -131,7 +159,7 @@ impl InitialLongValues {
             pages: Vec::new(),
         };
         for (row, values) in rows.iter().enumerate() {
-            for value in *values {
+            for (column, value) in values.iter().enumerate() {
                 budget.charge_items(1)?;
                 let payload = match value {
                     RowValue::Memo(payload) | RowValue::LongBinary(payload) => *payload,
@@ -157,8 +185,7 @@ impl InitialLongValues {
                         .max(result.pages.capacity() * 2)
                         .min((MAP_BITMAP_BYTES * 8) as usize);
                     budget.charge_allocation(ByteCount::new(
-                        ((capacity - result.pages.capacity()) * size_of::<(PageImage, bool)>())
-                            as u64,
+                        ((capacity - result.pages.capacity()) * size_of::<PayloadPage>()) as u64,
                     ))?;
                     result
                         .pages
@@ -169,7 +196,7 @@ impl InitialLongValues {
                         })?;
                 }
                 if storage == ExternalLongValueStorage::SinglePage {
-                    result.push(payload, budget)?;
+                    result.push(column, payload, budget)?;
                 } else {
                     let mut bytes = [0_u8; PAGE_BYTES];
                     for (offset, fragment) in chained_fragments(payload).enumerate() {
@@ -179,7 +206,7 @@ impl InitialLongValues {
                         budget.charge_work_units(fragment.len() as u64)?;
                         let length = encode_chained_row(fragment, next, &mut bytes)
                             .map_err(|_| refusal(row, "chained payload encoding"))?;
-                        result.push(&bytes[..length], budget)?;
+                        result.push(column, &bytes[..length], budget)?;
                     }
                 }
             }
@@ -187,7 +214,12 @@ impl InitialLongValues {
         Ok(result)
     }
 
-    fn push(&mut self, bytes: &[u8], budget: &mut ResourceBudget) -> Result<(), ComposeError> {
+    fn push(
+        &mut self,
+        column: usize,
+        bytes: &[u8],
+        budget: &mut ResourceBudget,
+    ) -> Result<(), ComposeError> {
         let mut builder = DataPageBuilder::new_long_value(budget)?;
         builder.append_row(bytes, budget)?;
         // Candidate policy: a page is available if another nonempty row fits.
@@ -198,8 +230,11 @@ impl InitialLongValues {
             }
             Err(error) => return Err(error.into()),
         };
-        self.pages
-            .push((finish_data_builder(builder, budget)?, available));
+        self.pages.push(PayloadPage {
+            image: finish_data_builder(builder, budget)?,
+            column,
+            available,
+        });
         Ok(())
     }
 
@@ -213,13 +248,17 @@ impl InitialLongValues {
         map: &mut InlineUsageMapEncoder,
         budget: &mut ResourceBudget,
     ) -> Result<(), ComposeError> {
-        for (image, _) in &self.pages {
-            plan.append(image.clone(), map, budget)?;
+        for page in &self.pages {
+            plan.append(page.image.clone(), map, budget)?;
         }
         Ok(())
     }
 
-    pub(super) fn maps(&self, budget: &mut ResourceBudget) -> Result<[[u8; 133]; 2], ComposeError> {
+    pub(super) fn maps(
+        &self,
+        column: u16,
+        budget: &mut ResourceBudget,
+    ) -> Result<[[u8; 133]; 2], ComposeError> {
         let mut owned = InlineUsageMapEncoder::new(
             PageNumber::new(0),
             ByteCount::new(MAP_BITMAP_BYTES),
@@ -230,10 +269,14 @@ impl InitialLongValues {
             ByteCount::new(MAP_BITMAP_BYTES),
             budget,
         )?;
-        for (offset, (_, free)) in self.pages.iter().enumerate() {
+        budget.charge_work_units(self.pages.len() as u64)?;
+        for (offset, payload) in self.pages.iter().enumerate() {
+            if payload.column != usize::from(column) {
+                continue;
+            }
             let page = PageNumber::new(self.first + offset as u64);
             owned.set_page(page)?;
-            if *free {
+            if payload.available {
                 available.set_page(page)?;
             }
         }

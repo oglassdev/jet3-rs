@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "multiple_long_values_tests.rs"]
+mod multiple_columns;
+
 fn payload_value(kind: ColumnType, payload: &[u8]) -> RowValue<'_> {
     if kind == ColumnType::Memo {
         RowValue::Memo(payload)

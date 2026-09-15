@@ -201,7 +201,7 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
         fields: &[field(0, IndexDirection::Ascending)],
         kind: IndexKind::Ordinary,
     }];
-    let indexed_memo = [ID, NOTE];
+    let indexed_memo = [NOTE];
     let high_byte = [ColumnSpec::new(b"Caf\xe9", ColumnType::Long)];
     let cases: [(TableSpec<'_>, Accepts); 2] = [
         (
@@ -210,7 +210,12 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
                 columns: &indexed_memo,
                 indexes: &by_id,
             },
-            |error| matches!(error, ComposeError::UnobservedMapRowLayout),
+            |error| {
+                matches!(
+                    error,
+                    ComposeError::Schema(TableSchemaPlanError::Definition(_))
+                )
+            },
         ),
         (
             TableSpec {

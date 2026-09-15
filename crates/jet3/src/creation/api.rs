@@ -159,8 +159,8 @@ impl StdError for CandidateCheckError {
 /// Unsupported layouts fail with [`CreateDatabaseError::Compose`] before
 /// anything is written: catalog data or indexes exceeding one page, two tables
 /// whose names differ only by ASCII case, more than three indexes on a table,
-/// more than one Memo or LongBinary column on a table,
-/// an index together with such a column, a definition longer than two pages,
+/// table, index and long-value maps exceeding their shared page, a definition
+/// longer than two pages,
 /// a definition longer than one page together with an index or on a later
 /// table, or a name byte above `0x7E`.
 pub fn create_database(
@@ -179,7 +179,7 @@ pub fn create_database(
         path,
         |file| write_pages(file, &pages),
         |candidate| {
-            check_memo_written_pages(candidate, tables, &pages, budget)?;
+            check_long_value_written_pages(candidate, tables, &pages, budget)?;
             check_candidate(candidate, tables, page_count, budget)
         },
     )
@@ -210,8 +210,13 @@ pub fn create_database(
 /// Null and explicit IDs are refused, as are counts reaching the signed Long
 /// boundary. DAO state observations cover 256 initial rows and a subsequent 257;
 /// larger counts and this composed generation await candidate validation.
-/// One unindexed Memo or LongBinary column accepts
-/// nonempty typed payloads or null; raw `RowValue::LongValue` headers are refused.
+/// Memo and LongBinary columns accept nonempty typed payloads or null alongside
+/// numeric indexes and generated IDs; the long-value columns themselves cannot
+/// be indexed. Every long-value column has its own owned/available map pair,
+/// in column order after the table and index maps on the shared map page.
+/// Its physical capacity bounds the column count. Multiple long-value columns
+/// and their combined placement with indexes are candidate constructions
+/// awaiting DAO validation. Raw `RowValue::LongValue` headers are refused.
 /// [`crate::ColumnSpec::with_allow_zero_length`] enables present-empty Memo on
 /// its bounded first-table schema. Its property construction is a sourced
 /// candidate pending DAO validation; empty OLE remains refused.
@@ -279,7 +284,7 @@ pub fn create_database_with_table_rows(
         path,
         |file| write_pages(file, &pages),
         |candidate| {
-            check_memo_written_pages(candidate, &tables, &pages, budget)?;
+            check_long_value_written_pages(candidate, &tables, &pages, budget)?;
             check_candidate(candidate, &tables, page_count, budget)?;
             check_initial_tables(candidate, &tables, requests, budget)
         },
@@ -353,6 +358,23 @@ fn check_initial_table_rows(
         .map_err(CandidateCheckError::RowEncoding)?;
     let mut next_payload = initial_payload_start(table, root, first_create)
         .map_err(CandidateCheckError::RowEncoding)?;
+    let long_columns = table
+        .columns
+        .iter()
+        .filter(|column| column.column_type().is_long_value())
+        .count();
+    budget
+        .charge_allocation(crate::ByteCount::new(
+            (long_columns * size_of::<(crate::LongValueReference, &[u8])>()) as u64,
+        ))
+        .map_err(CandidateCheckError::Read)?;
+    let mut external = Vec::new();
+    external.try_reserve_exact(long_columns).map_err(|_| {
+        CandidateCheckError::Read(crate::Error::Io {
+            operation: "reserve initial long-value verification",
+            kind: io::ErrorKind::OutOfMemory,
+        })
+    })?;
     let mut encoded = [0_u8; crate::PAGE_BYTES];
     let mut cursor = database
         .rows(&definition, budget)
@@ -393,7 +415,7 @@ fn check_initial_table_rows(
             });
         }
         let locator = actual.locator();
-        let mut external = None;
+        external.clear();
         for (column, value) in row.iter().enumerate() {
             let payload = match value {
                 RowValue::Memo(payload) | RowValue::LongBinary(payload) => *payload,
@@ -409,19 +431,19 @@ fn check_initial_table_rows(
                 && let crate::ValueKind::LongValue(crate::LongValue::External(reference)) =
                     decoded.kind()
             {
-                external = Some((*reference, payload));
+                external.push((*reference, payload));
             }
         }
-        if let Some((reference, expected)) = external {
+        for (reference, expected) in &external {
             cursor
                 .owned
                 .budget_mut()
                 .charge_work_units(expected.len() as u64)
                 .map_err(|error| CandidateCheckError::RowEncoding(ComposeError::Encoding(error)))?;
             let mut stream = cursor
-                .long_value(reference)
+                .long_value(*reference)
                 .map_err(CandidateCheckError::LongValue)?;
-            let mut remaining = expected;
+            let mut remaining = *expected;
             while let Some(chunk) = stream
                 .next_chunk()
                 .map_err(CandidateCheckError::LongValue)?
@@ -552,9 +574,10 @@ fn write_pages(file: &mut File, pages: &[PlannedPage]) -> Result<(), io::Error> 
     file.flush()
 }
 
-/// Reopens the candidate through the reader and checks its geometry, catalog
-/// rows, columns, and indexes against `tables`.
-fn check_memo_written_pages(
+/// Checks the complete written image when long-value column maps or Memo
+/// properties are present, including maps whose membership row traversal
+/// does not otherwise visit.
+fn check_long_value_written_pages(
     candidate: &Path,
     tables: &[TableSpec<'_>],
     pages: &[PlannedPage],
@@ -564,7 +587,7 @@ fn check_memo_written_pages(
         table
             .columns
             .iter()
-            .any(crate::ColumnSpec::allow_zero_length)
+            .any(|column| column.column_type().is_long_value())
     }) {
         return Ok(());
     }
@@ -580,7 +603,7 @@ fn check_memo_written_pages(
             .map_err(CandidateCheckError::Read)?;
         if &bytes != page.image().as_bytes() {
             return Err(CandidateCheckError::Mismatch {
-                detail: "Memo property written page",
+                detail: "long-value written page",
             });
         }
     }
