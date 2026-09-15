@@ -15512,3 +15512,42 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   practical-lifecycle `03713bd37fe6559ee45222d01f3efe3263a4df66da2e73e61b94a794c38702e0`.
   Provider details are retained per run: the fresh local DAO 3.6 environment
   from EXP-0221. This is finite numeric mutation evidence, not whole-v1 completion.
+
+## EXP-0233 — Randomized numeric row mutations against DAO
+
+- GPT-5.6 Sol independently generated six seeded histories (91601–91606),
+  each with fifty requests against the integral or wide three-index schemas
+  from EXP-0232. All 270 accepted mutations replayed successfully in DAO and
+  matched complete expected typed rows. Twenty-four intentional duplicate
+  requests and six negative-zero scope refusals preserved the entire input.
+  No unexpected Rust rejection, DAO rejection or semantic mismatch occurred.
+- Each accepted checkpoint checks all three raw key/locator trees, schema-shaped
+  branch fences, retained counters and unrelated Notes page hashes. Final Rust
+  and DAO schema, directed traversal and finite typed Seek queries agree. The
+  inventory includes Byte/Integer/Currency limits, finite positive/negative
+  Single/Double extremes and subnormals, null transitions, composite and
+  descending keys, nonunique ordering and duplicates in the second/third index.
+  Currency maximum is covered by mutations, traversal and raw keys; a DAO Seek
+  coerced through Double cannot represent that extreme exactly and is excluded
+  from the successful Seek claim. This finite run does not establish full v1.
+- Production source `f78b49063699d5a754c2cfc3f4c94376e37d0d84`. Private root:
+  `shared/checks/20260915-random-numeric-sol-f78b490/`. `report.json` SHA-256
+  `13a3530fedfe4b31be722de577fe69717d5976b98ef9da37e796595071b71eff`;
+  `attempts.json` SHA-256
+  `c5aad769bc0aec2f238093b4b957d0ae6bd58793b7671beb5a941d508dc05656`.
+  Exact source archive SHA-256
+  `363d342ee52038317c0971ae27e7eebb505603b754a858c976eb7ec73b5ec92d`;
+  manifest SHA-256
+  `12b6b2c5e7aab8bd1fb0b7bd06a3c9624ebfca00530d07f3b4d0ab688dad0b9a`.
+- Accepted captures:
+  `shared/outbox/20260915T054100Z-random-numeric-sol-f78b490-4/`.
+  `result.json` SHA-256
+  `da88ca9a9e809fd1d9d3d1ca84ed54b0e2f4032a3ac2227d5dac11dff4d30c89`;
+  `environment.json` SHA-256
+  `7ce146061f9c736cef5eec6747ccec77866e9aed9f77d628a1393445bcda584e`.
+- Three earlier harness attempts remain retained separately: a missing scoped
+  identity helper before database opening; untyped Byte Seek and reversed JSON
+  writer arguments after replay; then a Currency-extreme Double Seek and lossy
+  boxed-Single capture. Their partial checkpoints remain available. Corrected
+  typed capture and representable Seek queries produced the accepted successor.
+  These harness failures are not reported as successful comparisons.
