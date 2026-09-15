@@ -231,9 +231,14 @@ Availability maps must be subsets of their own ownership maps; every traversed
 index page must belong to its physical index. User overflow storage and live
 Memo/OLE fragments must be uniquely reachable through the proper table or
 column, including rejection of hidden orphan rows and unreferenced payloads.
-System row values and index keys, non-table contents, unreferenced file pages,
-relationship constraints, and unsupported index key schemas remain outside
-these checks. Catalog
+Enforced, non-cascading single ascending Long relationships check reciprocal
+metadata, parent uniqueness and every non-null child key. Self-references and
+multiple constraints are checked separately, including shared foreign indexes.
+Unsupported relationship catalog rows are counted explicitly; complete endpoint
+inventory is checked only when every central row is interpreted. Known endpoints
+must still occur exactly once when other forms are present.
+Other system row values and index keys, non-table contents, unreferenced file
+pages and unsupported index key schemas remain outside these checks. Catalog
 reading follows native overflow records using the shared row-locator grammar
 (EXP-0228). Validation success does not establish DAO compatibility.
 

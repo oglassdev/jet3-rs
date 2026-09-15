@@ -74,7 +74,9 @@ membership and supported scalar key semantics within a shared budget. It checks
 key completeness, null rules, uniqueness and branch bounds, and reports indexes
 whose key schemas remain uninterpreted.
 It also checks catalogued allocation ownership, availability-map membership,
-and unique reachability of user rows and live Memo/OLE fragments. Saved-query
+and unique reachability of user rows and live Memo/OLE fragments. Enforced Long
+relationships get reciprocal-metadata and parent/child key checks; unsupported
+forms are counted separately. Saved-query
 definitions and their system storage survive the recorded native-input row
 mutation suites unchanged; query execution is outside v1.
 Atomic publication and rollback verification remain internal-only. Local and

@@ -39,6 +39,8 @@
         "crates/jet3/src/creation/fixed_text_index_tests.rs",
         "crates/jet3/src/validation_storage.rs",
         "crates/jet3/src/validation_storage_tests.rs",
+        "crates/jet3/src/relationship_validation.rs",
+        "crates/jet3/src/creation/composer/relationship_graph_validation_tests.rs",
         "crates/jet3/src/table_definition_pages.rs"
       ]
     },

@@ -108,6 +108,7 @@ fn checks_multiple_tables_index_and_inline_single_and_chained_long_values() -> T
         report,
         ValidationReport {
             catalog_objects: 11,
+            relationship_inventory_checked: true,
             user_tables: 3,
             skipped_system_objects: 8,
             rows: 7,

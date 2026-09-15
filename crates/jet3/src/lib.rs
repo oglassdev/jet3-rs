@@ -231,7 +231,8 @@ pub use usage_map_writer::{
     encode_indirect_references, indirect_record_len,
 };
 pub use validation::{
-    StorageValidationError, TableValidationError, ValidationError, ValidationReport,
+    RelationshipValidationError, StorageValidationError, TableValidationError, ValidationError,
+    ValidationReport,
 };
 pub use value::{CurrencyValue, DateTimeValue, DecodedValue, GuidValue, ValueError, ValueKind};
 pub use whole_file_plan::WholeFilePlanError;

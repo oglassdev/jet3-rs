@@ -53,12 +53,14 @@ raw payload bytes per reference, before text decoding. The first failure returns
 `validation_failed` JSON on stderr with exit 1 and no success report; its message
 includes the table and available field/index/row context. Invalid arguments exit 2.
 
-This is a bounded structural check, not whole-file validity. System objects are
-checked only as catalog records; their contents and other object kinds are skipped.
-Unreferenced pages, allocation slack and relationship constraints are not checked.
-Index traversal checks node framing, links and page/slot references, but does not
-prove key ordering/semantics, index-to-row key equality, completeness or live-row
-membership. Unsupported key encodings are counted as uninterpreted entries.
+Validation checks user row counts and values, unique row/payload reachability,
+index live-row membership, supported scalar keys and branch bounds, and catalogued
+allocation ownership. Enforced single ascending Long relationships check reciprocal
+metadata, parent uniqueness and non-null child-key inclusion. The JSON report
+counts unsupported index schemas and relationship catalog rows separately; complete
+relationship inventory is checked only when all central rows are interpreted.
+System row values and index keys outside the relationship catalog, other object
+contents, unreferenced pages and allocation slack remain outside these checks.
 Success does not establish Access/DAO compatibility.
 
 The `create` output path must not exist. Creation uses the library's atomic publication,
