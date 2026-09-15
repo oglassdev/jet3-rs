@@ -50,16 +50,21 @@ and roadmap #75 remain open.
 
 ### Creation
 
-Creation fits tables within the catalog page capacity, with multi-page initial scalar rows, generated
-AutoIncrement IDs, numeric indexes with one/two components and multiple levels,
-and one unindexed Memo/OLE column per table. Each table supports up to three
-indexes. Relationships are restricted to two
-scalar tables with one non-cascading, non-null Long relationship.
+Creation fits tables within the catalog page capacity, with multi-page initial
+rows, generated AutoIncrement IDs, and up to three numeric indexes per table.
+Indexes have one or two components and can span multiple levels. Independent
+Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
+columns themselves cannot be indexed. Each payload column has separate ownership
+and availability maps. Actual definition and shared map-page capacities bound
+the column count. Relationships remain restricted to two scalar tables with one
+non-cascading, non-null Long relationship.
 
-Schema/name combinations, index types/counts, relationship forms and inline
-allocation remain restricted. Explicit AutoIncrement IDs and empty OLE are
-refused. Empty Memo requires an explicit option in a restricted schema.
-Existing-table schema changes and table/relationship dropping are absent.
+Schema/name combinations, index key types/counts, relationship forms and inline
+allocation remain restricted. Empty OLE is refused. Empty Memo requires an
+explicit option in a restricted schema. Existing-table schema changes and
+table/relationship dropping are absent. AutoIncrement writer evidence in this
+checkpoint covers positive generated IDs; explicit IDs and signed-boundary wrap
+are outside the accepted writer comparisons described here.
 
 EXP-0154 covers twelve hosted write recipes. EXP-0220 corrects the numeric
 sidecar comparison over retained hosted artifacts and adds the three creation
@@ -67,19 +72,31 @@ index recipes: deep Long, nullable numeric and multiple indexes. The original
 EXP-0214 failure remains recorded separately. EXP-0222 adds eight local DAO
 comparisons for five/six-table layouts, multiple indexes on later tables, and
 actual catalog capacity: 28 short-named empty tables or 15 with long names
-and wider definitions in the tested layouts.
+and wider definitions in the tested layouts. EXP-0236 adds six multiple-Memo/OLE
+creation pairs and six native continuation pairs. These cover four payload
+columns with three numeric indexes and 205/213 rows, generated IDs on a later
+table, and map-capacity cases with six payload columns and zero/one index or five
+payload columns and two/three indexes. Complete payloads, nulls, schema, index
+traversal and unrelated Notes pages match the declared expectations.
 
 ### Updates
 
 Public APIs implement bounded field updates, insertion into populated pages or
 one EOF data page or a released target-table page, deletion/compaction,
-last-live-row page release, same-page
-scalar row replacement, and multi-level numeric index maintenance. A table may
+last-live-row page release, same-page row replacement, independent Memo/OLE
+payload mutation, and multi-level numeric index maintenance. A table may
 have up to three indexes with one or two Boolean, Byte, Integer, Long, Currency,
 Single or Double components, including mixed directions, duplicates and null
 policies. Rebuilt trees keep their roots, reuse reserved index pages, and append
 nodes within inline maps. Indexed EOF insertion publishes data, allocation, table counts and index
-changes together. The CLI exposes full-row replacement. Publication is Unix-only.
+changes together. Memo/OLE insertion and full-row replacement support null,
+inline, single-page and chained payloads. Payload pages are validated against
+all live references and their owning column, with separate single/chained
+storage pools; deletion releases emptied payload pages for reuse. The encoded
+row must still fit the existing data page during replacement. One AutoIncrement
+column can generate IDs on insertion; replacement and deletion retain existing
+IDs and allocation state. The CLI exposes full-row replacement. Publication is
+Unix-only.
 
 EXP-0212 covers seventeen hosted update recipes. EXP-0221 adds local DAO
 comparisons for indexed insertion/deletion, boundary insertion, native
@@ -97,7 +114,15 @@ included key increments them; deletion and key edits retain them, even when
 current distinct keys exceed the stored counter. EXP-0232 compares fifteen
 numeric lifecycle checkpoints, three native successor pairs and three
 native-input continuations, including composite depth-three growth and
-compressed Boolean/Currency/Double trees.
+compressed Boolean/Currency/Double trees. EXP-0238 adds four Memo/OLE lifecycle
+cases, including four mixed payload columns with three numeric indexes and a
+generated-ID case. All 28 pairs (56 captures) match complete payloads, schema,
+index traversal/Seek, counters and ownership. The cases cover shared-page
+partial deletion, null/inline/external transitions, clear/reinsert without file
+growth, native continuations on both outputs, and Rust mutation of retained
+native controls. Unrelated Notes page hashes remain exact. Twelve rejected
+requests preserve the complete Rust input, including AutoIncrement state; these
+refusals do not claim to reproduce DAO's counter side effects on failed inserts.
 
 ### Validation
 
@@ -113,8 +138,8 @@ reading follows native overflow records using the shared row-locator grammar
 
 - Extend creation beyond current schema/index-key and inline-allocation bounds.
 - Extend updates beyond current numeric key types/counts and component limits,
-  to relationship and long-value targets, broader free-page/live-slot reuse,
-  cross-page row growth and indirect maps.
+  to relationship targets, additional payload/schema combinations, broader
+  data-page/live-slot reuse, cross-page row growth and indirect maps.
 - Cover remaining DAO inventories, stored-query preservation and broader
   failure/rollback behavior. Local VM and hosted runs may both establish
   evidence; preregistration and per-run approval are not required.
