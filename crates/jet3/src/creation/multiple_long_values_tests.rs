@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     ByteCount, ColumnOrdinal, InlineLongValue, LongValue, LongValueChunkValue, MapRowLocator,
-    PageImageError, TableRows, TextCodePage, ValueKind, create_database_with_table_rows,
+    TableRows, TextCodePage, ValueKind, create_database_with_table_rows,
 };
 
 const INDEXES: [IndexSpec<'static>; 3] = [
@@ -247,13 +247,12 @@ fn mixed_columns_indexes_and_generated_ids_keep_independent_payloads_and_maps() 
 }
 
 #[test]
-fn map_page_capacity_bounds_long_columns_after_all_index_maps() -> TestResult {
-    let names = (0..7)
+fn long_value_maps_spill_after_the_last_index_map_slot() -> TestResult {
+    let names = (0..8)
         .map(|column| format!("Memo{column}").into_bytes())
         .collect::<Vec<_>>();
-    let indexes = INDEXES;
-    for (index_count, fitting) in [(0, 6), (1, 6), (2, 5), (3, 5)] {
-        for long_count in [fitting, fitting + 1] {
+    for index_count in 0..=3 {
+        for long_count in [6, 7, 8] {
             let directory = TestDirectory::create()?;
             let mut columns = vec![ID, ColumnSpec::new(b"Tag", ColumnType::Long)];
             columns.extend(
@@ -264,33 +263,23 @@ fn map_page_capacity_bounds_long_columns_after_all_index_maps() -> TestResult {
             let table = TableSpec {
                 name: b"Items",
                 columns: &columns,
-                indexes: &indexes[..index_count],
+                indexes: &INDEXES[..index_count],
             };
-            let result = create_database(directory.target(), &[table], &mut budget());
-            if long_count == fitting {
-                result?;
-                let bytes = fs::read(directory.target())?;
-                assert_eq!(
-                    page_rows(&bytes, 21),
-                    (2 + index_count + 2 * fitting) as u16
-                );
-                let mut row = vec![RowValue::Long(1), RowValue::Long(2)];
-                row.extend((0..long_count).map(|_| RowValue::Memo(b"a")));
-                create_database_with_rows(
-                    directory.path.join("populated.mdb"),
-                    &table,
-                    &[&row],
-                    &mut budget(),
-                )?;
-            } else {
-                assert!(matches!(
-                    result,
-                    Err(CreateDatabaseError::Compose(ComposeError::Page(
-                        PageImageError::PageFull { .. }
-                    )))
-                ));
-                assert!(directory.entries()?.is_empty());
+            create_database(directory.target(), &[table], &mut budget())?;
+            let bytes = fs::read(directory.target())?;
+            let map_rows = 2 + index_count + 2 * long_count;
+            assert_eq!(page_rows(&bytes, 21), map_rows.min(15) as u16);
+            if map_rows > 15 {
+                assert_eq!(page_rows(&bytes, 22), (map_rows - 15) as u16);
             }
+            let mut row = vec![RowValue::Long(1), RowValue::Long(2)];
+            row.extend((0..long_count).map(|_| RowValue::Memo(b"a")));
+            create_database_with_rows(
+                directory.path.join("populated.mdb"),
+                &table,
+                &[&row],
+                &mut budget(),
+            )?;
         }
     }
     Ok(())

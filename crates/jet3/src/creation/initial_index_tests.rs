@@ -304,3 +304,6 @@ mod numeric;
 
 #[path = "multiple_index_tests.rs"]
 mod multiple;
+
+#[path = "index_capacity_tests.rs"]
+mod capacity;

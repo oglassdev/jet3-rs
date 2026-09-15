@@ -55,13 +55,13 @@ within the existing 1,024-page allocation limit. Table and column names admit
 64 ASCII bytes and index names admit 63. Table definitions may
 span linked pages on first and later tables, including populated and indexed
 schemas. It supports multi-page initial rows, explicit/generated AutoIncrement
-IDs, and up to three scalar indexes per table, including Date, Binary, variable
+IDs, and up to 32 scalar indexes per table, including Date, Binary, variable
 Text and GUID.
-Indexes have one or two components and can span multiple levels. Independent
+Indexes have one to ten components and can span multiple levels. Independent
 Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
 columns themselves cannot be indexed. Each payload column has separate ownership
-and availability maps. Actual definition and shared map-page capacities bound
-the column count. Relationships remain restricted to two scalar tables with one
+and availability maps. Definitions and map rows can span multiple pages; the total file remains
+bounded by the inline allocation map. Relationships remain restricted to two scalar tables with one
 non-cascading, non-null Long relationship.
 
 Schema/name combinations, index key types/counts, relationship forms and inline
@@ -115,7 +115,7 @@ Public APIs implement bounded field updates, insertion into populated pages or
 one EOF data page or a released target-table page, deletion/compaction,
 last-live-row page release, same-page row replacement, independent Memo/OLE
 payload mutation, and multi-level index maintenance. A table may
-have up to three indexes with one or two Boolean, Byte, Integer, Long, Currency,
+have up to 32 indexes with one to ten Boolean, Byte, Integer, Long, Currency,
 Single, Double, Date, Binary, variable Text or GUID components, including mixed
 directions, duplicates and null policies. Text keys use the observed English-US/CP1252
 collation, retaining stored row bytes while ignoring trailing ASCII spaces in keys.
@@ -180,6 +180,14 @@ and Rust edits to native inputs. Schema, complete values, traversal/Seek,
 physical key/locator records, counters and unrelated Notes preservation match.
 Earlier context-dependent COM assignment failures remain recorded separately;
 the accepted harness runs each case in a fresh x86 worker.
+
+EXP-0252 establishes native limits of 32 indexes and ten components plus
+independent map-page locators. EXP-0253 accepts 25 index lifecycle pairs
+(50 captures), including full composite Seek, mixed Text/GUID keys, native
+successors and Rust edits to native inputs. Sixteen additional Memo/OLE
+creation/native pairs cover eight payload columns, maps on multiple pages,
+and an ownership/availability pair split across pages. Full values, physical
+keys/locators, ownership, counters and unrelated Notes preservation match.
 
 ### Validation
 

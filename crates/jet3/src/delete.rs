@@ -18,7 +18,7 @@ pub struct RowDelete<'a> {
 /// Supports relationship-free tables, retaining any AutoNumber state. Memo/OLE fragments
 /// are removed from their independent column storage after complete reference
 /// and ownership validation; emptied payload pages become globally free.
-/// Up to three indexes with one or two supported scalar fields admit deletion,
+/// Up to 32 indexes with one to ten supported scalar fields admit deletion,
 /// including duplicate and nullable keys. Each matching entry is removed by row
 /// locator and changed trees retain their roots. Surplus index pages remain
 /// reserved for reuse; retained index counters are unchanged.
@@ -38,7 +38,7 @@ pub struct RowDelete<'a> {
 /// EXP-0232/0238/0239 record finite numeric, long-value and AutoNumber DAO
 /// comparisons with these preservation guarantees.
 ///
-/// Callers must exclude external writers throughout this Unix-only operation.
+/// Callers must exclude external writers throughout this operation on Unix or Windows.
 /// The same resource budget covers planning, private copying and full-file
 /// verification. Any pre-publication failure preserves the original; publication
 /// errors identify their stage, including post-publication sync failures.

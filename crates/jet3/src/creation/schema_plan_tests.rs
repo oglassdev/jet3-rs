@@ -444,23 +444,21 @@ fn an_empty_column_name_is_refused() {
 }
 
 #[test]
-fn more_indexes_than_any_create_carried_are_refused() {
-    // EXP-0093 observed at most three indexes per create.
-    let columns = [ID, LABEL, NAME];
-    let fields = [key(0), key(1), key(2), key(0)];
-    let indexes = fields
-        .iter()
-        .zip([b"A".as_slice(), b"B", b"C", b"D"])
-        .map(|(field, name)| IndexSpec {
-            name,
-            fields: std::slice::from_ref(field),
-            kind: IndexKind::Ordinary,
-        })
-        .collect::<Vec<_>>();
+fn indexes_beyond_the_native_limit_are_refused() {
+    let columns = [ID];
+    let fields = [key(0)];
+    let indexes = vec![
+        IndexSpec {
+            name: b"ById",
+            fields: &fields,
+            kind: IndexKind::Ordinary
+        };
+        MAX_OBSERVED_INDEXES + 1
+    ];
     assert_eq!(
         plan_table_schema(&spec(b"Beta", &columns, &indexes), 20, true),
         Err(TableSchemaPlanError::UnobservedIndexCount {
-            count: 4,
+            count: MAX_OBSERVED_INDEXES + 1,
             observed: MAX_OBSERVED_INDEXES,
         })
     );

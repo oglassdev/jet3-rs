@@ -72,7 +72,7 @@ fn composite_null_records_keep_direction_and_locator() -> Result<(), Box<dyn std
 
 #[test]
 fn schema_and_value_refusals_are_structured() {
-    for fields in [&[][..], &[FIELDS[0]; 3][..]] {
+    for fields in [&[][..], &[FIELDS[0]; MAX_FIELDS + 1][..]] {
         assert_eq!(
             NumericIndexEntry::encode(
                 fields,

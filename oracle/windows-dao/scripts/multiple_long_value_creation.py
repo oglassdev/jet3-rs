@@ -17,7 +17,7 @@ SCRIPT = Path(__file__).with_suffix('.ps1')
 EXAMPLE = ROOT / 'crates/jet3/examples/multiple_long_value_creation_candidate.rs'
 GENERATOR = ROOT / 'target/debug/examples/multiple_long_value_creation_candidate'
 MANIFEST = 'multiple-long-value-creation.json'
-NAMES = ['Body', 'Blob', 'ExtraMemo', 'ExtraBlob', 'LastMemo', 'LastBlob']
+NAMES = ['Body', 'Blob', 'ExtraMemo', 'ExtraBlob', 'LastMemo', 'LastBlob', 'WideMemo', 'WideBlob']
 LENGTHS = [1, 32, 33, 512, 2036, 2037, 2048, 4064, 4096]
 NOTES = [[7, 'n' * 4096], [8, None]]
 
@@ -44,12 +44,14 @@ def recipe():
         ('capacity-six-one', 12, 6, 1, False, True),
         ('capacity-five-two', 12, 5, 2, False, False),
         ('capacity-five-three', 12, 5, 3, False, True),
+        ('map-spill-first', 12, 8, 3, False, False),
+        ('map-spill-later', 12, 8, 2, True, True),
     ]:
         fields = [['Id', 4, 4, generated], ['Tag', 4, 4, False]] + [[name, 12 if c % 2 == 0 else 11, 0, False] for c, name in enumerate(NAMES[:long_columns])]
         indexes = [dict(name='ById', primary=True, unique=True, required=True, ignore=False, fields=[[0, False]]),
                    dict(name='ByTag', primary=False, unique=False, required=False, ignore=False, fields=[[1, True]]),
                    dict(name='ByPair', primary=False, unique=True, required=False, ignore=False, fields=[[1, False], [0, True]])][:index_count]
-        inserted = [count + 1 if generated else 9000, 99] + [payload(9000, c, [4096, 33, 32, 2037, 1, 512][c]) for c in range(long_columns)]
+        inserted = [count + 1 if generated else 9000, 99] + [payload(9000, c, [4096, 33, 32, 2037, 1, 512, 2048, 4096][c]) for c in range(long_columns)]
         replaced = row(3, long_columns); replaced[1] = -99
         for column, length in enumerate([32, 4096, None, 1]):
             replaced[2 + column] = None if length is None else payload(3, column, length)
@@ -123,7 +125,7 @@ def raw_check(data, receipt, case, rows, counters, *, candidate):
         all_owned |= owned
         if candidate:
             position = column - 2; first = 2 + len(case['indexes']) + 2 * position
-            require(group['owned'] == dict(page=table['root'] + 1, row=first) and group['available'] == dict(page=table['root'] + 1, row=first + 1), 'Candidate map row placement')
+            require(group['owned'] == dict(page=table['root'] + 1 + first // 15, row=first % 15) and group['available'] == dict(page=table['root'] + 1 + (first + 1) // 15, row=(first + 1) % 15), 'Candidate map row placement')
             lengths = [len(r[column]) // (2 if column % 2 else 1) for r in rows.values() if r[column] is not None]
             count = sum(0 if n <= 32 else 1 if n <= 2036 else (n + 2031) // 2032 for n in lengths)
             require(len(owned) == count, 'Candidate external page count per column')
@@ -191,7 +193,7 @@ def prepare(candidates: Path, revision: str):
         case['notes_pages'] = notes_identity(image.read_bytes())
         for path in (image, snapshot): files[path.name] = identity(path)
     refusals = json.loads((candidates / 'refusals.json').read_text())
-    require(refusals == [dict(case=c['name'], error='PageFull', destination_absent=True) for c in cases if c['name'].startswith('capacity')], 'Map capacity refusal inventory')
+    require(refusals == [], 'Map capacity refusal inventory')
     require(not list(candidates.glob('*-overflow.mdb')), 'Refused destinations absent')
     files['refusals.json'] = identity(candidates / 'refusals.json')
     sources = [Path(__file__), SCRIPT, EXAMPLE, Path(raw_index.__file__), Path(raw_index.catalog.__file__),

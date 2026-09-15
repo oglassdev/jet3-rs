@@ -48,12 +48,12 @@ The reader has hosted DAO differential evidence for its documented capability
 inventory. Creation packs tables and multi-page system catalogs within a
 1,024-page allocation limit. Table and column names admit 64 ASCII bytes;
 index names admit 63. Linked table definitions support
-first and later tables, initial rows, and indexes within shared map capacities.
+first and later tables, initial rows, and indexes with independent map pages.
 It supports initial rows, explicit/generated AutoIncrement IDs, independent
-Memo/OLE columns, up to three scalar indexes (including Date, Binary, Text and GUID), and a restricted two-table
+Memo/OLE columns, up to 32 scalar indexes (including Date, Binary, Text and GUID), and a restricted two-table
 relationship construction. Existing-file mutations include row insertion/deletion,
 same-page replacement, Memo/OLE payload allocation and reuse, generated IDs, and
-index maintenance for those key types with one or two components per index. The accepted payload
+index maintenance for those key types with one to ten components per index. The accepted payload
 lifecycles include native DAO continuations and Rust mutation of native files.
 
 Creation and updates remain partial: schema combinations, index key types,

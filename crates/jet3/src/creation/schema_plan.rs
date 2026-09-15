@@ -13,8 +13,9 @@
 //! object's `MSysObjects` `Id`, then the page holding the table's usage-map
 //! rows, then the page holding the catalog row's `LvProp` long value, then one
 //! empty index root per physical index in append order. Each index's map row
-//! is `2 + physical_ordinal` on the map page. It observed at most three
-//! indexes, so this module refuses more rather than extrapolating.
+//! is `2 + physical_ordinal` on the first map page. EXP-0252 establishes
+//! 32 indexes, ten components and independent map pages after its fifteen
+//! map-row slots fill. Consecutive packed map pages are a construction policy.
 //!
 //! `EXP-0087` observed three further creates in the same database, each
 //! appending a definition root numbered equal to its `Id`, then its map page,
@@ -43,8 +44,10 @@ use crate::page_image::PAGE_BYTES;
 use crate::table_definition_layout::{definition_len, validate_column_layout, validate_name};
 use crate::{IndexFieldSpec, PageNumber, TableDefinitionKind, TableDefinitionWriteError};
 
-/// Largest index count `EXP-0093` observed on a created table.
-pub(crate) const MAX_OBSERVED_INDEXES: usize = 3;
+/// EXP-0252: native creation accepts 32 indexes and rejects a 33rd.
+pub(crate) const MAX_OBSERVED_INDEXES: usize = 32;
+/// EXP-0252: fifteen 133-byte maps plus two-byte slots fit after the page header.
+pub(crate) const MAP_ROWS_PER_PAGE: usize = 15;
 /// `EXP-0057`: usage-map locators hold a three-byte page number.
 const MAX_MAP_PAGE: u64 = 0x00ff_ffff;
 /// `EXP-0093`: map-page row of the table's owned-page map.
@@ -107,7 +110,7 @@ pub enum TableSchemaPlanError {
         /// The unestablished byte.
         byte: u8,
     },
-    /// `EXP-0093` observed no create carrying this many indexes.
+    /// The index count exceeds the EXP-0252 native limit.
     UnobservedIndexCount {
         /// Declared index count.
         count: usize,
@@ -177,6 +180,8 @@ pub(crate) struct TableSchemaPlan {
     property_page: bool,
     /// Exact logical length of the encoded definition.
     definition_len: usize,
+    /// Table maps, index maps and independent long-value map pairs.
+    map_rows: usize,
     /// Each index's key fields with column references resolved to ordinals.
     index_fields: Vec<Vec<IndexFieldSpec>>,
 }
@@ -197,11 +202,25 @@ impl TableSchemaPlan {
         PageNumber::new(self.definition_root.get() + 1)
     }
 
+    pub(crate) const fn map_page_count(&self) -> usize {
+        self.map_rows.div_ceil(MAP_ROWS_PER_PAGE)
+    }
+
+    /// Resolves a validated global map-row ordinal into its packed page and slot.
+    pub(crate) const fn map_location(&self, row: usize) -> crate::MapRowLocator {
+        crate::MapRowLocator::new(
+            PageNumber::new(self.map_page().get() + (row / MAP_ROWS_PER_PAGE) as u64),
+            (row % MAP_ROWS_PER_PAGE) as u8,
+        )
+    }
+
     /// Returns the page holding the catalog row's `LvProp` long value, which
     /// only the database's first create appends (`EXP-0087`, `EXP-0093`).
     pub(crate) const fn property_page(&self) -> Option<PageNumber> {
         if self.property_page {
-            Some(PageNumber::new(self.definition_root.get() + 2))
+            Some(PageNumber::new(
+                self.definition_root.get() + 1 + self.map_page_count() as u64,
+            ))
         } else {
             None
         }
@@ -209,7 +228,7 @@ impl TableSchemaPlan {
 
     /// Returns the first page after the root, map, and any `LvProp` page.
     const fn after_fixed_pages(&self) -> u64 {
-        self.definition_root.get() + 2 + self.property_page as u64
+        self.definition_root.get() + 1 + self.map_page_count() as u64 + self.property_page as u64
     }
 
     /// Returns the exact logical length of the encoded definition.
@@ -224,7 +243,7 @@ impl TableSchemaPlan {
             .then(|| PageNumber::new(self.after_fixed_pages()))
     }
 
-    /// Returns each index's root page and map-page row in physical ordinal
+    /// Returns each index's root page and global map-row ordinal in physical
     /// order (`EXP-0093`: roots follow the `LvProp` page, rows follow the
     /// table's own two maps).
     pub(crate) fn index_placements(&self) -> impl Iterator<Item = (PageNumber, u8)> {
@@ -405,7 +424,16 @@ fn assign_pages(
     definition_len: usize,
     index_fields: Vec<Vec<IndexFieldSpec>>,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
-    let needed = 2
+    let map_rows = 2
+        + spec.indexes.len()
+        + 2 * spec
+            .columns
+            .iter()
+            .filter(|column| column.column_type().is_long_value())
+            .count();
+    let map_pages = map_rows.div_ceil(MAP_ROWS_PER_PAGE);
+    let needed = 1
+        + map_pages as u64
         + first_create as u64
         + continuation_count(definition_len) as u64
         + spec.indexes.len() as u64;
@@ -418,7 +446,7 @@ fn assign_pages(
             first: first_page,
             needed,
         })?;
-    let map_page = first_page + 1;
+    let map_page = first_page + map_pages as u64;
     if map_page > MAX_MAP_PAGE {
         return Err(TableSchemaPlanError::MapPageNotAddressable {
             page: map_page,
@@ -430,6 +458,7 @@ fn assign_pages(
         definition_root: PageNumber::new(first_page),
         property_page: first_create,
         definition_len,
+        map_rows,
         index_fields,
     })
 }
@@ -466,8 +495,8 @@ fn validate_indexes(
         }
         let physical = PhysicalIndexSpec {
             fields,
-            usage_map_page: plan.map_page(),
-            usage_map_row: row,
+            usage_map_page: plan.map_location(usize::from(row)).page(),
+            usage_map_row: plan.map_location(usize::from(row)).row(),
             root,
             flags: planned.kind.flags(),
             entry_count: 0,

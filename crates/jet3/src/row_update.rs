@@ -21,8 +21,8 @@ pub struct RowUpdate<'a> {
 /// Supports scalar/null/Boolean/Text/Binary values in relationship-free
 /// tables, including independent Memo/OLE columns. The page must be inline-owned and
 /// allocated, with consistent metadata and ordinary live rows or known empty
-/// `c000` tombstones. The data page and row locator remain fixed. Up to three
-/// indexes with one or two supported scalar fields admit key and null changes,
+/// `c000` tombstones. The data page and row locator remain fixed. Up to 32
+/// indexes with one to ten supported scalar fields admit key and null changes,
 /// with uniqueness enforced for fully present keys.
 /// Existing checked row-encoding limits apply, including variable-offset widths.
 /// The replacement must fit the existing contiguous space. Available membership
@@ -42,7 +42,7 @@ pub struct RowUpdate<'a> {
 /// unrelated objects remain exact. EXP-0232/0238 record finite numeric and
 /// long-value replacement comparisons, including retained generated IDs.
 ///
-/// Callers must exclude external writers throughout this Unix-only operation.
+/// Callers must exclude external writers throughout this operation on Unix or Windows.
 /// One resource budget covers planning, copying and complete private verification.
 /// Pre-publication failure preserves the original; errors identify publish stages.
 /// An AutoNumber field accepts its unchanged Long value or `RowValue::AutoIncrement`

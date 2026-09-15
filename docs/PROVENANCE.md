@@ -16369,3 +16369,94 @@ by this native-only discovery.
   and column names admit at most 64 ASCII bytes; logical index names admit
   at most 63. The native 64-byte index-name Seek failure in EXP-0249 remains
   outside the admitted writer schema. No full-v1 compatibility is claimed.
+
+## EXP-0252 — Index count, component count and map-page spill
+
+- Native discovery from source `5852479`, outbox
+  `20260915T100300Z-index-capacity`, using the EXP-0248/0250 x86 DAO 3.6
+  environment. Twelve schemas in two replicas cover 4/13/14/15/16/31/32/33
+  indexes and 3/9/10/11 key components. Each admitted table has twelve Long
+  columns and 64 rows, with primary, unique, ordinary and IgnoreNulls indexes,
+  nullable keys and mixed directions. All 20 admitted captures match complete
+  DAO schema/rows/traversal and independently decoded physical rows, every
+  component slot, index flags, key/locator records and disjoint ownership.
+  All 16,456 physical records agree; replicas match semantic and index shapes.
+  ById includes present/absent Seek checks; wider keys have complete traversal,
+  with composite Seek reserved for the candidate lifecycle comparison.
+- DAO accepts 32 independent physical/logical indexes and ten components.
+  The 33rd index is rejected with HRESULT -2146824662; an eleven-component
+  index is rejected with HRESULT -2146825011. Both errors repeat in both
+  replicas; partial databases are retained and do not represent acceptance.
+- Native index map rows use the existing 133-byte inline form. The first map
+  page has table ownership/availability at rows 0/1 and index maps at 2..14.
+  Starting with the fourteenth index, maps occupy other pages, addressed by
+  the same independent page/slot locator. In this native construction each
+  additional index gets row zero of a new map page. The observed page fits
+  fifteen 133-byte rows with the existing ten-byte header and two-byte slots.
+  Consecutive packed map pages can be tested as a creator allocation policy;
+  that placement is not inferred as DAO's allocation policy.
+- Identities:
+  - matrix: 293,530 bytes, SHA-256 `41d7b3a75e6fd305b8712989324956cd67880bbb717c2e12f991508cb867f4e2`.
+  - producer: 2,296 bytes, SHA-256 `54c6954f5624c537e53deafec8bf368919a0d452ad2774509f8a0f6e59acfbbd`.
+  - native result: 30,083,734 bytes, SHA-256 `e398a5aaa6cb3c286704b5c3730def7665496c5a2ffd1bdabbacdc4265ef3574`.
+  - analyzer: 4,704 bytes, SHA-256 `06ac4f523e54e213ce3b9e5bebcfd575f0dfac8485f28d2afd0e4a86883b12ad`.
+  - report: 2,272,459 bytes, SHA-256 `47aa66ab87ed31557091f67d27cf7b909c72b2aeec1a3ed7acfb975a95f7e8b5`.
+- This establishes finite index limits and map-locator facts, not candidate
+  creation/mutation acceptance or full-v1 compatibility.
+
+## EXP-0253 — Native index limits and multiple map-page lifecycles
+
+- Initial candidate source `c817de7`: the 4/13/14/32-index cases pass all
+  three Rust checkpoints and their native successor pairs (16 pairs,
+  32 captures), including full composite Seek for 3/9/10 fields. The mixed
+  ten-type case fails during native control creation at Text field J with
+  `Specified cast is not valid`, HRESULT -2147467262. There is no candidate
+  outcome for that case, and the index-capacity run remains failed.
+- The independent Memo/OLE suite at the same source accepts all eight cases:
+  16 pairs (32 captures) including native successors. New first/later-table
+  cases combine eight payload columns with three/two numeric indexes and
+  generated IDs. Packed map rows span two pages, including an ownership/
+  availability pair split at row 14/0. Full schema, every payload byte,
+  directed traversal/Seek, raw key/locator records, map ownership and unrelated
+  Notes payloads match. Existing six cases remain accepted.
+- Initial identities:
+  - `index-capacity`, outbox `20260915T101615Z-index-capacity-33f71c`:
+    result: 1,134,711 bytes, SHA-256 `773d19a7000f60a08c9003e8d481ed557e4c8319d238d9f5a3c617dd4bf91a45`.
+    comparison: 81,407 bytes, SHA-256 `149a550c5b58498b07c2453862f69ed90f5c1ffb31317d39e82f95e352e59940`.
+  - `multiple-long-values`, outbox `20260915T101652Z-multiple-long-val-b649e8`:
+    result: 24,705,569 bytes, SHA-256 `2901bfcb8ab996840e5a71988f407cd6fe7fb31becc2378c8a74d251f15bdb3d`.
+    comparison: 253,978 bytes, SHA-256 `967c701d9aa05077f46ddc71b071bec9daccf3efe2af6c49785629140cb9c2c2`.
+- Assignment diagnostic `20260915T101900Z-mixed-assignment` repeats the complete
+  24-row mixed control with the original setter and with reflection-based COM
+  property assignment, in that order within one fresh process. The original
+  fails at J with the same HRESULT; explicit property dispatch completes.
+  Result: 1,502 bytes, SHA-256 `61534258147abc25ca945f205c99903b2aad5a876539006b62421c11bdfd22ae`.
+  This identifies a usable assignment path, not full mixed-case acceptance or
+  the cause of the runtime's cast failure. The successor producer uses that
+  path for typed values and retains exact Currency conversion. All earlier
+  files remain unchanged.
+- Accepted index-capacity successor source `5cb71a1`: all five cases pass,
+  including the ten-type case with Text/GUID and whole-key shortening.
+  All 25 pairs (50 captures) match: three Rust checkpoints per case,
+  native insert/update/delete continuations, and Rust edits to retained
+  native inputs. Complete schema, values, directed traversal and actual
+  full-key Seek for 3/9/10 components, every physical key/locator record,
+  index counters, disjoint ownership and unrelated Notes bytes agree.
+  The two thirteenth-index duplicate refusals preserve the complete Rust
+  input. Mixed wide keys have multi-level trees; map storage reaches three
+  packed pages for 32 indexes.
+- Both accepted rounds retain original per-case x86 worker results and their
+  pinned index; `result.json` is their checked host aggregation. Identities:
+  - `mutations`, outbox `20260915T101922Z-index-capacity-3e8842`:
+    manifest: 73,910 bytes, SHA-256 `c01419a6d45c4576a00cb724df790f23f318f4d099c4d57f3a907aeda99b8535`.
+    aggregate: 1,865,720 bytes, SHA-256 `3f3b6f299a6a52e153727c73126c68bf9242be614107e0d24406cf42e9e3e202`.
+    comparison: 89,777 bytes, SHA-256 `eb9c311aa265e6c31aa3be72f0a7bc3579a258b9a4a7a012d1c739efef336c62`.
+  - `continuation`, outbox `20260915T102003Z-index-capacity-a9ecac`:
+    manifest: 93,268 bytes, SHA-256 `686e9b5caa7b1d742aef9ee4b6d96fcbfe3c339e01d6d3faf12f3f4605513ef6`.
+    aggregate: 488,840 bytes, SHA-256 `cd0dfd5d640d63ff5644afdd04493ba47b2d0d39b2c421c71b0ff7c63e2a07c3`.
+    comparison: 23,638 bytes, SHA-256 `ff2b627d9fa15665a2b0825a59aa1dae1d96567ac266194bc1e0d43a5e6dac61`.
+- GPT-5.6 Sol high reviewed the production changes and focused boundary,
+  map-spill, corruption and preservation tests with no blockers. `just ready`
+  passed on the unchanged production implementation. These comparisons accept
+  the declared index and map-page inventories; indirect allocation, other
+  schema combinations and full-v1 compatibility remain separate work.

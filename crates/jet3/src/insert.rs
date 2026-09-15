@@ -11,7 +11,7 @@ use std::path::Path;
 /// Inserts a row on an available page, a released target-table page, or one EOF page.
 ///
 /// Values use the existing checked scalar/Text/Binary row encoder, including null
-/// and Boolean fields. Up to three indexes with one or two supported scalar
+/// and Boolean fields. Up to 32 indexes with one to ten supported scalar
 /// fields admit primary, unique, nonunique, descending and nullable keys. Each
 /// complete tree and row/key correspondence must validate. Changed trees retain
 /// their roots, reuse reserved index pages and append nodes as needed. Other
@@ -41,7 +41,7 @@ use std::path::Path;
 /// row still fits. AutoNumber insertion also updates its allocation state.
 /// All other bytes, including page zero, remain exact. EXP-0232/0238/0239 record
 /// the finite numeric, long-value and AutoNumber DAO comparisons.
-/// Callers must exclude external writers throughout this Unix-only operation.
+/// Callers must exclude external writers throughout this operation on Unix or Windows.
 /// A pre-publication failure preserves the original; publication errors identify
 /// their stage. One resource budget covers planning, copying and full verification.
 pub fn insert_row(
