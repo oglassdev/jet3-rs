@@ -17,9 +17,9 @@ use std::path::Path;
 /// Other indexes, AutoIncrement, long values and relationships are refused.
 /// If no populated page fits, a released global-free page belonging to this table
 /// is reused, or one EOF page is appended, within existing inline maps. No slot reuse,
-/// map growth or compaction is implemented. An existing selected page must
-/// retain capacity for one more equal-sized row and representable directory slot;
-/// this is a candidate restriction, not a DAO free-space threshold.
+/// map growth or compaction is implemented. An existing selected page must fit
+/// the requested row and its directory slot; availability afterward reflects
+/// whether another minimum-length row and slot fit.
 ///
 /// The new row, appended slot, page free/count fields, availability and table count
 /// change on unindexed existing-page insertion. Indexed insertion additionally
