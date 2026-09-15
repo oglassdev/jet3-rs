@@ -68,6 +68,42 @@ def prepare(directory, revision):
     return manifest
 
 
+def readable_clone(data):
+    result = bytearray(data); changes = []
+    table = catalog._definition(data, 3); pages, _ = catalog._table_pages(data, table)
+    for row in rows(data, table, pages):
+        if row['values'][0] not in (2, 3) or row['values'][1] != '0301': continue
+        require(row['storage'] == [[row['page'], row['row']]], 'Direct system ACE row')
+        entry, raw = physical_row(data, row['page'], row['row'])
+        before = row['values'][2]; after = before | 20
+        require(int.from_bytes(raw[5:9], 'little') == before and before != after, 'Existing ACE ACM field')
+        offset = row['page'] * 2048 + entry['start'] + 5
+        result[offset:offset + 4] = after.to_bytes(4, 'little')
+        changes.append(dict(object=row['values'][0], page=row['page'], row=row['row'], offset=offset, before=before, after=after))
+    require(len(changes) == 2, 'Exactly two existing system ACE permission changes')
+    return bytes(result), changes
+
+
+def prepare_followup(directory, parent, revision):
+    manifest = prepare(directory, revision)
+    parent_result = json.loads((parent / 'result.json').read_text(encoding='utf-8-sig'))
+    manifest['parent'] = {name: identity(parent / name) for name in ('result.json', 'catalog-pages-native-report.json', MANIFEST)}
+    for name in manifest['parent']: shutil.copy2(parent / name, directory / ('parent-' + name))
+    manifest['native_sources'] = []
+    for outcome in parent_result['cases']:
+        require(outcome['user']['status'] == 'pass', 'Original user capture passed')
+        source = parent / outcome['user']['file']; pin = identity(source)
+        require(pin == outcome['user']['before'] == outcome['user']['after'] == outcome['system']['before'] == outcome['system']['after'], 'Immutable original input')
+        shutil.copy2(source, directory / source.name)
+        readable = directory / (source.stem + '-system-readable.mdb')
+        data, changes = readable_clone(source.read_bytes()); readable.write_bytes(data)
+        manifest['native_sources'].append(dict(name=outcome['name'], replica=outcome['replica'], original_file=source.name, original=pin,
+                                               readable_file=readable.name, readable=identity(readable), permission_changes=changes))
+    manifest['files'] = {p.name: identity(p) for p in directory.iterdir() if p.is_file() and p.name != MANIFEST}
+    write(directory / MANIFEST, manifest)
+    return manifest
+
+
 def physical_row(data, page, slot):
     image = catalog._page(data, page, 'row')
     entry = next((r for r in catalog._row_directory(image, page) if r['row'] == slot), None)
@@ -185,9 +221,19 @@ def evaluate(directory, outbox):
                 case = next(c for c in manifest['cases'] if c['name'] == outcome['name'])
                 require(outcome['status'] == 'pass', 'Capture failure: ' + str(outcome['error']))
                 path = outbox / outcome['user']['file']; pin = identity(path)
-                require(outcome['user']['before'] == outcome['user']['after'] == outcome['system']['before'] == outcome['system']['after'] == pin, 'Immutable native input identity')
+                require(outcome['user']['before'] == outcome['user']['after'] == pin, 'Immutable native input identity')
+                system_path = outbox / outcome['system']['file']
+                require(outcome['system']['before'] == outcome['system']['after'] == identity(system_path), 'Immutable system input identity')
                 normalized(outcome['user']['snapshot'], case)
-                raw = inspect(path.read_bytes()); compare_system(outcome['system'], raw)
+                raw = inspect(path.read_bytes())
+                if 'parent' in manifest:
+                    source = next(s for s in manifest['native_sources'] if s['name'] == case['name'] and s['replica'] == outcome['replica'])
+                    require(pin == source['original'] and identity(system_path) == source['readable'], 'Original/readable lineage')
+                    expected, changes = readable_clone(path.read_bytes())
+                    require(system_path.read_bytes() == expected and changes == source['permission_changes'], 'Only exact permission field changes')
+                    readable = inspect(expected); compare_system(outcome['system'], readable)
+                    checked.update(readable_file=system_path.name, readable_identity=identity(system_path), permission_changes=changes)
+                else: compare_system(outcome['system'], raw)
                 objects = raw['MSysObjects']; aces = raw['MSysACEs']
                 require(len(objects['rows']) == 8 + case['count'] and len(aces['rows']) == 16 + 2 * case['count'], 'Per-create catalog/ACE cardinality')
                 require({r['values'][2] for r in objects['rows'] if r['values'][3] == 1 and r['values'][7] == 0} == {t['name'] for t in case['tables']}, 'Complete user catalog objects')
@@ -215,8 +261,12 @@ def evaluate(directory, outbox):
 def main():
     parser = argparse.ArgumentParser(description=__doc__); sub = parser.add_subparsers(dest='command', required=True)
     p = sub.add_parser('prepare'); p.add_argument('directory', type=Path); p.add_argument('--revision', required=True)
+    p = sub.add_parser('followup'); p.add_argument('directory', type=Path); p.add_argument('parent', type=Path); p.add_argument('--revision', required=True)
     p = sub.add_parser('evaluate'); p.add_argument('directory', type=Path); p.add_argument('outbox', type=Path)
-    args = parser.parse_args(); result = prepare(args.directory, args.revision) if args.command == 'prepare' else evaluate(args.directory, args.outbox)
+    args = parser.parse_args()
+    if args.command == 'prepare': result = prepare(args.directory, args.revision)
+    elif args.command == 'followup': result = prepare_followup(args.directory, args.parent, args.revision)
+    else: result = evaluate(args.directory, args.outbox)
     print(json.dumps(dict(status=result.get('status', 'prepared'), cases=len(result['cases']))))
     if result.get('status') == 'failed': raise SystemExit(1)
 

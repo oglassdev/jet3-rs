@@ -81,10 +81,16 @@ try {
             $outcome = @{ name = [string]$case.name; replica = $replica; status = 'running'; user = $null; system = $null; error = $null }; $result.cases += ,$outcome
             try {
                 $path = Join-Path $env:JET3_WORK "$($case.name)-r$replica.mdb"
-                New-Control $path $case
+                if ($manifest.PSObject.Properties.Name -contains 'parent') {
+                    $source = @($manifest.native_sources | Where-Object { $_.name -eq $case.name -and $_.replica -eq $replica })
+                    if ($source.Count -ne 1 -or (Identity $path).sha256 -cne $source[0].original.sha256) { throw 'Original native identity' }
+                    $systemPath = Join-Path $env:JET3_WORK $source[0].readable_file
+                    if ((Identity $systemPath).sha256 -cne $source[0].readable.sha256) { throw 'Readable clone identity' }
+                } else { New-Control $path $case; $systemPath = $path }
                 $outcome.user = Capture $path $case
                 if ($outcome.user.status -ne 'pass') { throw 'User schema capture failed' }
-                $outcome.system = System-Capture $path
+                $outcome.system = System-Capture $systemPath
+                $outcome.system.file = [IO.Path]::GetFileName($systemPath)
                 if ($outcome.system.status -ne 'pass') { throw 'System row/index capture failed' }
                 $outcome.status = 'pass'
             } catch { $outcome.status = 'error'; $outcome.error = Failure $_ }
