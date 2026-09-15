@@ -140,6 +140,15 @@ state and numeric key/locator records, with Anchor payload pages preserved.
 EXP-0242 adds native Windows NTFS publication tests and all eight practical
 lifecycle DAO pairs using databases created and mutated entirely on Windows.
 
+EXP-0243/0245 establish Date/negative-zero and Binary key encodings, long-key
+shortening, collision behavior, single-variable row boundaries and depth-four
+roots. EXP-0246 adds all 35 scalar lifecycle comparisons (70 captures): five
+cases through five checkpoints, native writes on both outputs, and Rust edits
+to native inputs. Complete values, schema, traversal/Seek, key/locator records,
+counters and Notes preservation match. Native deletion can retain a class-one
+index root with a single tail child; that bounded shape is now readable and
+mutable. Original failed analyzer outcomes remain recorded separately.
+
 ### Validation
 
 The read-only library and CLI validator walk catalogued user tables with one
