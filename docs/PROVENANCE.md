@@ -15177,3 +15177,20 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
 - Scope remains one unique/primary present Long index, scalar rows and inline
   maps. No composite/nonunique/null-key mutation, relationships, long-value
   mutation, indirect allocation or general v1 compatibility is established.
+### EXP-0223 clean-source verification
+
+- Repeated all four `scripts/dao-check.py` suites with omitted suite arguments
+  on clean source `38522ce16e187f1f1937c58657695a940620dc82`. All four
+  outcomes are **matched**, including the index-tree native continuation round.
+- Private root: `shared/checks/20260915-index-tree-final/`. SHA-256 identities
+  of each suite's retained `report.json` are:
+  - `indexed-boundary`: `80029d0668dc85febe00dcdb5ef7e629e8de70e633d2cb248c835f2e3e9527f8`
+  - `indexed-rows`: `5209ac244f09796a0737f567122a171be8387df1b9b34b700c3082c1a0212efe`
+  - `creation-tables`: `6611cf0de1b3d88d97cd8157ced992a56a8cae452c30052dd82463c11cbef616`
+  - `index-trees`: `dc01cbf460f5d538d9b9284101820341f76c55007c6cc36878f529dab6ca9464`
+- The summary SHA-256 is
+  `aec5ed85ff4785f4d7d7b02140ae5ec1e5cc3afda8ef68a0d409c5458413a88d`.
+  Each report retains the exact provider, source, inputs and captures. The
+  index-tree captures are `shared/outbox/20260915T033825Z-index-trees-f33c5e/`
+  and `shared/outbox/20260915T033910Z-index-trees-f5aab5/`. The finite scope and
+  explicit raw-only intermediate checkpoints above remain unchanged.
