@@ -421,6 +421,8 @@ fn main() -> Result<()> {
             "integral" => Case::Integral,
             "wide" => Case::Wide,
             "deep" => Case::Deep,
+            "dates" => Case::Dates,
+            "binary" => Case::Binary,
             _ => return Err("unsupported continuation case".into()),
         };
         return continuation(Path::new(source), Path::new(directory), case);
@@ -430,7 +432,13 @@ fn main() -> Result<()> {
     };
     let directory = Path::new(directory);
     fs::create_dir(directory)?;
-    for case in [Case::Integral, Case::Wide, Case::Deep] {
+    for case in [
+        Case::Integral,
+        Case::Wide,
+        Case::Deep,
+        Case::Dates,
+        Case::Binary,
+    ] {
         let working = directory.join(format!("{}-working.mdb", case.name()));
         let mut model = (0..case.count())
             .map(|id| (id, case.row(id)))

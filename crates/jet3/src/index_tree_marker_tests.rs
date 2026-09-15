@@ -44,7 +44,7 @@ fn three_level_tree() -> Vec<u8> {
 fn observed_root_classes_keep_three_level_traversal_and_depth_bounds()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut bytes = three_level_tree();
-    for marker in [1, 2] {
+    for marker in [1, 2, 3] {
         bytes[INDEX_ROOT * PAGE_BYTES + 21] = marker;
         let (tree, _) = traverse_with_limits(&bytes, limits(&bytes).with_max_chain_depth(3))?;
         assert_eq!(tree.nodes().len(), 7);
@@ -75,7 +75,14 @@ fn observed_root_classes_keep_three_level_traversal_and_depth_bounds()
 
 #[test]
 fn unknown_branch_and_nonzero_leaf_markers_remain_rejected() {
-    for (page, marker) in [(INDEX_ROOT, 0), (INDEX_ROOT, 3), (4, 255), (7, 1), (7, 2)] {
+    for (page, marker) in [
+        (INDEX_ROOT, 0),
+        (INDEX_ROOT, 4),
+        (4, 255),
+        (7, 1),
+        (7, 2),
+        (7, 3),
+    ] {
         let mut bytes = three_level_tree();
         bytes[INDEX_ROOT * PAGE_BYTES + 21] = 2;
         bytes[page * PAGE_BYTES + 21] = marker;

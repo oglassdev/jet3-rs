@@ -11,12 +11,14 @@ import subprocess
 
 from index_tree_mutation import identity, notes_identity, tables, require, write
 import numeric_index_mutation_structure as raw_index
+import scalar_index_mutation_rows as raw_rows
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = Path(__file__).with_suffix('.ps1')
 MANIFEST = 'numeric-index-mutation.json'
 NOTES = [[7, 'n' * 4096], [8, None]]
-SIZES = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 4, 7: 8}
+SIZES = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 4, 7: 8, 8: 8, 9: 255}
+CASE_NAMES = ('integral', 'wide', 'deep', 'dates', 'binary')
 
 
 def initial_row(name, id):
@@ -24,6 +26,13 @@ def initial_row(name, id):
         return [id, id % 7 if id % 11 else None, id % 5 - 2 if id % 13 else None, id % 2 == 0]
     if name == 'wide':
         return [id, id * 10001 if id % 17 else None, id + 0.5 if id % 19 else None, None]
+    if name == 'dates':
+        dates = [-2.75, -1.25, 0.0, 0.25, 0.5, 1.75, 36526.125, 36527.875]
+        return [id, dates[id % 8] if id % 11 else None, 36526 + id / 4 if id % 19 else None, id % 13]
+    if name == 'binary':
+        widths = [1, 7, 8, 9, 17, 223, 224, 225, 247, 248, 249, 250, 251, 252, 253, 254, 255]
+        payload = bytes((offset * 37 + id % 23) % 256 for offset in range(widths[id % len(widths)]))
+        return [id, payload.hex() if id % 19 else None, id]
     if id < 3: return [id, None, None]
     if id == 3: return [id, None, 1.5]
     if id == 4: return [id, -100000, None]
@@ -41,6 +50,12 @@ def recipe(name):
         types, count, additions, deletions, regrown = [4, 5, 7, 6], 80, range(80, 92), [0, 17, 80], [120, 121, 122]
         edits = [field(2, 3, -1.5), replace(3, [3, 30003, 3.5, 2.25]), field(4, 1, None),
                  replace(5, [5, None, None, None]), field(6, 2, None), field(7, 0, 99)]
+    elif name in ('dates', 'binary'):
+        types = [4, 8, 8, 4] if name == 'dates' else [4, 9, 4]
+        count, additions, deletions, regrown = 96, range(96, 220), range(160), range(1000, 1040)
+        edits = ([field(1, 1, -1.75), field(2, 2, None), replace(3, [3, None, 36526.75, 3]), field(4, 3, -4)]
+                 if name == 'dates' else [field(1, 1, 'ab'), field(2, 1, None), replace(3, [3, 'cd', 3]), field(4, 2, -40)])
+        edits.append(field(219, 0, 999))
     else:
         types, count, additions, deletions, regrown = [4, 5, 7], 5673, [5673], [5673], [6000]
         edits = [field(5673, 1, -50000), replace(6, [6, None, None]), field(5, 2, None), field(7, 2, -1.25)]
@@ -50,12 +65,12 @@ def recipe(name):
     result = dict(name=name, fields=[[n, t, SIZES[t]] for n, t in zip(['Id', 'A', 'B', 'C'], types)],
                   indexes=[index('ById', [[0, False]], unique=True, primary=True),
                            index('ByPair', [[1, False], [2, True]], unique=name != 'integral', ignore=name == 'integral'),
-                           index('ByLast', [[2 if name == 'deep' else 3, True]], unique=name == 'wide', ignore=name == 'wide')],
+                           index('ByLast', [[1 if name == 'binary' else 2 if name == 'deep' else 3, True]], unique=name == 'wide', ignore=name == 'wide')],
                   initial_rows=[initial_row(name, id) for id in range(count)], stages=[
                       dict(name='original', operations=[]), dict(name='grown', operations=[insert(id) for id in additions]),
                       dict(name='edited', operations=edits), dict(name='collapsed', operations=[dict(kind='delete', id=id) for id in deletions]),
                       dict(name='regrown', operations=[insert(id) for id in regrown])],
-                  native=[insert(9000), field(9000, 0, 9001), dict(kind='delete', id={'integral': 195, 'wide': 120, 'deep': 8}[name])])
+                  native=[insert(9000), field(9000, 0, 9001), dict(kind='delete', id={'integral': 195, 'wide': 120, 'deep': 8, 'dates': 1000, 'binary': 1000}[name])])
     samples = [initial_row(name, id) for id in [0, 1, 2, 3, 4, 5, 6, 7, 80, 120, 195, 324, 500, 999, 1000, 9000, 9001, 1234567, 1234568]]
     if name == 'wide': samples.extend([[0, 0, 0.5, n] for n in [-1.5, 2.25, 4.5]])
     for index in result['indexes']:
@@ -69,15 +84,25 @@ def component(value, kind, descending):
     if value is None:
         require(kind != 1, 'Boolean null is outside admitted input')
         result = b'\0'
+    elif kind == 9:
+        raw = bytes.fromhex(value)
+        require(0 < len(raw) <= 255, 'Present Binary model length')
+        mask = 255 if descending else 0
+        result = bytearray([127 ^ mask])
+        for offset in range(0, len(raw), 8):
+            chunk = raw[offset:offset + 8]
+            result.extend(b ^ mask for b in chunk + bytes(8 - len(chunk)))
+            result.append(9 if offset + 8 < len(raw) else len(chunk) ^ mask)
+        return bytes(result)
     elif kind == 1:
         require(type(value) is bool, 'Boolean model type')
         result = b'\x7f' + bytes([0 if value else 255])
     else:
         size = SIZES[kind]
-        if kind in (6, 7):
+        if kind in (6, 7, 8):
             raw = struct.pack('>f' if kind == 6 else '>d', value)
             bits = int.from_bytes(raw, 'big'); sign = 1 << (size * 8 - 1)
-            require(math.isfinite(value) and bits != sign, 'Excluded floating value')
+            require(math.isfinite(value), 'Excluded floating value')
             bits = (bits ^ ((1 << (size * 8)) - 1)) if bits & sign else bits ^ sign
         else:
             require(type(value) is int, 'Integer/scaled Currency model type')
@@ -89,7 +114,14 @@ def component(value, kind, descending):
 
 def key(row, case, index):
     if index['ignore'] and all(row[c] is None for c, _ in index['fields']): return None
-    return b''.join(component(row[c], case['fields'][c][1], desc) for c, desc in index['fields'])
+    encoded = b''.join(component(row[c], case['fields'][c][1], desc) for c, desc in index['fields'])
+    if len(encoded) > 255:
+        state = 0
+        for byte in encoded[253:]:
+            for _ in range(8): state = ((state << 1) ^ (0x8005 if state & 0x8000 else 0)) & 65535
+            state ^= byte
+        encoded = encoded[:253] + state.to_bytes(2, 'little')
+    return encoded
 
 
 def counters_for(case, rows):
@@ -130,7 +162,7 @@ def expected_stages(case):
 def raw_check(data, case, expected, counters, receipt=None, previous=None):
     catalog = raw_index.catalog
     table = tables(data)['Items']; pages, lval = catalog._table_pages(data, table)
-    rows = catalog._table_rows(data, table, pages)
+    rows = raw_rows.table_rows(data, table, pages)
     for row in rows:
         for n, (_, kind, _) in enumerate(case['fields']):
             value = row['values'][n]
@@ -190,7 +222,7 @@ def refusal_check(directory, notes):
 
 
 def inputs():
-    paths = [Path(__file__), SCRIPT, Path(raw_index.__file__), ROOT / 'crates/jet3/examples/numeric_index_mutation_candidate.rs',
+    paths = [Path(__file__), SCRIPT, Path(raw_index.__file__), Path(raw_rows.__file__), ROOT / 'crates/jet3/examples/numeric_index_mutation_candidate.rs',
              ROOT / 'crates/jet3/examples/numeric_index_mutation_support/mod.rs',
              Path(__file__).with_name('index_tree_mutation.py'), Path(__file__).with_name('index_tree_mutation_structure.py'),
              Path(__file__).with_name('multi_level_index_structure.py'), Path(raw_index.catalog.__file__), Path(__file__).with_name('field_update.ps1')]
@@ -198,7 +230,7 @@ def inputs():
 
 
 def prepare(candidates: Path, revision: str):
-    cases = [recipe(name) for name in ('integral', 'wide', 'deep')]
+    cases = [recipe(name) for name in CASE_NAMES]
     for case in cases:
         previous = None; baseline_notes = None; original_layout = None
         for stage, expected, counters in expected_stages(case):
@@ -245,7 +277,10 @@ def normalized(capture, case, rows):
                 [key(r, case, index) for r in actual['traversal']] == sorted(key(r, case, index) for r in selected), 'Complete directed DAO traversal')
         require([s['query'] for s in actual['seek']] == index['queries'], 'Finite full-key Seek inventory')
         for seek in actual['seek']:
-            matches = [r for r in selected if [r[c] for c, _ in index['fields']] == seek['query']]
+            query_row = [None] * len(case['fields'])
+            for (column, _), value in zip(index['fields'], seek['query']): query_row[column] = value
+            wanted_key = key(query_row, case, index)
+            matches = [r for r in selected if key(r, case, index) == wanted_key]
             require(seek['row'] in matches if matches else seek['row'] is None, 'Seek returns complete matching row or absence')
             # Equal-key ties can select different physical rows in independently allocated files.
             seek['matches'] = sorted(matches); del seek['row']
@@ -337,7 +372,7 @@ def prepare_continue(candidates, first_outbox, output, generator, revision):
     require(result['manifest_sha256'] == identity(candidates / MANIFEST)['sha256'], 'Continuation parent run')
     output.mkdir(parents=True, exist_ok=False); cases = []; receipts = []
     try:
-        for name in ('integral', 'wide', 'deep'):
+        for name in CASE_NAMES:
             case = copy.deepcopy(next(c for c in first['cases'] if c['name'] == name)); observed = next(c for c in result['cases'] if c['name'] == name)
             capture = observed['native']['control']['capture']; source = first_outbox / capture['file']
             _, rows, counters = list(expected_stages(case))[-1]

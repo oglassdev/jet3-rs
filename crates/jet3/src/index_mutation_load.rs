@@ -41,6 +41,13 @@ pub(crate) fn load(
                 ColumnPhysicalType::Currency => ColumnType::Currency,
                 ColumnPhysicalType::Single => ColumnType::Single,
                 ColumnPhysicalType::Double => ColumnType::Double,
+                ColumnPhysicalType::DateTime => ColumnType::DateTime,
+                ColumnPhysicalType::Binary => ColumnType::Binary {
+                    max_len: u8::try_from(column.size())
+                        .ok()
+                        .and_then(std::num::NonZeroU8::new)
+                        .ok_or(UpdateError::Mismatch("binary index field capacity"))?,
+                },
                 _ => return Err(UpdateError::Unsupported("non-numeric index key")),
             };
             let kind = NumericKeyType::from_column(kind)

@@ -1,14 +1,15 @@
 //! Bounded numeric records: EXP-0126/0150 components, EXP-0148 null policies,
 //! and EXP-0062 three-byte page plus one-byte slot locators.
 
-use crate::numeric_index_key::{MAX_COMPONENT_BYTES, NumericKeyType};
+use crate::binary_index_key::MAX_KEY_BYTES;
+use crate::numeric_index_key::{KeyPrefix, MAX_COMPONENT_BYTES, NumericKeyType};
 use crate::{
     Error, IndexDirection, IndexNullPolicy, PageNumber, ResourceBudget, RowLocator, RowValue,
 };
 
 pub(crate) const MAX_FIELDS: usize = 2;
 const LOCATOR_BYTES: usize = 4;
-pub(crate) const ENTRY_CAPACITY: usize = MAX_FIELDS * MAX_COMPONENT_BYTES + LOCATOR_BYTES;
+pub(crate) const ENTRY_CAPACITY: usize = MAX_KEY_BYTES + LOCATOR_BYTES;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct NumericIndexField {
@@ -51,29 +52,49 @@ pub(crate) struct NumericIndexEntry {
 pub(crate) fn valid_key_shape(
     fields: &[NumericIndexField],
     null_policy: IndexNullPolicy,
-    mut key: &[u8],
+    key: &[u8],
 ) -> bool {
-    if !(1..=MAX_FIELDS).contains(&fields.len()) {
+    if !(1..=MAX_FIELDS).contains(&fields.len()) || key.len() > MAX_KEY_BYTES {
         return false;
     }
+    key_shape(fields, null_policy, key, false)
+        || (key.len() == MAX_KEY_BYTES
+            && key_shape(fields, null_policy, &key[..MAX_KEY_BYTES - 2], true))
+}
+
+fn key_shape(
+    fields: &[NumericIndexField],
+    null_policy: IndexNullPolicy,
+    mut key: &[u8],
+    shortened: bool,
+) -> bool {
+    let mut consumed = 0;
     let mut all_null = true;
-    for field in fields {
-        let Some(length) = field.kind.encoded_length(key, field.direction) else {
+    for (ordinal, field) in fields.iter().enumerate() {
+        let Some(prefix) = field.kind.prefix(key, field.direction) else {
             return false;
         };
-        let Some((component, rest)) = key.split_at_checked(length) else {
+        let length = match prefix {
+            KeyPrefix::Complete(length) => length,
+            KeyPrefix::Partial { maximum } => {
+                let remaining: usize = fields[ordinal + 1..]
+                    .iter()
+                    .map(|field| field.kind.maximum_length())
+                    .sum();
+                return shortened && consumed + maximum + remaining > MAX_KEY_BYTES;
+            }
+        };
+        let Some((_, rest)) = key.split_at_checked(length) else {
             return false;
         };
         if length == 1 && null_policy == IndexNullPolicy::Required {
             return false;
         }
-        if field.kind == NumericKeyType::Boolean && !matches!(component[1], 0 | 0xff) {
-            return false;
-        }
         all_null &= length == 1;
+        consumed += length;
         key = rest;
     }
-    key.is_empty() && !(all_null && null_policy == IndexNullPolicy::IgnoreAllNull)
+    !shortened && key.is_empty() && !(all_null && null_policy == IndexNullPolicy::IgnoreAllNull)
 }
 
 impl NumericIndexEntry {
@@ -106,11 +127,14 @@ impl NumericIndexEntry {
             has_null: false,
         };
         let mut all_null = true;
+        let mut raw_key = [0; MAX_FIELDS * MAX_COMPONENT_BYTES];
         for field in fields {
             let value = values.get(field.column).ok_or(EntryError::MissingColumn {
                 column: field.column,
             })?;
-            let null = matches!(value, RowValue::Null);
+            let null = matches!(value, RowValue::Null)
+                || (matches!(field.kind, NumericKeyType::Binary { .. })
+                    && matches!(value, RowValue::Binary([])));
             entry.has_null |= null;
             all_null &= null;
             let mut component = [0; MAX_COMPONENT_BYTES];
@@ -121,8 +145,7 @@ impl NumericIndexEntry {
                     column: field.column,
                     kind: field.kind,
                 })?;
-            entry.bytes[entry.key_len..entry.key_len + length]
-                .copy_from_slice(&component[..length]);
+            raw_key[entry.key_len..entry.key_len + length].copy_from_slice(&component[..length]);
             entry.key_len += length;
         }
         if entry.has_null && null_policy == IndexNullPolicy::Required {
@@ -131,6 +154,9 @@ impl NumericIndexEntry {
         if all_null && null_policy == IndexNullPolicy::IgnoreAllNull {
             return Ok(None);
         }
+        budget.charge_work_units(entry.key_len as u64 * 9)?;
+        entry.key_len = crate::binary_index_key::shorten(&mut raw_key[..entry.key_len]);
+        entry.bytes[..entry.key_len].copy_from_slice(&raw_key[..entry.key_len]);
         entry.bytes[entry.key_len..entry.key_len + 3]
             .copy_from_slice(&(page as u32).to_be_bytes()[1..]);
         entry.bytes[entry.key_len + LOCATOR_BYTES - 1] = locator.slot();

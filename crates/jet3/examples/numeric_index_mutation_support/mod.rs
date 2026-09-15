@@ -15,6 +15,10 @@ const PAIR_FIELDS: [IndexColumnSpec<'static>; 2] = [
         direction: IndexDirection::Descending,
     },
 ];
+const LAST_A: [IndexColumnSpec<'static>; 1] = [IndexColumnSpec {
+    column: ColumnRef::Ordinal(1),
+    direction: IndexDirection::Descending,
+}];
 const LAST_B: [IndexColumnSpec<'static>; 1] = [PAIR_FIELDS[1]];
 const LAST_C: [IndexColumnSpec<'static>; 1] = [IndexColumnSpec {
     column: ColumnRef::Ordinal(3),
@@ -120,6 +124,8 @@ pub(super) enum Case {
     Integral,
     Wide,
     Deep,
+    Dates,
+    Binary,
 }
 impl Case {
     pub(super) fn name(self) -> &'static str {
@@ -127,6 +133,8 @@ impl Case {
             Self::Integral => "integral",
             Self::Wide => "wide",
             Self::Deep => "deep",
+            Self::Dates => "dates",
+            Self::Binary => "binary",
         }
     }
     pub(super) fn count(self) -> i32 {
@@ -134,6 +142,7 @@ impl Case {
             Self::Integral => 195,
             Self::Wide => 80,
             Self::Deep => 5673,
+            Self::Dates | Self::Binary => 96,
         }
     }
     pub(super) fn columns(self) -> Vec<ColumnSpec<'static>> {
@@ -141,6 +150,13 @@ impl Case {
             Self::Integral => vec![ColumnType::Byte, ColumnType::Integer, ColumnType::Boolean],
             Self::Wide => vec![ColumnType::Currency, ColumnType::Double, ColumnType::Single],
             Self::Deep => vec![ColumnType::Currency, ColumnType::Double],
+            Self::Dates => vec![ColumnType::DateTime, ColumnType::DateTime, ColumnType::Long],
+            Self::Binary => vec![
+                ColumnType::Binary {
+                    max_len: std::num::NonZeroU8::MAX,
+                },
+                ColumnType::Long,
+            ],
         };
         [ColumnType::Long]
             .into_iter()
@@ -172,7 +188,11 @@ impl Case {
                 } else {
                     IndexKind::Ordinary
                 },
-                fields: if self == Self::Deep { &LAST_B } else { &LAST_C },
+                fields: match self {
+                    Self::Deep => &LAST_B,
+                    Self::Binary => &LAST_A,
+                    _ => &LAST_C,
+                },
             },
         ]
     }
@@ -207,6 +227,35 @@ impl Case {
                 },
                 Null,
             ],
+            Self::Dates => vec![
+                Long(id),
+                if id % 11 == 0 {
+                    Null
+                } else {
+                    DateTime(
+                        [-2.75, -1.25, 0.0, 0.25, 0.5, 1.75, 36526.125, 36527.875][id as usize % 8],
+                    )
+                },
+                if id % 19 == 0 {
+                    Null
+                } else {
+                    DateTime(36526.0 + f64::from(id) / 4.0)
+                },
+                Long(id % 13),
+            ],
+            Self::Binary => {
+                let widths = [
+                    1, 7, 8, 9, 17, 223, 224, 225, 247, 248, 249, 250, 251, 252, 253, 254, 255,
+                ];
+                let payload = (0..widths[id as usize % widths.len()])
+                    .map(|offset| ((offset * 37 + id % 23) % 256) as u8)
+                    .collect();
+                vec![
+                    Long(id),
+                    if id % 19 == 0 { Null } else { Binary(payload) },
+                    Long(id),
+                ]
+            }
             Self::Deep => match id {
                 0..=2 => vec![Long(id), Null, Null],
                 3 => vec![Long(id), Null, Double(1.5)],
@@ -248,6 +297,30 @@ impl Case {
                 ],
                 vec![0, 17, 80],
                 vec![120, 121, 122],
+            ),
+            Self::Dates => (
+                (96..220).collect(),
+                vec![
+                    Field(1, 1, DateTime(-1.75)),
+                    Field(2, 2, Null),
+                    Replace(3, vec![Long(3), Null, DateTime(36526.75), Long(3)]),
+                    Field(4, 3, Long(-4)),
+                    Field(219, 0, Long(999)),
+                ],
+                (0..160).collect(),
+                (1000..1040).collect(),
+            ),
+            Self::Binary => (
+                (96..220).collect(),
+                vec![
+                    Field(1, 1, Binary(vec![0xab])),
+                    Field(2, 1, Null),
+                    Replace(3, vec![Long(3), Binary(vec![0xcd]), Long(3)]),
+                    Field(4, 2, Long(-40)),
+                    Field(219, 0, Long(999)),
+                ],
+                (0..160).collect(),
+                (1000..1040).collect(),
             ),
             Self::Deep => (
                 vec![5673],

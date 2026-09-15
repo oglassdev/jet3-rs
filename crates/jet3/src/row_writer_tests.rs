@@ -722,3 +722,6 @@ fn boolean_zero_placeholder_does_not_relax_scalar_offsets() -> Result<(), Box<dy
     ));
     Ok(())
 }
+
+#[path = "row_binary_tests.rs"]
+mod binary;

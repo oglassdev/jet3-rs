@@ -55,6 +55,7 @@ pub mod column_definition_writer;
 pub mod commit_state;
 pub mod creation;
 pub use creation as create;
+mod binary_index_key;
 mod data_page_directory;
 pub mod database;
 pub mod database_header;
