@@ -6,7 +6,7 @@ use super::super::{
     ComposeError, catalog_row_number, compose_database, compose_table_database, creation_counter,
 };
 use crate::column_definition_writer::nz;
-use crate::creation::schema_plan::{IndexKind, IndexSpec, TableSchemaPlanError, TableSpec};
+use crate::creation::schema_plan::{IndexKind, IndexSpec, TableSpec};
 use crate::{
     ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec,
     IndexDirection, MapRowLocator, PAGE_BYTES, PageKind, PageNumber, SliceSource, page_tag,
@@ -231,28 +231,28 @@ fn a_definition_needing_a_continuation_appends_it_after_the_property_page() -> T
 }
 
 #[test]
-fn a_definition_needing_two_continuations_is_refused_before_any_page_is_built() {
-    // 140 ten-byte-named Long columns encode to 4,105 bytes, EXP-0105's
-    // two-continuation arm, whose placement stays unestablished.
+fn a_definition_needing_two_continuations_reopens_with_the_complete_column_inventory() -> TestResult
+{
     let names = wide_names(140);
     let columns = wide_columns(&names);
-    let mut budget = compose_budget();
-    assert!(matches!(
-        compose_table_database(
-            &TableSpec {
-                name: b"Wide",
-                columns: &columns,
-                indexes: &[],
-            },
-            &mut budget,
-        ),
-        Err(ComposeError::Schema(
-            TableSchemaPlanError::ContinuationPlacementUnestablished {
-                length: 4105,
-                continuations: 2,
-            }
-        ))
-    ));
+    let bytes = create_bytes(&TableSpec {
+        name: b"Wide",
+        columns: &columns,
+        indexes: &[],
+    })?;
+    assert_eq!(bytes.len(), 25 * PAGE_BYTES);
+    assert_eq!(&page(&bytes, 20)[4..8], &23_u32.to_le_bytes());
+    assert_eq!(&page(&bytes, 23)[4..8], &24_u32.to_le_bytes());
+    assert_eq!(&page(&bytes, 24)[4..8], &[0; 4]);
+    let mut budget = read_budget(bytes.len());
+    let source = SliceSource::new(&bytes, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
+    assert_eq!(definition.columns().len(), names.len());
+    for (column, name) in definition.columns().iter().zip(&names) {
+        assert_eq!(column.name().raw_bytes(), name);
+    }
+    Ok(())
 }
 
 #[test]

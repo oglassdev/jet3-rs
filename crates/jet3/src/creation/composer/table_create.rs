@@ -10,13 +10,9 @@
 //! index records appear in name order while referring back to the physical
 //! ordinals.
 //!
-//! A definition longer than its root page takes one continuation page directly
-//! after the `LvProp` page, the compact construction `EXP-0107` observed DAO
-//! accept for an unindexed table. The root's bytes `[4,8)` name that page and
-//! the continuation repeats the definition prefix, holds zero at `[4,8)`, and
-//! carries the remaining logical bytes from offset 8 (`EXP-0059`,
-//! `EXP-0105`). Longer chains, and a continuation beside an index, are refused
-//! by the planner.
+//! Definition chains use the linked 2,040-byte continuation payloads from
+//! `EXP-0059`/`EXP-0105`. Consecutive placement before index roots extends the
+//! compact `EXP-0107` construction as candidate allocation policy.
 //!
 //! `EXP-0091` supplies the null catalog `LvProp` form with a retained mapped
 //! long-value page. The EXP-0208 Memo opt-in instead populates that page with
@@ -29,8 +25,8 @@
 
 use super::*;
 use crate::creation::schema_plan::{
-    AVAILABLE_MAP_ROW, CONTINUATION_CAPACITY, DEFINITION_ROOT_CAPACITY, FIRST_INDEX_MAP_ROW,
-    OWNED_MAP_ROW, TableSchemaPlan, TableSpec, logical_index_order, plan_table_schema,
+    AVAILABLE_MAP_ROW, FIRST_INDEX_MAP_ROW, OWNED_MAP_ROW, TableSchemaPlan, TableSpec,
+    logical_index_order, plan_table_schema,
 };
 
 /// `EXP-0093`: `MSysObjects` `Flags` of a created user table.
@@ -101,9 +97,6 @@ impl<'a> PlannedCreate<'a> {
         rows: &[&[RowValue<'_>]],
         budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
-        if self.plan.continuation_page().is_some() {
-            return Err(ComposeError::UnsupportedInitialRowSchema);
-        }
         let mut generated = InitialAutoIncrement::new(self.spec, rows, budget)?;
         self.initial_autoincrement = generated;
         self.initial_indexes = InitialLongIndex::for_table(self.spec, rows.len(), budget)?;
@@ -338,8 +331,8 @@ impl<'a> PlannedCreate<'a> {
     }
 
     /// Appends the create's pages in `EXP-0093` order: definition root, map
-    /// page, the first create's long-value page, the `EXP-0107` continuation
-    /// if the definition needs one, then the index roots.
+    /// page, the first create's long-value page, definition continuations,
+    /// then the index roots.
     pub(super) fn append_pages(
         &self,
         plan: &mut WholeFileImagePlan,
@@ -348,8 +341,12 @@ impl<'a> PlannedCreate<'a> {
     ) -> Result<(), ComposeError> {
         // Check physical map capacity before encoding its row locators.
         let maps = self.map_page(None, budget)?;
-        let (root, continuation) = self.definition_pages(budget)?;
-        plan.append(root, append_map, budget)?;
+        let definition = self.definition_pages(budget)?;
+        let mut root = definition.root(self.plan.continuation_page(), budget)?;
+        if let Some(generated) = self.initial_autoincrement {
+            generated.write(&mut root, budget)?;
+        }
+        plan.append(PageImage::from_bytes(root), append_map, budget)?;
         plan.append(maps, append_map, budget)?;
         if self.plan.property_page().is_some() {
             let mut lval = DataPageBuilder::new_long_value(budget)?;
@@ -360,8 +357,11 @@ impl<'a> PlannedCreate<'a> {
             }
             plan.append(finish_data_builder(lval, budget)?, append_map, budget)?;
         }
-        if let Some(continuation) = continuation {
-            plan.append(continuation, append_map, budget)?;
+        if let Some(first) = self.plan.continuation_page() {
+            for (ordinal, payload) in definition.continuations().enumerate() {
+                let image = definition.continuation(first, ordinal, payload, budget)?;
+                plan.append(image, append_map, budget)?;
+            }
         }
         let owner = self.plan.definition_root().get();
         for (ordinal, (root, _)) in self.plan.index_placements().enumerate() {
@@ -407,42 +407,19 @@ impl<'a> PlannedCreate<'a> {
         Ok(())
     }
 
-    /// Encodes the definition and splits it into its root page and, when the
-    /// planner assigned one, its continuation page.
     fn definition_pages(
         &self,
         budget: &mut ResourceBudget,
-    ) -> Result<(PageImage, Option<PageImage>), ComposeError> {
-        let mut logical = [0_u8; DEFINITION_ROOT_CAPACITY + CONTINUATION_CAPACITY];
-        let length = self.encode_definition(&mut logical, budget)?.get() as usize;
+    ) -> Result<definition_pages::DefinitionPages, ComposeError> {
+        let mut pages = definition_pages::DefinitionPages::new(self.plan.definition_len(), budget)?;
+        let length = self.encode_definition(pages.logical_mut(), budget)?.get() as usize;
         if length != self.plan.definition_len() {
             return Err(ComposeError::DefinitionLengthMismatch {
                 planned: self.plan.definition_len(),
                 encoded: length,
             });
         }
-        let mut root = [0_u8; PAGE_BYTES];
-        root.copy_from_slice(&logical[..PAGE_BYTES]);
-        if let Some(generated) = self.initial_autoincrement {
-            generated.write(&mut root, budget)?;
-        }
-        let Some(continuation_page) = self.plan.continuation_page() else {
-            return Ok((PageImage::from_bytes(root), None));
-        };
-        let next =
-            u32::try_from(continuation_page.get()).map_err(|_| Error::IntegerConversion {
-                value: u128::from(continuation_page.get()),
-                target: "u32",
-            })?;
-        root[4..8].copy_from_slice(&next.to_le_bytes());
-        let mut continuation = [0_u8; PAGE_BYTES];
-        continuation[..4].copy_from_slice(&logical[..4]);
-        let payload = &logical[DEFINITION_ROOT_CAPACITY..length];
-        continuation[8..8 + payload.len()].copy_from_slice(payload);
-        Ok((
-            PageImage::from_bytes(root),
-            Some(PageImage::from_bytes(continuation)),
-        ))
+        Ok(pages)
     }
 
     fn encode_definition(
@@ -686,3 +663,10 @@ fn initial_index_map(
     map.encode_into(&mut row, budget)?;
     Ok(row)
 }
+
+#[path = "definition_pages.rs"]
+mod definition_pages;
+
+#[cfg(test)]
+#[path = "definition_chain_tests.rs"]
+mod definition_chain_tests;
