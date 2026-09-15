@@ -72,8 +72,9 @@ are bounded by map-reference capacity and the caller's resource budget. Relation
 non-cascading, non-null Long relationship.
 
 Schema/name combinations, index key types and relationship forms remain
-restricted. Empty OLE is refused. Empty Memo requires an
-explicit option in a restricted schema. Existing-table schema changes and
+restricted. Empty OLE payloads store null. Text/Memo columns can independently
+allow present-empty values, including later indexed tables and chained column
+properties. Fixed Text retains its exact-width input contract. Existing-table schema changes and
 table/relationship dropping are absent. EXP-0239 adds explicit, negative and
 wrapping AutoIncrement IDs to the finite writer comparisons.
 
@@ -260,6 +261,17 @@ refusals leave the complete file unchanged; DAO failed insertion can advance a
 historical index counter while preserving rows. Fixed Text callers supply the
 exact declared width. Other collations and empty/all-space Text are outside
 this comparison.
+
+EXP-0266 establishes named per-column AllowZeroLength properties and empty-value
+storage. EXP-0267 accepts 23 pairs (46 captures) across first/later mixed tables,
+a 35-column table with chained properties, and unique empty Text keys. Creation,
+insert/update/delete, external-payload clearing, native successors and Rust edits
+to native inputs preserve complete values, schema, physical indexes, allocation,
+column properties and unrelated Notes. Empty Text/Memo requires the column's
+option; empty OLE stores null. Disallowed empty values and duplicate unique keys
+are refused before Rust publication. DAO may change internal bookkeeping on a
+failed write; Rust refusal preserves the whole file. Other property grammars,
+Required/default/validation options and other collations remain outside this batch.
 
 ### Remaining work
 
