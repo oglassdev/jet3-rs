@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare and compare the finite EXP-0222 creation-layout suite."""
+"""Prepare and compare the finite EXP-0222/0241 creation-layout suite."""
 import argparse
 import copy
 import hashlib
@@ -46,10 +46,10 @@ def prepare(candidates, revision):
                   for n in range(count)]
         arms.append(dict(name=name, image=identity(candidates / (name + '.mdb')), tables=tables))
     require([(a['name'], len(a['tables'])) for a in arms] ==
-            [('five-empty', 5), ('six-indexed', 6), ('catalog-short', 28), ('catalog-wide', 15)],
+            [('five-empty', 5), ('six-indexed', 6), ('catalog-short', 40), ('catalog-wide', 30), ('catalog-aces', 110), ('catalog-names', 40)],
             'Candidate arm inventory and catalog capacities')
     require((candidates / 'refusals.tsv').read_text() ==
-            'catalog-short\t29\tPageFull\ncatalog-wide\t16\tPageFull\n', 'Capacity refusals')
+            'creation-counter\t128\tTableCountOverflow\n', 'Capacity refusals')
     manifest = dict(document_type='creation_tables_inputs', source_revision=revision,
                     producer_sha256=identity(PRODUCER)['sha256'],
                     analyzer_sha256=identity(Path(__file__))['sha256'],
@@ -138,8 +138,16 @@ def raw_layout(data, arm):
             require(sorted(catalog._locator_pages(data, physical['map'], 'creation index map')) == [root], 'Independent index map')
         observations.append(dict(name=spec['name'], root=next_root, columns=len(spec['columns']), indexes=len(spec['indexes']), rows=len(rows)))
         next_root += 2 + int(position == 0) + len(spec['indexes']) + len(pages)
-    require(len(data) == next_root * 2048, 'Complete page inventory')
-    return dict(pages=next_root, tables=observations)
+    from catalog_pages_native import inspect as inspect_catalog_pages
+    system = inspect_catalog_pages(data)
+    extra = {p for table in system.values() for p in table['owned'] if p >= next_root}
+    extra.update(p for table in system.values() for index in table['indexes'] for p in index['owned'] if p >= next_root)
+    require(extra == set(range(next_root, len(data) // 2048)), 'Complete appended catalog page inventory')
+    require(len(data) % 2048 == 0, 'Whole pages')
+    global_row = catalog._locator_row(data, dict(page=1, row=0), 'global free map')
+    global_free = set(catalog._map_pages(global_row, 1024, 'global free map', bounded=True))
+    require(global_free == set(range(len(data) // 2048, 1024)), 'Exact global free page inventory')
+    return dict(pages=len(data) // 2048, tables=observations, catalogs=system)
 
 
 def evaluate(candidates, outbox):

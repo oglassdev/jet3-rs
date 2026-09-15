@@ -1,4 +1,4 @@
-//! Generates EXP-0222 table-layout candidates and records catalog capacity refusals.
+//! Generates bounded EXP-0222/0241 catalog and table-layout candidates.
 use jet3::{
     ColumnSpec, ColumnType, ComposeError, CreateDatabaseError, IndexColumnSpec, IndexKind,
     IndexSpec, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec, create_database,
@@ -88,38 +88,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("usage: creation_tables_candidate OUTPUT_DIRECTORY")?;
     let directory = Path::new(&directory);
     std::fs::create_dir_all(directory)?;
-    create(&directory.join("five-empty.mdb"), 5, 1, false, 3)?;
-    create(&directory.join("six-indexed.mdb"), 6, 3, true, 3)?;
-    let mut cases = String::from("five-empty\t5\t1\t0\t3\nsix-indexed\t6\t3\t17\t3\n");
-    let mut refusals = String::new();
-    for (arm, width, name_width) in [("catalog-short", 1, 3), ("catalog-wide", 32, 48)] {
-        let path = directory.join(format!("{arm}.mdb"));
-        let mut last = 0;
-        for count in 1..=128 {
-            match create(&path, count, width, false, name_width) {
-                Ok(()) => {
-                    last = count;
-                    std::fs::remove_file(&path)?;
-                }
-                Err(CreateDatabaseError::Compose(ComposeError::Page(
-                    jet3::PageImageError::PageFull { .. },
-                ))) => {
-                    if path.exists() {
-                        return Err("refused creation published a file".into());
-                    }
-                    refusals.push_str(&format!("{arm}\t{count}\tPageFull\n"));
-                    break;
-                }
-                Err(error) => return Err(error.into()),
+    let mut cases = String::new();
+    for (name, count, width, populated, name_width) in [
+        ("five-empty", 5, 1, false, 3),
+        ("six-indexed", 6, 3, true, 3),
+        ("catalog-short", 40, 1, false, 3),
+        ("catalog-wide", 30, 32, false, 48),
+        ("catalog-aces", 110, 1, false, 3),
+        ("catalog-names", 40, 3, false, 48),
+    ] {
+        create(
+            &directory.join(format!("{name}.mdb")),
+            count,
+            width,
+            populated,
+            name_width,
+        )?;
+        cases.push_str(&format!(
+            "{name}\t{count}\t{width}\t{}\t{name_width}\n",
+            if populated { 17 } else { 0 }
+        ));
+    }
+    let refusal = directory.join("refused.mdb");
+    if !matches!(
+        create(&refusal, 128, 1, false, 3),
+        Err(CreateDatabaseError::Compose(
+            ComposeError::TableCountOverflow {
+                count: 128,
+                maximum: 127
             }
-        }
-        if last == 0 || last == 128 {
-            return Err("catalog capacity not reached".into());
-        }
-        create(&path, last, width, false, name_width)?;
-        cases.push_str(&format!("{arm}\t{last}\t{width}\t0\t{name_width}\n"));
+        ))
+    ) {
+        return Err("creation counter refusal changed".into());
+    }
+    if refusal.exists() {
+        return Err("refused creation published a file".into());
     }
     std::fs::write(directory.join("cases.tsv"), cases)?;
-    std::fs::write(directory.join("refusals.tsv"), refusals)?;
+    std::fs::write(
+        directory.join("refusals.tsv"),
+        "creation-counter\t128\tTableCountOverflow\n",
+    )?;
     Ok(())
 }

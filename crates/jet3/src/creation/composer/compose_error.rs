@@ -71,6 +71,16 @@ pub enum ComposeError {
     WholeFile(WholeFilePlanError),
     /// A low-level encoding or resource limit failed.
     Encoding(Error),
+    /// Catalog growth would exceed the inline allocation maps.
+    CatalogPageLimit {
+        /// Exclusive page-number bound.
+        maximum: u64,
+    },
+    /// A catalog composition invariant did not hold.
+    CatalogLayout {
+        /// Failed checked layout condition.
+        detail: &'static str,
+    },
     /// A bootstrap index page cannot hold its entries.
     IndexPageFull {
         /// Bytes the entries need.
@@ -144,6 +154,8 @@ impl std::error::Error for ComposeError {
             | Self::DuplicateInitialIndexKey { .. }
             | Self::DuplicateInitialCompositeIndexKey { .. }
             | Self::IndexPageFull { .. }
+            | Self::CatalogPageLimit { .. }
+            | Self::CatalogLayout { .. }
             | Self::UnobservedMapRowLayout
             | Self::UnobservedLongValueColumnCount { .. }
             | Self::TableCountOverflow { .. }
