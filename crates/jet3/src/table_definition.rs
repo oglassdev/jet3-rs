@@ -53,6 +53,7 @@ pub struct TableDefinition {
     root: PageNumber,
     kind: TableDefinitionKind,
     logical_length: u32,
+    pages: Vec<PageNumber>,
     maps: TableMapLocations,
     columns: Vec<ColumnDefinition>,
     physical_indexes: Vec<PhysicalIndexDefinition>,
@@ -97,6 +98,12 @@ impl TableDefinition {
             self.raw_header[14],
             self.raw_header[15],
         ])
+    }
+
+    /// Returns every physical definition page, including an empty terminal page.
+    #[must_use]
+    pub fn pages(&self) -> &[PageNumber] {
+        &self.pages
     }
 
     #[must_use]
@@ -334,9 +341,10 @@ impl<S: ReadAt> DatabaseReader<S> {
         budget: &mut ResourceBudget,
     ) -> Result<TableDefinition, TableDefinitionError> {
         let geometry = self.geometry();
-        let (bytes, maps) = read_definition_chain(self, root, budget)?;
+        let (bytes, maps, pages) = pages::read_definition_chain(self, root, budget)?;
         let mut definition = decode_definition(&bytes, root, maps, geometry, budget)?;
         validate_references(self, &definition, budget)?;
+        definition.pages = pages;
         definition.logical_length = u32::try_from(bytes.len()).map_err(|_| {
             TableDefinitionError::Resource(Error::IntegerConversion {
                 value: bytes.len() as u128,
@@ -345,113 +353,6 @@ impl<S: ReadAt> DatabaseReader<S> {
         })?;
         Ok(definition)
     }
-}
-
-fn read_definition_chain<S: ReadAt>(
-    database: &mut DatabaseReader<S>,
-    root: PageNumber,
-    budget: &mut ResourceBudget,
-) -> Result<(Vec<u8>, TableMapLocations), TableDefinitionError> {
-    let geometry = database.geometry();
-    let maximum = geometry
-        .page_count()
-        .saturating_sub(1)
-        .checked_mul((PAGE_BYTES - CONTINUATION_PAYLOAD_OFFSET) as u64)
-        .and_then(|tail| tail.checked_add(PAGE_BYTES as u64))
-        .ok_or(TableDefinitionError::Resource(Error::Arithmetic {
-            operation: "bound table-definition chain capacity",
-        }))?;
-    let mut walker = PageChainWalker::new(geometry, budget).map_err(TableDefinitionError::Chain)?;
-    let mut page = [0_u8; PAGE_BYTES];
-    let classified = walker
-        .follow(root, PageKind::TableDefinition, database, &mut page, budget)
-        .map_err(TableDefinitionError::Chain)?;
-    validate_prefix(root, classified.raw_bytes())?;
-    let maps = locate_table_maps(classified, geometry, budget)
-        .map_err(TableDefinitionError::MapLocation)?;
-    let logical_length = u32_at(&page, 8);
-    let minimum = DEFINITION_HEADER_LEN + TERMINATOR_LEN;
-    if usize::try_from(logical_length)
-        .ok()
-        .is_none_or(|length| length < minimum)
-        || u64::from(logical_length) > maximum
-    {
-        return Err(TableDefinitionError::InvalidLogicalLength {
-            length: logical_length,
-            minimum,
-            maximum,
-        });
-    }
-    let length = usize::try_from(logical_length).map_err(|_| {
-        TableDefinitionError::Resource(Error::IntegerConversion {
-            value: u128::from(logical_length),
-            target: "usize",
-        })
-    })?;
-    budget
-        .charge_allocation(ByteCount::new(u64::from(logical_length)))
-        .map_err(TableDefinitionError::Resource)?;
-    let mut bytes = Vec::new();
-    bytes.try_reserve_exact(length).map_err(|_| {
-        TableDefinitionError::Resource(Error::Io {
-            operation: "reserve logical table definition",
-            kind: std::io::ErrorKind::OutOfMemory,
-        })
-    })?;
-    let root_bytes = length.min(PAGE_BYTES);
-    bytes.extend_from_slice(&page[..root_bytes]);
-    let mut current = root;
-    let mut next = PageNumber::new(u64::from(u32_at(&page, 4)));
-    while bytes.len() < length {
-        if next.get() == 0 {
-            return Err(TableDefinitionError::TruncatedChain {
-                page: current,
-                remaining: length - bytes.len(),
-            });
-        }
-        current = next;
-        walker
-            .follow(
-                current,
-                PageKind::TableDefinition,
-                database,
-                &mut page,
-                budget,
-            )
-            .map_err(TableDefinitionError::Chain)?;
-        validate_prefix(current, &page)?;
-        let count = (length - bytes.len()).min(PAGE_BYTES - CONTINUATION_PAYLOAD_OFFSET);
-        bytes.extend_from_slice(
-            &page[CONTINUATION_PAYLOAD_OFFSET..CONTINUATION_PAYLOAD_OFFSET + count],
-        );
-        next = PageNumber::new(u64::from(u32_at(&page, 4)));
-    }
-    // EXP-0247: an exact payload boundary may retain one empty terminal
-    // definition page. Its payload is slack; the link and prefix remain checked.
-    if next.get() != 0
-        && length >= PAGE_BYTES
-        && (length - PAGE_BYTES).is_multiple_of(PAGE_BYTES - CONTINUATION_PAYLOAD_OFFSET)
-    {
-        current = next;
-        walker
-            .follow(
-                current,
-                PageKind::TableDefinition,
-                database,
-                &mut page,
-                budget,
-            )
-            .map_err(TableDefinitionError::Chain)?;
-        validate_prefix(current, &page)?;
-        next = PageNumber::new(u64::from(u32_at(&page, 4)));
-    }
-    if next.get() != 0 {
-        return Err(TableDefinitionError::TrailingChainReference {
-            page: current,
-            next,
-        });
-    }
-    Ok((bytes, maps))
 }
 
 fn decode_definition(
@@ -555,6 +456,7 @@ fn decode_definition(
         root,
         kind,
         logical_length: 0,
+        pages: Vec::new(),
         maps,
         columns,
         physical_indexes: physical,
@@ -721,3 +623,6 @@ fn allocation_failure(operation: &'static str) -> TableDefinitionError {
 #[cfg(test)]
 #[path = "table_definition_tests.rs"]
 mod tests;
+
+#[path = "table_definition_pages.rs"]
+mod pages;

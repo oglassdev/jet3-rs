@@ -9,9 +9,9 @@ validate: check reachable user-table data without modifying the file
     [--max-input-bytes <bytes>] [--max-work-units <units>]
 
 Checks catalog records, user definitions, row counts, values, Memo/OLE chains,
-index row membership, and supported scalar keys and branch bounds.
-Skips system-object contents and other
-object kinds. Success is not whole-file validity or a compatibility claim.
+index row membership, supported scalar keys and branch bounds, unique row/payload
+storage, and catalogued allocation ownership. Skips system row values/index keys
+and non-table object contents. Success is not whole-file validity or a compatibility claim.
 ";
 
 #[derive(Debug)]
@@ -83,7 +83,7 @@ pub fn run(command: &ValidateCommand) -> Result<String, String> {
     Ok(json!({
         "schema_version": 1,
         "ok": true,
-        "scope": "catalogued_user_tables",
+        "scope": "catalogued_allocations_and_user_tables",
         "file": command.path,
         "checked": {
             "catalog_objects": report.catalog_objects,
@@ -101,7 +101,7 @@ pub fn run(command: &ValidateCommand) -> Result<String, String> {
             "skipped_other_objects": report.skipped_other_objects,
             "uninterpreted_indexes": report.uninterpreted_indexes,
             "uninterpreted_index_entries": report.uninterpreted_index_entries,
-            "not_checked": ["system_object_contents", "non_table_object_contents",
+            "not_checked": ["system_row_values_and_index_keys", "non_table_object_contents",
                 "unreferenced_pages_and_allocation_slack", "relationship_constraints",
                 "unsupported_index_key_schemas", "application_compatibility"],
         },

@@ -303,3 +303,6 @@ fn catalog_references_and_one_cumulative_budget_are_enforced() -> TestResult {
 
 #[path = "validation_index_tests.rs"]
 mod index_checks;
+
+#[path = "validation_storage_tests.rs"]
+mod storage_checks;

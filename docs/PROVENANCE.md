@@ -17779,3 +17779,90 @@ There is no unrelated Notes table in this suite. Existing tests cover structured
 name-collision refusal, the parent definition's exact-capacity continuation and
 budget failures without adding DAO claims for those cases. No universal provider,
 relationship or whole-v1 compatibility is established by this finite run.
+
+## EXP-0272 — Saved-query preservation through related-row mutations
+
+**Outcome.** Source `9af90efc716c8a9d7ef015e94fe8c959654ef73e` preserves four
+saved QueryDefs on six native-created Jet 3 databases through the EXP-0271 row
+lifecycle. Query seeding precedes every Rust edit. Accepted seed run
+`20260915T214110Z-query-preserve-seed-r4` and lifecycle run
+`20260915T214237Z-query-preserve-lifecycle-r2` retain complete inputs and outputs.
+The plain, rich and 43-column boundary schemas each have two replicas. There
+are 90 successful stage/successor captures and 36 DAO refusal captures with no
+comparison errors. The `candidate` and `native-rust` labels contain duplicate
+Rust checkpoints from the same native source: this is two meaningful mutation
+lineages per source, not three independent lineages. All 36 recorded Rust
+refusals leave the complete input bytes unchanged (18 distinct requests,
+duplicated under the two Rust labels).
+
+The saved inventory is an ordered Parent projection (`Q Simple Select`), a
+Parent/Child inner join (`Q_Join_Child_Parent`), grouped child counts by nullable
+foreign key (`Q Aggregate Count`), and a child projection with one Long input
+parameter (`Q Parameter`). Complete DAO-canonical SQL, query type,
+ReturnsRecords, Updatable, creation/update dates, every captured QueryDef
+property and the full parameter-property inventory remain unchanged. Each
+original checkpoint equals its query-bearing seed image. Queries are not
+executed by this suite.
+
+**Comparisons.** The shared rich-relationship evaluator retains its complete
+requested row model, DAO schema/property arrays, traversal and Seek inventory,
+physical keys/locators, reciprocal relationships, per-lineage historical index
+prefixes, maps and payload reachability checks. Both meaningful lineages start
+from native inputs: foreign prefixes follow `(5,4)`, `(5,4)`, `(3,3)`, `(1,1)`,
+then `(0,0)` after the native successor. Native refusals must name the exact
+requested operation and preserve the same schema, rows, keys and storage,
+subject to the already recorded EXP-0271 failed-write bookkeeping behavior.
+
+In addition, every covered MSysQueries/MSysObjects definition, data, map-row,
+bitmap and owned-member page has identical bytes and page membership at all
+successful and refused checkpoints. Coverage is four MSysQueries pages per
+source and nine MSysObjects pages for plain/rich or eleven for boundary. This
+covers saved-query catalog rows and their index records. The complete seed
+report must agree with all six individual receipts, source image identities,
+exact file/case inventory, successful exit, empty log and provider environment.
+The lifecycle requires exact archive/inbox/outbox inventories and source,
+checkpoint, recipe and worker identities.
+
+**Retention and reproduction.** Artifacts live outside git under
+`shared/checks/20260915-query-preservation`, including all source MDBs, exact
+VM inboxes/outboxes, original failed runs and reports, mutation recipes, local
+outputs, final scripts, source archive and comparison logs. Key SHA-256s:
+
+- Final report: `e01cd00b899391477342381db87b27578dd5d20bfc994a0e992aa133afd4a738`.
+- Shared evaluator: `afd83d737d1d67e2bd18d2964ec668009d326054d34158a37b33f9b2fbb1912f`.
+- Query helper: `a6fccd3f0764e389e93013086ca322a4636aa05e467cdd5f7b958ef918862b16`.
+- Seed producer: `ff9c0da85c7fb07fc5d4aafcf3d579aaf929948eab89f3b702f0cee50a869b47`.
+- Lifecycle producer: `113696f10ee0cdeb5135b436ab37d0bb62cef87d353782baf327d943cdeb7e0a`.
+- Candidate source archive: `a28adef93ef04ed9028bc734f8859a70470e2d105b4fba00c2e0e08815527d74`.
+- `FINAL-SHA256SUMS`, 845 files: `2fbda4568c8ae2ac8064dfdfc52c787a6a6445a32685545c8e86efa6d2e2150a`.
+
+Provider is x86 DAO.DBEngine.36 version 3.6, dao360.dll 03.60.9765.0 SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`, Windows
+Server 2022 build 20348, en-US. Independent GPT-5.6 Sol high review cleared the
+bounded acceptance audit and reran the evaluator successfully. Root reproduced
+all 99 recipe/MDB files byte-for-byte. Running the shared evaluator without the
+saved-query option retains the exact EXP-0271 final report hash.
+
+Use the EXP-0271 matrix/native creation worker to create the six base files.
+Run `query_preservation_seed.ps1` with those MDBs, then
+`query_preservation.py MATRIX SEEDED_OUTBOX OUTPUT MUTATION_GENERATOR REVISION`.
+Run `query_preservation_lifecycle.ps1` with the generated `acceptance-input.zip`.
+Evaluate with `rich_relationship_lifecycle.py --stored-queries INPUT_DIRECTORY
+RETAINED_RUN_DIRECTORY NEW_REPORT`. VM scripts use `scripts/windows-dao-ps.py`
+with fresh run IDs; reports use new output paths.
+
+Seed attempts `20260915T214037Z-query-preserve-seed-r1`,
+`20260915T214045Z-query-preserve-seed-r2` and
+`20260915T214057Z-query-preserve-seed-r3`, plus lifecycle attempt
+`20260915T214229Z-query-preserve-lifecycle-r1`, remain retained as failed harness
+attempts. The copy-path, DateTime conversion, archive-name and local
+pre-created-output failures are not promoted as format evidence. Earlier
+reports remain retained; final acceptance adds seed and full lifecycle checks
+without weakening comparisons.
+
+**Limits.** This is saved-definition preservation during the recorded row
+mutations, including nullable foreign keys, generated IDs, independent Memo/OLE
+payloads and definition/property boundaries. It does not establish Rust query
+creation, editing, SQL interpretation or execution, action/crosstab/DDL query
+preservation, or general rollback/crash behavior. No new binary-format grammar
+is inferred from this preservation result.

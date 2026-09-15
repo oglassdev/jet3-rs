@@ -1,4 +1,5 @@
 use super::*;
+use crate::ByteCount;
 
 fn first_row(bytes: &[u8], table: &TableDefinition) -> TestResult<(RowLocator, usize)> {
     let mut work = budget();

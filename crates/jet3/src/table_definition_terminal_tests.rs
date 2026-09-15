@@ -32,9 +32,21 @@ fn terminal_bytes(length: usize) -> (Vec<u8>, usize) {
 fn exact_boundary_terminal_payload_is_slack_and_the_page_is_budgeted()
 -> Result<(), Box<dyn std::error::Error>> {
     for length in [PAGE_BYTES, 2 * PAGE_BYTES - 8] {
-        let (bytes, _) = terminal_bytes(length);
+        let (bytes, terminal) = terminal_bytes(length);
         let (definition, budget) = decode_with_limits(&bytes, limits(&bytes))?;
         assert_eq!(definition.logical_length() as usize, length);
+        let expected = if terminal == CONTINUATION {
+            vec![ROOT, CONTINUATION]
+        } else {
+            vec![ROOT, CONTINUATION, RELATED_ROOT]
+        };
+        assert_eq!(
+            definition.pages(),
+            expected
+                .into_iter()
+                .map(|p| PageNumber::new(p as u64))
+                .collect::<Vec<_>>()
+        );
         let depth = if length == PAGE_BYTES { 2 } else { 3 };
         assert!(matches!(
             decode_with_limits(&bytes, limits(&bytes).with_max_chain_depth(depth - 1)),

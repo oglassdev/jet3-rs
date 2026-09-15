@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse,copy,hashlib,json,zipfile
 from pathlib import Path
 import rich_relationship_structure as creation
+import query_preservation as queries
 import system_catalog as catalog
 import relationship_mutation_structure as structure
 import numeric_index_mutation_structure as indexes
@@ -10,6 +11,7 @@ import allocation_lifecycle_structure as allocation
 import relationship_create as relationships
 for m in (catalog,indexes.catalog,allocation.catalog):m.MAX_PAGES=8192;m.MAX_ROWS_PER_PAGE=1019;m.MAX_TABLES=64;m.MAX_COLUMNS=255;m.MAX_TEXT=10000
 BASE=RUN_DIR=OUT=PLAN=RUN=REPORT=None
+PRESERVE_QUERIES=False
 ROLES=('candidate','control','native-rust');STAGES=('original','inserted','changed','ordered-deletes')
 def req(x,msg):
  if not x:raise ValueError(msg)
@@ -126,9 +128,11 @@ def observe(path,capture,case,model,label,role):
  req(len(named['Child']['definition']['pages'])==(2 if case['name']=='boundary' else 1),label+' definition chain')
  if case['name']=='boundary':req(props['Child'] is not None and len(props['Child']['fragments'])==2,label+' property chain')
  parent_pages=set(named['Parent']['definition']['pages']+named['Parent']['data_pages']);parent_pages.update(n['page'] for n in physical['Parent'][0]['nodes'])
- return {'file':path.name,'identity':ident(path),'page_count':len(data)//2048,'page0_counter':data[1538],'rows':expected,'raw_rows':{t:[{'locator':r['locator'],'storage':r['storage'],'raw_hex':r['raw_hex'],'descriptors':r['descriptors']} for r in rrows[t]] for t in rrows},
+ result = {'file':path.name,'identity':ident(path),'page_count':len(data)//2048,'page0_counter':data[1538],'rows':expected,'raw_rows':{t:[{'locator':r['locator'],'storage':r['storage'],'raw_hex':r['raw_hex'],'descriptors':r['descriptors']} for r in rrows[t]] for t in rrows},
   'dao_schema':{t:{k:snap[t][k] for k in ('name','attributes','fields','indexes')} for t in ('parent','child')},'raw_columns':{t:named[t]['definition']['columns'] for t in ('Parent','Child')},'definition_pages':{t:named[t]['definition']['pages'] for t in ('Parent','Child')},'indexes':physical,'relation_records':relrec,'relationship_system_indexes':sysidx,'properties':props,
   'maps':maps,'allocation_state':allocation_state,'payload_membership':payload_maps,'free_pages':analysis['free_pages'],'parent_page_hashes':{str(p):sha(catalog._page(data,p,'parent')) for p in sorted(parent_pages)}}
+ if PRESERVE_QUERIES:result.update(queries=snap['queries'],system_storage=queries.system_storage_hashes(data,named,label))
+ return result
 def byte_diffs(before,after):
  b=before.read_bytes();a=after.read_bytes();req(len(a)==len(b),'refusal size changed');offsets=[i for i,(x,y) in enumerate(zip(b,a)) if x!=y];return {'count':len(offsets),'pages':sorted({i//2048 for i in offsets}),'bytes':[{'offset':i,'before':b[i],'after':a[i]} for i in offsets]}
 def validate_inventory():
@@ -145,8 +149,11 @@ def validate_inventory():
     req({p.name for p in directory.iterdir()}==expected,'local output inventory '+role+'/'+stem)
     for stage in STAGES:archive[f'local/{role}-{stem}/{stage}.mdb']=directory/f'{stage}.mdb'
     for refusal in recipe['refusals']:archive[f"local/{role}-{stem}/refusal-{refusal['name']}.mdb"]=directory/f"refusal-{refusal['name']}.mdb"
+ if PRESERVE_QUERIES:
+  for directory in ('local','inputs'):
+   archive.update({str(p.relative_to(BASE)):p for p in (BASE/directory).rglob('*') if p.is_file()})
  with zipfile.ZipFile(BASE/'acceptance-input.zip') as z:
-  req(z.testzip() is None,'input archive CRC');req(set(z.namelist())==set(archive),'input archive inventory')
+  req(z.testzip() is None,'input archive CRC');req({name for name in z.namelist() if not name.endswith('/')}==set(archive),'input archive inventory')
   for name,path in archive.items():req(z.read(name)==path.read_bytes(),'input archive bytes '+name)
  expected_out={'exit.txt','log.txt'}
  for arm in ('plain','rich','boundary'):
@@ -165,11 +172,13 @@ def validate_inventory():
 def assert_prefix_history(per,native,label):
  parent=[(0,3),(0,4),(0,4),(0,4)];primary=[(0,5),(0,7),(0,7),(0,7)]
  foreign={'candidate':[(0,4)]*4,'control':[(5,4),(5,4),(3,3),(1,1)],'native-rust':[(5,4),(5,4),(3,3),(1,1)]}
+ if PRESERVE_QUERIES:foreign['candidate']=foreign['control']
  for role in ROLES:
   for i,stage in enumerate(STAGES):
    obs=per[stage][role];req((obs['indexes']['Parent'][0]['first_word'],obs['indexes']['Parent'][0]['second_word'])==parent[i],label+' Parent prefix '+role+'/'+stage);req((obs['indexes']['Child'][0]['first_word'],obs['indexes']['Child'][0]['second_word'])==primary[i],label+' primary prefix '+role+'/'+stage);req((obs['indexes']['Child'][1]['first_word'],obs['indexes']['Child'][1]['second_word'])==foreign[role][i],label+' foreign prefix '+role+'/'+stage)
-  obs=native[role];req((obs['indexes']['Parent'][0]['first_word'],obs['indexes']['Parent'][0]['second_word'])==(0,4),label+' Parent prefix '+role+'/native');req((obs['indexes']['Child'][0]['first_word'],obs['indexes']['Child'][0]['second_word'])==(0,7),label+' primary prefix '+role+'/native');req((obs['indexes']['Child'][1]['first_word'],obs['indexes']['Child'][1]['second_word'])==((0,4) if role=='candidate' else (0,0)),label+' foreign prefix '+role+'/native')
+  obs=native[role];req((obs['indexes']['Parent'][0]['first_word'],obs['indexes']['Parent'][0]['second_word'])==(0,4),label+' Parent prefix '+role+'/native');req((obs['indexes']['Child'][0]['first_word'],obs['indexes']['Child'][0]['second_word'])==(0,7),label+' primary prefix '+role+'/native');req((obs['indexes']['Child'][1]['first_word'],obs['indexes']['Child'][1]['second_word'])==((0,4) if role=='candidate' and not PRESERVE_QUERIES else (0,0)),label+' foreign prefix '+role+'/native')
 def main():
+ if PRESERVE_QUERIES:queries.verify_seed(BASE,PLAN)
  inventory=validate_inventory();observations=[];refusals=[];errors=[]
  for case in PLAN['arms']:
   recipe=json.loads((BASE/f"recipe-{case['name']}.json").read_text())
@@ -218,6 +227,7 @@ def main():
      for stage in STAGES[1:]:
       current=per[stage][role];req(current['raw_columns']==original['raw_columns'] and current['relation_records']==original['relation_records'] and current['relationship_system_indexes']==original['relationship_system_indexes'] and current['properties']==original['properties'],stem+' metadata stability '+role+'/'+stage)
      req(native[role]['raw_columns']==original['raw_columns'] and native[role]['relation_records']==original['relation_records'] and native[role]['relationship_system_indexes']==original['relationship_system_indexes'] and native[role]['properties']==original['properties'],stem+' metadata stability '+role+'/native')
+    if PRESERVE_QUERIES:queries.verify_source(BASE,stem,per,native)
     # Rust refusals are required to preserve the complete input image.
     for role,source in [('candidate',BASE/'inputs'/f'{stem}.mdb'),('native-rust',BASE/'inputs/native'/f'{stem}.mdb')]:
      d=BASE/'local'/f'{role}-{stem}';rr=json.loads((d/'refusals.json').read_text());req([x['name'] for x in rr]==[x['name'] for x in recipe['refusals']] and all(x['preserved'] for x in rr),stem+' Rust refusals '+role)
@@ -234,20 +244,24 @@ def main():
        req(obs[key]==baseline[key],stem+' refusal preserves '+role+'/'+key)
       for table in ('Parent','Child'):
        req([x['entries_hex'] for x in obs['indexes'][table]]==[x['entries_hex'] for x in baseline['indexes'][table]],stem+' refusal keys '+role+'/'+table)
-      expected_primary=(0,6) if request['name']=='orphan-insert' else (0,5);expected_foreign=({'candidate':(0,4),'control':(5,4)}[role] if request['name']!='orphan-update' else {'candidate':(0,4),'control':(4,4)}[role])
+      if PRESERVE_QUERIES:queries.preserved(obs,baseline,stem+' refusal '+role)
+      expected_primary=(0,6) if request['name']=='orphan-insert' else (0,5);counter_role='control' if PRESERVE_QUERIES else role
+      expected_foreign=({'candidate':(0,4),'control':(5,4)}[counter_role] if request['name']!='orphan-update' else {'candidate':(0,4),'control':(4,4)}[counter_role])
       req((obs['indexes']['Parent'][0]['first_word'],obs['indexes']['Parent'][0]['second_word'])==(0,3),stem+' refusal Parent prefix');req((obs['indexes']['Child'][0]['first_word'],obs['indexes']['Child'][0]['second_word'])==expected_primary,stem+' refusal primary prefix');req((obs['indexes']['Child'][1]['first_word'],obs['indexes']['Child'][1]['second_word'])==expected_foreign,stem+' refusal foreign prefix')
       refusals.append({'case':case['name'],'replica':rep,'name':request['name'],'role':role,'identity':obs['identity'],'page0_counter':obs['page0_counter'],'prefix_words':{t:[[i['first_word'],i['second_word']] for i in obs['indexes'][t]] for t in ('Parent','Child')},'diff':byte_diffs(source,OUT/cap['file'])})
     observations.append({'case':case['name'],'replica':rep,'stages':per,'native':native})
    except Exception as e:errors.append({'case':case['name'],'replica':rep,'error':f'{type(e).__name__}: {e}'})
- report={'document_type':'rich_relationship_creation_lifecycle_acceptance','run_id':RUN,'source_revision':json.loads((BASE/'build-identity.json').read_text())['head'],'inventory':inventory,'status':'accepted' if not errors and len(observations)==6 and len(refusals)==36 else 'rejected','errors':errors,'observations':observations,'refusals':refusals}
+ report={'document_type':'stored_query_row_mutation_preservation_acceptance' if PRESERVE_QUERIES else 'rich_relationship_creation_lifecycle_acceptance','run_id':RUN,'source_revision':json.loads((BASE/'build-identity.json').read_text())['head'],'inventory':inventory,'status':'accepted' if not errors and len(observations)==6 and len(refusals)==36 else 'rejected','errors':errors,'observations':observations,'refusals':refusals}
  with REPORT.open('x') as output:output.write(json.dumps(report,sort_keys=True,separators=(',',':'))+'\n')
  print(json.dumps({'status':report['status'],'errors':errors,'observations':len(observations),'refusals':len(refusals)},indent=2));return 0 if report['status']=='accepted' else 1
 if __name__=='__main__':
  parser=argparse.ArgumentParser(description='Compare rich relationship creation and lifecycle captures with their complete expected model.')
+ parser.add_argument('--stored-queries',action='store_true',help='Verify native query-bearing inputs and exact saved-query preservation')
  parser.add_argument('directory',type=Path)
  parser.add_argument('retained_run',type=Path,help='Directory containing the retained inbox and outbox')
  parser.add_argument('report',type=Path,help='New report path; existing reports are preserved')
  args=parser.parse_args()
+ PRESERVE_QUERIES=args.stored_queries
  BASE=args.directory.resolve();RUN_DIR=args.retained_run.resolve();OUT=RUN_DIR/'outbox';RUN=RUN_DIR.name;REPORT=args.report.resolve()
  PLAN=json.loads((BASE/'matrix.json').read_text())
  raise SystemExit(main())

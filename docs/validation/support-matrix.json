@@ -36,7 +36,10 @@
         "crates/jet3/src/validation_index.rs",
         "crates/jet3/src/validation_index_tests.rs",
         "crates/jet3/src/index_mutation_structure.rs",
-        "crates/jet3/src/creation/fixed_text_index_tests.rs"
+        "crates/jet3/src/creation/fixed_text_index_tests.rs",
+        "crates/jet3/src/validation_storage.rs",
+        "crates/jet3/src/validation_storage_tests.rs",
+        "crates/jet3/src/table_definition_pages.rs"
       ]
     },
     {
@@ -286,7 +289,10 @@
         "crates/jet3/src/creation/fixed_text_index_tests.rs",
         "crates/jet3/examples/fixed_text_index_candidate.rs",
         "oracle/windows-dao/scripts/fixed_text_index_lifecycle.py",
-        "oracle/windows-dao/scripts/fixed_text_index_lifecycle.ps1"
+        "oracle/windows-dao/scripts/fixed_text_index_lifecycle.ps1",
+        "oracle/windows-dao/scripts/query_preservation.py",
+        "oracle/windows-dao/scripts/query_preservation_seed.ps1",
+        "oracle/windows-dao/scripts/query_preservation_lifecycle.ps1"
       ]
     },
     {

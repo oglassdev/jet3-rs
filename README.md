@@ -72,6 +72,10 @@ The read-only library and CLI validator check user-table rows, values, index
 membership and supported scalar key semantics within a shared budget. It checks
 key completeness, null rules, uniqueness and branch bounds, and reports indexes
 whose key schemas remain uninterpreted.
+It also checks catalogued allocation ownership, availability-map membership,
+and unique reachability of user rows and live Memo/OLE fragments. Saved-query
+definitions and their system storage survive the recorded native-input row
+mutation suites unchanged; query execution is outside v1.
 Atomic publication and rollback verification remain internal-only. Local and
 hosted DAO differential runs establish evidence for their recorded capabilities
 and source revisions. AutoIncrement comparisons include explicit IDs, negative
