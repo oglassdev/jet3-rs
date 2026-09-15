@@ -11,6 +11,17 @@ const AREA_BYTES: usize = PAGE_BYTES - AREA;
 const BITMAP: usize = 22;
 const CHILD_BYTES: usize = 4;
 
+/// A checked key followed by its four-byte row locator.
+pub(crate) trait IndexRecord {
+    fn record(&self) -> &[u8];
+}
+
+impl IndexRecord for NumericIndexEntry {
+    fn record(&self) -> &[u8] {
+        NumericIndexEntry::record(self)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum TreeBuildError {
     NodeLimit { maximum: usize },
@@ -48,7 +59,7 @@ impl NumericIndexPages {
     /// Plans leaves first and the root last. The caller supplies sorted entries
     /// and an allocation-policy limit on the total number of nodes.
     pub(crate) fn new(
-        entries: &[NumericIndexEntry],
+        entries: &[impl IndexRecord],
         maximum_nodes: usize,
         budget: &mut ResourceBudget,
     ) -> Result<Self, TreeBuildError> {
@@ -58,6 +69,11 @@ impl NumericIndexPages {
         for (ordinal, entry) in entries.iter().enumerate() {
             budget.charge_work_units(1)?;
             let width = entry.record().len();
+            // Every record must fit beside a second separator so grouping can
+            // avoid a final one-child branch without creating an empty node.
+            if !(5..=AREA_BYTES / 2 - CHILD_BYTES).contains(&width) {
+                return Err(TreeBuildError::Layout("record width"));
+            }
             if used + width > AREA_BYTES {
                 result.push(first..ordinal, 0..0, maximum_nodes, budget)?;
                 first = ordinal;
@@ -148,7 +164,7 @@ impl NumericIndexPages {
     pub(crate) fn image(
         &self,
         ordinal: usize,
-        entries: &[NumericIndexEntry],
+        entries: &[impl IndexRecord],
         page_for: impl Fn(usize) -> Option<PageNumber>,
         owner: PageNumber,
         original: &[u8; PAGE_BYTES],
@@ -211,6 +227,9 @@ impl NumericIndexPages {
                 node.entries.start + position
             };
             let entry = entries[source].record();
+            if !(5..=AREA_BYTES / 2 - CHILD_BYTES).contains(&entry.len()) {
+                return Err(TreeBuildError::Layout("record width"));
+            }
             let width = entry.len() + if branch { CHILD_BYTES } else { 0 };
             if used + width > AREA_BYTES {
                 return Err(TreeBuildError::Layout(

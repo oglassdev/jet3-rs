@@ -122,12 +122,12 @@ fn variable_width_boundary_uses_explicit_pages_and_preserves_payload_slack() -> 
 
 #[test]
 fn empty_tree_resets_header_and_keeps_all_payload_slack() -> TestResult {
-    let layout = NumericIndexPages::new(&[], 1, &mut budget())?;
+    let layout = NumericIndexPages::new(&[] as &[NumericIndexEntry], 1, &mut budget())?;
     assert_eq!(layout.len(), 1);
     let mut expected = [0x5a; PAGE_BYTES];
     let result = layout.image(
         0,
-        &[],
+        &[] as &[NumericIndexEntry],
         |_| Some(PageNumber::new(91)),
         PageNumber::new(20),
         &expected,
@@ -177,7 +177,7 @@ fn invalid_inventory_assignment_widths_and_node_limits_are_checked() -> TestResu
         ));
     }
     assert!(matches!(
-        NumericIndexPages::new(&[], 0, &mut budget()),
+        NumericIndexPages::new(&[] as &[NumericIndexEntry], 0, &mut budget()),
         Err(TreeBuildError::NodeLimit { maximum: 0 })
     ));
     assert!(matches!(
@@ -192,7 +192,7 @@ fn node_allocation_work_and_output_share_the_caller_budget() -> TestResult {
     let mut allocation =
         ResourceBudget::new(ResourceLimits::default().with_max_allocation_bytes(ByteCount::new(0)));
     assert!(matches!(
-        NumericIndexPages::new(&[], 1, &mut allocation),
+        NumericIndexPages::new(&[] as &[NumericIndexEntry], 1, &mut allocation),
         Err(TreeBuildError::Encoding(Error::ResourceLimitExceeded {
             kind: ResourceLimitKind::AllocationBytes,
             ..
@@ -200,19 +200,19 @@ fn node_allocation_work_and_output_share_the_caller_budget() -> TestResult {
     ));
     let mut work = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(0));
     assert!(matches!(
-        NumericIndexPages::new(&[], 1, &mut work),
+        NumericIndexPages::new(&[] as &[NumericIndexEntry], 1, &mut work),
         Err(TreeBuildError::Encoding(Error::ResourceLimitExceeded {
             kind: ResourceLimitKind::TotalWorkUnits,
             ..
         }))
     ));
-    let layout = NumericIndexPages::new(&[], 1, &mut budget())?;
+    let layout = NumericIndexPages::new(&[] as &[NumericIndexEntry], 1, &mut budget())?;
     let mut encoded =
         ResourceBudget::new(ResourceLimits::default().with_max_encoded_bytes(ByteCount::new(2047)));
     assert!(matches!(
         layout.image(
             0,
-            &[],
+            &[] as &[NumericIndexEntry],
             |_| Some(PageNumber::new(10)),
             PageNumber::new(20),
             &[0; PAGE_BYTES],
@@ -224,4 +224,55 @@ fn node_allocation_work_and_output_share_the_caller_budget() -> TestResult {
         }))
     ));
     Ok(())
+}
+
+#[test]
+fn checked_records_with_larger_keys_reuse_the_same_tree_encoder() -> TestResult {
+    struct Wide([u8; 80]);
+    impl IndexRecord for Wide {
+        fn record(&self) -> &[u8] {
+            &self.0
+        }
+    }
+    let entries = (0..23)
+        .map(|n| {
+            let mut bytes = [0x7f; 80];
+            bytes[75] = n;
+            bytes[76..].copy_from_slice(&[0, 0, 42, n]);
+            Wide(bytes)
+        })
+        .collect::<Vec<_>>();
+    let layout = NumericIndexPages::new(&entries, 3, &mut budget())?;
+    assert_eq!(layout.len(), 3);
+    let root = layout.image(
+        2,
+        &entries,
+        |n| Some(PageNumber::new(n as u64 + 10)),
+        PageNumber::new(2),
+        &[0; PAGE_BYTES],
+        &mut budget(),
+    )?;
+    assert_eq!(&root.as_bytes()[AREA..AREA + 80], entries[21].record());
+    assert_eq!(
+        &root.as_bytes()[AREA + 80..AREA + 84],
+        &10_u32.to_be_bytes()
+    );
+    assert_eq!(&root.as_bytes()[16..20], &11_u32.to_le_bytes());
+    Ok(())
+}
+
+#[test]
+fn record_widths_that_cannot_form_nonempty_branches_are_refused() {
+    struct Raw<'a>(&'a [u8]);
+    impl IndexRecord for Raw<'_> {
+        fn record(&self) -> &[u8] {
+            self.0
+        }
+    }
+    for bytes in [&[0; 4][..], &[0; 897][..], &[0; PAGE_BYTES][..]] {
+        assert!(matches!(
+            NumericIndexPages::new(&[Raw(bytes)], 3, &mut budget()),
+            Err(TreeBuildError::Layout("record width"))
+        ));
+    }
 }
