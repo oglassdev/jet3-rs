@@ -15222,3 +15222,48 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   SHA-256 `649634ca8445ccb52851fd2213cdbb65523b52f8aef1035f54a49dbba5317e05`.
   This is analysis of already retained DAO outputs; no new acquisition or
   whole-v1 compatibility claim follows.
+
+### EXP-0225 mutation and native continuation verification
+
+- The corrected parser passed `just ready` at `0e4806e`. After tightening
+  the independent oracle's exact Long record widths, the clean
+  `ea6d7f1fb9ba1a5a7d284c28ba8548760d7171ab` tree lifecycle run matched
+  all five cases and three native continuation cases. Descending input has
+  one compressed node and one retained nonexact separator; the primary and
+  deep inputs have one and 108 compressed nodes respectively. Resulting
+  complete paired contents have 202, 202 and 27,802 rows.
+- Private final report: `shared/checks/20260915-index-tree-fences-final/index-trees/report.json`,
+  SHA-256 `742439944315a1b4481f56b5ff8defcdf112abe38d99608a592c49436f1e1723`.
+  Forward and continuation captures are
+  `shared/outbox/20260915T035822Z-index-trees-f49048/` and
+  `shared/outbox/20260915T035917Z-index-trees-3e9bb4/`.
+
+## EXP-0226 — Seeded scalar/index mutation sequences agree with DAO
+
+- Sol high independently reviewed the corrected mutation parser and oracle,
+  then exercised clean `ea6d7f1fb9ba1a5a7d284c28ba8548760d7171ab` on six
+  private copies spanning primary/descending indexes, narrow/wide payloads,
+  and accepted native DAO input. Each seed attempted 50 operations.
+- All 162 accepted operations were replayed through native DAO: 54 inserts,
+  48 key updates, 24 full-row replacements and 36 deletes. All six final
+  comparisons matched complete typed rows, directed index traversal, 18–20
+  present/absent Seek probes per case, schema/index metadata, raw key/locator
+  inventory, retained insertion counters and unrelated Notes page hashes.
+- The other 138 attempts were 96 duplicate rejections and 42 explicit
+  allocation/resize scope refusals. Every refusal preserved the original
+  byte-for-byte. Accepted operation chains, retained artifact identities and
+  provider environment were checked independently with no mismatches.
+- Original discovery failure and traces remain separately retained; the
+  successful successor does not relabel them. Unsupported dense-page and
+  same-page resize requests remain coverage gaps, not successful mutations.
+- Private root: `shared/checks/20260915-random-lifecycle-sol-ea6d7f1/`.
+  `summary.json` SHA-256
+  `2b6772fefb2e74f6c3b8daccb9fa1ecee290ad6578ac1959f7936186ed5c85c8`;
+  `dao-report.json` SHA-256
+  `6d08136b587cf7ed8abd0313d0badf149825d94273c867890427177bec7f3d1e`;
+  replay manifest SHA-256
+  `039a1dfad3a666f86778934899ffc9c7cb9c4b6f0626b265dde09237d9de9ddd`.
+  Captures: `shared/outbox/20260915T110103Z-random-sol-ea6d7f1/`.
+  The outbox rename is documented by the retained `run-id-correction.json`.
+- Scope remains the recorded scalar, one-unique-Long and inline-map cases;
+  this finite differential does not establish general v1 compatibility.
