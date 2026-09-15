@@ -158,7 +158,11 @@ def inspect(data, case, expected, receipt=None, receipt_root=None):
         for value in decoded[id]: feed(digest, value)
     logical = {i['name']: i['physical_index'] for i in table['logical_indexes']}
     require(set(logical) == {i['name'] for i in case['indexes']} and len(table['physical_indexes']) == len(logical), 'Complete raw index inventory')
-    index_layout = {}; rust_indexes = {i['name']: i for i in receipt['tables']['Items']['indexes']} if receipt else {}
+    index_layout = {}; rust_indexes = {}
+    if receipt:
+        observed = receipt['tables']['Items']['indexes']; names = [i['name'] for i in observed]
+        require(len(names) == len(set(names)) and set(names) == set(logical), 'Exact unique Rust index inventory')
+        rust_indexes = {i['name']: i for i in observed}
     for definition in case['indexes']:
         logical_record = next(i for i in table['logical_indexes'] if i['name'] == definition['name'])
         require(logical_record['class'] == int(definition['primary']), 'Raw logical index class')
