@@ -94,8 +94,9 @@ all live references and their owning column, with separate single/chained
 storage pools; deletion releases emptied payload pages for reuse. The encoded
 row must still fit the existing data page during replacement. One AutoIncrement
 column accepts generated or explicit IDs on insertion; replacement and deletion retain existing
-IDs and allocation state. The CLI exposes full-row replacement. Publication is
-Unix-only.
+IDs and allocation state. The CLI exposes full-row replacement. Publication
+supports Unix and Windows; Windows flushes the file before publication without
+a separate directory-sync guarantee.
 
 EXP-0212 covers seventeen hosted update recipes. EXP-0221 adds local DAO
 comparisons for indexed insertion/deletion, boundary insertion, native
