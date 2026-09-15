@@ -181,6 +181,14 @@ physical key/locator records, counters and unrelated Notes preservation match.
 Earlier context-dependent COM assignment failures remain recorded separately;
 the accepted harness runs each case in a fresh x86 worker.
 
+EXP-0252 establishes native limits of 32 indexes and ten components plus
+independent map-page locators. EXP-0253 accepts 25 index lifecycle pairs
+(50 captures), including full composite Seek, mixed Text/GUID keys, native
+successors and Rust edits to native inputs. Sixteen additional Memo/OLE
+creation/native pairs cover eight payload columns, maps on multiple pages,
+and an ownership/availability pair split across pages. Full values, physical
+keys/locators, ownership, counters and unrelated Notes preservation match.
+
 ### Validation
 
 The read-only library and CLI validator walk catalogued user tables with one

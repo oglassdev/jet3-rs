@@ -16435,3 +16435,28 @@ by this native-only discovery.
   the cause of the runtime's cast failure. The successor producer uses that
   path for typed values and retains exact Currency conversion. All earlier
   files remain unchanged.
+- Accepted index-capacity successor source `5cb71a1`: all five cases pass,
+  including the ten-type case with Text/GUID and whole-key shortening.
+  All 25 pairs (50 captures) match: three Rust checkpoints per case,
+  native insert/update/delete continuations, and Rust edits to retained
+  native inputs. Complete schema, values, directed traversal and actual
+  full-key Seek for 3/9/10 components, every physical key/locator record,
+  index counters, disjoint ownership and unrelated Notes bytes agree.
+  The two thirteenth-index duplicate refusals preserve the complete Rust
+  input. Mixed wide keys have multi-level trees; map storage reaches three
+  packed pages for 32 indexes.
+- Both accepted rounds retain original per-case x86 worker results and their
+  pinned index; `result.json` is their checked host aggregation. Identities:
+  - `mutations`, outbox `20260915T101922Z-index-capacity-3e8842`:
+    manifest: 73,910 bytes, SHA-256 `c01419a6d45c4576a00cb724df790f23f318f4d099c4d57f3a907aeda99b8535`.
+    aggregate: 1,865,720 bytes, SHA-256 `3f3b6f299a6a52e153727c73126c68bf9242be614107e0d24406cf42e9e3e202`.
+    comparison: 89,777 bytes, SHA-256 `eb9c311aa265e6c31aa3be72f0a7bc3579a258b9a4a7a012d1c739efef336c62`.
+  - `continuation`, outbox `20260915T102003Z-index-capacity-a9ecac`:
+    manifest: 93,268 bytes, SHA-256 `686e9b5caa7b1d742aef9ee4b6d96fcbfe3c339e01d6d3faf12f3f4605513ef6`.
+    aggregate: 488,840 bytes, SHA-256 `cd0dfd5d640d63ff5644afdd04493ba47b2d0d39b2c421c71b0ff7c63e2a07c3`.
+    comparison: 23,638 bytes, SHA-256 `ff2b627d9fa15665a2b0825a59aa1dae1d96567ac266194bc1e0d43a5e6dac61`.
+- GPT-5.6 Sol high reviewed the production changes and focused boundary,
+  map-spill, corruption and preservation tests with no blockers. `just ready`
+  passed on the unchanged production implementation. These comparisons accept
+  the declared index and map-page inventories; indirect allocation, other
+  schema combinations and full-v1 compatibility remain separate work.
