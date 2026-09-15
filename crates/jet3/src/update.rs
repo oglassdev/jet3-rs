@@ -241,7 +241,7 @@ where
     edits.publish(path, database.into_source(), budget, hook)
 }
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, any(unix, windows)))]
 pub(crate) fn writable_table(
     database: &mut DatabaseReader<FileSource>,
     table: &[u8],
@@ -365,6 +365,6 @@ fn reject_catalog_relationships(
     Ok(())
 }
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, any(unix, windows)))]
 #[path = "update_tests.rs"]
 mod tests;

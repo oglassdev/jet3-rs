@@ -62,7 +62,8 @@ membership. Unsupported key encodings are counted as uninterpreted entries.
 Success does not establish Access/DAO compatibility.
 
 The `create` output path must not exist. Creation uses the library's atomic publication,
-validation and default resource limits; publication currently requires Unix.
+validation and default resource limits on Unix and Windows. Windows flushes file
+contents before publication without a separate directory-sync guarantee.
 Success writes one JSON object to stdout. Invalid command arguments exit 2;
 invalid JSON or a refused creation exits 1 with a JSON error on stderr. Unknown
 JSON fields are rejected. No existing database is modified by this command.
@@ -179,7 +180,8 @@ for insertion; the addressed locator for update/deletion). Failures return
 `publication_stage`, when present, identifies a library publication failure.
 A sync error after publication can mean the change is already visible: do not
 blindly retry a failed mutation. Exclude concurrent writers for the entire
-operation; publication currently requires Unix.
+operation. Publication is available on Unix and Windows; Windows has no separate
+directory-sync guarantee.
 
 Field updates support present fixed values. Complete row replacement supports
 scalar values and independent Memo/OLE payloads while keeping the row on its

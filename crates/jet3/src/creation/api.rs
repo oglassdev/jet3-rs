@@ -734,7 +734,7 @@ fn check_table(
     Ok(())
 }
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, any(unix, windows)))]
 #[path = "tests.rs"]
 mod tests;
 

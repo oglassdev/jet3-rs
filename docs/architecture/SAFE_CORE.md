@@ -22,7 +22,7 @@ format evidence.
    charges cumulative encoded bytes including rewrites after seeking.
 6. `source` provides bounded random access to a captured-length input. It does
    not read an entire input into memory.
-7. On Unix, `atomic` publishes a caller-mutated file through a same-directory
+7. On Unix and Windows, `atomic` publishes a caller-mutated file through a same-directory
    private copy only after read-only validation, file synchronization, and a
    retained-handle/path identity check. Cleanup applies the same identity
    boundary and never unlinks a substituted entry. Its validator contract is a
@@ -70,23 +70,25 @@ operation-wide resource dimension before work begins.
 
 ## Publication boundary
 
-The Unix-only format-neutral atomic publisher excludes concurrent writers and
-requires an existing regular file. It verifies that the private pathname still
-names its retained open file immediately before rename. Failures before rename
+The format-neutral atomic publisher excludes concurrent writers and requires a
+trusted containing directory. Updates require an existing regular file; creation
+requires an absent target. It verifies that the private pathname still names its
+retained open file immediately before rename or hard-link publication. Failures before publication
 leave the original path in place and explicitly attempt to remove the guarded
 private copy. Cleanup refuses to unlink a substituted entry. Other cleanup
 failures retain both the primary update failure and the secondary cleanup
 failure; `Drop` retries removal only while identity still matches but cannot
-guarantee or report success. The `DirectorySync` stage alone identifies the
+guarantee or report success. The `DirectorySync` stage identifies the update's
 post-publication failure state: the fully validated replacement is visible,
 but crash durability of the directory entry is uncertain.
 
-Same-directory `rename` and `sync_all` inherit the host operating system and
-filesystem guarantees. Network and unusual filesystems may be weaker.
-Non-Unix hosts fail closed because an audited overwrite-replace and
-post-replacement durability provider is not implemented. Windows file identity
-is obtainable and is not described as the blocker. These limits prevent the
-foundation from being described as a complete Jet update implementation.
+Same-directory `rename`, `hard_link` and `sync_all` inherit the host operating
+system and filesystem guarantees. Network and unusual filesystems may be weaker.
+Unix synchronizes the containing directory after publication. Windows flushes
+the file before publication and uses volume/file identity from
+`GetFileInformationByHandle` through the safe `winapi-util` wrapper. It has no
+separate directory-sync guarantee. Other platforms fail closed. These primitives
+provide no Jet format compatibility evidence.
 
 ## Review rule
 

@@ -161,6 +161,6 @@ where
     edits.publish(path, database.into_source(), budget, hook)
 }
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, any(unix, windows)))]
 #[path = "delete_tests.rs"]
 mod tests;

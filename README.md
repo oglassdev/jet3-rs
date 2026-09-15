@@ -54,7 +54,9 @@ index maintenance with one or two components per index. The accepted payload
 lifecycles include native DAO continuations and Rust mutation of native files.
 
 Creation and updates remain partial: schema combinations, index key types,
-allocation, and relationship mutation are restricted. Publication is Unix-only.
+allocation, and relationship mutation are restricted. Publication supports Unix
+and Windows. Windows flushes the file before publication without a separate
+directory-sync guarantee.
 The read-only library and CLI validator check user-table rows, values and index
 traversal within a shared budget; its report states the coverage limits.
 Atomic publication and rollback verification remain internal-only. Local and

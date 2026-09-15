@@ -308,6 +308,78 @@ fn identity_capture_failure_removes_exclusively_created_private_file() -> TestRe
     Ok(())
 }
 
+#[test]
+fn substituted_private_path_is_rejected_and_left_untouched() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    let retained = directory.path.join("retained.bin");
+    fs::write(&target, b"original")?;
+    let error = atomic_update_with_hook(
+        &target,
+        &mut ResourceBudget::new(limits(1024)),
+        replace_contents,
+        validate_replacement,
+        |stage| -> std::io::Result<()> {
+            if stage == PublishStage::PrePublish {
+                for entry in fs::read_dir(&directory.path)? {
+                    let entry = entry?;
+                    if entry
+                        .file_name()
+                        .to_string_lossy()
+                        .contains(".jet3-private-")
+                    {
+                        fs::rename(entry.path(), &retained)?;
+                        fs::write(entry.path(), b"replacement")?;
+                    }
+                }
+            }
+            Ok(())
+        },
+    )
+    .err()
+    .ok_or(TestFailure("substitution unexpectedly succeeded"))?;
+    assert_eq!(error.stage(), PublishStage::Publish);
+    assert!(error.cleanup_error().is_some());
+    assert_eq!(fs::read(target)?, b"original");
+    assert_eq!(fs::read(retained)?, b"replacement");
+    assert_eq!(directory.private_entries()?, 1);
+    Ok(())
+}
+
+#[cfg(windows)]
+#[test]
+fn readonly_private_copy_is_cleaned_after_a_prepublication_failure() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let target = directory.target();
+    fs::write(&target, b"original")?;
+    let mut permissions = fs::metadata(&target)?.permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&target, permissions)?;
+    let result = atomic_update_with_hook(
+        &target,
+        &mut ResourceBudget::new(limits(1024)),
+        replace_contents,
+        validate_replacement,
+        |stage| {
+            if stage == PublishStage::PrePublish {
+                Err(TestFailure("injected failure"))
+            } else {
+                Ok(())
+            }
+        },
+    );
+    let error = result
+        .err()
+        .ok_or(TestFailure("injected failure unexpectedly succeeded"))?;
+    assert_eq!(error.stage(), PublishStage::PrePublish);
+    assert!(error.cleanup_error().is_none());
+    assert_eq!(fs::read(&target)?, b"original");
+    assert!(fs::metadata(&target)?.permissions().readonly());
+    assert_eq!(directory.private_entries()?, 0);
+    super::prepare_private_for_removal(&target)?;
+    Ok(())
+}
+
 fn write_fresh(file: &mut std::fs::File) -> Result<(), std::io::Error> {
     file.write_all(b"fresh")
 }

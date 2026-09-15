@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 use serde_json::Value;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use serde_json::json;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use std::fs;
 use std::{
     io::Write,
@@ -66,7 +66,7 @@ fn create_rejects_unknown_fields_types_and_arguments() -> Result {
 }
 
 #[test]
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn create_file_input_preserves_typed_rows_and_refuses_overwrite() -> Result {
     let directory = tempfile::tempdir()?;
     let output = directory.path().join("created.mdb");
@@ -114,7 +114,7 @@ fn create_file_input_preserves_typed_rows_and_refuses_overwrite() -> Result {
 }
 
 #[test]
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn create_stdin_relationship_and_empty_database_use_public_api() -> Result {
     let directory = tempfile::tempdir()?;
     let empty = directory.path().join("empty.mdb");

@@ -302,6 +302,6 @@ impl LongValues {
     }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, any(unix, windows)))]
 #[path = "long_value_mutation_tests.rs"]
 mod tests;

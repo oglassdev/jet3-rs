@@ -186,6 +186,6 @@ where
     edits.publish(path, database.into_source(), budget, hook)
 }
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, any(unix, windows)))]
 #[path = "row_update_tests.rs"]
 mod tests;
