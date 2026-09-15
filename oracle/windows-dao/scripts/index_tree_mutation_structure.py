@@ -26,7 +26,7 @@ def tree(data, root, owner):
         start, entries = prefix, []
         for end in boundaries:
             entry = area[:prefix] + area[start:end]
-            require(len(entry) >= (8 if branch else 4), 'Short index entry')
+            require(len(entry) == (13 if branch else 9), 'Invalid Long index record width')
             entries.append(entry)
             start = end
         require(entries == sorted(entries), 'Unsorted complete index entries')
