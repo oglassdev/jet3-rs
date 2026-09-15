@@ -161,7 +161,7 @@ fn index_locators_maps_and_unrelated_generated_pages_are_preserved() -> TestResu
             base.pages()[page].image().as_bytes()
         );
     }
-    for (map, row, owned) in [(12, 8, 27), (12, 9, 27), (26, 2, 28)] {
+    for (map, row, owned) in [(12, 8, 28), (12, 9, 28), (26, 2, 27)] {
         assert!(inline_map_bit(&bytes, map, row, owned)?);
     }
     for page in 0..29 {
@@ -182,7 +182,7 @@ fn index_locators_maps_and_unrelated_generated_pages_are_preserved() -> TestResu
         let tree = database.index_tree(&definition, ordinal as u16, &mut budget)?;
         assert_eq!(tree.entries().len(), 1);
         assert_eq!(tree.entries()[0].key().raw_bytes(), wanted);
-        assert_eq!(tree.entries()[0].row().page(), PageNumber::new(27));
+        assert_eq!(tree.entries()[0].row().page(), PageNumber::new(28));
         assert_eq!(tree.entries()[0].row().slot(), 0);
     }
     Ok(())

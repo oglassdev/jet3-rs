@@ -68,8 +68,13 @@ Indexes have one to ten components and can span multiple levels. Independent
 Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
 columns themselves cannot be indexed. Each payload column has separate ownership
 and availability maps. Definitions and map rows can span multiple pages; files
-are bounded by map-reference capacity and the caller's resource budget. Relationships remain restricted to two scalar tables with one
-non-cascading, non-null Long relationship.
+are bounded by map-reference capacity and the caller's resource budget.
+Relationships support two ordered tables and one enforced, non-cascading Long
+relationship, including nullable foreign keys and a separate child primary.
+Other columns retain generated IDs, Text/Memo options, independent Memo/OLE maps
+and definition/property chains. Populated parents require one primary index;
+empty parents may retain the earlier additional unique Long index. Other
+relationship forms and more than two tables remain restricted.
 
 Schema/name combinations, index key types and relationship forms remain
 restricted. Empty OLE payloads store null. Text/Memo columns can independently
@@ -289,6 +294,15 @@ deletion and Rust edits to native successors preserve complete values, schema,
 keys, counters, allocation, logical locators and unrelated Notes. Fourteen Rust
 refusals preserve their complete input. Multiple, composite, cascading and
 self-referencing relationships remain outside this comparison.
+
+EXP-0270/0271 adds richer two-table relationship creation: a separate child
+primary, generated IDs, nullable foreign keys, independent payloads and column
+options, including chained definitions/properties and map rows on multiple pages.
+Ninety successful captures cover creation, insert/replace/delete, native
+successors and Rust mutations of native controls. Complete values, captured DAO
+schema properties, traversal/Seek, physical keys, per-lineage counters and
+ownership agree. Thirty-six DAO refusals return the expected errors and 36 Rust
+refusals preserve the whole input. Broader relationship forms remain open.
 
 ### Remaining work
 

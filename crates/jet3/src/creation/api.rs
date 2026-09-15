@@ -349,6 +349,18 @@ fn check_initial_table_rows(
     first_create: bool,
     budget: &mut ResourceBudget,
 ) -> Result<(), CandidateCheckError> {
+    let next_payload = initial_payload_start(&request.table, root, first_create)
+        .map_err(CandidateCheckError::RowEncoding)?;
+    check_initial_table_rows_from(database, request, root, next_payload, budget)
+}
+
+fn check_initial_table_rows_from(
+    database: &mut DatabaseReader<crate::FileSource>,
+    request: &TableRows<'_>,
+    root: PageNumber,
+    mut next_payload: u64,
+    budget: &mut ResourceBudget,
+) -> Result<(), CandidateCheckError> {
     let table = &request.table;
     let rows = request.rows;
     let layout = initial_row_layout(table, budget).map_err(CandidateCheckError::RowEncoding)?;
@@ -369,8 +381,6 @@ fn check_initial_table_rows(
         }
     }
     let mut expected_indexes = InitialLongIndex::for_table(table, rows.len(), budget)
-        .map_err(CandidateCheckError::RowEncoding)?;
-    let mut next_payload = initial_payload_start(table, root, first_create)
         .map_err(CandidateCheckError::RowEncoding)?;
     let long_columns = table
         .columns

@@ -206,7 +206,18 @@ fn snapshot(path: &Path) -> Result<Value> {
     let mut work = budget();
     let mut db = DatabaseReader::open(path, &mut work)?;
     let mut result = serde_json::Map::new();
-    for name in ["Parent", "Child", "Notes Preserve"] {
+    let mut names = Vec::new();
+    {
+        let mut catalog = db.catalog(&mut work)?;
+        while let Some(record) = catalog.next_record()? {
+            if record.class() == jet3::CatalogObjectClass::User
+                && record.kind() == jet3::CatalogObjectKind::Table
+            {
+                names.push(std::str::from_utf8(record.name().raw_bytes())?.to_owned());
+            }
+        }
+    }
+    for name in names {
         let table = definition(&mut db, name.as_bytes(), &mut work)?;
         let rows = read_rows(&mut db, &table, &mut work)?;
         let mut indexes = Vec::new();
@@ -216,7 +227,7 @@ fn snapshot(path: &Path) -> Result<Value> {
                 "nodes":tree.nodes().iter().map(|node| json!([node.page().get(),node.depth()])).collect::<Vec<_>>(),
                 "entries":tree.entries().iter().map(|entry| json!([hex(entry.key().raw_bytes()),entry.row().page().get(),entry.row().slot()])).collect::<Vec<_>>() }));
         }
-        result.insert(name.into(), json!({"root":table.root().get(),"rows":rows.values().map(|(row,locator)|json!({"values":row,"locator":[locator.page().get(),locator.slot()]})).collect::<Vec<_>>(),"indexes":indexes}));
+        result.insert(name, json!({"root":table.root().get(),"rows":rows.values().map(|(row,locator)|json!({"values":row,"locator":[locator.page().get(),locator.slot()]})).collect::<Vec<_>>(),"indexes":indexes}));
     }
     Ok(Value::Object(result))
 }

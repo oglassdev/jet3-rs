@@ -80,12 +80,12 @@ fn duplicate_child_keys_keep_payload_locators_maps_and_distinct_counts() -> Test
         &bytes[25 * crate::PAGE_BYTES + 47..25 * crate::PAGE_BYTES + 51],
         &3_u32.to_le_bytes()
     );
-    for page in 27..30 {
+    for page in 28..31 {
         assert!(map_bit(&bytes, 26, 0, page)?);
         assert!(map_bit(&bytes, 26, 1, page)?);
     }
-    assert!(map_bit(&bytes, 26, 2, 31)?);
-    assert!(!map_bit(&bytes, 26, 0, 31)?);
+    assert!(map_bit(&bytes, 26, 2, 27)?);
+    assert!(!map_bit(&bytes, 26, 0, 27)?);
     let mut operation = budget();
     let mut database = DatabaseReader::open(directory.target(), &mut operation)?;
     let child = database.table_definition(PageNumber::new(25), &mut operation)?;
@@ -101,7 +101,7 @@ fn duplicate_child_keys_keep_payload_locators_maps_and_distinct_counts() -> Test
         positions
             .iter()
             .map(|position| RowLocator::new(
-                PageNumber::new(27 + position / 7),
+                PageNumber::new(28 + position / 7),
                 (position % 7) as u8
             ))
             .collect::<Vec<_>>()
@@ -111,8 +111,8 @@ fn duplicate_child_keys_keep_payload_locators_maps_and_distinct_counts() -> Test
     for offset in [
         25 * crate::PAGE_BYTES + 47,
         26 * crate::PAGE_BYTES + 5,
-        27 * crate::PAGE_BYTES + 2047,
-        31 * crate::PAGE_BYTES + 252,
+        28 * crate::PAGE_BYTES + 2047,
+        27 * crate::PAGE_BYTES + 252,
     ] {
         let mut changed = bytes.clone();
         changed[offset] ^= 1;
@@ -142,11 +142,6 @@ fn orphan_null_duplicate_and_unsupported_parent_shapes_are_refused() -> TestResu
             parent_rows(),
             &[&[RowValue::Text(b"a"), RowValue::Long(99)]],
             "orphan",
-        ),
-        (
-            parent_rows(),
-            &[&[RowValue::Text(b"a"), RowValue::Null]],
-            "null",
         ),
         (
             &[

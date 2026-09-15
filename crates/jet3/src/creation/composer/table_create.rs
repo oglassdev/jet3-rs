@@ -26,7 +26,7 @@
 use super::*;
 use crate::creation::schema_plan::{
     AVAILABLE_MAP_ROW, FIRST_INDEX_MAP_ROW, OWNED_MAP_ROW, TableSchemaPlan, TableSpec,
-    logical_index_order, plan_table_schema,
+    logical_index_order,
 };
 
 /// `EXP-0093`: `MSysObjects` `Flags` of a created user table.
@@ -43,13 +43,13 @@ pub(super) struct PlannedCreate<'a> {
     initial_row_count: u32,
     initial_indexes: Vec<InitialLongIndex>,
     initial_autoincrement: Option<InitialAutoIncrement>,
+    relationship: Option<LogicalIndexSpec<'a>>,
 }
 
 #[derive(Debug, Clone)]
 struct InitialDataPage {
     image: PageImage,
     available: bool,
-    rows: u16,
 }
 
 impl<'a> PlannedCreate<'a> {
@@ -59,7 +59,32 @@ impl<'a> PlannedCreate<'a> {
         first_page: u64,
         first_create: bool,
     ) -> Result<Self, ComposeError> {
-        let plan = plan_table_schema(spec, first_page, first_create)?;
+        Self::new_with_relationship(spec, first_page, first_create, None)
+    }
+
+    pub(super) fn new_with_relationship(
+        spec: &'a TableSpec<'a>,
+        first_page: u64,
+        first_create: bool,
+        relationship: Option<LogicalIndexSpec<'a>>,
+    ) -> Result<Self, ComposeError> {
+        let extra = relationship
+            .filter(|index| {
+                matches!(
+                    index.kind,
+                    LogicalIndexKindSpec::Relationship {
+                        side: crate::RelationshipSide::PrimaryTable,
+                        ..
+                    }
+                )
+            })
+            .map(|index| index.name);
+        let plan = crate::creation::schema_plan::plan_table_schema_with_logical_index(
+            spec,
+            first_page,
+            first_create,
+            extra,
+        )?;
         if spec.columns.iter().any(|column| {
             column.allow_zero_length()
                 && !crate::column_properties::has_zero_length_property(column.physical_type())
@@ -77,7 +102,27 @@ impl<'a> PlannedCreate<'a> {
             initial_row_count: 0,
             initial_indexes: Vec::new(),
             initial_autoincrement: None,
+            relationship,
         })
+    }
+
+    pub(super) fn schema(&self) -> &TableSchemaPlan {
+        &self.plan
+    }
+
+    pub(super) fn set_relationship_target(
+        &mut self,
+        target: PageNumber,
+    ) -> Result<(), ComposeError> {
+        match self.relationship.as_mut().map(|index| &mut index.kind) {
+            Some(LogicalIndexKindSpec::Relationship { related_table, .. }) => {
+                *related_table = target;
+                Ok(())
+            }
+            _ => Err(ComposeError::UnsupportedRelationship {
+                detail: "missing planned relationship",
+            }),
+        }
     }
 
     /// Packs rows using EXP-0060 encoding and EXP-0065 append placement.
@@ -185,11 +230,9 @@ impl<'a> PlannedCreate<'a> {
                     kind: std::io::ErrorKind::OutOfMemory,
                 })?;
         }
-        let rows = builder.row_count();
         self.initial_data.push(InitialDataPage {
             image: finish_data_builder(builder, budget)?,
             available,
-            rows,
         });
         Ok(())
     }
@@ -259,29 +302,6 @@ impl<'a> PlannedCreate<'a> {
             + self.initial_data.len() as u64
     }
 
-    pub(super) const fn row_count(&self) -> u32 {
-        self.initial_row_count
-    }
-
-    pub(super) fn index_distinct_count(&self) -> u32 {
-        self.initial_indexes
-            .first()
-            .map_or(0, InitialLongIndex::distinct_count)
-    }
-
-    /// Logical row locations in the same order used while packing initial data.
-    pub(super) fn initial_row_locators(&self) -> impl Iterator<Item = crate::RowLocator> + '_ {
-        let first = self.data_end() - self.initial_data.len() as u64;
-        self.initial_data
-            .iter()
-            .enumerate()
-            .flat_map(move |(page, data)| {
-                (0..data.rows).map(move |slot| {
-                    crate::RowLocator::new(PageNumber::new(first + page as u64), slot as u8)
-                })
-            })
-    }
-
     pub(super) fn contains_initial_long(
         &self,
         value: i32,
@@ -330,7 +350,7 @@ impl<'a> PlannedCreate<'a> {
         }
         plan.append_image(PageImage::from_bytes(root), budget)?;
         for ordinal in 0..self.plan.map_page_count() {
-            plan.append_image(self.map_page_at(ordinal, None, maps, budget)?, budget)?;
+            plan.append_image(self.map_page_at(ordinal, maps, budget)?, budget)?;
         }
         self.append_property_pages(plan, budget)?;
         if let Some(first) = self.plan.continuation_page() {
@@ -426,7 +446,7 @@ impl<'a> PlannedCreate<'a> {
                 },
             )
             .collect::<Vec<_>>();
-        let logical = logical_index_order(spec.indexes)
+        let mut logical = logical_index_order(spec.indexes)
             .into_iter()
             .map(|ordinal| {
                 let index = &spec.indexes[ordinal];
@@ -442,6 +462,32 @@ impl<'a> PlannedCreate<'a> {
                 })
             })
             .collect::<Result<Vec<_>, ComposeError>>()?;
+        if let Some(index) = self.relationship {
+            if matches!(
+                index.kind,
+                LogicalIndexKindSpec::Relationship {
+                    side: crate::RelationshipSide::PrimaryTable,
+                    ..
+                }
+            ) {
+                budget
+                    .charge_allocation(ByteCount::new(size_of::<LogicalIndexSpec<'_>>() as u64))?;
+                logical.try_reserve_exact(1).map_err(|_| Error::Io {
+                    operation: "reserve relationship logical index",
+                    kind: std::io::ErrorKind::OutOfMemory,
+                })?;
+                logical.push(index);
+            } else {
+                let slot = logical
+                    .iter_mut()
+                    .find(|existing| existing.physical_index == index.physical_index)
+                    .ok_or(ComposeError::UnsupportedRelationship {
+                        detail: "foreign physical index missing",
+                    })?;
+                *slot = index;
+            }
+            logical.sort_unstable_by(|left, right| left.name.cmp(right.name));
+        }
         budget.charge_allocation(ByteCount::new(
             (self.long_value_count * size_of::<LongValueMapSpec>()) as u64,
         ))?;
@@ -478,46 +524,22 @@ impl<'a> PlannedCreate<'a> {
         .map_err(Into::into)
     }
 
-    /// The relationship composer uses a single map page with one foreign index.
-    pub(super) fn map_page(
-        &self,
-        foreign_index: Option<(PageNumber, u64)>,
-        budget: &mut ResourceBudget,
-    ) -> Result<PageImage, ComposeError> {
-        if self.plan.map_page_count() != 1 {
-            return Err(ComposeError::UnobservedMapRowLayout);
-        }
-        self.map_page_at(0, foreign_index, &mut AllocationMaps::inline_only(), budget)
-    }
-
     fn map_page_at(
         &self,
         ordinal: usize,
-        foreign_index: Option<(PageNumber, u64)>,
         maps: &mut AllocationMaps,
         budget: &mut ResourceBudget,
     ) -> Result<PageImage, ComposeError> {
         use crate::creation::schema_plan::MAP_ROWS_PER_PAGE;
-        if ordinal >= self.plan.map_page_count()
-            || (foreign_index.is_some()
-                && (!self.spec.indexes.is_empty() || self.long_value_count != 0))
-        {
+        if ordinal >= self.plan.map_page_count() {
             return Err(ComposeError::UnobservedMapRowLayout);
         }
-        let count = 2
-            + self.spec.indexes.len()
-            + 2 * self.long_value_count
-            + usize::from(foreign_index.is_some());
+        let count = 2 + self.spec.indexes.len() + 2 * self.long_value_count;
         let start = ordinal * MAP_ROWS_PER_PAGE;
         let mut builder = DataPageBuilder::new(PageNumber::new(HEADER_PAGE), budget)?;
         for row in start..count.min(start + MAP_ROWS_PER_PAGE) {
             let bytes = if row < 2 {
                 self.table_map_row(row == 1, maps, budget)?
-            } else if let Some((root, extra)) = foreign_index {
-                maps.row(
-                    std::iter::once(root.get()).chain(root.get() + 1..root.get() + 1 + extra),
-                    budget,
-                )?
             } else if row - 2 < self.spec.indexes.len() {
                 let index = row - 2;
                 let (root, _) = self

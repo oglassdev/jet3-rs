@@ -1,4 +1,5 @@
 use super::*;
+use crate::creation::schema_plan::plan_table_schema;
 use crate::{ColumnOrdinal, ResourceLimits, SliceSource, TableRows, TextCodePage, ValueKind};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;

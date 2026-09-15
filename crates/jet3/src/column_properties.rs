@@ -1,4 +1,4 @@
-//! Named Boolean field properties from EXP-0208/0266, stored in catalog LvProp.
+//! Named Boolean field properties from EXP-0208/0266/0270, stored in catalog LvProp.
 use crate::{BinaryWriter, ColumnPhysicalType, ColumnSpec, Error, ResourceBudget};
 
 const DICTIONARY_LENGTH: usize = 33;
@@ -24,6 +24,9 @@ impl<'a> ColumnProperties<'a> {
         for column in columns {
             if column.name().is_empty() || column.name().len() > 64 || !column.name().is_ascii() {
                 return None;
+            }
+            if column.column_type() == crate::ColumnType::AutoIncrement {
+                continue;
             }
             length += FIELD_PREFIX
                 + column.name().len()
@@ -51,6 +54,9 @@ impl<'a> ColumnProperties<'a> {
             writer.write_exact(name)?;
         }
         for column in self.columns {
+            if column.column_type() == crate::ColumnType::AutoIncrement {
+                continue;
+            }
             let eligible = has_zero_length_property(column.physical_type());
             let length = FIELD_PREFIX
                 + column.name().len()
@@ -76,4 +82,26 @@ fn boolean(writer: &mut BinaryWriter<'_, '_>, ordinal: u16, value: bool) -> Resu
     writer.write_u16_le(ordinal)?;
     writer.write_u16_le(1)?;
     writer.write_u8(if value { 0xff } else { 0 })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn auto_number_omits_its_default_property_block() -> Result<(), Box<dyn std::error::Error>> {
+        let columns = [
+            ColumnSpec::new(b"Id", crate::ColumnType::AutoIncrement),
+            ColumnSpec::new(b"Body", crate::ColumnType::Memo).with_allow_zero_length(),
+        ];
+        let all = ColumnProperties::new(&columns).ok_or("properties")?;
+        let memo = ColumnProperties::new(&columns[1..]).ok_or("memo properties")?;
+        assert_eq!(all.len(), memo.len());
+        let mut a = vec![0; all.len()];
+        let mut b = vec![0; memo.len()];
+        let mut work = ResourceBudget::new(crate::ResourceLimits::default());
+        assert_eq!(all.encode(&mut a, &mut work)?, a.len());
+        assert_eq!(memo.encode(&mut b, &mut work)?, b.len());
+        assert_eq!(a, b);
+        Ok(())
+    }
 }

@@ -48,9 +48,6 @@ impl<'a> RelationshipPlan<'a> {
                 second: 1,
             });
         }
-        if parent.continuation_page().is_some() || child.continuation_page().is_some() {
-            return Err(invalid("definition continuations are unsupported"));
-        }
         let resolve_table = |reference| match reference {
             TableRef::Ordinal(position) => (position < tables.len()).then_some(position),
             TableRef::Name(name) => tables.iter().position(|table| table.name == name),
@@ -76,16 +73,26 @@ impl<'a> RelationshipPlan<'a> {
         {
             return Err(invalid("relationship columns must both be Long"));
         }
-        if tables.iter().flat_map(|table| table.columns).any(|column| {
-            column.column_type().is_long_value()
-                || column.column_type() == ColumnType::AutoIncrement
-        }) {
+        if tables[1].indexes.len() > 1
+            || tables[1].indexes.first().is_some_and(|index| {
+                index.kind != IndexKind::Primary
+                    || index.fields.len() != 1
+                    || index.fields[0].direction != IndexDirection::Ascending
+                    || index.fields[0]
+                        .column
+                        .resolve(tables[1].columns)
+                        .is_none_or(|ordinal| {
+                            ordinal == child_column
+                                || !matches!(
+                                    tables[1].columns[usize::from(ordinal)].column_type(),
+                                    ColumnType::Long | ColumnType::AutoIncrement
+                                )
+                        })
+            })
+        {
             return Err(invalid(
-                "AutoIncrement and long-value columns are unsupported",
+                "child admits one separate ascending Long primary index",
             ));
-        }
-        if !tables[1].indexes.is_empty() {
-            return Err(invalid("child must initially be unindexed"));
         }
         let (hidden_name, selector) = match tables[0].indexes.len() {
             1 => (b".rB".as_slice(), 1), // EXP-0059.
@@ -138,7 +145,39 @@ impl<'a> RelationshipPlan<'a> {
     pub(super) fn data_page(&self) -> u64 {
         self.end_of_tables
     }
-    pub(super) fn index_page(&self) -> u64 {
-        self.data_page() + 1
+    /// EXP-0059/0114/0268: each selector matches the opposite relation ordinal.
+    pub(super) fn logical(&self, parent: bool, target: PageNumber) -> LogicalIndexSpec<'a> {
+        LogicalIndexSpec {
+            name: if parent {
+                self.hidden_name
+            } else {
+                self.spec.name
+            },
+            physical_index: if parent {
+                0
+            } else {
+                self.tables[1].indexes.len() as u16
+            },
+            kind: LogicalIndexKindSpec::Relationship {
+                side: if parent {
+                    crate::RelationshipSide::PrimaryTable
+                } else {
+                    crate::RelationshipSide::ForeignTable
+                },
+                related_table: target,
+                raw_selector: if parent {
+                    self.selector
+                } else {
+                    self.tables[1].indexes.len() as u32
+                },
+                relation_ordinal: if parent {
+                    self.tables[1].indexes.len() as u32
+                } else {
+                    self.selector
+                },
+                cascade_updates: false,
+                cascade_deletes: false,
+            },
+        }
     }
 }

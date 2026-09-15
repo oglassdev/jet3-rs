@@ -28,6 +28,7 @@ pub(crate) struct InitialLongIndex {
 }
 
 impl InitialLongIndex {
+    #[cfg(test)]
     pub(crate) fn new(
         spec: &TableSpec<'_>,
         row_count: usize,
