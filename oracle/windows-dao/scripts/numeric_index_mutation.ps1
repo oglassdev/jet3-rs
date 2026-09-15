@@ -17,16 +17,22 @@ function Variant([int]$Type, $Value) {
     if ($null -eq $Value) { return [DBNull]::Value }
     switch ($Type) {
         1 { return [bool]$Value }; 2 { return [byte]$Value }; 3 { return [int16]$Value }; 4 { return [int]$Value }
-        5 { return ([decimal]$Value / [decimal]10000) }; 6 { return [single]$Value }; 7 { return [double]$Value }
+        5 { return [double]([decimal]$Value / [decimal]10000) }; 6 { return [single]$Value }; 7 { return [double]$Value }
         default { throw 'Unknown numeric type' }
     }
 }
 function Set-Cell($Recordset, $Case, [int]$Column, $Value) {
     $spec = $Case.fields[$Column]; $field = $Recordset.Fields.Item([string]$spec[0])
     try {
-        if ($null -eq $Value) { $field.Value = [DBNull]::Value }
-        elseif ([int]$spec[1] -eq 5) { $field.Value = [Runtime.InteropServices.CurrencyWrapper]::new(([decimal]$Value / [decimal]10000)) }
-        else { $field.Value = Variant ([int]$spec[1]) $Value }
+        $script:endpoint = "$($Case.name)/assign/$($spec[0])"
+        if ($null -eq $Value) { $field.Value = [DBNull]::Value; return }
+        switch ([int]$spec[1]) {
+            1 { $field.Value = [bool]$Value }; 2 { $field.Value = [byte]$Value }
+            3 { $field.Value = [int16]$Value }; 4 { $field.Value = [int]$Value }
+            5 { $field.Value = [decimal]([decimal]$Value / [decimal]10000) }
+            6 { $field.Value = [single]$Value }; 7 { $field.Value = [double]$Value }
+            default { throw 'Unknown numeric type' }
+        }
     } finally { Release $field }
 }
 function Set-Row($Recordset, $Case, $Values) {
@@ -144,6 +150,7 @@ function Capture([string]$Path, $Case) {
             if (-not ($rs.BOF -and $rs.EOF)) { $rs.MoveFirst() }
             $read = @{ traversal = (Read-Rows $rs 'Items' $Case); seek = @() }
             foreach ($query in $index.queries) {
+                $script:endpoint = "$([IO.Path]::GetFileName($Path))/index/$($index.name)/seek/$($query -join '/')"
                 $firstColumn = [int]$index.fields[0][0]
                 $first = Variant ([int]$Case.fields[$firstColumn][1]) $query[0]
                 if ($index.fields.Count -eq 1) { $rs.Seek('=', $first) }
