@@ -50,8 +50,10 @@ and roadmap #75 remain open.
 
 ### Creation
 
-Creation fits tables within the catalog page capacity, with multi-page initial
-rows, explicit/generated AutoIncrement IDs, and up to three numeric indexes per table.
+Creation admits up to 127 tables with multi-page system catalogs and catalog
+indexes, within the existing 1,024-page allocation limit. It supports multi-page
+initial rows, explicit/generated AutoIncrement IDs, and up to three numeric
+indexes per table.
 Indexes have one or two components and can span multiple levels. Independent
 Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
 columns themselves cannot be indexed. Each payload column has separate ownership
@@ -70,13 +72,21 @@ sidecar comparison over retained hosted artifacts and adds the three creation
 index recipes: deep Long, nullable numeric and multiple indexes. The original
 EXP-0214 failure remains recorded separately. EXP-0222 adds eight local DAO
 comparisons for five/six-table layouts, multiple indexes on later tables, and
-actual catalog capacity: 28 short-named empty tables or 15 with long names
-and wider definitions in the tested layouts. EXP-0236 adds six multiple-Memo/OLE
-creation pairs and six native continuation pairs. These cover four payload
+the former single-page catalog capacity: 28 short-named empty tables or 15 with
+long names and wider definitions in those layouts. EXP-0236 adds six
+multiple-Memo/OLE creation pairs and six native continuation pairs. These cover four payload
 columns with three numeric indexes and 205/213 rows, generated IDs on a later
 table, and map-capacity cases with six payload columns and zero/one index or five
 payload columns and two/three indexes. Complete payloads, nulls, schema, index
 traversal and unrelated Notes pages match the declared expectations.
+
+EXP-0241 establishes native multi-page catalog and access-control maps, and branched catalog
+indexes. EXP-0244 adds twelve creation comparisons: five/six-table controls,
+40 and 110 short-named tables, 30 long-named tables with 32 columns, and 40
+long-named tables. Complete DAO user schema, rows, traversal and seeks match;
+raw checks cover every catalog/ACE row locator, index tree and allocation map.
+The 127-table creation-counter bound remains; a larger counter or wrap policy
+is separate work. Existing name and definition restrictions also remain.
 
 ### Updates
 

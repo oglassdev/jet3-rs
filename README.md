@@ -45,11 +45,12 @@ and the remaining host prerequisites.
 ## Status
 
 The reader has hosted DAO differential evidence for its documented capability
-inventory. Creation fits tables within catalog, definition and inline-map
-capacities, with initial rows, explicit/generated AutoIncrement IDs, independent Memo/OLE
-columns, up to three numeric indexes, and a restricted two-table relationship
-construction. Existing-file mutations include row insertion/deletion, same-page
-replacement, Memo/OLE payload allocation and reuse, generated IDs, and numeric
+inventory. Creation admits up to 127 tables with multi-page system catalogs,
+within the existing 1,024-page allocation limit and definition capacities.
+It supports initial rows, explicit/generated AutoIncrement IDs, independent
+Memo/OLE columns, up to three numeric indexes, and a restricted two-table
+relationship construction. Existing-file mutations include row insertion/deletion,
+same-page replacement, Memo/OLE payload allocation and reuse, generated IDs, and numeric
 index maintenance with one or two components per index. The accepted payload
 lifecycles include native DAO continuations and Rust mutation of native files.
 

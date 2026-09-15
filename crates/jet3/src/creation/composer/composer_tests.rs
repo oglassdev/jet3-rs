@@ -502,12 +502,12 @@ fn composition_is_deterministic_and_resource_rejection_is_structured() -> TestRe
         ResourceBudget::new(ResourceLimits::default().with_max_allocation_bytes(ByteCount::new(0)));
     assert!(matches!(
         compose_empty_database(&mut budget),
-        Err(ComposeError::UsageMap(crate::UsageMapWriteError::Encoding(
+        Err(ComposeError::Encoding(
             crate::Error::ResourceLimitExceeded {
                 kind: ResourceLimitKind::AllocationBytes,
                 ..
             }
-        )))
+        ))
     ));
     Ok(())
 }

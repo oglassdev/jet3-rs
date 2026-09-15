@@ -98,7 +98,8 @@ pub use error::ComposeError;
 pub(crate) fn compose_empty_database(
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, ComposeError> {
-    let images = compose_existing_pages(&[], budget)?;
+    let catalog = CatalogPages::new(&[], budget)?;
+    let images = compose_existing_pages(&[], &catalog, budget)?;
     WholeFileImagePlan::from_existing_pages(images, budget).map_err(Into::into)
 }
 
@@ -123,8 +124,8 @@ pub(crate) fn compose_table_database(
 /// Composes the empty database plus the given user tables created in order.
 ///
 /// EXP-0087/0093 supply sequential table pages and independent index maps;
-/// EXP-0222 applies these layouts within the existing single-page catalog
-/// and inline-map capacities. Only the first table carries an LvProp page.
+/// EXP-0222/0241 extend the catalog within inline-map capacities.
+/// Only the first table carries a retained bootstrap LvProp page.
 pub(crate) fn compose_database(
     specs: &[TableSpec<'_>],
     budget: &mut ResourceBudget,
@@ -154,12 +155,14 @@ fn compose_planned_creates(
     creates: &[PlannedCreate<'_>],
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, ComposeError> {
-    let images = compose_existing_pages(creates, budget)?;
+    let catalog = CatalogPages::new(creates, budget)?;
+    let images = compose_existing_pages(creates, &catalog, budget)?;
     let mut plan = WholeFileImagePlan::from_existing_pages(images, budget)?;
     let mut append_map = global_map(EMPTY_DATABASE_PAGE_COUNT, budget)?;
     for planned in creates {
         planned.append_pages(&mut plan, &mut append_map, budget)?;
     }
+    catalog.append(&mut plan, &mut append_map, budget)?;
     Ok(plan)
 }
 
@@ -200,13 +203,12 @@ pub(crate) fn initial_row_layout(
 
 fn compose_existing_pages(
     creates: &[PlannedCreate<'_>],
+    catalog: &CatalogPages,
     budget: &mut ResourceBudget,
 ) -> Result<[PageImage; EMPTY_DATABASE_PAGE_COUNT as usize], ComposeError> {
     let object_count = (SYSTEM_OBJECT_COUNT + creates.len()) as u32;
     let ace_count = (SYSTEM_ACE_COUNT + 2 * creates.len()) as u32;
-    let page_count = creates
-        .last()
-        .map_or(EMPTY_DATABASE_PAGE_COUNT, PlannedCreate::page_count);
+    let page_count = catalog.page_count();
     Ok([
         header_page(creates.len(), budget)?,
         global_map_page(page_count, budget)?,
@@ -214,20 +216,20 @@ fn compose_existing_pages(
         msys_aces_definition(ace_count, object_count, budget)?,
         msys_queries_definition(budget)?,
         msys_relationships_definition(0, [0; 3], budget)?,
-        objects_map_page(creates, budget)?,
+        catalog.objects_map(creates, budget)?,
         single_map_page(&[], budget)?,
-        single_map_page(&[OBJECTS_PARENT_NAME_ROOT], budget)?,
-        objects_parent_name_index(creates, None, budget)?,
-        single_map_page(&[OBJECTS_ID_ROOT], budget)?,
-        objects_id_index(creates, None, budget)?,
-        shared_map_page(&[], budget)?,
-        aces_index(creates, &[], budget)?,
+        catalog.names_map(budget)?,
+        catalog.names_root()?,
+        catalog.ids_map(budget)?,
+        catalog.ids_root()?,
+        catalog.shared_map(budget)?,
+        catalog.aces_root()?,
         empty_index_page(MSYS_QUERIES_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
-        objects_data_page(creates, None, budget)?,
-        aces_data_page(creates, &[], budget)?,
+        catalog.objects_data()?,
+        catalog.aces_data()?,
     ])
 }
 
@@ -290,10 +292,12 @@ fn single_map_page(pages: &[u64], budget: &mut ResourceBudget) -> Result<PageIma
 
 fn objects_map_page(
     creates: &[PlannedCreate<'_>],
+    owned: &[u64],
+    available: &[u64],
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
-    let owned = inline_map_row(&[MSYS_OBJECTS_DATA_PAGE], budget)?;
-    let available = inline_map_row(&[MSYS_OBJECTS_DATA_PAGE], budget)?;
+    let owned = inline_map_row(owned, budget)?;
+    let available = inline_map_row(available, budget)?;
     let empty = inline_map_row(&[], budget)?;
     let long_value_pages = creates.first().and_then(PlannedCreate::property_page);
     let lvprop = inline_map_row(long_value_pages.as_slice(), budget)?;
@@ -308,9 +312,25 @@ fn shared_map_page(
     relationship_pages: &[u64],
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
-    let ace_owned = inline_map_row(&[MSYS_ACES_DATA_PAGE], budget)?;
-    let ace_available = inline_map_row(&[MSYS_ACES_DATA_PAGE], budget)?;
-    let ace_index = inline_map_row(&[ACES_OBJECT_ID_ROOT], budget)?;
+    shared_map_page_with_aces(
+        relationship_pages,
+        &[MSYS_ACES_DATA_PAGE],
+        &[MSYS_ACES_DATA_PAGE],
+        &[ACES_OBJECT_ID_ROOT],
+        budget,
+    )
+}
+
+fn shared_map_page_with_aces(
+    relationship_pages: &[u64],
+    ace_owned: &[u64],
+    ace_available: &[u64],
+    ace_index: &[u64],
+    budget: &mut ResourceBudget,
+) -> Result<PageImage, ComposeError> {
+    let ace_owned = inline_map_row(ace_owned, budget)?;
+    let ace_available = inline_map_row(ace_available, budget)?;
+    let ace_index = inline_map_row(ace_index, budget)?;
     let empty = inline_map_row(&[], budget)?;
     let query_index = inline_map_row(&[QUERIES_INDEX_ROOT], budget)?;
     let relation_data = inline_map_row(relationship_pages, budget)?;
@@ -384,242 +404,11 @@ mod table_create;
 pub(crate) use table_create::compose_database_with_table_rows;
 use table_create::{PlannedCreate, creation_counter, reserve_creates};
 
-const OBJECT_LAYOUT: [RowColumnLayout; 17] = [
-    fixed(ColumnPhysicalType::Long, 0, 4),
-    fixed(ColumnPhysicalType::Long, 4, 4),
-    variable(ColumnPhysicalType::Text, 0, 255),
-    fixed(ColumnPhysicalType::Integer, 8, 2),
-    fixed(ColumnPhysicalType::DateTime, 10, 8),
-    fixed(ColumnPhysicalType::DateTime, 18, 8),
-    variable(ColumnPhysicalType::Binary, 1, 255),
-    fixed(ColumnPhysicalType::Long, 26, 4),
-    variable(ColumnPhysicalType::Memo, 2, 0),
-    variable(ColumnPhysicalType::Memo, 3, 0),
-    variable(ColumnPhysicalType::Text, 4, 255),
-    variable(ColumnPhysicalType::Binary, 5, 255),
-    variable(ColumnPhysicalType::LongBinary, 6, 0),
-    variable(ColumnPhysicalType::LongBinary, 7, 0),
-    variable(ColumnPhysicalType::LongBinary, 8, 0),
-    variable(ColumnPhysicalType::LongBinary, 9, 0),
-    variable(ColumnPhysicalType::LongBinary, 10, 0),
-];
-const ACE_LAYOUT: [RowColumnLayout; 4] = [
-    fixed(ColumnPhysicalType::Long, 0, 4),
-    variable(ColumnPhysicalType::Binary, 0, 255),
-    fixed(ColumnPhysicalType::Long, 4, 4),
-    fixed(ColumnPhysicalType::Boolean, 8, 1),
-];
-const fn fixed(kind: ColumnPhysicalType, offset: u16, size: u16) -> RowColumnLayout {
-    RowColumnLayout::new(kind, ColumnStorageClass::Fixed { offset }, size)
-}
-const fn variable(kind: ColumnPhysicalType, index: u16, size: u16) -> RowColumnLayout {
-    RowColumnLayout::new(kind, ColumnStorageClass::Variable { index }, size)
-}
+mod catalog_rows;
+use catalog_rows::*;
 
-#[derive(Clone, Copy)]
-struct CatalogSeed<'a> {
-    id: i32,
-    parent: i32,
-    name: &'a [u8],
-    kind: i16,
-    owner: &'static [u8],
-    flags: i32,
-}
-// EXP-0058: system objects carry flags `0x80000000`.
-const SYSTEM_FLAGS: i32 = i32::MIN;
-const CATALOG_SEEDS: [CatalogSeed<'static>; 8] = [
-    CatalogSeed {
-        id: TABLES_ID,
-        parent: ROOT_CONTAINER_ID,
-        name: b"Tables",
-        kind: 3,
-        owner: CATALOG_OWNER_0203,
-        flags: SYSTEM_FLAGS,
-    },
-    CatalogSeed {
-        id: DATABASES_ID,
-        parent: ROOT_CONTAINER_ID,
-        name: b"Databases",
-        kind: 3,
-        owner: CATALOG_OWNER_0203,
-        flags: SYSTEM_FLAGS,
-    },
-    CatalogSeed {
-        id: RELATIONSHIPS_ID,
-        parent: ROOT_CONTAINER_ID,
-        name: b"Relationships",
-        kind: 3,
-        owner: CATALOG_OWNER_0203,
-        flags: SYSTEM_FLAGS,
-    },
-    CatalogSeed {
-        id: MSYS_DB_ID,
-        parent: DATABASES_ID,
-        name: b"MSysDb",
-        kind: 2,
-        owner: CATALOG_OWNER_0301,
-        flags: SYSTEM_FLAGS,
-    },
-    CatalogSeed {
-        id: MSYS_OBJECTS_ROOT as i32,
-        parent: TABLES_ID,
-        name: b"MSysObjects",
-        kind: 1,
-        owner: CATALOG_OWNER_0203,
-        flags: SYSTEM_FLAGS,
-    },
-    CatalogSeed {
-        id: MSYS_ACES_ROOT as i32,
-        parent: TABLES_ID,
-        name: b"MSysACEs",
-        kind: 1,
-        owner: CATALOG_OWNER_0203,
-        flags: SYSTEM_FLAGS,
-    },
-    CatalogSeed {
-        id: MSYS_QUERIES_ROOT as i32,
-        parent: TABLES_ID,
-        name: b"MSysQueries",
-        kind: 1,
-        owner: CATALOG_OWNER_0203,
-        flags: SYSTEM_FLAGS,
-    },
-    CatalogSeed {
-        id: MSYS_RELATIONSHIPS_ROOT as i32,
-        parent: TABLES_ID,
-        name: b"MSysRelationships",
-        kind: 1,
-        owner: CATALOG_OWNER_0203,
-        flags: SYSTEM_FLAGS,
-    },
-];
-
-/// Returns the catalog rows the composed image holds, in stored row order.
-fn catalog_seeds<'a>(
-    creates: &'a [PlannedCreate<'a>],
-    extra: Option<CatalogSeed<'a>>,
-) -> impl Iterator<Item = CatalogSeed<'a>> + 'a {
-    CATALOG_SEEDS
-        .into_iter()
-        .chain(creates.iter().map(PlannedCreate::catalog_seed))
-        .chain(extra)
-}
-
-/// Builds catalog rows with optional EXP-0208 Memo properties.
-/// Other rows retain the EXP-0091 null-LvProp form.
-fn objects_data_page(
-    creates: &[PlannedCreate<'_>],
-    extra: Option<CatalogSeed<'_>>,
-    budget: &mut ResourceBudget,
-) -> Result<PageImage, ComposeError> {
-    let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_OBJECTS_ROOT), budget)?;
-    let mut row = [0_u8; PAGE_BYTES];
-    for seed in catalog_seeds(creates, extra) {
-        budget.charge_work_units(creates.len() as u64)?;
-        let header = creates
-            .iter()
-            .find(|create| create.catalog_seed().id == seed.id)
-            .map(PlannedCreate::property_header)
-            .transpose()?
-            .flatten();
-        let length = encode_catalog_row(seed, header.as_ref(), &mut row, budget)?;
-        builder.append_row(&row[..length], budget)?;
-    }
-    finish_data_builder(builder, budget)
-}
-
-fn encode_catalog_row(
-    seed: CatalogSeed<'_>,
-    property: Option<&[u8; 12]>,
-    output: &mut [u8],
-    budget: &mut ResourceBudget,
-) -> Result<usize, ComposeError> {
-    let values = [
-        RowValue::Long(seed.id),
-        RowValue::Long(seed.parent),
-        RowValue::Text(seed.name),
-        RowValue::Integer(seed.kind),
-        RowValue::DateTime { days: 0.0 },
-        RowValue::DateTime { days: 0.0 },
-        RowValue::Binary(seed.owner),
-        RowValue::Long(seed.flags),
-        RowValue::Null,
-        RowValue::Null,
-        RowValue::Null,
-        RowValue::Null,
-        RowValue::Null,
-        RowValue::Null,
-        property.map_or(RowValue::Null, |header| RowValue::LongValue(header)),
-        RowValue::Null,
-        RowValue::Null,
-    ];
-    Ok(encode_row(&OBJECT_LAYOUT, &values, output, budget)?.get() as usize)
-}
-
-#[derive(Clone, Copy)]
-struct AceSeed {
-    object: i32,
-    sid: &'static [u8],
-    acm: i32,
-    inheritable: bool,
-}
-const ACE_SEEDS: [AceSeed; 16] = [
-    ace(2, b"\x03\x01", 393216, false),
-    ace(3, b"\x03\x01", 393216, false),
-    ace(4, b"\x03\x01", 393216, false),
-    ace(5, b"\x03\x01", 917504, false),
-    ace(TABLES_ID, b"\x02\x04", 983294, true),
-    ace(TABLES_ID, b"\x03\x01", 393217, false),
-    ace(RELATIONSHIPS_ID, b"\x02\x04", 983294, true),
-    ace(RELATIONSHIPS_ID, b"\x03\x01", 393217, false),
-    ace(DATABASES_ID, b"\x03\x01", 393216, false),
-    ace(MSYS_DB_ID, b"\x03\x01", 393230, false),
-    ace(MSYS_DB_ID, b"\x02\x01", 14, false),
-    ace(4, b"\x02\x01", 20, false),
-    ace(5, b"\x02\x01", 20, false),
-    ace(2, b"\x02\x01", 20, false),
-    ace(TABLES_ID, b"\x02\x01", 1048319, true),
-    ace(RELATIONSHIPS_ID, b"\x02\x01", 1048575, true),
-];
-const fn ace(object: i32, sid: &'static [u8], acm: i32, inheritable: bool) -> AceSeed {
-    AceSeed {
-        object,
-        sid,
-        acm,
-        inheritable,
-    }
-}
-
-/// Returns the access-control rows the composed image holds, in stored order.
-fn ace_seeds<'a>(
-    creates: &'a [PlannedCreate<'a>],
-    extra: &'a [AceSeed],
-) -> impl Iterator<Item = AceSeed> + 'a {
-    ACE_SEEDS
-        .into_iter()
-        .chain(creates.iter().flat_map(PlannedCreate::ace_seeds))
-        .chain(extra.iter().copied())
-}
-
-fn aces_data_page(
-    creates: &[PlannedCreate<'_>],
-    extra: &[AceSeed],
-    budget: &mut ResourceBudget,
-) -> Result<PageImage, ComposeError> {
-    let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_ACES_ROOT), budget)?;
-    let mut row = [0_u8; 64];
-    for seed in ace_seeds(creates, extra) {
-        let values = [
-            RowValue::Long(seed.object),
-            RowValue::Binary(seed.sid),
-            RowValue::Long(seed.acm),
-            RowValue::Boolean(seed.inheritable),
-        ];
-        let length = encode_row(&ACE_LAYOUT, &values, &mut row, budget)?.get() as usize;
-        builder.append_row(&row[..length], budget)?;
-    }
-    finish_data_builder(builder, budget)
-}
+mod catalog_pages;
+use catalog_pages::CatalogPages;
 
 fn finish_data_builder(
     builder: DataPageBuilder,

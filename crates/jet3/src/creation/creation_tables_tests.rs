@@ -115,10 +115,12 @@ fn creation_counter_overflow_is_refused_before_allocating_or_writing() -> TestRe
 }
 
 #[test]
-fn catalog_name_width_determines_the_actual_table_capacity() -> TestResult {
-    for (count, padding) in [(28, 0), (15, 45)] {
+fn catalog_data_and_index_pages_grow_with_complete_row_locators() -> TestResult {
+    use crate::{CatalogObjectClass, ColumnOrdinal, TextCodePage, ValueKind};
+    use std::collections::BTreeSet;
+    for (count, padding) in [(29, 0), (40, 0), (110, 0), (30, 45), (40, 45), (127, 45)] {
         let directory = TestDirectory::create()?;
-        let names = (0..=count)
+        let names = (0..count)
             .map(|n| format!("T{n:02}{}", "x".repeat(padding)))
             .collect::<Vec<_>>();
         let tables = names
@@ -129,16 +131,158 @@ fn catalog_name_width_determines_the_actual_table_capacity() -> TestResult {
                 indexes: &[],
             })
             .collect::<Vec<_>>();
-        create_database(directory.target(), &tables[..count], &mut budget())?;
-        let before = fs::read(directory.target())?;
-        assert!(matches!(
-            create_database(directory.target(), &tables, &mut budget()),
-            Err(CreateDatabaseError::Compose(ComposeError::Page(
-                crate::PageImageError::PageFull { .. }
-            )))
-        ));
-        assert_eq!(fs::read(directory.target())?, before);
-        assert_eq!(directory.entries()?, ["created.mdb"]);
+        create_database(directory.target(), &tables, &mut budget())?;
+        let mut budget = budget();
+        let mut database = DatabaseReader::open(directory.target(), &mut budget)?;
+        let mut users = Vec::new();
+        {
+            let mut catalog = database.catalog(&mut budget)?;
+            while let Some(record) = catalog.next_record()? {
+                if record.class() == CatalogObjectClass::User {
+                    users.push(record.name().raw_bytes().to_vec());
+                }
+            }
+        }
+        assert_eq!(
+            users,
+            names
+                .iter()
+                .map(|n| n.as_bytes().to_vec())
+                .collect::<Vec<_>>()
+        );
+        let raw = fs::read(directory.target())?;
+        let objects = database.table_definition(PageNumber::new(2), &mut budget)?;
+        let aces = database.table_definition(PageNumber::new(3), &mut budget)?;
+        for (definition, expected_count) in [(&objects, 8 + count), (&aces, 16 + 2 * count)] {
+            assert_eq!(definition.row_count() as usize, expected_count);
+            let mut stored = Vec::new();
+            {
+                let mut rows = database.rows(definition, &mut budget)?;
+                while let Some(mut row) = rows.next_row()? {
+                    let locator = row.locator();
+                    let value = row
+                        .value(ColumnOrdinal::new(0), TextCodePage::Windows1252)?
+                        .ok_or("missing system Id")?;
+                    let ValueKind::Long(id) = value.kind() else {
+                        return Err("system Id type".into());
+                    };
+                    stored.push((locator.page().get(), locator.slot(), *id));
+                }
+            }
+            assert_eq!(stored.len(), expected_count);
+            let pages = stored.iter().map(|r| r.0).collect::<BTreeSet<_>>();
+            assert_eq!(
+                pages.len() > 1,
+                definition.root().get() == 2 || count >= 110
+            );
+            assert_eq!(catalog_map_pages(&raw, definition.maps().owned())?, pages);
+            let available = catalog_map_pages(&raw, definition.maps().available())?;
+            assert!(available.is_subset(&pages) && available.len() <= 1);
+            if let Some(last) = available.last() {
+                assert_eq!(Some(last), pages.last());
+            }
+            let numeric_ordinal = u16::from(definition.root().get() == 2);
+            for ordinal in 0..definition.physical_indexes().len() as u16 {
+                let tree = database.index_tree(definition, ordinal, &mut budget)?;
+                let reference = definition.physical_indexes()[ordinal as usize].usage_map();
+                assert_eq!(
+                    catalog_map_pages(
+                        &raw,
+                        crate::MapRowLocator::new(reference.page(), reference.row())
+                    )?,
+                    tree.nodes().iter().map(|n| n.page().get()).collect()
+                );
+                let mut indexed = tree
+                    .entries()
+                    .iter()
+                    .map(|entry| {
+                        let id = if ordinal == numeric_ordinal {
+                            let key = entry.key().raw_bytes();
+                            let bytes: [u8; 4] =
+                                key[1..5].try_into().map_err(|_| "numeric key width")?;
+                            (u32::from_be_bytes(bytes) ^ 0x8000_0000) as i32
+                        } else {
+                            stored
+                                .iter()
+                                .find(|r| {
+                                    r.0 == entry.row().page().get() && r.1 == entry.row().slot()
+                                })
+                                .ok_or("catalog index locator")?
+                                .2
+                        };
+                        Ok((entry.row().page().get(), entry.row().slot(), id))
+                    })
+                    .collect::<Result<Vec<_>, Box<dyn std::error::Error>>>()?;
+                indexed.sort_unstable();
+                let mut expected = stored.clone();
+                expected.sort_unstable();
+                assert_eq!(indexed, expected);
+            }
+        }
+        let raw = fs::read(directory.target())?;
+        assert_eq!(
+            raw[9 * crate::PAGE_BYTES] == 3,
+            padding == 45 && count >= 30
+        );
+        assert_eq!(raw[13 * crate::PAGE_BYTES] == 3, count >= 110);
+        assert_eq!(raw[1538] as usize, 2 * count);
     }
     Ok(())
+}
+
+#[test]
+fn catalog_spill_refuses_exhausted_inline_maps_without_publication() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let names = (0..40).map(|n| format!("T{n:02}")).collect::<Vec<_>>();
+    let payload = [b'x'; 200];
+    let values = [RowValue::Text(&payload); 8];
+    let rows = [values.as_slice(); 26];
+    let width = std::num::NonZeroU8::new(200).ok_or("binary width")?;
+    let columns = [b"C0", b"C1", b"C2", b"C3", b"C4", b"C5", b"C6", b"C7"]
+        .map(|name| ColumnSpec::new(name, ColumnType::FixedText { len: width }));
+    let mut requests = names
+        .iter()
+        .enumerate()
+        .map(|(n, name)| TableRows {
+            table: TableSpec {
+                name: name.as_bytes(),
+                columns: &columns,
+                indexes: &[],
+            },
+            rows: &rows[..if n == 39 { 25 } else { 23 }],
+        })
+        .collect::<Vec<_>>();
+    create_database_with_table_rows(directory.target(), &requests, &mut budget())?;
+    let before = fs::read(directory.target())?;
+    assert_eq!(before.len(), 1024 * crate::PAGE_BYTES);
+    requests[39].rows = &rows;
+    let result = create_database_with_table_rows(directory.target(), &requests, &mut budget());
+    assert!(
+        matches!(
+            result,
+            Err(CreateDatabaseError::Compose(
+                ComposeError::CatalogPageLimit { maximum: 1024 }
+            ))
+        ),
+        "{result:?}"
+    );
+    assert_eq!(fs::read(directory.target())?, before);
+    assert_eq!(directory.entries()?, ["created.mdb"]);
+    Ok(())
+}
+
+fn catalog_map_pages(
+    raw: &[u8],
+    locator: crate::MapRowLocator,
+) -> Result<std::collections::BTreeSet<u64>, Box<dyn std::error::Error>> {
+    let start = locator.page().get() as usize * crate::PAGE_BYTES;
+    let image: &[u8; crate::PAGE_BYTES] = raw[start..start + crate::PAGE_BYTES].try_into()?;
+    let mut budget = budget();
+    let page = crate::classify_page(locator.page(), image, &mut budget)?;
+    let record = crate::locate_usage_map(page, locator, &mut budget)?;
+    let bytes = record.raw();
+    assert_eq!(&bytes[..5], &[0; 5]);
+    Ok((0..1024)
+        .filter(|p| bytes[5 + *p as usize / 8] & (1 << (*p % 8)) != 0)
+        .collect())
 }
