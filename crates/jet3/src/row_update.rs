@@ -20,18 +20,20 @@ pub struct RowUpdate<'a> {
 ///
 /// Supports scalar/null/Boolean/Text/Binary values in relationship-free
 /// non-AutoIncrement/non-long-value tables. The page must be inline-owned and
-/// available, with consistent metadata and ordinary live rows or known empty
+/// allocated, with consistent metadata and ordinary live rows or known empty
 /// `c000` tombstones. The data page and row locator remain fixed. One unique/primary
 /// present Long index is supported, including key changes in a multi-level tree.
 /// Existing checked row-encoding limits apply, including variable-offset widths.
-/// The resulting page must retain room for a minimum encoded row and directory
-/// slot; this is a candidate scope constraint, not a DAO availability threshold.
+/// The replacement must fit the existing contiguous space. Available membership
+/// records whether a minimum encoded row and directory slot still fit; this is
+/// a candidate policy, not a model of DAO's availability threshold.
 ///
 /// Later row bytes and offsets shift as needed, preserving their slots and values.
 /// Shrinking leaves newly vacated slack unchanged. Only the replacement, shifted
 /// bytes/offsets and page free-byte count change in the data page. A changed key
-/// rebuilds index nodes and may allocate them within inline maps. Table/slot counts,
-/// page zero and unrelated objects remain exact. This construction requires separate DAO
+/// rebuilds index nodes and may allocate them within inline maps. The page's
+/// available bit reflects remaining capacity. Table/slot counts, page zero and
+/// unrelated objects remain exact. This construction requires separate DAO
 /// validation and makes no compatibility claim.
 ///
 /// Callers must exclude external writers throughout this Unix-only operation.
@@ -132,29 +134,8 @@ where
     let mut count_page = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut count_page, budget)?;
     crate::row_update_page::check_count(&count_page, observed, budget)?;
-    for locator in [definition.maps().owned(), definition.maps().available()] {
-        let mut bytes = [0; PAGE_BYTES];
-        let page = database
-            .read_classified_page(locator.page(), &mut bytes, budget)
-            .map_err(crate::TableDefinitionError::Page)?;
-        let record =
-            crate::locate_usage_map(page, locator, budget).map_err(UpdateError::UsageMap)?;
-        let crate::AllocationMap::Inline(map) =
-            crate::decode_allocation_map(record.raw(), budget).map_err(UpdateError::Allocation)?
-        else {
-            return Err(UpdateError::Unsupported("indirect row replacement map"));
-        };
-        let mut pages = map.allocated_pages(database.geometry());
-        let mut listed = false;
-        while let Some(page) = pages.next_page(budget).map_err(UpdateError::Allocation)? {
-            listed |= page == request.row.page();
-        }
-        if !listed {
-            return Err(UpdateError::Unsupported(
-                "row replacement page not owned and available",
-            ));
-        }
-    }
+    let available =
+        crate::allocation_patch::available(&mut database, &definition, request.row.page(), budget)?;
     let mut before = [0; PAGE_BYTES];
     database.read_raw_page(request.row.page(), &mut before, budget)?;
     let after = crate::row_update_page::replace(
@@ -163,7 +144,6 @@ where
         &before,
         request.row.slot(),
         &encoded[..length],
-        minimum_length,
         budget,
     )?;
     let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
@@ -175,6 +155,19 @@ where
         },
         budget,
     )?;
+    let maps = crate::allocation_patch::plan(
+        &mut database,
+        &definition,
+        request.row.page(),
+        crate::allocation_patch::AllocationChange::Retain {
+            before: available,
+            available: crate::row_insert_page::has_capacity(after.as_bytes(), minimum_length),
+        },
+        budget,
+    )?;
+    for change in maps.changes() {
+        edits.replace(change, budget)?;
+    }
     if let Some(index) = &mut index {
         let Some(RowValue::Long(value)) = request.values.get(usize::from(index.column.get()))
         else {

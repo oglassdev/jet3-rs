@@ -310,7 +310,7 @@ fn schema_locators_corruption_and_capacity_refuse_without_publication() -> TestR
     }
     let source: [u8; PAGE_BYTES] = original[base..base + PAGE_BYTES].try_into()?;
     let old = word(&source, 10);
-    let max = word(&source, 2) + (PAGE_BYTES - old) - 12;
+    let max = word(&source, 2) + (PAGE_BYTES - old);
     assert!(
         crate::row_update_page::replace(
             f.locators[0].page(),
@@ -318,7 +318,6 @@ fn schema_locators_corruption_and_capacity_refuse_without_publication() -> TestR
             &source,
             0,
             &vec![0; max],
-            10,
             &mut budget()
         )
         .is_ok()
@@ -330,7 +329,6 @@ fn schema_locators_corruption_and_capacity_refuse_without_publication() -> TestR
             &source,
             0,
             &vec![0; max + 1],
-            10,
             &mut budget()
         )
         .is_err()
@@ -433,13 +431,15 @@ fn unsupported_schema_map_and_variable_width_states_are_preserved() -> TestResul
         RowValue::Null,
         RowValue::Boolean(false),
     ];
-    assert!(matches!(
-        update_row(f.path(), f.request(0, &values), &mut budget()),
-        Err(UpdateError::Unsupported(
-            "row replacement page not owned and available"
-        ))
-    ));
-    assert_eq!(fs::read(f.path())?, missing);
+    update_row(f.path(), f.request(0, &values), &mut budget())?;
+    let mut db = DatabaseReader::open(f.path(), &mut b)?;
+    assert!(crate::allocation_patch::available(
+        &mut db,
+        &definition,
+        f.locators[0].page(),
+        &mut b
+    )?);
+    drop(db);
     for (kind, value, indexed) in [
         (ColumnType::AutoIncrement, RowValue::AutoIncrement, false),
         (ColumnType::Memo, RowValue::Null, false),
@@ -474,7 +474,7 @@ fn unsupported_schema_map_and_variable_width_states_are_preserved() -> TestResul
 }
 
 #[test]
-fn physical_slot_capacity_and_hidden_payload_are_refused() -> TestResult {
+fn full_slot_directory_allows_replacement_but_hidden_payload_is_refused() -> TestResult {
     let f = Fixture::new(1)?;
     let original = fs::read(f.path())?;
     let base = f.locators[0].page().get() as usize * PAGE_BYTES;
@@ -487,20 +487,17 @@ fn physical_slot_capacity_and_hidden_payload_are_refused() -> TestResult {
             .copy_from_slice(&((start as u16) | 0xc000).to_le_bytes());
     }
     page[2..4].copy_from_slice(&((start - 522) as u16).to_le_bytes());
-    assert!(matches!(
+    assert!(
         crate::row_update_page::replace(
             f.locators[0].page(),
             f.root,
             &page,
             0,
             &raw,
-            10,
-            &mut budget()
-        ),
-        Err(UpdateError::Unsupported(
-            "replacement lacks retained row capacity"
-        ))
-    ));
+            &mut budget(),
+        )
+        .is_ok()
+    );
     let f = Fixture::new(3)?;
     let original = fs::read(f.path())?;
     let base = f.locators[0].page().get() as usize * PAGE_BYTES;
@@ -513,7 +510,6 @@ fn physical_slot_capacity_and_hidden_payload_are_refused() -> TestResult {
             &page,
             0,
             &raw,
-            10,
             &mut budget()
         ),
         Err(UpdateError::Unsupported(

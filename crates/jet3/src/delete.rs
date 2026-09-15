@@ -21,15 +21,16 @@ pub struct RowDelete<'a> {
 /// root. Surplus index pages remain reserved for reuse; the retained index counter
 /// is unchanged. Other indexed deletions are refused.
 /// Slots must be ordinary live rows or known empty `c000` tombstones;
-/// the page must already appear in its inline available map. Later rows move
+/// inline maps must consistently identify the page as owned and allocated. Later rows move
 /// upward without changing their physical slot numbers or stored values. The
 /// deleted slot becomes an empty tombstone; existing tombstone flags are retained.
 /// A page containing one live row is released through its existing
 /// inline global/owned/available maps. Its physical slot count is retained and
 /// all slots become empty tombstones. Inconsistent free/count metadata is refused.
 /// On retained unindexed pages, only shifted row bytes, affected directory offsets,
-/// free-byte count and table row count change. Vacated slack, maps, page zero and unrelated objects
-/// remain exact for retained pages. Released pages change their tag, directory
+/// free-byte count, table row count and available membership change. Availability
+/// records whether a minimum row and slot fit. Vacated slack, page zero and unrelated
+/// objects remain exact for retained pages. Released pages change their tag, directory
 /// word and free count, and their three map bits; payload/slack and file length
 /// remain exact.
 /// Keeping page zero unchanged is a candidate construction awaiting DAO validation.
@@ -60,7 +61,13 @@ where
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = crate::update::indexed_writable_table(&mut database, request.table, budget)?;
     if !definition.long_value_maps().is_empty()
-        || definition.columns().iter().any(|c| c.auto_increment())
+        || definition.columns().iter().any(|c| {
+            c.auto_increment()
+                || matches!(
+                    c.physical_type(),
+                    crate::ColumnPhysicalType::Memo | crate::ColumnPhysicalType::LongBinary
+                )
+        })
     {
         return Err(UpdateError::Unsupported(
             "AutoIncrement or long-value table",
@@ -111,29 +118,8 @@ where
     if !found {
         return Err(UpdateError::NotFound("row"));
     }
-    let locator = definition.maps().available();
-    let mut map_page = [0; PAGE_BYTES];
-    let classified = database
-        .read_classified_page(locator.page(), &mut map_page, budget)
-        .map_err(crate::TableDefinitionError::Page)?;
-    let map =
-        crate::locate_usage_map(classified, locator, budget).map_err(UpdateError::UsageMap)?;
-    let crate::AllocationMap::Inline(map) =
-        crate::decode_allocation_map(map.raw(), budget).map_err(UpdateError::Allocation)?
-    else {
-        return Err(UpdateError::Unsupported("indirect available map"));
-    };
-    let mut available = map.allocated_pages(database.geometry());
-    let mut listed = false;
-    while let Some(page) = available
-        .next_page(budget)
-        .map_err(UpdateError::Allocation)?
-    {
-        listed |= page == request.row.page();
-    }
-    if !listed {
-        return Err(UpdateError::Unsupported("page absent from available map"));
-    }
+    let available =
+        crate::allocation_patch::available(&mut database, &definition, request.row.page(), budget)?;
     let mut source_definition = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut source_definition, budget)?;
     let patched_definition =
@@ -155,25 +141,27 @@ where
         },
         budget,
     )?;
-    if matches!(patched_page, crate::row_delete_page::Deletion::Released(_)) {
-        if definition.columns().iter().any(|column| {
-            matches!(
-                column.physical_type(),
-                crate::ColumnPhysicalType::Memo | crate::ColumnPhysicalType::LongBinary
-            )
-        }) {
-            return Err(UpdateError::Unsupported("long-value page release"));
+    let allocation = if matches!(patched_page, crate::row_delete_page::Deletion::Released(_)) {
+        crate::allocation_patch::AllocationChange::Release { available }
+    } else {
+        let minimum = crate::row_insert_page::minimum_length(definition.columns(), budget)?;
+        crate::allocation_patch::AllocationChange::Retain {
+            before: available,
+            available: crate::row_insert_page::has_capacity(
+                patched_page.image().as_bytes(),
+                minimum,
+            ),
         }
-        let maps = crate::allocation_patch::plan(
-            &mut database,
-            &definition,
-            request.row.page(),
-            crate::allocation_patch::AllocationChange::Release,
-            budget,
-        )?;
-        for change in maps.changes() {
-            edits.replace(change, budget)?;
-        }
+    };
+    let maps = crate::allocation_patch::plan(
+        &mut database,
+        &definition,
+        request.row.page(),
+        allocation,
+        budget,
+    )?;
+    for change in maps.changes() {
+        edits.replace(change, budget)?;
     }
     if let Some(index) = &mut index {
         index.remove(request.row, budget)?;

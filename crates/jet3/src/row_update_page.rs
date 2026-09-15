@@ -13,7 +13,6 @@ pub(crate) fn replace(
     source: &[u8; PAGE_BYTES],
     slot: u8,
     encoded: &[u8],
-    minimum_length: usize,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, UpdateError> {
     let directory = RowDirectory::validate(page, owner, source, budget)?;
@@ -52,14 +51,8 @@ pub(crate) fn replace(
         .ok_or(UpdateError::Unsupported(
             "replacement exceeds contiguous page space",
         ))?;
-    let retained = minimum_length
-        .checked_add(ENTRY_BYTES)
-        .ok_or(UpdateError::Mismatch("minimum row width"))?;
-    // Candidate policy preserves physical capacity for another minimum row and slot.
-    if encoded.is_empty() || new_free < retained || count > u16::from(u8::MAX) {
-        return Err(UpdateError::Unsupported(
-            "replacement lacks retained row capacity",
-        ));
+    if encoded.is_empty() {
+        return Err(UpdateError::Unsupported("empty replacement row"));
     }
     let new_start = old
         .end

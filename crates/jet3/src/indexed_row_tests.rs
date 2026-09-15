@@ -678,8 +678,13 @@ fn indexed_rows_release_last_live_slot_and_reinsert() -> TestResult {
             &[RowValue::Long(-1), RowValue::Long(5)],
             &mut budget(),
         )?;
-        assert_eq!(new.page().get() as usize * PAGE_BYTES, after.len());
+        assert_eq!(new.page(), row.page());
+        assert_eq!(fs::metadata(f.path())?.len() as usize, after.len());
         assert_eq!(f.rows()?, vec![(-1, new)]);
+        expected[0] = 1;
+        expected[8..10].copy_from_slice(&1_u16.to_le_bytes());
+        expected[10..12].copy_from_slice(&2038_u16.to_le_bytes());
+        expected[2038..].copy_from_slice(&[2, 255, 255, 255, 255, 5, 0, 0, 0, 3]);
         assert_eq!(page(&fs::read(f.path())?, row.page())?, &expected);
         f.validate()?;
     }
@@ -769,3 +774,6 @@ fn indexed_rows_accept_retained_separator_and_reject_wrong_subtree_bounds() -> T
     }
     Ok(())
 }
+
+#[path = "row_reuse_tests.rs"]
+mod reuse;

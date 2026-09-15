@@ -71,14 +71,18 @@ fn release_map_mismatch_alias_and_indirect_references_refuse_atomically() -> Res
     let f = Fixture::new(1)?;
     let before = fs::read(f.path())?;
     let records = maps(&f)?;
-    for (location, range) in &records {
+    for (role, (location, range)) in records.iter().enumerate() {
         let bit = f.row.page().get() as usize;
         let offset = location.page().get() as usize * PAGE_BYTES + range.start + 5 + bit / 8;
         let mut bad = before.clone();
         bad[offset] ^= 1 << (bit % 8);
         fs::write(f.path(), &bad)?;
-        assert!(delete_row(f.path(), f.request(), &mut budget()).is_err());
-        assert_eq!(fs::read(f.path())?, bad);
+        if role == 2 {
+            delete_row(f.path(), f.request(), &mut budget())?;
+        } else {
+            assert!(delete_row(f.path(), f.request(), &mut budget()).is_err());
+            assert_eq!(fs::read(f.path())?, bad);
+        }
     }
     let global = records[0].0.page().get() as usize * PAGE_BYTES + records[0].1.start;
     let root = f.root.get() as usize * PAGE_BYTES;

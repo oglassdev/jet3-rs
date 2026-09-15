@@ -258,7 +258,7 @@ fn private_corruption_and_shared_read_budget_are_detected() -> ResultTest {
 }
 
 #[test]
-fn generated_long_value_index_and_available_map_states_are_refused() -> ResultTest {
+fn unsupported_schema_refuses_and_deletion_restores_available_membership() -> ResultTest {
     for (kind, value, indexed) in [
         (ColumnType::AutoIncrement, RowValue::AutoIncrement, false),
         (ColumnType::Memo, RowValue::Memo(b"payload"), false),
@@ -305,11 +305,14 @@ fn generated_long_value_index_and_available_map_states_are_refused() -> ResultTe
     let end = locator.page().get() as usize * PAGE_BYTES + range.end;
     original[start..end].fill(0);
     fs::write(f.path(), &original)?;
-    assert!(matches!(
-        delete_row(f.path(), f.request(), &mut budget()),
-        Err(UpdateError::Unsupported("page absent from available map"))
-    ));
-    assert_eq!(fs::read(f.path())?, original);
+    delete_row(f.path(), f.request(), &mut budget())?;
+    let mut db = DatabaseReader::open(f.path(), &mut b)?;
+    assert!(crate::allocation_patch::available(
+        &mut db,
+        &definition,
+        f.request().row.page(),
+        &mut b
+    )?);
     f.clean()
 }
 

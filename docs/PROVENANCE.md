@@ -15307,3 +15307,26 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
 - Private report:
   `shared/checks/20260915-validator-overflow-fixed/report.json`, SHA-256
   `b158c865a5a723a62df3fed4cc4ba6fa6c4aedb809d0011a39b9ff2c358d3525`.
+
+## EXP-0227 — Native reuse of a released multi-slot data page
+
+- Reinserted Id 100 / Value 999 into six native deletion results from
+  EXP-0224 (last surviving keys 0, 2 and 5, two copies each). Every DAO run
+  reused released data page 24 at slot 0 and retained the file length.
+- The complete data-page patch restores tag 01, changes the physical slot
+  count from six to one, writes directory word `07f6` and the ten-byte row at
+  offset 2038. Free bytes are 2026. Old directory words outside the new
+  physical count and all other slack retain their bytes. The source six-slot
+  empty page also had 2026 free bytes, so that field happens to stay equal.
+- Global-free membership clears, owned/available membership sets, table
+  count becomes one and the retained index counter becomes seven. Only
+  pages 0, 1, 20, 21, 23 and 24 change. This supports reusing a global-free,
+  released page belonging to the target table; it establishes no policy for
+  reusing another object's freed page or choosing among several candidates.
+- Private inputs: `shared/outbox/20260915T033100Z-last-slots/`.
+  Native outputs and actual provider environment:
+  `shared/outbox/20260915T041000Z-released-reuse/`.
+  Complete checked report: `shared/checks/20260915-released-page-reuse/report.json`,
+  SHA-256 `2b8a2588d4424a9c06586c6b8fa775387c07a92712513122a940761ee15cbca9`.
+  All six exact data-page reconstructions, map transitions, rows and counters
+  agree. This observation precedes separate Rust/DAO mutation validation.

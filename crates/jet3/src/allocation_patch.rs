@@ -14,7 +14,8 @@ struct MapPage {
 
 pub(crate) enum AllocationChange {
     Allocate { available: bool },
-    Release,
+    Release { available: bool },
+    Retain { before: bool, available: bool },
 }
 
 pub(crate) struct MapPatches {
@@ -43,7 +44,10 @@ pub(crate) fn plan(
         AllocationChange::Allocate { available } => {
             ([true, false, false], [false, true, available])
         }
-        AllocationChange::Release => ([false, true, true], [true, false, false]),
+        AllocationChange::Release { available } => ([false, true, available], [true, false, false]),
+        AllocationChange::Retain { before, available } => {
+            ([false, true, before], [false, true, available])
+        }
     };
     let mut result = MapPatches {
         maps: std::array::from_fn(|_| MapPage {
@@ -123,4 +127,30 @@ pub(crate) fn plan(
             .write_at(PageOffset::new(offset as u64), &[value], budget)?;
     }
     Ok(result)
+}
+
+/// Reads membership without treating the available map as an ownership requirement.
+pub(crate) fn available(
+    database: &mut DatabaseReader<FileSource>,
+    definition: &TableDefinition,
+    member: PageNumber,
+    budget: &mut ResourceBudget,
+) -> Result<bool, UpdateError> {
+    let locator = definition.maps().available();
+    let mut bytes = [0; PAGE_BYTES];
+    let page = database
+        .read_classified_page(locator.page(), &mut bytes, budget)
+        .map_err(crate::TableDefinitionError::Page)?;
+    let row = crate::locate_usage_map(page, locator, budget).map_err(UpdateError::UsageMap)?;
+    let AllocationMapLayout::Inline { start_page, bitmap } =
+        decode_allocation_map_layout(row.raw(), budget).map_err(UpdateError::Allocation)?
+    else {
+        return Err(UpdateError::Unsupported("indirect available map"));
+    };
+    let bit = member
+        .get()
+        .checked_sub(start_page.get())
+        .filter(|bit| *bit / 8 < bitmap.len() as u64)
+        .ok_or(UpdateError::Unsupported("page outside existing inline map"))?;
+    Ok(row.raw()[bitmap.start + (bit / 8) as usize] & (1 << (bit % 8)) != 0)
 }

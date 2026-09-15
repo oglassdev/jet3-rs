@@ -91,6 +91,7 @@ mod row_delete_page;
 pub mod row_directory;
 mod row_insert_eof;
 mod row_insert_page;
+mod row_reuse_page;
 pub mod row_update;
 mod row_update_page;
 pub mod row_writer;
