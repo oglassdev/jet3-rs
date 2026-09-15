@@ -76,6 +76,7 @@ impl LongIndexPages {
         }
         let owner =
             u32::try_from(owner.get()).map_err(|_| UpdateError::Mismatch("index owner width"))?;
+        budget.charge_encoded_bytes(crate::ByteCount::new(crate::PAGE_BYTES as u64))?;
         let mut bytes = *original;
         let branch = !node.children.is_empty();
         bytes[0] = if branch { 3 } else { 4 };
