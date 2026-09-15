@@ -118,7 +118,7 @@ conversion!(crate::IndexTreeError, Index);
 /// Replaces one present fixed field in a relationship-free user table.
 ///
 /// Indexed tables are supported when the column is absent from every physical
-/// index. Key updates support up to three indexes with one or two admitted
+/// index. Key updates support up to 32 indexes with one to ten admitted
 /// scalar fields, including composite and nonunique keys. Changed trees retain
 /// their roots and reserved pages, appending nodes within inline maps as needed.
 /// Row counts and retained index counters remain unchanged.
@@ -132,7 +132,7 @@ conversion!(crate::IndexTreeError, Index);
 /// change. Opaque pages and vacated index entry space remain unchanged.
 /// Locators remain valid only while the source is unchanged: callers must exclude
 /// external writers for this entire operation, as required by [`crate::atomic_update`].
-/// Publication is Unix-only. Any pre-publication failure preserves the original;
+/// Publication supports Unix and Windows. A pre-publication failure preserves the original;
 /// a post-publication sync failure is distinguished by the publication error stage.
 /// The same budget covers planning, copying, patching and streaming verification.
 /// Structural verification is not a DAO compatibility claim.
