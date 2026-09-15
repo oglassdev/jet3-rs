@@ -28,6 +28,7 @@ SUITES = {
     "numeric-indexes": ("numeric_index_mutation", "numeric_index_mutation_candidate"),
     "index-capacity": ("index_capacity", "index_capacity_candidate"),
     "allocation-lifecycle": ("allocation_lifecycle", "allocation_candidate"),
+    "wide-rows": ("wide_row_lifecycle", "wide_row_candidate"),
     "multiple-long-values": ("multiple_long_value_creation", "multiple_long_value_creation_candidate"),
     "long-value-lifecycle": ("long_value_lifecycle", "long_value_lifecycle_candidate"),
 }
@@ -79,10 +80,10 @@ def run_suite(name, root, args, revision):
     command(["cargo", "build", "--locked", "-p", "jet3", "--example", example], root, "build")
     images = root / "images"
     stdout = command([ROOT / "target/debug/examples" / example, images], root, "generate")
-    if name in ("creation-tables", "definition-chains", "index-trees", "practical-lifecycle", "numeric-indexes", "index-capacity", "allocation-lifecycle", "multiple-long-values", "long-value-lifecycle"):
+    if name in ("creation-tables", "definition-chains", "index-trees", "practical-lifecycle", "numeric-indexes", "index-capacity", "allocation-lifecycle", "wide-rows", "multiple-long-values", "long-value-lifecycle"):
         module.prepare(images, revision)
         manifest = {"definition-chains": "creation-definition-chains.json", "creation-tables": "creation-tables.json", "index-trees": "index-tree-mutation.json",
-                    "practical-lifecycle": "practical-lifecycle.json", "numeric-indexes": "numeric-index-mutation.json", "index-capacity": "index-capacity.json", "allocation-lifecycle": "allocation-lifecycle.json",
+                    "practical-lifecycle": "practical-lifecycle.json", "numeric-indexes": "numeric-index-mutation.json", "index-capacity": "index-capacity.json", "allocation-lifecycle": "allocation-lifecycle.json", "wide-rows": "wide-row-lifecycle.json",
                     "multiple-long-values": "multiple-long-value-creation.json",
                     "long-value-lifecycle": "long-value-lifecycle.json"}[name]
         input_path = images / manifest
@@ -99,7 +100,7 @@ def run_suite(name, root, args, revision):
             else:
                 module.patch_check(before, after, arm)
     report = capture(name, root, args, revision, module, images, input_path)
-    if name in ("index-trees", "numeric-indexes", "index-capacity", "allocation-lifecycle", "long-value-lifecycle"):
+    if name in ("index-trees", "numeric-indexes", "index-capacity", "allocation-lifecycle", "wide-rows", "long-value-lifecycle"):
         continuation_root = root / "continuation"
         continuation_root.mkdir()
         continued = continuation_root / "images"
@@ -107,7 +108,7 @@ def run_suite(name, root, args, revision):
             module.prepare_continue(images, Path(report["captures"]), continued,
                                     ROOT / "target/debug/examples" / example, revision)
             continuation = capture(name, continuation_root, args, revision, module, continued,
-                                   continued / {"numeric-indexes": "numeric-index-mutation.json", "index-capacity": "index-capacity.json", "allocation-lifecycle": "allocation-lifecycle.json",
+                                   continued / {"numeric-indexes": "numeric-index-mutation.json", "index-capacity": "index-capacity.json", "allocation-lifecycle": "allocation-lifecycle.json", "wide-rows": "wide-row-lifecycle.json",
                                                 "index-trees": "index-tree-mutation.json",
                                                 "long-value-lifecycle": "long-value-lifecycle.json"}[name])
             report["continuation"] = continuation
@@ -162,7 +163,7 @@ def capture(name, root, args, revision, module, images, input_path):
         result_path = outbox / "result.json"
         if not result_path.exists():
             raise RuntimeError("Missing DAO result")
-        if name in ("creation-tables", "definition-chains", "index-trees", "practical-lifecycle", "numeric-indexes", "index-capacity", "allocation-lifecycle", "multiple-long-values", "long-value-lifecycle"):
+        if name in ("creation-tables", "definition-chains", "index-trees", "practical-lifecycle", "numeric-indexes", "index-capacity", "allocation-lifecycle", "wide-rows", "multiple-long-values", "long-value-lifecycle"):
             comparison = module.evaluate(images, outbox)
             matched = comparison["status"] == "accepted"
         else:
