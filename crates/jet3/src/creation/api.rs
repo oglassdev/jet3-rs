@@ -10,7 +10,7 @@
 //! The structural reopen is a publication prerequisite, not compatibility
 //! evidence. DAO observations in `docs/PROVENANCE.md` cover exact candidates;
 //! they do not establish arbitrary schemas, values, or general compatibility.
-//! Hosted differential results govern the support matrix.
+//! Local and hosted differential results govern the support matrix.
 
 use std::error::Error as StdError;
 use std::fmt;

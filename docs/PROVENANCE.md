@@ -15086,3 +15086,36 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   `fca4905947535ff03e94d0331b4c60f75f69e79b9a384aa34bd61fa2c08b06a8`.
 - Independent GPT-5.6 Sol high review found no remaining correctness blockers.
   `just ready`, 506 oracle tests and the focused float corruption tests passed.
+
+## EXP-0222 — Creation within catalog capacity, with indexes on later tables
+
+- Original candidate construction combines EXP-0087 sequential definition/map
+  placement with EXP-0093 independent physical index roots, map rows and logical
+  name order. It retains single-page catalog structures and 1,024-page inline
+  maps. The former four-table and later-table one-index limits are removed.
+- Source: `afac784cf03f8d60cc7739df95f15ebbca0b0325`; generator
+  `creation_tables_candidate.rs`, producer `creation_tables.ps1` and analyzer
+  `creation_tables.py`. Runtime inputs pin the source tools and generated images.
+- Outcome: **matched**, eight complete DAO candidate/control pairs on the fresh
+  Windows Server 2022 VM, using x86 `DAO.DBEngine.36`. Two replicas each cover:
+  five empty one-column tables; six three-Long-column tables with 17 rows and
+  index counts 3, 0, 1, 2, 3, 3; 28 short-named empty one-column tables; and 15
+  empty tables with 32 Long columns and 48-byte names. Indexed tables combine
+  ascending primary C00, descending ordinary C01 and ascending unique C02.
+- Complete table/column/index inventories, rows, directed traversal and five
+  present/absent Seek queries per index matched independently created DAO
+  controls. Read-only capture identities preserve each generated image. Raw
+  checks cover every candidate definition, map, key/locator and page assignment.
+- In these finite layouts, short-name table 29 and long-name table 16 return
+  `PageFull` before publication. Candidate page-zero byte 1538 is twice the table
+  count (10, 12, 56 and 30); native controls retain zero at that byte. DAO accepts
+  the candidates. The writer checks that its counter cannot wrap; no native
+  overflow semantics are inferred.
+- Private captures and report:
+  `shared/outbox/20260915T031000Z-creation-tables/` in the VM directory.
+  `creation-tables-report.json` SHA-256
+  `20e6cfa9bf2b33f93265abc98eb346e198e24b2719d1e793532a2a0dd462ed87`.
+- Scope excludes catalog spill, later definition continuations, more than three
+  indexes per table, and general creation compatibility.
+- Independent GPT-5.6 Sol high review found no correctness or evidence defects.
+  `just ready` passed on the integrated candidate.

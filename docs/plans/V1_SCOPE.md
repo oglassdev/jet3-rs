@@ -50,10 +50,10 @@ and roadmap #75 remain open.
 
 ### Creation
 
-Creation supports up to four tables, multi-page initial scalar rows, generated
+Creation fits tables within the catalog page capacity, with multi-page initial scalar rows, generated
 AutoIncrement IDs, numeric indexes with one/two components and multiple levels,
-and one unindexed Memo/OLE column per table. The first table supports up to
-three indexes; later tables support one. Relationships are restricted to two
+and one unindexed Memo/OLE column per table. Each table supports up to three
+indexes. Relationships are restricted to two
 scalar tables with one non-cascading, non-null Long relationship.
 
 Schema/name combinations, index types/counts, relationship forms and inline
@@ -64,7 +64,10 @@ Existing-table schema changes and table/relationship dropping are absent.
 EXP-0154 covers twelve hosted write recipes. EXP-0220 corrects the numeric
 sidecar comparison over retained hosted artifacts and adds the three creation
 index recipes: deep Long, nullable numeric and multiple indexes. The original
-EXP-0214 failure remains recorded separately.
+EXP-0214 failure remains recorded separately. EXP-0222 adds eight local DAO
+comparisons for five/six-table layouts, multiple indexes on later tables, and
+actual catalog capacity: 28 short-named empty tables or 15 with long names
+and wider definitions in the tested layouts.
 
 ### Updates
 
