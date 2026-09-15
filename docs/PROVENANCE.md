@@ -16652,3 +16652,278 @@ by this native-only discovery.
   `just ready` at `ccda27e` passed. These finite results establish this allocation
   deliverable; they do not assert whole-v1 compatibility or lift other row,
   schema, relationship, collation or resource limits.
+
+
+## EXP-0257 — Wide rows with multiple variable columns and retained old column counts
+
+- Recorded2026-09-15; clean-room native discovery `answered`, not Rust candidate
+  acceptance. Frozen matrix source context `421e770a8c4fe40a72fe264d3a89cc2a377622e4`;
+  one local acquisition `20260915T115000Z-wide-row-r1`. All30 fresh x86 workers
+  completed15 schemas/two replicas,68 complete native schema/value captures and354
+  closed operations (344 accepted,10 expected near-capacity refusals). The retained454
+  MDBs total52,785,152 bytes. DAO3.6 DLL03.60.9765.0 SHA256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`, Windows Server2022
+  build20348, CP1252/en-US. No MDB/provider bytes are committed.
+- Matrix279,766 bytes SHA256
+  `0f1a476cf5ca705ce6dc7fcd16a6fb434010688515147fc23f6e496fa893000a`; producer12,665
+  bytes SHA256 `31a994c114c4c5c975032e8f6c255cf31012bfe2c6b21cc3c1961ab3a34a3f28`;
+  worker index16,088 bytes SHA256
+  `36bfc4c618255d9fddbf00733298ee96d18d538a32338c3a9b0ffce28b4ec9f3`. Final report
+  `shared/outbox/20260915T115000Z-wide-row-r1/wide-row-report-3.json`,1,319,826 bytes
+  SHA256 `01a2e11a351180c9b84ac3f53bcbbda56455401cd78036d9083c2a65f7cd4141`. Final
+  analyzer20,214 bytes SHA256
+  `d277ec94c2070e626d0e371648705b691483254a6608687f6403f942269b87c0`; complete
+  source/image pins and retained acquisition sources are under private
+  `/tmp/jet3-wide-row-discovery`.
+- The matrix covers2/3/8/32/254 variable Text/Binary columns; total-row
+  neighborhoods255/256/257,511/512/513,767/768/769; fixed
+  prefixes255/256/257,511/512/513,767/768/769; adjacent/repeated transitions,
+  null/empty/omitted assignments and wider rows near page capacity. Complete DAO values
+  independently determine every absolute field boundary and validate all physical
+  payload bytes before the trailer hypothesis is tested; no unsupported Rust row decoder
+  supplies an oracle.
+- For all354 captured row observations, physical row column countP controls the final
+  `ceil(P/8)` presence bytes. Stored variable countV immediately precedes presence. With
+  complete row lengthL, J=`floor((L-1)/256)` jump bytes precede V, and V+1 low boundary
+  bytes precede those jumps in reverse boundary order. Jump bytes run in descending
+  threshold order `256*J,...,512,256`; each names the first boundary ordinal reaching
+  that threshold or `ff` when none does. For tested V<=254, reconstruct a boundary from
+  its low byte plus256 times the number of non-ff jumps whose ordinal is no greater than
+  its ordinal. Examples: boundaries[5,260,507] use `[ff,01]`; [5,260,515,770] use
+  `[03,02,01]`; [767,768,769] use `[01,00,00]`. Only reversed threshold order fits the
+  entire matrix.
+- Writer length follows the minimal nonnegative J satisfying `N0+J <=256*(J+1)`, where
+  N0=`data_end+(V+1)+1+ceil(P/8)` excludes jumps and L=N0+J. Native complete lengths
+  include255,256,258;511,512,514;767,768,770, with no257/513/769 rows. The254-variable
+  arm isolates trailer-driven growth with all boundaries5 (length294,jumpff) and a final
+  boundary260 (length550,jumps`ff fe`). Ordinal254 and sentinelff are distinct here.
+  A255-variable/no-fixed-field schema was not acquired; ordinal255/sentinel ambiguity
+  remains outside this evidence.
+- Newly inserted rows retain complete stored variable counts even when all values are
+  null. Empty Text with AllowZeroLength=true is present and zero-width; empty Binary
+  assignment consistently becomes null with a clear presence bit. Repeated boundaries
+  alone do not distinguish null from empty. This does not establish DAO's interpretation
+  of an externally authored present-zero-length Binary row.
+- In the appended-column arm, Id Long plus2 variable columns expands to Id plus8
+  variables. All three old row byte sequences remain identical immediately after schema
+  append, retaining physical count3,V2 and one presence byte under the9-column
+  definition; DAO returns null for the6 physically absent fields. Rewriting one row
+  creates count9,V8 and two presence bytes; untouched old rows keep their prior
+  counts/bytes. Complete final DAO schema/values match a fresh full-schema control in
+  both replicas. This isolates appended variable columns with an unchanged fixed prefix,
+  not arbitrary schema history.
+- The rewritten9-column row in replica1 has presence bytes`af 78`; its fresh control and
+  replica2 have`af 00`. Only bit0 of the final byte names a column, and all9 native
+  values agree. Every raw byte agrees across replicas after masking only those
+  unassigned high bits; complete unmasked bytes remain retained. Unused presence bits
+  are therefore not required to be zero for this legitimate native rewrite.
+- The largest accepted sampled body end is1992, complete row length2011 with7 jumps. The
+  next sampled body end2004 and later2012/2016/2018/2019 refuse
+  DAO3047/HRESULT`-2146825241` during final Binary assignment; all ten rejections
+  preserve complete input bytes. The exact maximum is not established between1992
+  and2004.
+- Native acquisition had no failed worker or retry. Initial report
+  `wide-row-report.json` (SHA256
+  `dc9fe51c6e08cc3ebcae5d5ef7523e1516a63d8f8baec3457888a7cc8d65b1da`) retains analyzer
+  assumptions about PowerShell `{value,Count}` array wrappers and a0.5MiB file bound;
+  complete retained arrays are now unwrapped with Count checks, and analysis admits8MiB
+  (largest observed image1.83MiB). Intermediate report `wide-row-report-2.json` (SHA256
+  `0a6343cfe12174d80c5ffe5d5f75e39fcc19b613c77c4ec078576d37a0f27cd8`) retains the failed
+  guessed-zero unused-bit invariant. Acquisition and intermediate analyzers remain
+  retained; all defined bits and complete field bytes stay strictly compared. The final
+  report records actual unused bits and the resolved trailer rule without changing
+  native images or frozen inputs.
+
+## EXP-0258 — 255-variable jump sentinel ambiguity and exact sampled row capacity
+
+- **Source:** clean-room DAO3.6 x86 native run `20260915T121506Z-wide-row-255-r1`,
+  following EXP-0257 with a separately frozen two-schema/two-replica matrix.
+  Private sources and draft facts:
+  `/tmp/jet3-wide-row-discovery/followup-255-capacity/`.
+  Retained native output:
+  `/home/alex/development/vms/jet3-windows/shared/outbox/20260915T121506Z-wide-row-255-r1/`.
+- **Provider:** DAO3.6 DLL03.60.9765.0, x86, SHA256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  full OS/CLR/PowerShell/culture retained. Four fresh workers exit0; eight
+  complete native schema/value captures;40 closed operations;52 exact MDBs
+  totaling41,795,584 bytes. Frozen producer source and recipe controls retained.
+- **Pins:** matrix100095 bytes SHA256
+  `915cda67a0b1b94e1d6311f8892d0692f6390ec06924a2b0f52bb53df5b4c651`;
+  workers2308 bytes SHA256
+  `e0321a1d3f07746b939b95c22fcf686f31bd87ef0a83a4fc886c6f2cc13b3c83`;
+  answered report253125 bytes SHA256
+  `6cb73c68f0eaaeab27d87d58fd8afa701320da541f607f847094fef37b0a5f99`.
+  Per-image pins and remaining source identities are in `accepted-pins.json`
+  and `images.json` in the private source folder.
+- **Observed grammar:** all255 fields can be variable; physical column count
+  and variable count are both255, presence uses32 bytes, and256 boundary low
+  bytes precede jumps. Eight rows per replica with data ends5/255/256/257/
+  511/512/513/768 all succeed. Their lengths are295/546/547/548/803/804/805/1061.
+  Jumps ff ff are identical for final boundary255/256/257; jumps ff ff80 are
+  identical for final boundary511/512/513. Therefore ff is both ordinal255
+  and an unused threshold. EXP-0257's descending threshold encoding and
+  J=floor((L-1)/256) still hold. Independently locate data end
+  D=L-ceil(P/8)-1-J-(V+1); for V255 obtain B[255]=D and check its low byte,
+  then validate every expected jump against all reconstructed boundaries.
+  A private independent suffix-framing decoder recovers all18 complete final
+  rows and exactly matches every boundary derived from complete DAO values.
+- **Observed capacity:** Long Id plus eight nonempty Text/Binary variable
+  fields accepts data end1993 / physical row2012. Data ends1994 through2004
+  all refuse in both replicas at final Binary assignment, DAO3047,
+  HRESULT-2146825241. All22 refused attempts preserve the complete closed
+  before image. This pins2012 accepted versus predicted2013 refused for this
+  schema; a universal maximum across other column layouts is not established.
+- **Comparison/outcome:** complete schema/values, raw payloads/offsets/jumps,
+  physical map/row inventory and closed operation bindings pass; both replicas
+  agree on all raw bytes and semantics. No unused presence bits, native worker
+  failure, analysis correction or native retry occurred. Expected capacity
+  refusals remain explicit. This is native format discovery, not Rust candidate
+  compatibility acceptance; no other MDB implementation code was inspected.
+
+## EXP-0260 — General ordinary-row capacity across variable layouts
+
+- **Source:** fresh DAO 3.6 x86 run `20260915T123359Z-row-cap-r1` from the
+  frozen private matrix in `/tmp/jet3-row-capacity-discovery/`. Retained output
+  is `/home/alex/development/vms/jet3-windows/shared/outbox/20260915T123359Z-row-cap-r1/`.
+- **Provider:** DAO 3.6 DLL `03.60.9765.0`, x86, SHA256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  OS, CLR, PowerShell and culture are retained. The 12 completed workers contain
+  24 full native schema/value captures and 86 closed operations: 44 accepted
+  and 42 capacity refusals. Every refusal has DAO 3047, HRESULT -2146825241 and
+  a byte-identical complete before/after image. Both replicas agree exactly on
+  native values and independently decoded raw rows.
+- **Variable-row observation:** all five sampled layouts accept physical row
+  length 2012 and reject adjacent length 2013. The accepted/refused data ends
+  are respectively 2000/2001 for one variable field after a 1,749-byte fixed
+  prefix, 1993/1994 for 8 variable fields, 1966/1967 for 32, 1717/1718 for 254,
+  and 1716/1717 for 255 all-variable fields. Presence widths span 2, 5 and 32
+  bytes. Requested physical lengths through 2036 are refused.
+- **Length rule used and observed:** for an ordinary row with `P` physical
+  columns, `V > 0` stored variable columns, data end `D`, presence width
+  `N = ceil(P/8)`, and jump count `J`, `L = D + (V+1) + 1 + N + J`; `J` is the
+  least nonnegative value for which `L <= 256*(J+1)`. In every sampled variable
+  layout DAO accepts `L = 2012` and refuses `L = 2013`. This establishes the
+  ordinary variable-row writer/parser cap for the sampled grammar; the 2036-byte
+  page slot maximum remains a distinct physical framing bound.
+- **Fixed-only partial observation:** Long Id plus eight fixed Text columns at
+  physical length 2000 creates and inserts successfully in both replicas.
+  Four schemas targeting physical 2012/2013 with 8 or 16 fixed Text columns are
+  refused while appending the final field with HRESULT -2146825241, before a
+  table can be captured. This run does not claim the exact fixed-schema limit.
+- **Analysis outcome:** the frozen analyzer deliberately reports `failed`
+  because schema-creation refusal was outside its two row-operation alternatives.
+  It still marks every completed worker `captured` after complete comparisons;
+  a retained derived summary records those accepted arms and the fixed-schema
+  failures. No native retry occurred.
+- **Pins:** exact input, report, summary and per-MDB identities are in
+  `accepted-pins.json` and `images.json` beside this draft.
+- **Retained report identities:**
+  `capacity-summary.json`: 8650 bytes, SHA256
+  `192ea167307c8109d04caa95f4c79a76290893b0cdcfc88270e658072e9f8d26`.
+  `wide-row-report.json`: 796866 bytes, SHA256
+  `8bb90b61a7eddd45c5054db08ab41e9bdab1c56cf5513ed6ff681c92571d2bcf`.
+
+## EXP-0261 — Exact sampled fixed-only schema and row capacity
+
+- **Source:** fresh DAO 3.6 x86 run `20260915T124036Z-fixed-cap-r1`
+  from `/tmp/jet3-row-capacity-discovery/exp0261/`; retained output is
+  `/home/alex/development/vms/jet3-windows/shared/outbox/20260915T124036Z-fixed-cap-r1/`.
+- **Provider:** DAO 3.6 DLL `03.60.9765.0`, x86, SHA256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  full environment retained. Four workers cover 36 fresh schemas in two exact
+  replicas. There are 18 accepted schemas/full rows and 18 final-field schema
+  refusals, with 36 complete native schema/value captures.
+- **Observed boundary:** `total_fixed_bytes` includes the four-byte Long Id.
+  With nine physical columns and two presence bytes, total fixed bytes 2000
+  succeeds and independently decoded raw length is
+  `1 + 2000 + 2 = 2003`; total 2001, predicted raw length 2004, is refused at
+  final-field append. With 17 physical columns and three presence bytes, total
+  fixed bytes 1999 succeeds at raw length `1 + 1999 + 3 = 2003`; total 2000,
+  predicted raw length 2004, is refused. Both layouts sampled every total from
+  1996 through 2004.
+- **Finite rule:** for these fixed-only ordinary schemas (`V = 0`), DAO accepts
+  the complete encoded length `L = 1 + total_fixed_bytes + ceil(P/8)` through
+  2003 and refuses the adjacent 2004 schema. Combined with EXP-0260, this
+  supports a 2003 fixed-only row limit and a 2012 variable-row limit. The 2036
+  page-slot maximum remains a separate long-value physical framing bound.
+- **Comparisons:** every accepted schema was captured empty and after inserting
+  a full non-null row; complete field properties, values and raw row bytes and
+  length match. Every refusal occurs only while appending the final fixed Text
+  field with HRESULT -2146825241 and `Record is too large`; the complete closed
+  prefix image is byte-identical before and after. Both replicas agree exactly.
+- **Pins:** the answered report, matrix, producer, draft and every MDB identity
+  are pinned in `accepted-pins.json` and `images.json` beside this draft.
+- **Answered report identity:** 81652 bytes, SHA256
+  `0931af7ca1279a293e470c9c5b2edff82058b3f0da9d08f1c46569fd12ec06c6`.
+
+## EXP-0259 — Wide-row lifecycles and retained native row comparisons
+
+- **Outcome:** 42 accepted Rust/DAO lifecycle pairs (84 complete native
+  captures): 40 pairs in the repeatable wide-row suite and two pairs over
+  retained rows whose variable schema was expanded. These are finite
+  interoperability results, not whole-v1 acceptance.
+- **Main suite:** source `1fb238cf308fb1c1adc176f9b14bdf802db7ae80`, eight
+  cases: 2/3/8/32/254 variable columns, fixed prefixes of 260/767 bytes, and
+  mixed Text/Binary/Memo/OLE storage. Each has 16 initial rows, a sparse/null
+  replacement, regrowth before further insertion, four inserts, two deletes
+  and an Id change. Every case has a Long primary index; smaller cases also
+  have a Text index. Three native successor operations run on candidate and
+  control, followed by Rust edits of the retained native controls.
+- **Checks:** all schema and field properties, complete values and payloads,
+  physical variable boundaries/jumps, index traversal/Seek and full key/locator
+  records, allocation maps and unrelated Notes preservation agree. Three
+  corruptions (jump ordinal, end low byte and stored variable count) produce
+  structured Rust refusals and preserve the entire malformed input. Independent
+  raw decoding rejects each corruption as well.
+- **Provider:** fresh x86 workers use DAO 3.6 DLL `03.60.9765.0`, SHA256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  Complete OS/CLR/PowerShell/culture and closed image identities are retained.
+  Both main acquisition rounds and their comparisons pass without retries.
+- **Main artifacts:** `/tmp/jet3-wide-native-r1/`, with original generated
+  inputs in `/tmp/jet3-wide-native-r1-images/`. Native outboxes are
+  `20260915T123703Z-wide-rows-1c83e5` and
+  `20260915T123755Z-wide-rows-fbce57` under the VM shared outbox.
+  The combined controller report is 783959 bytes, SHA256
+  `b45ebc343d0fe6f36b54c988ccbc759c3f4b5fc65a0b78dc5c07cc085949e158`;
+  the continuation report is 163627 bytes, SHA256
+  `2ffa7887d6e6c82fb5a2822555d217513ca1a94fb8d90adcd0f11070165d685f`.
+  First manifest/result SHA256 values are respectively
+  `c5e70930fb42ad6fdae4a007307ee1a17b86e45ea120e7f0c8701272315dd0f9` /
+  `0b202a31c520eb71e3d6316ba461183f839a5c2967495085f34604882d707536`;
+  continuation manifest/result values are
+  `6decc70e826d954adf9a85451769924b75c8f433e6c8ab7e3592cac5e40c57e0` /
+  `198ab8ed279049a1dae047d78b886fcf34c30021dd4ce24fa8bed62888ccfb72`.
+- **Expanded-schema addendum:** two fresh workers in
+  `20260915T124117Z-old-row-r1` compare Rust replacement of Id1 and insertion
+  of Id4 into the two EXP-0257 expanded-schema images with their retained
+  native final controls. Complete schema, values and canonical row bytes agree.
+  Untouched Id2/Id3 retain exact old physical P3/V2 bytes beneath the P9
+  definition. Unassigned presence bits are retained and excluded only from
+  canonical comparison as established in EXP-0257. All four read-only captures
+  preserve their images. Sources and exact intermediate images are under
+  `/tmp/jet3-wide-row-discovery/old-row-continuation/`; the candidate uses
+  production `4b8666b` with harness `cc5cb4641b33ca83f84065362cb5041355511f80`.
+  Accepted report: 32929 bytes, SHA256
+  `843e101d57d8c0f3929f5435f457c0f701db988d6d9965add749a5fe6c35de52`;
+  manifest SHA256
+  `6da8b27d2f0b08532807127bb80b884cda3149adf2ef2dd5824989424b7b9f63`.
+  An initial local helper's raw-class assumption was corrected before native
+  acquisition; its original source remains retained. No native failure occurred.
+- **Reader comparison:** final production `1dc089d` also reads all 76 retained
+  EXP-0257/0258 captures, totaling 372 rows. DAO names/types/sizes/storage,
+  every typed value, complete raw rows, logical/storage locators and counts
+  agree, with exact input preservation. Private report
+  `/tmp/jet3-wide-native-reader/comparison-r3.json`: 53055 bytes, SHA256
+  `f57a6d46d1f7e1e863c42cf9f919c02eea6e009979395e7c09fb441f450197f2`.
+  The initial adapter compared raw class flags with different DAO attribute
+  numbers and stopped at the first empty schema; corrected storage-class
+  comparison passes. Original report/source remain retained, without a native
+  retry or a changed field-value expectation.
+- **Final capacity guards:** EXP-0260/0261 add native size limits after the
+  main acquisition. Regeneration at `1dc089d` produces byte-identical main
+  and native-continuation images. The 30-image comparison report has SHA256
+  `4154aa64d091b92171f32037ed3e163b582389b11eaa2a2038fd46d18d04ae4b`;
+  the 16-image continuation comparison has SHA256
+  `f39d1038802b826507347aeee1a2501843f38efd2dc61199ab705a008bd4c001`.
+  These checks cover the retained finite candidates; arbitrary schema history
+  and cross-page row growth remain outside this lifecycle suite.

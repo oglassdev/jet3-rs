@@ -353,3 +353,6 @@ mod memo_option_tests;
 
 #[path = "creation_tables_tests.rs"]
 mod creation_tables;
+
+#[path = "wide_variable_tests.rs"]
+mod wide_variable;
