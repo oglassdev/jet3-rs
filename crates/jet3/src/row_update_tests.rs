@@ -404,15 +404,20 @@ fn shared_budgets_and_private_verification_preserve_original() -> TestResult {
 #[test]
 fn available_map_and_variable_width_states_are_preserved() -> TestResult {
     let f = Fixture::new(3)?;
-    let original = fs::read(f.path())?;
+    let original_rows = f.rows()?;
     let wide = [
         RowValue::Long(0),
         RowValue::Text(&[b'x'; 200]),
         RowValue::Binary(&[0xaa; 130]),
         RowValue::Boolean(false),
     ];
-    assert!(update_row(f.path(), f.request(0, &wide), &mut budget()).is_err());
-    assert_eq!(fs::read(f.path())?, original);
+    update_row(f.path(), f.request(0, &wide), &mut budget())?;
+    let rows = f.rows()?;
+    assert_eq!(rows[0].0, original_rows[0].0);
+    assert_eq!(rows[0].1[1], Some(vec![b'x'; 200]));
+    assert_eq!(rows[0].1[2], Some(vec![0xaa; 130]));
+    assert_eq!(rows[1..], original_rows[1..]);
+    let original = fs::read(f.path())?;
     let mut b = budget();
     let mut db = DatabaseReader::open(f.path(), &mut b)?;
     let definition = db.table_definition(f.root, &mut b)?;
