@@ -69,12 +69,15 @@ Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
 columns themselves cannot be indexed. Each payload column has separate ownership
 and availability maps. Definitions and map rows can span multiple pages; files
 are bounded by map-reference capacity and the caller's resource budget.
-Relationships support two ordered tables and one enforced, non-cascading Long
-relationship, including nullable foreign keys and a separate child primary.
-Other columns retain generated IDs, Text/Memo options, independent Memo/OLE maps
-and definition/property chains. Populated parents require one primary index;
-empty parents may retain the earlier additional unique Long index. Other
-relationship forms and more than two tables remain restricted.
+The plural relationship APIs admit up to two enforced, non-cascading Long
+constraints, including multiple parents or children, chains, self-references,
+shared foreign physical indexes and unrelated tables in any order. Parent keys
+may be Long or AutoIncrement and require the first declared index to be an
+ascending primary. Child keys must be Long; nullable keys and a separate child
+primary are admitted. Other columns retain generated IDs, Text/Memo options,
+independent Memo/OLE maps and definition/property chains. The singular APIs
+retain their two-ordered-table bounds. Other key types, cascades and larger
+relationship graphs remain outside creation scope.
 
 Schema/name combinations, index key types and relationship forms remain
 restricted. Empty OLE payloads store null. Text/Memo columns can independently
