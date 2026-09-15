@@ -1,5 +1,5 @@
-//! Typed description and crate-private planning of one new user table as a
-//! database's first create.
+//! Typed description and crate-private planning of one new user table in a
+//! database.
 //!
 //! This validates a caller-described table and assigns its appended pages. It
 //! builds no page bytes and performs no I/O.
@@ -19,9 +19,9 @@
 //! `EXP-0087` observed three further creates in the same database, each
 //! appending a definition root numbered equal to its `Id`, then its map page,
 //! then an index root when it carried one index, and no further `LvProp`
-//! page. A later create is therefore planned without the property page. No
-//! later create was observed with more than one index or with a continuation,
-//! so this module refuses those rather than extrapolating.
+//! page. A later create is therefore planned without the property page.
+//! `EXP-0222` combines these page roles with the `EXP-0093` index placements
+//! for up to three indexes on any table. Later continuations remain refused.
 //!
 //! `EXP-0105` observed that a definition longer than its root page continues
 //! on one or two further definition pages, the root holding 2,048 logical
@@ -50,8 +50,6 @@ pub(crate) const MAX_OBSERVED_INDEXES: usize = 3;
 /// Largest continuation count `EXP-0107` observed DAO accept in the compact
 /// appended position.
 pub(crate) const MAX_OBSERVED_CONTINUATIONS: usize = 1;
-/// Largest index count `EXP-0087` observed on a later create.
-pub(crate) const MAX_OBSERVED_LATER_CREATE_INDEXES: usize = 1;
 /// `EXP-0057`: usage-map locators hold a three-byte page number.
 const MAX_MAP_PAGE: u64 = 0x00ff_ffff;
 /// `EXP-0093`: map-page row of the table's owned-page map.
@@ -122,14 +120,6 @@ pub enum TableSchemaPlanError {
         continuations: usize,
         /// Declared index count.
         indexes: usize,
-    },
-    /// `EXP-0087` observed no later create carrying this many indexes; the
-    /// `EXP-0093` three-index layout was observed only on a first create.
-    UnobservedLaterCreateIndexCount {
-        /// Declared index count.
-        count: usize,
-        /// Largest observed later-create index count.
-        observed: usize,
     },
     /// A later create needs a continuation page; `EXP-0107` observed the
     /// compact placement only after a first create's `LvProp` page, and
@@ -321,19 +311,11 @@ pub(crate) fn plan_table_schema(
             indexes: spec.indexes.len(),
         });
     }
-    if !first_create {
-        if spec.indexes.len() > MAX_OBSERVED_LATER_CREATE_INDEXES {
-            return Err(TableSchemaPlanError::UnobservedLaterCreateIndexCount {
-                count: spec.indexes.len(),
-                observed: MAX_OBSERVED_LATER_CREATE_INDEXES,
-            });
-        }
-        if continuations > 0 {
-            return Err(TableSchemaPlanError::UnobservedLaterCreateContinuation {
-                length,
-                continuations,
-            });
-        }
+    if !first_create && continuations > 0 {
+        return Err(TableSchemaPlanError::UnobservedLaterCreateContinuation {
+            length,
+            continuations,
+        });
     }
     let index_fields = resolve_index_fields(spec)?;
     let plan = assign_pages(spec, first_page, first_create, length, index_fields)?;

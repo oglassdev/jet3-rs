@@ -599,25 +599,11 @@ pub(crate) fn compose_database_with_table_rows(
     requests: &[crate::TableRows<'_>],
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, ComposeError> {
-    if requests.len() > MAX_OBSERVED_TABLES {
-        return Err(ComposeError::UnobservedTableCount {
-            count: requests.len(),
-            observed: MAX_OBSERVED_TABLES,
-        });
-    }
-    budget.charge_allocation(ByteCount::new(
-        (requests.len() * size_of::<PlannedCreate<'_>>()) as u64,
-    ))?;
-    let mut creates = Vec::new();
-    creates
-        .try_reserve_exact(requests.len())
-        .map_err(|_| Error::Io {
-            operation: "reserve initial table plans",
-            kind: std::io::ErrorKind::OutOfMemory,
-        })?;
+    let mut creates = reserve_creates(requests.len(), budget)?;
     let mut next_page = EMPTY_DATABASE_PAGE_COUNT;
     for (position, request) in requests.iter().enumerate() {
         budget.charge_items(1)?;
+        budget.charge_work_units(position as u64)?;
         if let Some(first) = requests[..position]
             .iter()
             .position(|earlier| earlier.table.name.eq_ignore_ascii_case(request.table.name))
@@ -633,6 +619,33 @@ pub(crate) fn compose_database_with_table_rows(
         creates.push(planned);
     }
     compose_planned_creates(&creates, budget)
+}
+
+/// Bounds the EXP-0087/0222 counter without extrapolating its overflow.
+pub(super) fn creation_counter(count: usize) -> Result<u8, ComposeError> {
+    u8::try_from(count)
+        .ok()
+        .and_then(|count| count.checked_mul(2))
+        .ok_or(ComposeError::TableCountOverflow {
+            count,
+            maximum: usize::from(u8::MAX / 2),
+        })
+}
+
+pub(super) fn reserve_creates<'a>(
+    count: usize,
+    budget: &mut ResourceBudget,
+) -> Result<Vec<PlannedCreate<'a>>, ComposeError> {
+    creation_counter(count)?;
+    budget.charge_allocation(ByteCount::new(
+        (count * size_of::<PlannedCreate<'_>>()) as u64,
+    ))?;
+    let mut creates = Vec::new();
+    creates.try_reserve_exact(count).map_err(|_| Error::Io {
+        operation: "reserve initial table plans",
+        kind: std::io::ErrorKind::OutOfMemory,
+    })?;
+    Ok(creates)
 }
 
 /// Returns the ordinals of the columns that own long-value map groups.

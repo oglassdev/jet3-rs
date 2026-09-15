@@ -82,8 +82,6 @@ const ALPHA_SPEC: TableSpec<'static> = TableSpec {
 /// `EXP-0073`: catalog and access-control rows of the empty database.
 const SYSTEM_OBJECT_COUNT: usize = 8;
 const SYSTEM_ACE_COUNT: usize = 16;
-/// `EXP-0087`: creates observed in one database.
-const MAX_OBSERVED_TABLES: usize = 4;
 
 const TABLES_ID: i32 = 0x0f00_0001;
 const DATABASES_ID: i32 = 0x0f00_0002;
@@ -124,27 +122,18 @@ pub(crate) fn compose_table_database(
 
 /// Composes the empty database plus the given user tables created in order.
 ///
-/// The first table follows the `EXP-0091`, `EXP-0093`, and `EXP-0105`
-/// first-create observations; each later table follows the `EXP-0087`
-/// later-create observations, appending its pages after the previous table's
-/// and carrying no `LvProp` page. `EXP-0087` observed four creates in one
-/// database, later creates with at most one index, and no later create with a
-/// continuation, so more are refused rather than extrapolated. Every table's
-/// catalog `LvProp` is null, which no experiment has yet observed DAO accept
-/// for a database holding more than one table.
+/// EXP-0087/0093 supply sequential table pages and independent index maps;
+/// EXP-0222 applies these layouts within the existing single-page catalog
+/// and inline-map capacities. Only the first table carries an LvProp page.
 pub(crate) fn compose_database(
     specs: &[TableSpec<'_>],
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, ComposeError> {
-    if specs.len() > MAX_OBSERVED_TABLES {
-        return Err(ComposeError::UnobservedTableCount {
-            count: specs.len(),
-            observed: MAX_OBSERVED_TABLES,
-        });
-    }
-    let mut creates: Vec<PlannedCreate<'_>> = Vec::with_capacity(specs.len());
+    let mut creates = reserve_creates(specs.len(), budget)?;
     let mut next_page = EMPTY_DATABASE_PAGE_COUNT;
     for (position, spec) in specs.iter().enumerate() {
+        budget.charge_items(1)?;
+        budget.charge_work_units(position as u64)?;
         if let Some(first) = specs[..position]
             .iter()
             .position(|earlier| earlier.name.eq_ignore_ascii_case(spec.name))
@@ -252,9 +241,8 @@ fn header_page(table_count: usize, budget: &mut ResourceBudget) -> Result<PageIm
     for offset in (1..commit_state.len()).step_by(2) {
         commit_state[offset] = 1;
     }
-    // EXP-0087: byte 1538 advanced by 2 per create from 0 through four
-    // creates; no rule beyond that.
-    commit_state[2] = 2 * table_count as u8;
+    // EXP-0087/0222: the bounded creation counter advances by two per table.
+    commit_state[2] = creation_counter(table_count)?;
     image.write_at(PageOffset::new(1536), &commit_state, budget)?;
     Ok(image)
 }
@@ -393,8 +381,8 @@ pub(crate) use initial_index::InitialLongIndex;
 
 #[path = "table_create.rs"]
 mod table_create;
-use table_create::PlannedCreate;
 pub(crate) use table_create::compose_database_with_table_rows;
+use table_create::{PlannedCreate, creation_counter, reserve_creates};
 
 const OBJECT_LAYOUT: [RowColumnLayout; 17] = [
     fixed(ColumnPhysicalType::Long, 0, 4),
@@ -684,7 +672,7 @@ fn objects_parent_name_index(
 ) -> Result<PageImage, ComposeError> {
     let mut entries = catalog_seeds(creates, extra)
         .enumerate()
-        .map(|(row, seed)| OwnedIndexEntry::name(seed.parent, seed.name, row as u8))
+        .map(|(row, seed)| OwnedIndexEntry::name(seed.parent, seed.name, catalog_row_number(row)?))
         .collect::<Result<Vec<_>, ComposeError>>()?;
     sort_index_entries(&mut entries);
     index_page(MSYS_OBJECTS_ROOT, MSYS_OBJECTS_DATA_PAGE, &entries, budget)
@@ -696,8 +684,8 @@ fn objects_id_index(
 ) -> Result<PageImage, ComposeError> {
     let mut entries = catalog_seeds(creates, extra)
         .enumerate()
-        .map(|(row, seed)| OwnedIndexEntry::long(seed.id, row as u8))
-        .collect::<Vec<_>>();
+        .map(|(row, seed)| Ok(OwnedIndexEntry::long(seed.id, catalog_row_number(row)?)))
+        .collect::<Result<Vec<_>, ComposeError>>()?;
     sort_index_entries(&mut entries);
     index_page(MSYS_OBJECTS_ROOT, MSYS_OBJECTS_DATA_PAGE, &entries, budget)
 }
@@ -708,10 +696,20 @@ fn aces_index(
 ) -> Result<PageImage, ComposeError> {
     let mut entries = ace_seeds(creates, extra)
         .enumerate()
-        .map(|(row, seed)| OwnedIndexEntry::long(seed.object, row as u8))
-        .collect::<Vec<_>>();
+        .map(|(row, seed)| Ok(OwnedIndexEntry::long(seed.object, catalog_row_number(row)?)))
+        .collect::<Result<Vec<_>, ComposeError>>()?;
     sort_index_entries(&mut entries);
     index_page(MSYS_ACES_ROOT, MSYS_ACES_DATA_PAGE, &entries, budget)
+}
+
+fn catalog_row_number(row: usize) -> Result<u8, ComposeError> {
+    u8::try_from(row).map_err(|_| {
+        Error::IntegerConversion {
+            value: row as u128,
+            target: "u8",
+        }
+        .into()
+    })
 }
 
 fn sort_index_entries(entries: &mut [OwnedIndexEntry]) {

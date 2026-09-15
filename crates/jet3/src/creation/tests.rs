@@ -289,7 +289,7 @@ fn a_definition_spanning_one_continuation_is_created_and_reopens() -> TestResult
 }
 
 #[test]
-fn too_many_tables_and_case_folded_duplicates_are_refused_before_writing() -> TestResult {
+fn catalog_capacity_and_case_folded_duplicates_are_refused_before_writing() -> TestResult {
     let directory = TestDirectory::create()?;
     let target = directory.target();
     let table = |name: &'static [u8]| TableSpec {
@@ -297,20 +297,21 @@ fn too_many_tables_and_case_folded_duplicates_are_refused_before_writing() -> Te
         columns: &[ID],
         indexes: &[],
     };
-    let five = [
-        table(b"T1"),
-        table(b"T2"),
-        table(b"T3"),
-        table(b"T4"),
-        table(b"T5"),
-    ];
-    match create_database(&target, &five, &mut budget()) {
-        Err(CreateDatabaseError::Compose(ComposeError::UnobservedTableCount {
-            count: 5,
-            observed: 4,
-        })) => {}
-        other => return Err(format!("unexpected result: {other:?}").into()),
-    }
+    let names = (0..64).map(|n| format!("T{n:02}")).collect::<Vec<_>>();
+    let tables = names
+        .iter()
+        .map(|name| TableSpec {
+            name: name.as_bytes(),
+            columns: &[ID],
+            indexes: &[],
+        })
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        create_database(&target, &tables, &mut budget()),
+        Err(CreateDatabaseError::Compose(ComposeError::Page(
+            crate::PageImageError::PageFull { .. }
+        )))
+    ));
     let duplicate = [table(b"Alpha"), table(b"ALPHA")];
     match create_database(&target, &duplicate, &mut budget()) {
         Err(CreateDatabaseError::Compose(ComposeError::DuplicateTableName {
@@ -359,3 +360,6 @@ mod initial_rows;
 
 #[path = "memo_option_tests.rs"]
 mod memo_option_tests;
+
+#[path = "creation_tables_tests.rs"]
+mod creation_tables;

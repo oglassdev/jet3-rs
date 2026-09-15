@@ -10,7 +10,7 @@
 //! The structural reopen is a publication prerequisite, not compatibility
 //! evidence. DAO observations in `docs/PROVENANCE.md` cover exact candidates;
 //! they do not establish arbitrary schemas, values, or general compatibility.
-//! Hosted differential results govern the support matrix.
+//! Local and hosted differential results govern the support matrix.
 
 use std::error::Error as StdError;
 use std::fmt;
@@ -157,9 +157,9 @@ impl StdError for CandidateCheckError {
 /// `budget`.
 ///
 /// Unsupported layouts fail with [`CreateDatabaseError::Compose`] before
-/// anything is written: more than four tables, two tables whose names differ
-/// only by ASCII case, more than three indexes on the first table or more than
-/// one on a later table, more than one Memo or LongBinary column on a table,
+/// anything is written: catalog data or indexes exceeding one page, two tables
+/// whose names differ only by ASCII case, more than three indexes on a table,
+/// more than one Memo or LongBinary column on a table,
 /// an index together with such a column, a definition longer than two pages,
 /// a definition longer than one page together with an index or on a later
 /// table, or a name byte above `0x7E`.
@@ -192,7 +192,7 @@ pub fn create_database(
 /// capacity. Each row and the table definition must fit one page. Pages with
 /// a slot and room for an all-null row are marked available; this construction
 /// policy has not been established as DAO's allocation policy.
-/// The first table accepts up to three indexes; later tables accept one. Each
+/// Each table accepts up to three indexes. Each
 /// index has one or two numeric columns (including a generated AutoIncrement
 /// column), with each field ascending or descending. Multiple populated indexes
 /// combine the established separate roots/maps with independent trees; this
@@ -242,7 +242,7 @@ pub fn create_database_with_rows(
     )
 }
 
-/// Creates up to four tables and their initial rows in one atomic publication.
+/// Creates tables and their initial rows in one atomic publication.
 ///
 /// Each table retains the bounds described by [`create_database_with_rows`]
 /// and [`create_database`]. Tables, their LVAL pages and their row pages are

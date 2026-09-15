@@ -45,7 +45,7 @@ and the remaining host prerequisites.
 ## Status
 
 The reader has hosted DAO differential evidence for its documented capability
-inventory. Creation includes up to four tables, initial rows, bounded numeric
+inventory. Creation fits tables within the catalog page capacity, with initial rows and bounded numeric
 indexes, generated AutoIncrement IDs, Memo/OLE payloads, and a restricted
 two-table relationship construction. Existing-file mutations include bounded
 row insertion/deletion, scalar replacement, and unique Long index maintenance.

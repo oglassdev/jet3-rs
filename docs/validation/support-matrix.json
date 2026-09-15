@@ -97,7 +97,9 @@
         "crates/jet3/src/creation/tests.rs",
         "crates/jet3/src/creation/multi_table_rows_tests.rs",
         "oracle/windows-dao/protocol/v1_2/creation-index-scenarios.json",
-        "oracle/windows-dao/scripts/dao_creation_index_diff.py"
+        "oracle/windows-dao/scripts/dao_creation_index_diff.py",
+        "crates/jet3/src/creation/creation_tables_tests.rs",
+        "oracle/windows-dao/scripts/creation_tables.py"
       ]
     },
     {
