@@ -49,7 +49,7 @@ inventory. Creation admits up to 127 tables with multi-page system catalogs,
 within the existing 1,024-page allocation limit. Linked table definitions support
 first and later tables, initial rows, and indexes within shared map capacities.
 It supports initial rows, explicit/generated AutoIncrement IDs, independent
-Memo/OLE columns, up to three numeric, Date or Binary indexes, and a restricted two-table
+Memo/OLE columns, up to three scalar indexes (including Date, Binary, Text and GUID), and a restricted two-table
 relationship construction. Existing-file mutations include row insertion/deletion,
 same-page replacement, Memo/OLE payload allocation and reuse, generated IDs, and
 index maintenance for those key types with one or two components per index. The accepted payload

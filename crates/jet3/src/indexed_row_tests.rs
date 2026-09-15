@@ -765,3 +765,6 @@ mod reuse;
 
 #[path = "numeric_index_mutation_tests.rs"]
 mod numeric;
+
+#[path = "text_guid_index_tests.rs"]
+mod text_guid;

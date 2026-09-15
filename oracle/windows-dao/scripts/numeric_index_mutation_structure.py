@@ -13,7 +13,27 @@ def record_width(record, fields):
         require(marker in (0, 127) and not (kind == 1 and marker == 0), 'Numeric component marker')
         offset += 1
         if not marker: continue
-        if kind == 9:
+        if kind == 10:
+            mask = 255 if descending else 0
+            while offset < len(record) and (record[offset] ^ mask) >= 16: offset += 1
+            require(offset < len(record), 'Missing Text secondary section')
+            require(record[offset] ^ mask < 16, 'Text secondary prefix')
+            nibble = offset * 2 + 1
+            while nibble < len(record) * 2:
+                byte = record[nibble // 2] ^ mask
+                value = byte >> 4 if nibble % 2 == 0 else byte & 15
+                if value == 0:
+                    require(nibble % 2 or byte & 15 == 0, 'Text secondary padding')
+                    offset = nibble // 2 + 1
+                    break
+                require(2 <= value <= 10, 'Text secondary nibble')
+                nibble += 1
+            else: raise ValueError('Unterminated Text component')
+        elif kind == 15:
+            require(offset + 18 <= len(record) and record[offset + 8] == 9
+                    and record[offset + 17] == (8 ^ (255 if descending else 0)), 'GUID chunk framing')
+            offset += 18
+        elif kind == 9:
             for chunk in range(32):
                 require(offset + 9 <= len(record), 'Incomplete Binary chunk')
                 suffix = record[offset + 8]; payload = record[offset:offset + 8]; offset += 9
@@ -55,7 +75,7 @@ def tree(data, root, owner, fields):
             entry = area[:prefix] + area[start:end]
             # Full leaf keys are independently rebuilt from physical row values by the caller.
             # At the 255-byte cap, the CRC obscures the remaining component grammar.
-            shortened = any(kind == 9 for kind, _ in fields) and len(entry) == 259 + (4 if branch else 0)
+            shortened = any(kind == 9 or kind == 10 for kind, _ in fields) and len(entry) == 259 + (4 if branch else 0)
             require(shortened or len(entry) == record_width(entry, fields) + (4 if branch else 0), 'Invalid scalar record width')
             entries.append(entry)
             start = end

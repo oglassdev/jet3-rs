@@ -4,7 +4,7 @@
 //! EXP-0148. Nonfinite floating values remain unsupported.
 use crate::{ColumnType, IndexDirection, RowValue};
 
-pub(crate) const MAX_COMPONENT_BYTES: usize = 1 + 9 * 255_usize.div_ceil(8);
+pub(crate) const MAX_COMPONENT_BYTES: usize = crate::text_index_key::MAX_TEXT_COMPONENT;
 
 pub(crate) enum KeyPrefix {
     Complete(usize),
@@ -22,6 +22,8 @@ pub(crate) enum NumericKeyType {
     Double,
     DateTime,
     Binary { max_len: u8 },
+    Text { max_len: u8 },
+    Guid,
 }
 
 impl NumericKeyType {
@@ -32,6 +34,8 @@ impl NumericKeyType {
             Self::Long | Self::Single => 5,
             Self::Currency | Self::Double | Self::DateTime => 9,
             Self::Binary { max_len } => 1 + 9 * (max_len as usize).div_ceil(8),
+            Self::Text { max_len } => 3 * max_len as usize + 2,
+            Self::Guid => 19,
         }
     }
 
@@ -51,6 +55,18 @@ impl NumericKeyType {
             0x7f => {
                 if let Self::Binary { max_len } = self {
                     return crate::binary_index_key::prefix(key, max_len, direction);
+                }
+                if let Self::Text { max_len } = self {
+                    return crate::text_index_key::prefix(key, max_len, direction);
+                }
+                // EXP-0248: two full Binary chunks in GUID display-byte order.
+                if self == Self::Guid {
+                    let mask = u8::from(direction == IndexDirection::Descending).wrapping_neg();
+                    if key.get(9).is_some_and(|byte| *byte != 9)
+                        || key.get(18).is_some_and(|byte| *byte != (8 ^ mask))
+                    {
+                        return None;
+                    }
                 }
                 if self == Self::Boolean && key.get(1).is_some_and(|byte| !matches!(byte, 0 | 0xff))
                 {
@@ -80,6 +96,10 @@ impl NumericKeyType {
             ColumnType::Binary { max_len } => Self::Binary {
                 max_len: max_len.get(),
             },
+            ColumnType::Text { max_len } => Self::Text {
+                max_len: max_len.get(),
+            },
+            ColumnType::Guid => Self::Guid,
             _ => return None,
         })
     }
@@ -100,6 +120,12 @@ impl NumericKeyType {
             }
             (Self::Binary { max_len }, RowValue::Binary(value)) => {
                 return crate::binary_index_key::encode(value, max_len, direction, output);
+            }
+            (Self::Text { max_len }, RowValue::Text(value)) => {
+                return crate::text_index_key::encode(value, max_len, direction, output);
+            }
+            (Self::Guid, RowValue::Guid(value)) => {
+                return crate::binary_index_key::encode(&value, 16, direction, output);
             }
             (Self::Boolean, RowValue::Boolean(value)) => {
                 output[1] = if value { 0 } else { 0xff };

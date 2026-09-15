@@ -201,9 +201,12 @@ pub fn create_database(
 /// allowing repeated null-bearing keys. The index null policy includes keys,
 /// omits all-null keys, or requires every component; primary indexes require
 /// every component. Supported components are Boolean, Byte, Integer, Long,
-/// Currency, Single, Double, DateTime and Binary. Nonfinite floating values,
-/// Boolean nulls, Text and GUID keys are refused. Empty Binary saves as null.
-/// EXP-0243/0245 establish Date fractions, floating negative zero and Binary keys.
+/// Currency, Single, Double, DateTime, Binary, variable Text and GUID. Nonfinite
+/// floating values, Boolean nulls and fixed Text keys are refused. Empty Binary
+/// saves as null. Text keys use the English-US/CP1252 collation from EXP-0248;
+/// case, ligature expansion and trailing ASCII spaces affect key equality without
+/// changing stored row bytes. EXP-0243/0245 establish Date fractions, floating
+/// negative zero and Binary keys; EXP-0248 establishes GUID display-order keys.
 /// Keys longer than 255 bytes retain a prefix plus a checksum; distinct values
 /// colliding after shortening are duplicate keys, matching DAO uniqueness.
 /// One AutoIncrement column accepts [`RowValue::AutoIncrement`] or an explicit Long.

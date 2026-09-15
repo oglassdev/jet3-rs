@@ -24,7 +24,9 @@ function Variant([int]$Type, $Value) {
         1 { return [bool]$Value }; 2 { return [byte]$Value }; 3 { return [int16]$Value }; 4 { return [int]$Value }
         5 { return [double]([decimal]$Value / [decimal]10000) }; 6 { return [single]$Value }; 7 { return [double]$Value }
         8 { return [datetime]::FromOADate([double]$Value) }; 9 { return ,([byte[]](Binary-Bytes ([string]$Value))) }
-        default { throw 'Unknown numeric type' }
+        10 { return [Text.Encoding]::GetEncoding(1252).GetString((Binary-Bytes ([string]$Value))) }
+        15 { return '{' + ([guid]([string]$Value)).ToString() + '}' }
+        default { throw 'Unknown scalar type' }
     }
 }
 function Set-Cell($Recordset, $Case, [int]$Column, $Value) {
@@ -38,7 +40,9 @@ function Set-Cell($Recordset, $Case, [int]$Column, $Value) {
             5 { $field.Value = [decimal]([decimal]$Value / [decimal]10000) }
             6 { $field.Value = [single]$Value }; 7 { $field.Value = [double]$Value }
             8 { $field.Value = [datetime]::FromOADate([double]$Value) }; 9 { $field.Value = [byte[]](Binary-Bytes ([string]$Value)) }
-            default { throw 'Unknown numeric type' }
+            10 { $field.Value = [Text.Encoding]::GetEncoding(1252).GetString((Binary-Bytes ([string]$Value))) }
+            15 { $field.Value = '{' + ([guid]([string]$Value)).ToString() + '}' }
+            default { throw 'Unknown scalar type' }
         }
     } finally { Release $field }
 }
@@ -53,7 +57,18 @@ function Read-Row($Recordset, [string]$Name, $Case) {
     $values = [object[]]::new($Case.fields.Count)
     for ($i = 0; $i -lt $values.Length; $i++) {
         $value = $Recordset.Fields.Item([string]$Case.fields[$i][0]).Value
-        $values[$i] = if ($value -is [DBNull]) { $null } elseif ([int]$Case.fields[$i][1] -eq 5) { [long]([decimal]$value * [decimal]10000) } elseif ([int]$Case.fields[$i][1] -eq 8) { ([datetime]$value).ToOADate() } elseif ([int]$Case.fields[$i][1] -eq 9) { [BitConverter]::ToString([byte[]]$value).Replace('-', '').ToLowerInvariant() } else { $value }
+        if ($value -is [DBNull]) { $values[$i] = $null; continue }
+        switch ([int]$Case.fields[$i][1]) {
+            5 { $values[$i] = [long]([decimal]$value * [decimal]10000) }
+            8 { $values[$i] = ([datetime]$value).ToOADate() }
+            9 { $values[$i] = [BitConverter]::ToString([byte[]]$value).Replace('-', '').ToLowerInvariant() }
+            10 { $values[$i] = [BitConverter]::ToString([Text.Encoding]::GetEncoding(1252).GetBytes([string]$value)).Replace('-', '').ToLowerInvariant() }
+            15 {
+                if ([string]$value -notmatch '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}') { throw 'Unrecognized GUID value' }
+                $values[$i] = ([guid]$Matches[0]).ToString('N')
+            }
+            default { $values[$i] = $value }
+        }
     }
     return ,$values
 }

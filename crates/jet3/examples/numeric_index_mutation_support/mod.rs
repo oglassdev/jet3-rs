@@ -37,6 +37,8 @@ pub(super) enum Scalar {
     Double(f64),
     DateTime(f64),
     Binary(Vec<u8>),
+    Text(Vec<u8>),
+    Guid([u8; 16]),
 }
 impl Scalar {
     pub(super) fn value(&self) -> RowValue<'_> {
@@ -51,6 +53,8 @@ impl Scalar {
             Self::Double(n) => RowValue::Double(*n),
             Self::DateTime(days) => RowValue::DateTime { days: *days },
             Self::Binary(bytes) => RowValue::Binary(bytes),
+            Self::Text(bytes) => RowValue::Text(bytes),
+            Self::Guid(bytes) => RowValue::Guid(*bytes),
         }
     }
     pub(super) fn json(&self) -> String {
@@ -63,7 +67,8 @@ impl Scalar {
             Self::Currency(n) => n.to_string(),
             Self::Single(n) => n.to_string(),
             Self::Double(n) | Self::DateTime(n) => n.to_string(),
-            Self::Binary(bytes) => quote(&hex(bytes)),
+            Self::Binary(bytes) | Self::Text(bytes) => quote(&hex(bytes)),
+            Self::Guid(bytes) => quote(&hex(bytes)),
         }
     }
     pub(super) fn read(kind: &ValueKind<'_>) -> Result<Self> {
@@ -78,6 +83,8 @@ impl Scalar {
             ValueKind::Double(n) => Self::Double(*n),
             ValueKind::DateTime(n) => Self::DateTime(n.days()),
             ValueKind::Binary(bytes) => Self::Binary(bytes.to_vec()),
+            ValueKind::Text(value) => Self::Text(value.raw_bytes().to_vec()),
+            ValueKind::Guid(value) => Self::Guid(value.display_bytes()),
             _ => return Err("unexpected scalar type".into()),
         })
     }
@@ -126,6 +133,8 @@ pub(super) enum Case {
     Deep,
     Dates,
     Binary,
+    Text,
+    Guid,
 }
 impl Case {
     pub(super) fn name(self) -> &'static str {
@@ -135,6 +144,8 @@ impl Case {
             Self::Deep => "deep",
             Self::Dates => "dates",
             Self::Binary => "binary",
+            Self::Text => "text",
+            Self::Guid => "guid",
         }
     }
     pub(super) fn count(self) -> i32 {
@@ -142,7 +153,7 @@ impl Case {
             Self::Integral => 195,
             Self::Wide => 80,
             Self::Deep => 5673,
-            Self::Dates | Self::Binary => 96,
+            Self::Dates | Self::Binary | Self::Text | Self::Guid => 96,
         }
     }
     pub(super) fn columns(self) -> Vec<ColumnSpec<'static>> {
@@ -151,6 +162,13 @@ impl Case {
             Self::Wide => vec![ColumnType::Currency, ColumnType::Double, ColumnType::Single],
             Self::Deep => vec![ColumnType::Currency, ColumnType::Double],
             Self::Dates => vec![ColumnType::DateTime, ColumnType::DateTime, ColumnType::Long],
+            Self::Text => vec![
+                ColumnType::Text {
+                    max_len: std::num::NonZeroU8::MAX,
+                },
+                ColumnType::Long,
+            ],
+            Self::Guid => vec![ColumnType::Guid, ColumnType::Long],
             Self::Binary => vec![
                 ColumnType::Binary {
                     max_len: std::num::NonZeroU8::MAX,
@@ -190,7 +208,7 @@ impl Case {
                 },
                 fields: match self {
                     Self::Deep => &LAST_B,
-                    Self::Binary => &LAST_A,
+                    Self::Binary | Self::Text | Self::Guid => &LAST_A,
                     _ => &LAST_C,
                 },
             },
@@ -243,6 +261,30 @@ impl Case {
                 },
                 Long(id % 13),
             ],
+            Self::Text => {
+                let widths = [
+                    1, 7, 8, 16, 63, 127, 168, 169, 223, 224, 247, 248, 249, 250, 251, 252, 253,
+                    254, 255,
+                ];
+                let alphabet = b"aAezZ -'\xe9\xc9\xc6\xe6\xdf\x8a\x9a\xa0\x00\x1f";
+                let payload = (0..widths[id as usize % widths.len()])
+                    .map(|offset| alphabet[(offset * 7 + id as usize % 23) % alphabet.len()])
+                    .collect();
+                vec![
+                    Long(id),
+                    if id % 19 == 0 { Null } else { Text(payload) },
+                    Long(id),
+                ]
+            }
+            Self::Guid => {
+                let payload =
+                    std::array::from_fn(|offset| ((offset * 37 + id as usize % 251) % 256) as u8);
+                vec![
+                    Long(id),
+                    if id % 19 == 0 { Null } else { Guid(payload) },
+                    Long(id),
+                ]
+            }
             Self::Binary => {
                 let widths = [
                     1, 7, 8, 9, 17, 223, 224, 225, 247, 248, 249, 250, 251, 252, 253, 254, 255,
@@ -305,6 +347,37 @@ impl Case {
                     Field(2, 2, Null),
                     Replace(3, vec![Long(3), Null, DateTime(36526.75), Long(3)]),
                     Field(4, 3, Long(-4)),
+                    Field(219, 0, Long(999)),
+                ],
+                (0..160).collect(),
+                (1000..1040).collect(),
+            ),
+            Self::Text | Self::Guid => (
+                (96..220).collect(),
+                vec![
+                    Field(
+                        1,
+                        1,
+                        if self == Self::Text {
+                            Text(b"A\xe9Z".to_vec())
+                        } else {
+                            Guid([0xab; 16])
+                        },
+                    ),
+                    Field(2, 1, Null),
+                    Replace(
+                        3,
+                        vec![
+                            Long(3),
+                            if self == Self::Text {
+                                Text(b" ".to_vec())
+                            } else {
+                                Guid([0xcd; 16])
+                            },
+                            Long(3),
+                        ],
+                    ),
+                    Field(4, 2, Long(-40)),
                     Field(219, 0, Long(999)),
                 ],
                 (0..160).collect(),

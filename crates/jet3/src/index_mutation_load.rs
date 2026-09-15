@@ -48,6 +48,21 @@ pub(crate) fn load(
                         .and_then(std::num::NonZeroU8::new)
                         .ok_or(UpdateError::Mismatch("binary index field capacity"))?,
                 },
+                ColumnPhysicalType::Text => {
+                    if !matches!(column.storage(), crate::ColumnStorageClass::Variable { .. }) {
+                        return Err(UpdateError::Unsupported("fixed Text index field"));
+                    }
+                    if column.raw_encoding_context() != &crate::text_index_key::ENCODING_CONTEXT {
+                        return Err(UpdateError::Unsupported("text index collation context"));
+                    }
+                    ColumnType::Text {
+                        max_len: u8::try_from(column.size())
+                            .ok()
+                            .and_then(std::num::NonZeroU8::new)
+                            .ok_or(UpdateError::Mismatch("text index field capacity"))?,
+                    }
+                }
+                ColumnPhysicalType::Guid => ColumnType::Guid,
                 _ => return Err(UpdateError::Unsupported("non-numeric index key")),
             };
             let kind = NumericKeyType::from_column(kind)
@@ -214,6 +229,12 @@ pub(super) fn row_values<'value>(
                     .and_then(|field| field.raw_bytes())
                     .ok_or(UpdateError::Mismatch("missing binary key bytes"))?,
             ),
+            ValueKind::Text(_) => RowValue::Text(
+                row.field(ColumnOrdinal::new(ordinal as u16))
+                    .and_then(|field| field.raw_bytes())
+                    .ok_or(UpdateError::Mismatch("missing text key bytes"))?,
+            ),
+            ValueKind::Guid(value) => RowValue::Guid(value.display_bytes()),
             _ => return Err(UpdateError::Unsupported("non-numeric index value")),
         };
     }

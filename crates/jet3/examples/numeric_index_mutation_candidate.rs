@@ -120,9 +120,11 @@ fn apply(path: &Path, model: &mut BTreeMap<i32, Row>, operation: Operation) -> R
             row[usize::from(column)] = value.clone();
             if matches!(
                 previous,
-                Scalar::Null | Scalar::Boolean(_) | Scalar::Binary(_)
-            ) || matches!(value, Scalar::Null | Scalar::Boolean(_) | Scalar::Binary(_))
-            {
+                Scalar::Null | Scalar::Boolean(_) | Scalar::Binary(_) | Scalar::Text(_)
+            ) || matches!(
+                value,
+                Scalar::Null | Scalar::Boolean(_) | Scalar::Binary(_) | Scalar::Text(_)
+            ) {
                 jet3::update_row(
                     path,
                     RowUpdate {
@@ -423,6 +425,8 @@ fn main() -> Result<()> {
             "deep" => Case::Deep,
             "dates" => Case::Dates,
             "binary" => Case::Binary,
+            "text" => Case::Text,
+            "guid" => Case::Guid,
             _ => return Err("unsupported continuation case".into()),
         };
         return continuation(Path::new(source), Path::new(directory), case);
@@ -438,6 +442,8 @@ fn main() -> Result<()> {
         Case::Deep,
         Case::Dates,
         Case::Binary,
+        Case::Text,
+        Case::Guid,
     ] {
         let working = directory.join(format!("{}-working.mdb", case.name()));
         let mut model = (0..case.count())
