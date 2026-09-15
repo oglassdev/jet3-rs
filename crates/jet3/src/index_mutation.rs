@@ -223,20 +223,17 @@ impl Indexes {
     ) -> Result<(), UpdateError> {
         budget.charge_items(u8::MAX as u64)?;
         let mut cursor = database.rows(table, budget)?;
-        let mut values = None;
         while let Some(mut row) = cursor.next_row()? {
             if row.locator() == request.row {
-                values = Some(load::row_values(&mut row, &self.columns)?);
-                break;
+                let mut values = load::row_values(&mut row, &self.columns)?;
+                let target = values
+                    .get_mut(usize::from(request.column.get()))
+                    .ok_or(UpdateError::NotFound("column"))?;
+                *target = request.value;
+                return self.replace(request.row, &values, row.budget_mut());
             }
         }
-        drop(cursor);
-        let mut values = values.ok_or(UpdateError::NotFound("indexed row"))?;
-        let target = values
-            .get_mut(usize::from(request.column.get()))
-            .ok_or(UpdateError::NotFound("column"))?;
-        *target = request.value;
-        self.replace(request.row, &values, budget)
+        Err(UpdateError::NotFound("indexed row"))
     }
 
     pub(crate) fn stage(

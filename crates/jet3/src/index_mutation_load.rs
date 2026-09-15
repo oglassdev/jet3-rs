@@ -107,7 +107,7 @@ pub(crate) fn load(
         }
         let locator = row.locator();
         let values = row_values(&mut row, &result.columns)?;
-        let budget = cursor.owned.budget_mut();
+        let budget = row.budget_mut();
         for index in &mut result.indexes {
             if let Some(entry) = index.encode(&values, locator, budget)? {
                 reserve(&mut index.entries, 1, budget)?;
@@ -178,7 +178,7 @@ pub(crate) fn load(
 }
 
 pub(super) fn row_values<'value>(
-    row: &mut RowView<'_, '_>,
+    row: &mut RowView<'value, '_>,
     columns: &[bool; u8::MAX as usize],
 ) -> Result<[RowValue<'value>; u8::MAX as usize], UpdateError> {
     let mut values = [RowValue::Null; u8::MAX as usize];
@@ -191,7 +191,7 @@ pub(super) fn row_values<'value>(
                 ColumnOrdinal::new(ordinal as u16),
                 TextCodePage::Windows1252,
             )?
-            .ok_or(UpdateError::NotFound("numeric key column"))?;
+            .ok_or(UpdateError::NotFound("index key column"))?;
         values[ordinal] = match value.kind() {
             ValueKind::Null => RowValue::Null,
             ValueKind::Boolean(v) => RowValue::Boolean(*v),
@@ -201,6 +201,12 @@ pub(super) fn row_values<'value>(
             ValueKind::Currency(v) => RowValue::Currency { scaled: v.scaled() },
             ValueKind::Single(v) => RowValue::Single(*v),
             ValueKind::Double(v) => RowValue::Double(*v),
+            ValueKind::DateTime(v) => RowValue::DateTime { days: v.days() },
+            ValueKind::Binary(_) => RowValue::Binary(
+                row.field(ColumnOrdinal::new(ordinal as u16))
+                    .and_then(|field| field.raw_bytes())
+                    .ok_or(UpdateError::Mismatch("missing binary key bytes"))?,
+            ),
             _ => return Err(UpdateError::Unsupported("non-numeric index value")),
         };
     }

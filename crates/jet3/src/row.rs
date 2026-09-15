@@ -76,6 +76,10 @@ impl<'row> RowView<'row, '_> {
         self.raw
     }
 
+    pub(crate) fn budget_mut(&mut self) -> &mut ResourceBudget {
+        self.budget
+    }
+
     #[must_use]
     /// Returns a lossless field view, or `None` for an unknown ordinal.
     pub fn field(&self, ordinal: ColumnOrdinal) -> Option<RawField<'row>> {
