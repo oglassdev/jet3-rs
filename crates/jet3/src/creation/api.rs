@@ -222,16 +222,18 @@ pub fn create_database(
 /// boundaries. Each inserted row advances the persisted allocation state before
 /// applying an explicit ID using the unsigned comparison established by EXP-0237.
 /// Null IDs are refused. EXP-0239 compares explicit and wrapping initial IDs.
-/// Memo and LongBinary columns accept nonempty typed payloads or null alongside
+/// Memo and LongBinary columns accept typed payloads or null alongside
 /// scalar indexes and generated IDs; the long-value columns themselves cannot
 /// be indexed. Every long-value column has its own owned/available map pair,
 /// in column order after the table and index maps across packed map pages.
 /// Its physical capacity bounds the column count. EXP-0236 compares multiple
 /// long-value columns with numeric indexes and native continuations.
 /// Raw `RowValue::LongValue` headers are refused.
-/// [`crate::ColumnSpec::with_allow_zero_length`] enables present-empty Memo on
-/// its bounded first-table schema. Its property construction is a sourced
-/// candidate pending DAO validation; empty OLE remains refused.
+/// [`crate::ColumnSpec::with_allow_zero_length`] enables present-empty Text or
+/// Memo independently per column, including later and indexed tables. Empty
+/// OLE payloads are stored as null. Fixed Text retains its exact-width contract.
+/// EXP-0266 supplies the named property and empty-value construction facts;
+/// candidate compatibility is bounded by the differential outcomes recorded there.
 /// The candidate policy stores up to 32 bytes inline, up to 2,036 on one LVAL
 /// page, and larger payloads in 2,032-byte chained fragments, one per page.
 /// These are construction choices, not established DAO allocation thresholds.
@@ -403,10 +405,7 @@ fn check_initial_table_rows(
         };
         let length = encode_initial_row(
             &layout,
-            table
-                .columns
-                .iter()
-                .any(crate::ColumnSpec::allow_zero_length),
+            table.columns,
             row,
             ordinal,
             &mut next_payload,
@@ -573,7 +572,7 @@ fn write_pages(file: &mut File, pages: &[PlannedPage]) -> Result<(), io::Error> 
     file.flush()
 }
 
-/// Checks the complete written image when long-value column maps or Memo
+/// Checks the complete written image when long-value column maps or column
 /// properties are present, including maps whose membership row traversal
 /// does not otherwise visit.
 fn check_long_value_written_pages(
@@ -586,7 +585,7 @@ fn check_long_value_written_pages(
         table
             .columns
             .iter()
-            .any(|column| column.column_type().is_long_value())
+            .any(|column| column.column_type().is_long_value() || column.allow_zero_length())
     }) {
         return Ok(());
     }

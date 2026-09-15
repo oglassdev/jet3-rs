@@ -127,6 +127,7 @@ where
     } else {
         request.values
     };
+    crate::empty_value_policy::check(&mut database, &definition, values, budget)?;
     let mut long_values = crate::long_value_mutation::LongValues::load(
         &mut database,
         &definition,

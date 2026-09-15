@@ -125,9 +125,6 @@ impl LongValues {
                 lowered[ordinal] = RowValue::Null;
                 continue;
             }
-            if payload.is_empty() {
-                return Err(UpdateError::Unsupported("empty long-value payload"));
-            }
             map::payload_budget(payload.len(), budget)?;
             let column = self
                 .maps

@@ -17222,3 +17222,88 @@ This establishes the declared finite fixed Text lifecycle with default
 AllowZeroLength false and the EXP-0248 English-US/CP1252 collation. It does not
 establish other collations, empty/all-space Text behavior, every schema or
 relationship combination, universal allocation choices, or full v1 completion.
+
+
+## EXP-0266 — Column AllowZeroLength properties and empty-value storage
+
+The private native suite `/tmp/jet3-empty-values-discovery` extends EXP-0200/0208
+at source `148b9d7dcfc171048c39848828352c492a5be2f7`. Twelve first/later-table
+cases compare explicit false/true variable Text, fixed Text and Memo properties
+through four closed checkpoints each. Three additional cases compare a mixed
+nine-field table with one independent toggle and a 28-field table with long
+names. The producer records complete fields, properties, values, operation
+failures, provider identity and retained MDBs. These are native observations;
+Rust candidate differential acceptance is separate.
+
+- Property payloads begin `KKD\0` and the EXP-0208 33-byte dictionary block
+  naming Required and AllowZeroLength. Named field blocks follow in schema
+  order. A block begins with its total u32 little-endian length, u16 tag 1,
+  nested u32 length `6 + name_bytes`, u16 name length and exact name bytes.
+- Long and OLE blocks contain the nine-byte Required-false record
+  `09 00 01 01 00 00 01 00 00`, giving total length `21 + name_bytes`.
+  Variable Text, fixed Text and Memo prepend the AllowZeroLength record
+  `09 00 01 01 01 00 01 00 VV`, where `VV` is 00 or ff, giving total length
+  `30 + name_bytes`. This confirms the existing 23-byte Id block and extends
+  the named framing to spaces/underscores, mixed types and first/later tables.
+- Otherwise-identical false/true cases differ at exactly the selected Boolean
+  value byte. The mixed table payload is 398 bytes. The long-name case has
+  26 Text fields plus Id and OLE; its 2,276-byte property payload uses the
+  existing chained long-value descriptor and two linked fragments. Property
+  storage remains separate from user Memo/OLE storage.
+- Variable Text and Memo reject an empty insert/update with native 3315 when
+  AllowZeroLength is false, preserving their old rows. With true they retain
+  present zero-byte values, distinct from Null. Fixed Text width 32 accepts an
+  empty assignment under either setting and stores 32 ASCII spaces; short
+  values are right-space-padded. Callers of the fixed-width Rust API continue
+  to supply its exact declared width.
+
+Initial retained source pins (bytes / SHA-256):
+
+| Directory | Artifact | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| native-r1 | matrix.json | 4711 | `af57d29035525b1f0380b0ce4db740f880c5bf56cf7689f50f9389846306d1f0` |
+| native-r1 | producer.ps1 | 15336 | `c4403daeaafd97f045ccb4c646afc39bc56a842c067d86998631c675bad8af8c` |
+| native-r1 | workers.json | 2853 | `497108cf06d12d0a408fa3ee0d426f776e5453c7e4c9983ff84e1955f9301b4e` |
+| multi-native-r3 | multi-matrix.json | 8540 | `3dc60fbe0161376f51972fd53157a221a807831d7d1b4ac4648720810266f443` |
+| multi-native-r3 | multi-producer.ps1 | 20032 | `324d9d716a31a6a995502693c438bf23b872410843f3c323fa86d86bdc22e1d9` |
+| multi-native-r3 | workers.json | 992 | `d79c5e88d9f58f486cd4658e2936f0b36567bf1c19c57aad62c3e89741559034` |
+
+Worker indexes pin every native result, which in turn pins complete captures.
+The two failed mixed-suite setup attempts remain under `multi-native-r1-failed`
+and `multi-native-r2-failed`; an unset diagnostic endpoint and OLE scalar COM
+conversion were corrected before the accepted third acquisition. No arbitrary
+property types, defaults, Required-true constraints or general collation
+semantics are inferred from this Boolean-property matrix. Final raw/map and
+preservation analysis is recorded additively below when complete.
+
+### EXP-0266 final native analysis and corrected OLE seeds
+
+The independent analysis completed all 60 closed images from native-r2
+(`20260915T193345Z-empty-values-r2`, 48 images) and multi-r3 (12 images).
+Complete raw rows/payloads, column properties and their locators, owned/available
+and global maps, provider/capture identities, and exact unrelated Notes Preserve
+bytes passed. These are native observations; Rust candidate acceptance is separate.
+The first single-field run retained valid Text/Memo/property observations, but
+its intended external OLE seeds were Null because of PowerShell scalar-array
+construction. It is superseded only for OLE cleanup. Corrected r2 starts with
+two inline and two 4,096-byte chained OLE values in each repetition. Empty Value
+assignment and DBNull plus empty AppendChunk save Null; all six formerly owned
+pages become globally free, with unchanged EOF and no active LVAL slots.
+Failed multi-field setup and diagnostic runs remain retained.
+
+- Source: `148b9d7dcfc171048c39848828352c492a5be2f7`.
+- Corrected r2 matrix SHA-256:
+  `e8fd7a502d89e705e16a528a600abba4cf7b25f960c0e0b07c819d219cff6f71`;
+  producer `0e0b052a5861cdb9613c6fc841c43675b05fd26b015ac252f4e19bca78f27565`.
+- Final analyzer SHA-256:
+  `5eb93d81a07c9ab61d4c46d5ac38844ff7156cb4d5edf47514a40479f586d508`;
+  report `8d8be2a4e8570726f0d0dfb50a4da24ac82aa0700debf2e08178b391ee8a5f23`.
+- Accepted-pins SHA-256:
+  `5825b1f15978d26b5f45d4136a482c50920519a012a7951f3b8d51468599c0ca`;
+  recursive identities `92b6476a34c71ef7b6aaf7a397356e865e79f400272eef5753d7c53c4d56b781`.
+- Private reproducible scripts, inputs, outputs and analysis archived at
+  `shared/checks/20260915-empty-values-discovery` under the local VM root.
+- Review: GPT-5.6 Sol high; nullable/Required-false, safe ASCII, CP1252,
+  explicit AllowZeroLength false/true, at most two property fragments.
+  Required true, arbitrary default/validation properties and other collations
+  remain outside these observations.
