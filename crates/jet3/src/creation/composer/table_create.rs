@@ -23,10 +23,9 @@
 //! its named boolean properties. This composition remains a candidate until
 //! separate DAO validation.
 //!
-//! One Memo or LongBinary column takes one owned/available map-row pair at
-//! rows 2 and 3 (`EXP-0077`). No observed create carried both an index and a
-//! long-value column, or more than one long-value column, so those layouts
-//! are refused rather than invented.
+//! Each Memo or LongBinary column takes one owned/available map-row pair
+//! (`EXP-0077`). Pairs follow the table and index maps in column order, bounded
+//! by the checked map-page builder. This combined placement is candidate policy.
 
 use super::*;
 use crate::creation::schema_plan::{
@@ -36,17 +35,13 @@ use crate::creation::schema_plan::{
 
 /// `EXP-0093`: `MSysObjects` `Flags` of a created user table.
 const USER_FLAGS: i32 = 0;
-/// Long-value column count `EXP-0087` observed on a created table.
-const MAX_OBSERVED_LONG_VALUE_COLUMNS: usize = 1;
 
 /// A create with its pages assigned and its map-page rows laid out.
 #[derive(Debug, Clone)]
 pub(super) struct PlannedCreate<'a> {
     spec: &'a TableSpec<'a>,
     plan: TableSchemaPlan,
-    /// The long-value column's ordinal; its owned map takes the first free
-    /// map-page row and its available map the next.
-    long_value: Option<u16>,
+    long_value_count: usize,
     initial_data: Vec<InitialDataPage>,
     initial_long_values: Option<InitialLongValues>,
     initial_row_count: u32,
@@ -84,20 +79,11 @@ impl<'a> PlannedCreate<'a> {
             return Err(ComposeError::UnsupportedMemoOption);
         }
 
-        let mut long_value_columns = long_value_columns(spec);
-        let long_value = long_value_columns.next();
-        if long_value_columns.next().is_some() {
-            return Err(ComposeError::UnobservedLongValueColumnCount {
-                observed: MAX_OBSERVED_LONG_VALUE_COLUMNS,
-            });
-        }
-        if long_value.is_some() && !spec.indexes.is_empty() {
-            return Err(ComposeError::UnobservedMapRowLayout);
-        }
+        let long_value_count = long_value_columns(spec).count();
         Ok(Self {
             spec,
             plan,
-            long_value,
+            long_value_count,
             initial_data: Vec::new(),
             initial_long_values: None,
             initial_row_count: 0,
@@ -118,7 +104,7 @@ impl<'a> PlannedCreate<'a> {
         if self.plan.continuation_page().is_some() {
             return Err(ComposeError::UnsupportedInitialRowSchema);
         }
-        let generated = InitialAutoIncrement::new(self.spec, rows.len())?;
+        let mut generated = InitialAutoIncrement::new(self.spec, rows, budget)?;
         self.initial_autoincrement = generated;
         self.initial_indexes = InitialLongIndex::for_table(self.spec, rows.len(), budget)?;
         if rows.is_empty() {
@@ -131,7 +117,7 @@ impl<'a> PlannedCreate<'a> {
             })?;
         let layout = initial_row_layout(self.spec, budget)?;
         let mut next_payload = self.plan.definition_root().get() + self.plan.appended_page_count();
-        if self.long_value.is_some() {
+        if self.long_value_count != 0 {
             self.initial_long_values = Some(InitialLongValues::new(next_payload, rows, budget)?);
         }
         let mut minimum = [0_u8; PAGE_BYTES];
@@ -144,7 +130,7 @@ impl<'a> PlannedCreate<'a> {
         let mut encoded = [0_u8; PAGE_BYTES];
         for (ordinal, row) in rows.iter().enumerate() {
             let mut lowered = [RowValue::Null; u8::MAX as usize];
-            let row = if let Some(generated) = generated {
+            let row = if let Some(generated) = generated.as_mut() {
                 generated.lower(row, ordinal, &mut lowered, budget)?;
                 &lowered[..row.len()]
             } else {
@@ -360,9 +346,11 @@ impl<'a> PlannedCreate<'a> {
         append_map: &mut InlineUsageMapEncoder,
         budget: &mut ResourceBudget,
     ) -> Result<(), ComposeError> {
+        // Check physical map capacity before encoding its row locators.
+        let maps = self.map_page(None, budget)?;
         let (root, continuation) = self.definition_pages(budget)?;
         plan.append(root, append_map, budget)?;
-        plan.append(self.map_page(None, budget)?, append_map, budget)?;
+        plan.append(maps, append_map, budget)?;
         if self.plan.property_page().is_some() {
             let mut lval = DataPageBuilder::new_long_value(budget)?;
             if let Some(property) = self.memo_property() {
@@ -502,15 +490,28 @@ impl<'a> PlannedCreate<'a> {
                 })
             })
             .collect::<Result<Vec<_>, ComposeError>>()?;
-        let long_value_maps = self
-            .long_value
-            .map(|column| LongValueMapSpec {
+        budget.charge_allocation(ByteCount::new(
+            (self.long_value_count * size_of::<LongValueMapSpec>()) as u64,
+        ))?;
+        let mut long_value_maps = Vec::new();
+        long_value_maps
+            .try_reserve_exact(self.long_value_count)
+            .map_err(|_| Error::Io {
+                operation: "reserve initial long-value map groups",
+                kind: std::io::ErrorKind::OutOfMemory,
+            })?;
+        for (position, column) in long_value_columns(spec).enumerate() {
+            let owned = usize::from(FIRST_INDEX_MAP_ROW) + spec.indexes.len() + 2 * position;
+            let available = u8::try_from(owned + 1).map_err(|_| Error::IntegerConversion {
+                value: (owned + 1) as u128,
+                target: "u8 map row",
+            })?;
+            long_value_maps.push(LongValueMapSpec {
                 column,
-                owned: MapRowLocator::new(map, FIRST_INDEX_MAP_ROW),
-                available: MapRowLocator::new(map, FIRST_INDEX_MAP_ROW + 1),
-            })
-            .into_iter()
-            .collect::<Vec<_>>();
+                owned: MapRowLocator::new(map, available - 1),
+                available: MapRowLocator::new(map, available),
+            });
+        }
         encode_table_definition(
             &TableDefinitionSpec {
                 kind: TableDefinitionKind::User,
@@ -535,7 +536,8 @@ impl<'a> PlannedCreate<'a> {
         foreign_index: Option<(PageNumber, u64)>,
         budget: &mut ResourceBudget,
     ) -> Result<PageImage, ComposeError> {
-        if foreign_index.is_some() && (!self.spec.indexes.is_empty() || self.long_value.is_some()) {
+        if foreign_index.is_some() && (!self.spec.indexes.is_empty() || self.long_value_count != 0)
+        {
             return Err(ComposeError::UnobservedMapRowLayout);
         }
         let empty = inline_map_row(&[], budget)?;
@@ -566,29 +568,36 @@ impl<'a> PlannedCreate<'a> {
         let mut available_row = [0_u8; 133];
         owned.encode_into(&mut owned_row, budget)?;
         available.encode_into(&mut available_row, budget)?;
-        let mut rows: Vec<[u8; 133]> = vec![owned_row, available_row];
+        let mut builder = DataPageBuilder::new(PageNumber::new(HEADER_PAGE), budget)?;
+        builder.append_row(&owned_row, budget)?;
+        builder.append_row(&available_row, budget)?;
         for (ordinal, (root, _)) in self.plan.index_placements().enumerate() {
-            rows.push(initial_index_map(
+            let row = initial_index_map(
                 root,
                 self.index_extra_start(ordinal),
                 self.initial_indexes
                     .get(ordinal)
                     .map_or(0, InitialLongIndex::extra_page_count),
                 budget,
-            )?);
+            )?;
+            builder.append_row(&row, budget)?;
         }
         if let Some((root, extra)) = foreign_index {
-            rows.push(initial_index_map(root, root.get() + 1, extra, budget)?);
+            builder.append_row(
+                &initial_index_map(root, root.get() + 1, extra, budget)?,
+                budget,
+            )?;
         }
-        if self.long_value.is_some() {
+        for column in long_value_columns(self.spec) {
             let maps = match &self.initial_long_values {
-                Some(values) => values.maps(budget)?,
+                Some(values) => values.maps(column, budget)?,
                 None => [empty; 2],
             };
-            rows.extend(maps);
+            for row in maps {
+                builder.append_row(&row, budget)?;
+            }
         }
-        let rows = rows.iter().map(<[u8; 133]>::as_slice).collect::<Vec<_>>();
-        data_page(HEADER_PAGE, &rows, budget)
+        finish_data_builder(builder, budget)
     }
 }
 

@@ -78,8 +78,8 @@ impl From<&ColumnDefinition> for RowColumnLayout {
 pub enum RowValue<'a> {
     /// Absent value; for Boolean columns equivalent to `false`.
     Null,
-    /// Generate the next positive ID during initial database creation.
-    /// Required for AutoIncrement columns; standalone row encoding refuses it.
+    /// Generate the next AutoNumber ID during creation or insertion; signed IDs wrap.
+    /// During full-row replacement, retain the existing ID. Standalone encoding refuses it.
     AutoIncrement,
     /// Boolean stored as the presence bit.
     Boolean(bool),
@@ -109,7 +109,7 @@ pub enum RowValue<'a> {
     Text(&'a [u8]),
     /// Replication ID in conventional display-byte order.
     Guid([u8; 16]),
-    /// Memo payload in database-code-page bytes, for `create_database_with_rows`.
+    /// Memo payload in database-code-page bytes, for database creation and row mutations.
     /// The standalone row encoder requires the lower-level `LongValue` form.
     Memo(&'a [u8]),
     /// OLE payload bytes, for `create_database_with_rows`.

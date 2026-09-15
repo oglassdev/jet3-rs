@@ -220,11 +220,18 @@ impl<'raw> LongValue<'raw> {
 /// One borrowed streamed fragment and its interpreted output.
 #[derive(Debug, PartialEq)]
 pub struct LongValueChunk<'page> {
+    locator: RowLocator,
     raw_row: &'page [u8],
     value: LongValueChunkValue<'page>,
 }
 
 impl<'page> LongValueChunk<'page> {
+    #[must_use]
+    /// Returns the physical row that stores this payload fragment.
+    pub const fn locator(&self) -> RowLocator {
+        self.locator
+    }
+
     #[must_use]
     /// Returns the complete sourced payload row.
     pub const fn raw_row(&self) -> &'page [u8] {
@@ -413,6 +420,10 @@ impl<'cursor, 'operation, S: ReadAt> LongValueCursor<'cursor, 'operation, S> {
         })
     }
 
+    pub(crate) fn budget_mut(&mut self) -> &mut ResourceBudget {
+        self.owned.budget_mut()
+    }
+
     /// Returns the next lossless payload fragment. Errors exhaust the stream.
     pub fn next_chunk(&mut self) -> Result<Option<LongValueChunk<'_>>, LongValueError> {
         if self.failed {
@@ -544,7 +555,11 @@ impl<'cursor, 'operation, S: ReadAt> LongValueCursor<'cursor, 'operation, S> {
             }
         };
         self.failed = false;
-        Ok(Some(LongValueChunk { raw_row, value }))
+        Ok(Some(LongValueChunk {
+            locator,
+            raw_row,
+            value,
+        }))
     }
 }
 
@@ -600,13 +615,17 @@ fn validate_lval_row(
                 page: locator.page(),
             })?,
         );
+        let start = usize::from(raw & OFFSET_MASK);
+        // EXP-0235: an empty c000 sibling carries no payload.
+        if raw & !OFFSET_MASK == 0xc000 && start == prior && row_locator != locator {
+            continue;
+        }
         if raw & !OFFSET_MASK != 0 {
             return Err(LongValueError::InvalidRowFlags {
                 locator: row_locator,
                 raw,
             });
         }
-        let start = usize::from(raw & OFFSET_MASK);
         if start < directory_end || start >= prior {
             return Err(LongValueError::InvalidDirectory {
                 page: locator.page(),

@@ -1,16 +1,9 @@
 //! Exact inline-map membership patches from SRC-0020, EXP-0051/0057/0065/0162.
 use crate::allocation::{AllocationMapLayout, decode_allocation_map_layout};
-use crate::update_pages::PageChange;
 use crate::{
-    DatabaseReader, FileSource, MapRowLocator, PAGE_BYTES, PageImage, PageNumber, PageOffset,
-    ResourceBudget, TableDefinition, UpdateError,
+    DatabaseReader, FileSource, MapRowLocator, PAGE_BYTES, PageNumber, ResourceBudget,
+    TableDefinition, UpdateError,
 };
-
-struct MapPage {
-    page: PageNumber,
-    before: [u8; PAGE_BYTES],
-    after: PageImage,
-}
 
 pub(crate) enum AllocationChange {
     Allocate { available: bool },
@@ -19,17 +12,30 @@ pub(crate) enum AllocationChange {
 }
 
 pub(crate) struct MapPatches {
-    maps: [MapPage; 3],
-    count: usize,
+    locators: [MapRowLocator; 3],
+    member: PageNumber,
+    expected: [bool; 3],
+    desired: [bool; 3],
 }
 
 impl MapPatches {
-    pub fn changes(&self) -> impl ExactSizeIterator<Item = PageChange<'_>> {
-        self.maps[..self.count].iter().map(|map| PageChange {
-            page: map.page,
-            before: &map.before,
-            after: map.after.as_bytes(),
-        })
+    pub fn stage(
+        &self,
+        database: &mut DatabaseReader<FileSource>,
+        edits: &mut crate::page_edits::PageEdits,
+        budget: &mut ResourceBudget,
+    ) -> Result<(), UpdateError> {
+        for role in 0..self.locators.len() {
+            edits.map_bit(
+                database,
+                self.locators[role],
+                self.member,
+                self.expected[role],
+                self.desired[role],
+                budget,
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -49,14 +55,6 @@ pub(crate) fn plan(
             ([false, true, before], [false, true, available])
         }
     };
-    let mut result = MapPatches {
-        maps: std::array::from_fn(|_| MapPage {
-            page: PageNumber::new(0),
-            before: [0; PAGE_BYTES],
-            after: PageImage::from_bytes([0; PAGE_BYTES]),
-        }),
-        count: 0,
-    };
     // EXP-0051 identifies the global free-page map at page 1, row 0.
     let locators = [
         MapRowLocator::new(PageNumber::new(1), 0),
@@ -73,24 +71,9 @@ pub(crate) fn plan(
                 "overlapping allocation map references",
             ));
         }
-        let index = match result.maps[..result.count]
-            .iter()
-            .position(|m| m.page == locator.page())
-        {
-            Some(index) => index,
-            None => {
-                let index = result.count;
-                let map = &mut result.maps[index];
-                map.page = locator.page();
-                database.read_raw_page(map.page, &mut map.before, budget)?;
-                map.after = PageImage::from_bytes(map.before);
-                result.count += 1;
-                index
-            }
-        };
-        let map = &mut result.maps[index];
+        let mut bytes = [0; PAGE_BYTES];
         let classified = database
-            .read_classified_page(locator.page(), &mut map.before, budget)
+            .read_classified_page(locator.page(), &mut bytes, budget)
             .map_err(crate::TableDefinitionError::Page)?;
         let record =
             crate::locate_usage_map(classified, locator, budget).map_err(UpdateError::UsageMap)?;
@@ -115,18 +98,19 @@ pub(crate) fn plan(
             .ok_or(UpdateError::Unsupported("page outside existing inline map"))?;
         let offset = range.start + bitmap.start + (bit / 8) as usize;
         let mask = 1_u8 << (bit % 8);
-        let old = map.before[offset];
+        let old = bytes[offset];
         if (old & mask != 0) != expected[role] {
             return Err(UpdateError::Mismatch(
                 "allocation patch membership mismatch",
             ));
         }
-        let set = desired[role];
-        let value = if set { old | mask } else { old & !mask };
-        map.after
-            .write_at(PageOffset::new(offset as u64), &[value], budget)?;
     }
-    Ok(result)
+    Ok(MapPatches {
+        locators,
+        member: page,
+        expected,
+        desired,
+    })
 }
 
 /// Reads membership without treating the available map as an ownership requirement.

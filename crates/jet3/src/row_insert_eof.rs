@@ -1,7 +1,6 @@
 //! Released-page reuse (EXP-0227) or single EOF allocation: SRC-0020/EXP-0057 map framing and EXP-0051 free bits;
 //! EXP-0065 Q2 clears the new EOF bit. Row packing uses EXP-0060/EXP-0116.
 use crate::allocation_patch::{AllocationChange, MapPatches};
-use crate::update_pages::PageChange;
 use crate::{
     DatabaseReader, FileSource, PageImage, PageImageError, PageNumber, PageOffset, ResourceBudget,
     TableDefinition, UpdateError,
@@ -10,19 +9,7 @@ use crate::{
 pub(crate) struct EofInsert {
     pub page: PageNumber,
     pub image: PageImage,
-    maps: MapPatches,
-}
-
-impl EofInsert {
-    pub fn changes<'a>(&'a self, definition: PageChange<'a>) -> ([PageChange<'a>; 4], usize) {
-        let mut changes = [definition; 4];
-        let maps = self.maps.changes();
-        let count = maps.len();
-        for (change, map) in changes.iter_mut().skip(1).zip(maps) {
-            *change = map;
-        }
-        (changes, count + 1)
-    }
+    pub maps: MapPatches,
 }
 
 fn page_error(error: PageImageError) -> UpdateError {
@@ -37,13 +24,11 @@ pub(crate) fn plan(
     definition: &TableDefinition,
     encoded: &[u8],
     minimum: &[u8],
+    next_append: PageNumber,
     budget: &mut ResourceBudget,
 ) -> Result<EofInsert, UpdateError> {
     let reusable = crate::row_reuse_page::find(database, definition, budget)?;
-    let page = reusable.as_ref().map_or(
-        PageNumber::new(database.geometry().page_count()),
-        |(page, _)| *page,
-    );
+    let page = reusable.as_ref().map_or(next_append, |(page, _)| *page);
     // Map references to data pages must remain representable by Jet's u24 locators.
     if page.get() > 0x00ff_ffff {
         return Err(UpdateError::Unsupported("EOF page reference width"));

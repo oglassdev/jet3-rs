@@ -1,4 +1,4 @@
-//! Full scalar-row replacement using the checked row encoder and exact publication.
+//! Full scalar and long-value row replacement using the checked row encoder and exact publication.
 use crate::{
     ColumnPhysicalType, ColumnStorageClass, DatabaseReader, PAGE_BYTES, PublishStage,
     ResourceBudget, RowColumnLayout, RowLocator, RowValue, UpdateError,
@@ -12,14 +12,14 @@ pub struct RowUpdate<'a> {
     pub table: &'a [u8],
     /// Existing physical/logical locator obtained while the source is unchanged.
     pub row: RowLocator,
-    /// Complete replacement row, using the checked scalar/Text/Binary encoder.
+    /// Complete replacement row, including raw Memo/OLE payload values.
     pub values: &'a [RowValue<'a>],
 }
 
 /// Replaces a complete ordinary row on its current page without changing its slot.
 ///
 /// Supports scalar/null/Boolean/Text/Binary values in relationship-free
-/// non-AutoIncrement/non-long-value tables. The page must be inline-owned and
+/// tables, including independent Memo/OLE columns. The page must be inline-owned and
 /// allocated, with consistent metadata and ordinary live rows or known empty
 /// `c000` tombstones. The data page and row locator remain fixed. Up to three
 /// indexes with one or two supported numeric fields admit key and null changes,
@@ -29,17 +29,24 @@ pub struct RowUpdate<'a> {
 /// records whether a minimum encoded row and directory slot still fit; this is
 /// a candidate policy, not a model of DAO's availability threshold.
 ///
+/// External payloads are validated against live references and column ownership.
+/// Replaced fragments are released or reused, with single and chained storage
+/// in separate pools. All payload, data, index and allocation changes publish
+/// together. Caller-supplied raw long-value headers are refused.
+///
 /// Later row bytes and offsets shift as needed, preserving their slots and values.
 /// Shrinking leaves newly vacated slack unchanged. Only the replacement, shifted
 /// bytes/offsets and page free-byte count change in the data page. A changed key
 /// rebuilds index nodes and may allocate them within inline maps. The page's
 /// available bit reflects remaining capacity. Table/slot counts, page zero and
-/// unrelated objects remain exact. This construction requires separate DAO
-/// validation and makes no compatibility claim.
+/// unrelated objects remain exact. EXP-0232/0238 record finite numeric and
+/// long-value replacement comparisons, including retained generated IDs.
 ///
 /// Callers must exclude external writers throughout this Unix-only operation.
 /// One resource budget covers planning, copying and complete private verification.
 /// Pre-publication failure preserves the original; errors identify publish stages.
+/// An AutoNumber field accepts its unchanged Long value or `RowValue::AutoIncrement`
+/// to retain its value. Changing that field is refused and its counter is retained.
 pub fn update_row(
     path: impl AsRef<Path>,
     request: RowUpdate<'_>,
@@ -60,18 +67,10 @@ where
 {
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = crate::update::indexed_writable_table(&mut database, request.table, budget)?;
-    if !definition.long_value_maps().is_empty()
-        || definition.columns().iter().any(|c| {
-            c.auto_increment()
-                || matches!(
-                    c.physical_type(),
-                    ColumnPhysicalType::Memo | ColumnPhysicalType::LongBinary
-                )
-        })
-    {
-        return Err(UpdateError::Unsupported(
-            "AutoIncrement or long-value row replacement",
-        ));
+    let auto = crate::auto_number_mutation::AutoNumber::load(&definition)?;
+    let mut lowered = [RowValue::Null; u8::MAX as usize];
+    if let Some(auto) = auto {
+        auto.copy_values(request.values, &mut lowered, budget)?;
     }
     let mut index = if definition.physical_indexes().is_empty() {
         None
@@ -98,14 +97,43 @@ where
         }
         *target = column.into();
     }
-    let mut encoded = [0; PAGE_BYTES];
-    let length = crate::encode_row(
-        &layout[..columns.len()],
-        request.values,
-        &mut encoded,
+    let mut observed = 0_u32;
+    let mut found = false;
+    {
+        let mut rows = database.rows(&definition, budget)?;
+        while let Some(mut row) = rows.next_row()? {
+            if row.locator() != row.storage_locator() {
+                return Err(UpdateError::Unsupported("overflow row"));
+            }
+            observed = observed
+                .checked_add(1)
+                .ok_or(UpdateError::Mismatch("row count overflow"))?;
+            if let Some(auto) = auto {
+                let value = auto.read(&mut row)?;
+                if row.locator() == request.row {
+                    auto.retain(&mut lowered[..request.values.len()], value)?;
+                }
+            }
+            found |= row.locator() == request.row;
+        }
+    }
+    if !found {
+        return Err(UpdateError::NotFound("row"));
+    }
+    let values = if auto.is_some() {
+        &lowered[..request.values.len()]
+    } else {
+        request.values
+    };
+    let mut long_values = crate::long_value_mutation::LongValues::load(
+        &mut database,
+        &definition,
+        Some(request.row),
         budget,
-    )?
-    .get() as usize;
+    )?;
+    long_values.remove_selected(budget)?;
+    let mut encoded = [0; PAGE_BYTES];
+    let length = long_values.encode_row(&layout[..columns.len()], values, &mut encoded, budget)?;
     let mut minimum = [0; PAGE_BYTES];
     let nulls = [RowValue::Null; u8::MAX as usize];
     let minimum_length = crate::encode_row(
@@ -115,23 +143,6 @@ where
         budget,
     )?
     .get() as usize;
-    let mut observed = 0_u32;
-    let mut found = false;
-    {
-        let mut rows = database.rows(&definition, budget)?;
-        while let Some(row) = rows.next_row()? {
-            if row.locator() != row.storage_locator() {
-                return Err(UpdateError::Unsupported("overflow row"));
-            }
-            observed = observed
-                .checked_add(1)
-                .ok_or(UpdateError::Mismatch("row count overflow"))?;
-            found |= row.locator() == request.row;
-        }
-    }
-    if !found {
-        return Err(UpdateError::NotFound("row"));
-    }
     let mut count_page = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut count_page, budget)?;
     crate::row_update_page::check_count(&count_page, observed, budget)?;
@@ -148,6 +159,7 @@ where
         budget,
     )?;
     let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
+    long_values.stage(&mut database, &mut edits, budget)?;
     edits.replace(
         crate::update_pages::PageChange {
             page: request.row.page(),
@@ -166,11 +178,9 @@ where
         },
         budget,
     )?;
-    for change in maps.changes() {
-        edits.replace(change, budget)?;
-    }
+    maps.stage(&mut database, &mut edits, budget)?;
     if let Some(index) = &mut index {
-        index.replace(request.row, request.values, budget)?;
+        index.replace(request.row, values, budget)?;
         index.stage(&mut database, &definition, &mut edits, budget)?;
     }
     edits.publish(path, database.into_source(), budget, hook)

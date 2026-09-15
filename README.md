@@ -45,16 +45,22 @@ and the remaining host prerequisites.
 ## Status
 
 The reader has hosted DAO differential evidence for its documented capability
-inventory. Creation fits tables within the catalog page capacity, with initial rows and bounded numeric
-indexes, generated AutoIncrement IDs, Memo/OLE payloads, and a restricted
-two-table relationship construction. Existing-file mutations include bounded
-row insertion/deletion, scalar replacement, and unique Long index maintenance.
+inventory. Creation fits tables within catalog, definition and inline-map
+capacities, with initial rows, explicit/generated AutoIncrement IDs, independent Memo/OLE
+columns, up to three numeric indexes, and a restricted two-table relationship
+construction. Existing-file mutations include row insertion/deletion, same-page
+replacement, Memo/OLE payload allocation and reuse, generated IDs, and numeric
+index maintenance with one or two components per index. The accepted payload
+lifecycles include native DAO continuations and Rust mutation of native files.
 
 Creation and updates remain partial: schema combinations, index key types,
 allocation, and relationship mutation are restricted. Publication is Unix-only.
-General database validation is not implemented, and atomic failure/rollback
-verification remains internal-only. Local and hosted DAO differential runs provide evidence for their recorded
-capabilities and source revisions.
+The read-only library and CLI validator check user-table rows, values and index
+traversal within a shared budget; its report states the coverage limits.
+Atomic publication and rollback verification remain internal-only. Local and
+hosted DAO differential runs establish evidence for their recorded capabilities
+and source revisions. AutoIncrement comparisons include explicit IDs, negative
+IDs and signed-boundary wrap, with failed Rust requests preserving the source.
 
 See the [current checkpoint and remaining work](docs/plans/V1_SCOPE.md#current-checkpoint)
 for exact evidence boundaries and the GitHub issues tracking completion.

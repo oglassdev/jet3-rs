@@ -522,3 +522,64 @@ fn long_value_errors_expose_display_and_nested_sources() {
     });
     assert!(text.source().is_some());
 }
+
+#[test]
+fn only_empty_deleted_siblings_are_skipped() -> Result<(), Box<dyn std::error::Error>> {
+    let page = PageNumber::new(3);
+    for deleted in 0..3 {
+        let mut bytes = [0; PAGE_BYTES];
+        bytes[4..8].copy_from_slice(b"LVAL");
+        bytes[8..10].copy_from_slice(&3_u16.to_le_bytes());
+        let mut end = PAGE_BYTES;
+        for slot in 0..3 {
+            let word = if slot == deleted {
+                0xc000 | end as u16
+            } else {
+                end -= 1;
+                bytes[end] = slot as u8;
+                end as u16
+            };
+            bytes[10 + 2 * slot..12 + 2 * slot].copy_from_slice(&word.to_le_bytes());
+        }
+        for slot in 0..3 {
+            let mut budget = ResourceBudget::new(ResourceLimits::default());
+            let result = super::validate_lval_row(RowLocator::new(page, slot), &bytes, &mut budget);
+            if usize::from(slot) == deleted {
+                assert!(matches!(
+                    result,
+                    Err(LongValueError::InvalidRowFlags { .. })
+                ));
+            } else {
+                assert_eq!(&bytes[result?], &[slot]);
+            }
+        }
+        let target = RowLocator::new(page, if deleted == 0 { 1 } else { 0 });
+        for flags in [0x2000, 0x4000, 0x8000] {
+            let mut malformed = bytes;
+            let offset = 10 + 2 * deleted;
+            let word = u16::from_le_bytes([bytes[offset], bytes[offset + 1]]) & 0x1fff;
+            malformed[offset..offset + 2].copy_from_slice(&(word | flags).to_le_bytes());
+            assert!(
+                super::validate_lval_row(
+                    target,
+                    &malformed,
+                    &mut ResourceBudget::new(ResourceLimits::default())
+                )
+                .is_err()
+            );
+        }
+        let mut nonempty = bytes;
+        let offset = 10 + 2 * deleted;
+        let word = u16::from_le_bytes([bytes[offset], bytes[offset + 1]]);
+        nonempty[offset..offset + 2].copy_from_slice(&(word - 1).to_le_bytes());
+        assert!(matches!(
+            super::validate_lval_row(
+                target,
+                &nonempty,
+                &mut ResourceBudget::new(ResourceLimits::default())
+            ),
+            Err(LongValueError::InvalidRowFlags { .. })
+        ));
+    }
+    Ok(())
+}

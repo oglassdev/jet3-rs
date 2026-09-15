@@ -210,7 +210,7 @@ fn sole_row_on_later_page_releases_only_that_page_and_keeps_other_rows() -> Resu
 }
 
 #[test]
-fn null_long_value_schema_remains_outside_release_scope() -> ResultTest {
+fn null_long_value_row_releases_only_its_data_page() -> ResultTest {
     let f = Fixture::new(1)?;
     fs::remove_file(f.path())?;
     let columns = [ColumnSpec::new(b"Memo", ColumnType::Memo)];
@@ -225,10 +225,12 @@ fn null_long_value_schema_remains_outside_release_scope() -> ResultTest {
         &mut budget(),
     )?;
     let before = fs::read(f.path())?;
-    assert!(matches!(
-        delete_row(f.path(), f.request(), &mut budget()),
-        Err(UpdateError::Unsupported(_))
-    ));
-    assert_eq!(fs::read(f.path())?, before);
+    delete_row(f.path(), f.request(), &mut budget())?;
+    assert_eq!(fs::metadata(f.path())?.len(), before.len() as u64);
+    let mut b = budget();
+    let mut db = DatabaseReader::open(f.path(), &mut b)?;
+    let table = db.table_definition(f.root, &mut b)?;
+    assert_eq!(table.row_count(), 0);
+    assert!(db.rows(&table, &mut b)?.next_row()?.is_none());
     f.clean()
 }

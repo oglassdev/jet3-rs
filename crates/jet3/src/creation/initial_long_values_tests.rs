@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "multiple_long_values_tests.rs"]
+mod multiple_columns;
+
 fn payload_value(kind: ColumnType, payload: &[u8]) -> RowValue<'_> {
     if kind == ColumnType::Memo {
         RowValue::Memo(payload)
@@ -17,10 +20,10 @@ fn payload_boundaries_round_trip_with_separate_column_maps() -> TestResult {
             (33, 1, true),
             (512, 1, true),
             (2036, 1, false),
-            (2037, 2, true),
-            (2048, 2, true),
+            (2037, 2, false),
+            (2048, 2, false),
             (4064, 2, false),
-            (4096, 3, true),
+            (4096, 3, false),
         ] {
             let directory = TestDirectory::create()?;
             let columns = [ID, ColumnSpec::new(b"Payload", kind)];

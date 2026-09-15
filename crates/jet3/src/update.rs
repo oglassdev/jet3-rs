@@ -54,6 +54,8 @@ pub enum UpdateError {
     Encoding(crate::RowWriteError),
     /// Existing indexed numeric value failed decoding.
     Value(crate::ValueError),
+    /// Existing external long-value storage failed validation.
+    LongValue(crate::LongValueError),
     /// Available map row is malformed.
     UsageMap(crate::UsageMapError),
     /// Allocation bitmap is malformed or exhausted its budget.
@@ -81,6 +83,7 @@ impl StdError for UpdateError {
             Self::Directory(source) => Some(source),
             Self::Encoding(source) => Some(source),
             Self::Value(source) => Some(source),
+            Self::LongValue(source) => Some(source),
             Self::UsageMap(source) => Some(source),
             Self::Allocation(source) => Some(source),
             Self::Publish(source) => Some(source),
@@ -108,6 +111,7 @@ conversion!(crate::RowError, Rows);
 conversion!(crate::RowDirectoryError, Directory);
 conversion!(crate::RowWriteError, Encoding);
 conversion!(crate::ValueError, Value);
+conversion!(crate::LongValueError, LongValue);
 conversion!(crate::PublishError, Publish);
 conversion!(crate::IndexTreeError, Index);
 

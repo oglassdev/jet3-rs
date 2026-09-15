@@ -103,7 +103,11 @@
         "oracle/windows-dao/protocol/v1_2/creation-index-scenarios.json",
         "oracle/windows-dao/scripts/dao_creation_index_diff.py",
         "crates/jet3/src/creation/creation_tables_tests.rs",
-        "oracle/windows-dao/scripts/creation_tables.py"
+        "oracle/windows-dao/scripts/creation_tables.py",
+        "crates/jet3/src/creation/multiple_long_values_tests.rs",
+        "crates/jet3/examples/multiple_long_value_creation_candidate.rs",
+        "oracle/windows-dao/scripts/multiple_long_value_creation.ps1",
+        "oracle/windows-dao/scripts/multiple_long_value_creation.py"
       ]
     },
     {
@@ -159,7 +163,16 @@
       "evidence": [
         "docs/PROVENANCE.md",
         "crates/jet3/src/long_value.rs",
-        "crates/jet3/src/long_value_tests.rs"
+        "crates/jet3/src/long_value_tests.rs",
+        "crates/jet3/src/creation/multiple_long_values_tests.rs",
+        "crates/jet3/examples/multiple_long_value_creation_candidate.rs",
+        "oracle/windows-dao/scripts/multiple_long_value_creation.ps1",
+        "oracle/windows-dao/scripts/multiple_long_value_creation.py",
+        "crates/jet3/src/long_value_mutation.rs",
+        "crates/jet3/src/long_value_mutation_tests.rs",
+        "crates/jet3/examples/long_value_lifecycle_candidate.rs",
+        "oracle/windows-dao/scripts/long_value_lifecycle.ps1",
+        "oracle/windows-dao/scripts/long_value_lifecycle.py"
       ]
     },
     {
@@ -224,7 +237,13 @@
         "crates/jet3/examples/practical_lifecycle_candidate.rs",
         "oracle/windows-dao/scripts/practical_lifecycle.py",
         "crates/jet3/examples/numeric_index_mutation_candidate.rs",
-        "oracle/windows-dao/scripts/numeric_index_mutation.py"
+        "oracle/windows-dao/scripts/numeric_index_mutation.py",
+        "crates/jet3/src/long_value_mutation.rs",
+        "crates/jet3/src/long_value_mutation_tests.rs",
+        "crates/jet3/src/auto_number_mutation.rs",
+        "crates/jet3/examples/long_value_lifecycle_candidate.rs",
+        "oracle/windows-dao/scripts/long_value_lifecycle.ps1",
+        "oracle/windows-dao/scripts/long_value_lifecycle.py"
       ]
     },
     {
@@ -282,7 +301,10 @@
         "crates/jet3/examples/practical_lifecycle_candidate.rs",
         "oracle/windows-dao/scripts/practical_lifecycle.py",
         "crates/jet3/examples/numeric_index_mutation_candidate.rs",
-        "oracle/windows-dao/scripts/numeric_index_mutation.py"
+        "oracle/windows-dao/scripts/numeric_index_mutation.py",
+        "crates/jet3/examples/long_value_lifecycle_candidate.rs",
+        "oracle/windows-dao/scripts/long_value_lifecycle.ps1",
+        "oracle/windows-dao/scripts/long_value_lifecycle.py"
       ]
     },
     {

@@ -181,10 +181,18 @@ A sync error after publication can mean the change is already visible: do not
 blindly retry a failed mutation. Exclude concurrent writers for the entire
 operation; publication currently requires Unix.
 
-Field updates support present fixed values; complete row replacement supports
-scalar values on the existing available data page. Insertion can append a data
-page within inline maps. Deletion compacts retained pages or releases a page
-containing one physical row. One unique/primary present Long index supports
-multi-level row and key maintenance. Composite/nonunique/null keys, relationships,
-AutoIncrement/LVAL mutation, indirect maps and inconsistent source metadata remain
-restricted. Command tests do not establish additional DAO compatibility.
+Field updates support present fixed values. Complete row replacement supports
+scalar values and independent Memo/OLE payloads while keeping the row on its
+current page. Insertion can reuse released pages or append within inline maps.
+Deletion compacts retained pages or releases a page containing its last live row.
+Up to three numeric indexes support one/two components, multiple levels, mixed
+directions, duplicates and null policies. Memo/OLE mutation accepts nonempty
+typed payloads or null, and reuses released payload storage.
+
+An AutoNumber insertion accepts `"auto_increment"` or an explicit `{"long": 42}`.
+For replacement, supply `"auto_increment"` to keep the existing ID, or its
+unchanged Long value. Deletion retains the generation state. Rejected requests
+preserve the whole file, including that state; DAO can consume a number on a
+failed insert. Relationships, other index key types, indirect maps and cross-page
+row replacement remain restricted. The recorded finite DAO comparisons are in
+`docs/PROVENANCE.md`; CLI tests do not expand that coverage.

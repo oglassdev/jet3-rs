@@ -258,31 +258,7 @@ fn private_corruption_and_shared_read_budget_are_detected() -> ResultTest {
 }
 
 #[test]
-fn unsupported_schema_refuses_and_deletion_restores_available_membership() -> ResultTest {
-    for (kind, value) in [
-        (ColumnType::AutoIncrement, RowValue::AutoIncrement),
-        (ColumnType::Memo, RowValue::Memo(b"payload")),
-    ] {
-        let f = Fixture::new(2)?;
-        fs::remove_file(f.path())?;
-        let columns = [ColumnSpec::new(b"Id", kind)];
-        crate::create_database_with_rows(
-            f.path(),
-            &TableSpec {
-                name: b"Rows",
-                columns: &columns,
-                indexes: &[],
-            },
-            &[&[value], &[value]],
-            &mut budget(),
-        )?;
-        let original = fs::read(f.path())?;
-        assert!(matches!(
-            delete_row(f.path(), f.request(), &mut budget()),
-            Err(UpdateError::Unsupported(_))
-        ));
-        assert_eq!(fs::read(f.path())?, original);
-    }
+fn deletion_restores_available_membership() -> ResultTest {
     let f = Fixture::new(4)?;
     let mut b = budget();
     let mut db = DatabaseReader::open(f.path(), &mut b)?;

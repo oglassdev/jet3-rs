@@ -25,6 +25,8 @@ SUITES = {
     "index-trees": ("index_tree_mutation", "index_tree_mutation_candidate"),
     "practical-lifecycle": ("practical_lifecycle", "practical_lifecycle_candidate"),
     "numeric-indexes": ("numeric_index_mutation", "numeric_index_mutation_candidate"),
+    "multiple-long-values": ("multiple_long_value_creation", "multiple_long_value_creation_candidate"),
+    "long-value-lifecycle": ("long_value_lifecycle", "long_value_lifecycle_candidate"),
 }
 
 
@@ -74,10 +76,12 @@ def run_suite(name, root, args, revision):
     command(["cargo", "build", "--locked", "-p", "jet3", "--example", example], root, "build")
     images = root / "images"
     stdout = command([ROOT / "target/debug/examples" / example, images], root, "generate")
-    if name in ("creation-tables", "index-trees", "practical-lifecycle", "numeric-indexes"):
+    if name in ("creation-tables", "index-trees", "practical-lifecycle", "numeric-indexes", "multiple-long-values", "long-value-lifecycle"):
         module.prepare(images, revision)
         manifest = {"creation-tables": "creation-tables.json", "index-trees": "index-tree-mutation.json",
-                    "practical-lifecycle": "practical-lifecycle.json", "numeric-indexes": "numeric-index-mutation.json"}[name]
+                    "practical-lifecycle": "practical-lifecycle.json", "numeric-indexes": "numeric-index-mutation.json",
+                    "multiple-long-values": "multiple-long-value-creation.json",
+                    "long-value-lifecycle": "long-value-lifecycle.json"}[name]
         input_path = images / manifest
     else:
         receipts = json.loads(stdout) if name == "indexed-rows" else None
@@ -92,7 +96,7 @@ def run_suite(name, root, args, revision):
             else:
                 module.patch_check(before, after, arm)
     report = capture(name, root, args, revision, module, images, input_path)
-    if name in ("index-trees", "numeric-indexes"):
+    if name in ("index-trees", "numeric-indexes", "long-value-lifecycle"):
         continuation_root = root / "continuation"
         continuation_root.mkdir()
         continued = continuation_root / "images"
@@ -100,7 +104,9 @@ def run_suite(name, root, args, revision):
             module.prepare_continue(images, Path(report["captures"]), continued,
                                     ROOT / "target/debug/examples" / example, revision)
             continuation = capture(name, continuation_root, args, revision, module, continued,
-                                   continued / ("numeric-index-mutation.json" if name == "numeric-indexes" else "index-tree-mutation.json"))
+                                   continued / {"numeric-indexes": "numeric-index-mutation.json",
+                                                "index-trees": "index-tree-mutation.json",
+                                                "long-value-lifecycle": "long-value-lifecycle.json"}[name])
             report["continuation"] = continuation
         except Exception as error:
             report.update(outcome="failed", error=str(error))
@@ -151,7 +157,7 @@ def capture(name, root, args, revision, module, images, input_path):
         result_path = outbox / "result.json"
         if not result_path.exists():
             raise RuntimeError("Missing DAO result")
-        if name in ("creation-tables", "index-trees", "practical-lifecycle", "numeric-indexes"):
+        if name in ("creation-tables", "index-trees", "practical-lifecycle", "numeric-indexes", "multiple-long-values", "long-value-lifecycle"):
             comparison = module.evaluate(images, outbox)
             matched = comparison["status"] == "accepted"
         else:

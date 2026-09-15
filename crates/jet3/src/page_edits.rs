@@ -56,20 +56,24 @@ impl PageEdits {
         }
     }
 
+    pub fn next_append_page(&self) -> Result<PageNumber, UpdateError> {
+        self.first_append
+            .checked_add(self.append.len() as u64)
+            .filter(|n| *n <= 0x00ff_ffff)
+            .map(PageNumber::new)
+            .ok_or(UpdateError::Unsupported("appended page reference width"))
+    }
+
     pub fn append(
         &mut self,
         image: PageImage,
         budget: &mut ResourceBudget,
     ) -> Result<PageNumber, UpdateError> {
-        let page = self
-            .first_append
-            .checked_add(self.append.len() as u64)
-            .filter(|n| *n <= 0x00ff_ffff)
-            .ok_or(UpdateError::Unsupported("appended page reference width"))?;
+        let page = self.next_append_page()?;
         // EXP-0062: row locators carry a 24-bit page reference.
         reserve(&mut self.append, 1, budget)?;
         self.append.push(image);
-        Ok(PageNumber::new(page))
+        Ok(page)
     }
 
     pub fn replace(

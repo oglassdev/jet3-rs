@@ -121,7 +121,7 @@ fn memo_option_publishes_distinct_empty_null_and_nonempty() -> Result<(), Box<dy
         changed[22 * crate::PAGE_BYTES + 2047] ^= 1;
         fs::write(&path, changed)?;
         assert!(matches!(
-            check_memo_written_pages(&path, &[table], &pages, &mut budget()),
+            check_long_value_written_pages(&path, &[table], &pages, &mut budget()),
             Err(CandidateCheckError::Mismatch { .. })
         ));
     }
