@@ -112,20 +112,23 @@ fn invalid_content_budget_and_open_failures_are_json_errors() -> TestResult {
 
 #[test]
 fn invalid_options_exit_two() -> TestResult {
-    for args in [
-        vec!["--code-page", "65001"],
-        vec!["--max-work-units", "-1"],
-        vec!["--max-input-bytes"],
-        vec!["--rows"],
-        vec!["--code-page", "1252", "--code-page", "1251"],
+    for (args, expected) in [
+        (vec!["--code-page", "65001"], "invalid_code_page"),
+        (vec!["--code-page", "garbage"], "invalid_code_page"),
+        (vec!["--max-work-units", "-1"], "invalid_limit"),
+        (vec!["--max-input-bytes"], "missing_option_value"),
+        (vec!["--rows"], "unknown_option"),
+        (
+            vec!["--code-page", "1252", "--code-page", "1251"],
+            "duplicate_option",
+        ),
     ] {
         let output = run(Path::new("unused.mdb"), &args)?;
         assert_eq!(output.status.code(), Some(2));
         assert!(output.stdout.is_empty());
-        assert_eq!(
-            serde_json::from_slice::<Value>(&output.stderr)?["ok"],
-            false
-        );
+        let error: Value = serde_json::from_slice(&output.stderr)?;
+        assert_eq!(error["ok"], false);
+        assert_eq!(error["error"], expected);
     }
     Ok(())
 }

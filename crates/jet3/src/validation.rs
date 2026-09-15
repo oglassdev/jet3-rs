@@ -17,12 +17,14 @@ use crate::{
     ByteCount, CatalogError, CatalogObjectClass, CatalogRecord, ColumnOrdinal, DatabaseReader,
     Error, IndexKeyEncoding, IndexTreeError, InlineLongValue, LongValue, LongValueChunkValue,
     LongValueError, LongValueReference, ReadAt, ResourceBudget, RowError, RowLocator,
-    TableDefinition, TableDefinitionError, TextCodePage, ValueError, ValueKind,
+    TableDefinition, TableDefinitionError, TableDefinitionKind, TextCodePage, ValueError,
+    ValueKind,
 };
 
 /// Counts produced only after every in-scope reader finishes successfully.
 /// These are logical objects, not unique physical pages or whole-file coverage.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ValidationReport {
     /// Active catalog records decoded, including skipped objects.
     pub catalog_objects: u64,
@@ -73,6 +75,13 @@ pub enum ValidationError {
 pub enum TableValidationError {
     /// Definition or its typed references could not be decoded.
     Definition(TableDefinitionError),
+    /// The definition kind disagrees with its user-class catalog record.
+    DefinitionKind {
+        /// Kind required by the catalog classification.
+        expected: TableDefinitionKind,
+        /// Kind decoded from the definition header.
+        actual: TableDefinitionKind,
+    },
     /// Owned data pages, row layout or overflow traversal failed.
     Rows {
         /// Number of live rows read before the failing attempt. A physical
@@ -160,7 +169,7 @@ impl std::error::Error for TableValidationError {
             Self::LongValue { source, .. } => Some(source),
             Self::Index { source, .. } => Some(source),
             Self::Resource(source) => Some(source),
-            Self::RowCount { .. } => None,
+            Self::DefinitionKind { .. } | Self::RowCount { .. } => None,
         }
     }
 }
@@ -207,6 +216,12 @@ impl<S: ReadAt> DatabaseReader<S> {
                 .table_definition(root, budget)
                 .map_err(TableValidationError::Definition)
                 .and_then(|definition| {
+                    if definition.kind() != TableDefinitionKind::User {
+                        return Err(TableValidationError::DefinitionKind {
+                            expected: TableDefinitionKind::User,
+                            actual: definition.kind(),
+                        });
+                    }
                     validate_table(self, &definition, code_page, budget, &mut report)
                 });
             if let Err(source) = result {

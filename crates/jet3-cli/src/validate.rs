@@ -45,17 +45,20 @@ pub fn parse_args(
         if std::mem::replace(&mut seen[index], true) {
             return Err("duplicate_option");
         }
-        let value = super::parse_u64(args.next(), "missing_option_value", "invalid_limit")?;
-        match index {
-            0 => {
-                command.code_page = match value {
-                    1252 => TextCodePage::Windows1252,
-                    1251 => TextCodePage::Windows1251,
-                    _ => return Err("unsupported_code_page"),
-                }
+        if index == 0 {
+            let value = args.next().ok_or("missing_option_value")?;
+            command.code_page = match value.to_str() {
+                Some("1252") => TextCodePage::Windows1252,
+                Some("1251") => TextCodePage::Windows1251,
+                _ => return Err("invalid_code_page"),
+            };
+        } else {
+            let value = super::parse_u64(args.next(), "missing_option_value", "invalid_limit")?;
+            if index == 1 {
+                command.max_input_bytes = value;
+            } else {
+                command.max_work_units = value;
             }
-            1 => command.max_input_bytes = value,
-            _ => command.max_work_units = value,
         }
     }
     Ok(command)

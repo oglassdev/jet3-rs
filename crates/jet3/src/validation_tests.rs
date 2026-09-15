@@ -124,6 +124,30 @@ fn checks_multiple_tables_index_and_inline_single_and_chained_long_values() -> T
 }
 
 #[test]
+fn rejects_system_definition_kind_for_a_user_catalog_table() -> TestResult {
+    let mut bytes = fixture()?;
+    let table = definition(&bytes, b"Payload")?;
+    let root = page_start(table.root());
+    // EXP-0059/0073: system definitions use marker 53 and column constant
+    // zero/class 12 for this variable column. No index prefixes precede it.
+    bytes[root + 20] = 0x53;
+    bytes[root + 43 + 7..root + 43 + 9].fill(0);
+    bytes[root + 43 + 13] = 0x12;
+    assert_eq!(
+        definition(&bytes, b"Payload")?.kind(),
+        TableDefinitionKind::System
+    );
+    assert!(matches!(validate(&bytes), Err(ValidationError::Table {
+        table,
+        source: TableValidationError::DefinitionKind {
+            expected: TableDefinitionKind::User,
+            actual: TableDefinitionKind::System,
+        },
+    }) if table.class() == CatalogObjectClass::User && table.name().raw_bytes() == b"Payload"));
+    Ok(())
+}
+
+#[test]
 fn reports_table_and_stream_position_for_corrupt_row_and_live_count() -> TestResult {
     let original = fixture()?;
     let table = definition(&original, b"Items")?;
