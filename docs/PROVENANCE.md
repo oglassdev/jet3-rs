@@ -15711,3 +15711,88 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   Both roots retain matrices, producers, analyzers and actual fresh local
   DAO 3.6 environments. This finite native discovery does not validate a Rust
   AutoNumber writer, randomized AutoNumber mode or arbitrary increment settings.
+
+## EXP-0238 — Memo/OLE and generated-ID row lifecycle comparison
+
+- Exact source `f4c49c4804e6cd9d85d76c7dbfc76f2e372ee5a0` passes 28 paired
+  checkpoints / 56 complete DAO captures. Four cases use one Memo, one OLE,
+  four mixed Memo/OLE columns, and the mixed layout with generated Auto IDs.
+  Every case has three Long indexes and an unrelated Notes table with a
+  retained 4 KiB payload. The generated-ID case places Items after Notes.
+- Five checkpoints per case cover empty creation, twelve insertions, deletion
+  of a fragment on a still-live shared single-value page, replacement across
+  inline/single/chained/null forms, complete deletion, and twelve reinsertions.
+  Payload boundaries include 1, 12, 32, 33, 512, 2,036, 2,037, 2,048 and 4,096
+  bytes. Refill reuses freed Rust payload pages without EOF growth; native
+  allocation is recorded separately rather than required to copy that policy.
+- Native insert/replace/delete succeeds on both outputs. A second round starts
+  from each retained native control and compares Rust insert/replace/delete
+  against the equivalent DAO operations. All complete payloads, schemas,
+  directed index traversals, finite Seek queries, retained counters, allocation
+  maps and Notes page hashes agree. All 1,270 active payload-slot observations
+  have complete reference coverage. Generated state is 0, 12, retained 12
+  through edit/clear, 24 after refill, then 25 and 26 through continuations.
+- Twelve private duplicate-later-index, empty-payload and chain-budget requests
+  preserve complete source bytes. They are separate refusal copies; failed
+  AutoNumber requests do not advance native successful-control chains.
+- Repeatable suite: `python3 scripts/dao-check.py long-value-lifecycle`.
+  Private checks: `shared/checks/20260915-long-value-lifecycle-r1/`.
+  Receipt summary SHA-256
+  `9b45ae9a421aaeedf197b250d21143f0cdec637d5297b862f4a15302b70ce136`.
+  First outbox: `shared/outbox/20260915T063624Z-long-value-lifecy-0878c2/`;
+  comparison report SHA-256
+  `93aaf300ce90e94a6a30013f0e767eda8b56ea90e13613b2f7616973ca46d9d2`;
+  result SHA-256
+  `8d291790f7131d76c5490cd8e029a7eb94523f391af7efb718602b8801319928`.
+  Continuation outbox: `shared/outbox/20260915T063636Z-long-value-lifecy-d3b5b0/`;
+  comparison report SHA-256
+  `858a0b4f6b264959add87bdd5574009ec263cf6f4ce27ebc097aca14fbcbc80c`;
+  result SHA-256
+  `d4ef09cd5b8cc0866ec8e6f3b48ad58283621c12aaf4beb7f8afff0e9fb6bf2f`.
+  Both actual DAO 3.6 environment receipts and input manifests are pinned in
+  the summary. Neither acquisition required a source or analyzer correction.
+- This finite comparison covers ASCII Memo, the declared payload matrix,
+  three Long indexes and positive generated IDs. It does not establish empty
+  OLE, arbitrary code pages, general free-page allocation, indirect maps or
+  cross-page row replacement.
+
+## EXP-0239 — Explicit and wrapping AutoNumber Rust/DAO comparison
+
+- Exact source `f4c49c4804e6cd9d85d76c7dbfc76f2e372ee5a0` passes 184 paired
+  checkpoints / 368 complete captures. Ninety Rust mutations start from
+  retained EXP-0237 native before-images: 86 successful generated/explicit
+  insertions and four deletions. Both SQL/Recordset inventories and zero/three
+  indexes are included, with one replica per native case. Each Rust result
+  matches the recorded native successor, including complete Id/Tag/Memo rows,
+  the unsigned allocation state and every numeric key/locator record.
+- Two additional Rust-created databases, unindexed and three-indexed, compose
+  nine initial rows with mixed explicit and generated IDs. Explicit signed
+  maximum, 1000, -1, 10 and signed minimum combine with generation through
+  zero and both signed boundaries. Fresh DAO creation/insertion produces
+  identical schema, contents, index counters and final state signed-minimum+1.
+- DAO then inserts on all 92 candidate/control pairs. It generates the next
+  ID where that ID is absent; otherwise a declared unused explicit ID avoids
+  a duplicate. Every insertion succeeds and produces the expected state and
+  complete rows. A Rust reader independently decodes every retained image,
+  including the unrelated 4 KiB Anchor Memo; reads preserve captured bytes.
+  Numeric trees have exact key/locator coverage and paired counters agree.
+  All Anchor-owned page hashes stay exact through each native-input mutation
+  and subsequent DAO continuation. No Seek queries are issued in this companion.
+- Private checks: `shared/checks/20260915-autonumber-candidate/`; outbox
+  `shared/outbox/20260915T064500Z-autonumber-candidate/`.
+  Report SHA-256
+  `9f9b05e916b7dc54be51bc4769028afc3fdbe851f2bef1d9b44ce9ac8791e86e`;
+  matrix SHA-256
+  `674dc477525bf797b8e79c0ca0194be5e429706a7d7f75351f69c8b4dcd20a51`;
+  result SHA-256
+  `f475f08945507f026334b09e027f822729721011cad1902c09b1c32e7a2bc403`;
+  environment SHA-256
+  `5ef4f64e5f3b8a4b7779c5f476562ff1d92393d0c855133d28d62254d42b294a`.
+  The report pins the private producer, analyzer, generator source/binary,
+  project helpers and every capture. A local argument-parsing invocation
+  failed before any acquisition; its log is retained separately. The actual
+  acquisition and complete comparison pass without corrective mutation.
+- Successful operations agree within this finite inventory. Rejected Rust
+  requests preserve source bytes, unlike DAO's observed failed-insert counter
+  consumption; this difference remains explicit. Random AutoNumber mode and
+  custom increment settings are outside this result.
