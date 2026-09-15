@@ -402,7 +402,7 @@ fn shared_budgets_and_private_verification_preserve_original() -> TestResult {
 }
 
 #[test]
-fn unsupported_schema_map_and_variable_width_states_are_preserved() -> TestResult {
+fn available_map_and_variable_width_states_are_preserved() -> TestResult {
     let f = Fixture::new(3)?;
     let original = fs::read(f.path())?;
     let wide = [
@@ -440,28 +440,6 @@ fn unsupported_schema_map_and_variable_width_states_are_preserved() -> TestResul
         &mut b
     )?);
     drop(db);
-    {
-        let kind = ColumnType::AutoIncrement;
-        let value = RowValue::AutoIncrement;
-        fs::remove_file(f.path())?;
-        let columns = [ColumnSpec::new(b"Id", kind)];
-        crate::create_database_with_rows(
-            f.path(),
-            &TableSpec {
-                name: b"Rows",
-                columns: &columns,
-                indexes: &[],
-            },
-            &[&[value]],
-            &mut budget(),
-        )?;
-        let before = fs::read(f.path())?;
-        assert!(matches!(
-            update_row(f.path(), f.request(0, &[value]), &mut budget()),
-            Err(UpdateError::Unsupported(_))
-        ));
-        assert_eq!(fs::read(f.path())?, before);
-    }
     Ok(())
 }
 

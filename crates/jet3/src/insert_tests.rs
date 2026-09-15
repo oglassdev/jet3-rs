@@ -321,18 +321,7 @@ fn corrupt_metadata_values_and_resources_preserve_original() -> TestResult {
 }
 
 #[test]
-fn unsupported_tables_and_available_map_membership_are_refused() -> TestResult {
-    {
-        let kind = ColumnType::AutoIncrement;
-        let value = RowValue::AutoIncrement;
-        let f = Fixture::new(&[ColumnSpec::new(b"Id", kind)], &[&[value]])?;
-        let original = fs::read(f.path())?;
-        assert!(matches!(
-            insert_row(f.path(), b"Rows", &[value], &mut budget()),
-            Err(UpdateError::Unsupported(_))
-        ));
-        assert_eq!(fs::read(f.path())?, original);
-    }
+fn unowned_available_map_membership_is_refused() -> TestResult {
     let f = Fixture::longs(4)?;
     let mut b = budget();
     let mut db = DatabaseReader::open(f.path(), &mut b)?;

@@ -15,7 +15,7 @@ pub struct RowDelete<'a> {
 
 /// Deletes one ordinary row, compacting its page or releasing an emptied page.
 ///
-/// Supports relationship-free tables without AutoIncrement. Memo/OLE fragments
+/// Supports relationship-free tables, retaining any AutoNumber state. Memo/OLE fragments
 /// are removed from their independent column storage after complete reference
 /// and ownership validation; emptied payload pages become globally free.
 /// Up to three indexes with one or two supported numeric fields admit deletion,
@@ -62,9 +62,7 @@ where
 {
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = crate::update::indexed_writable_table(&mut database, request.table, budget)?;
-    if definition.columns().iter().any(|c| c.auto_increment()) {
-        return Err(UpdateError::Unsupported("AutoIncrement table"));
-    }
+    let auto = crate::auto_number_mutation::AutoNumber::load(&definition)?;
     let mut index = if definition.indexes().is_empty() && definition.physical_indexes().is_empty() {
         None
     } else {
@@ -87,7 +85,10 @@ where
     let mut found = false;
     {
         let mut rows = database.rows(&definition, budget)?;
-        while let Some(row) = rows.next_row()? {
+        while let Some(mut row) = rows.next_row()? {
+            if let Some(auto) = auto {
+                auto.read(&mut row)?;
+            }
             observed_rows = observed_rows
                 .checked_add(1)
                 .ok_or(UpdateError::Mismatch("row count overflow"))?;

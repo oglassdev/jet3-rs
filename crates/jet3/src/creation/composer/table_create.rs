@@ -104,7 +104,7 @@ impl<'a> PlannedCreate<'a> {
         if self.plan.continuation_page().is_some() {
             return Err(ComposeError::UnsupportedInitialRowSchema);
         }
-        let generated = InitialAutoIncrement::new(self.spec, rows.len())?;
+        let mut generated = InitialAutoIncrement::new(self.spec, rows, budget)?;
         self.initial_autoincrement = generated;
         self.initial_indexes = InitialLongIndex::for_table(self.spec, rows.len(), budget)?;
         if rows.is_empty() {
@@ -130,7 +130,7 @@ impl<'a> PlannedCreate<'a> {
         let mut encoded = [0_u8; PAGE_BYTES];
         for (ordinal, row) in rows.iter().enumerate() {
             let mut lowered = [RowValue::Null; u8::MAX as usize];
-            let row = if let Some(generated) = generated {
+            let row = if let Some(generated) = generated.as_mut() {
                 generated.lower(row, ordinal, &mut lowered, budget)?;
                 &lowered[..row.len()]
             } else {

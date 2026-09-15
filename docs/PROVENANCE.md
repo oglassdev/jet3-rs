@@ -15623,3 +15623,91 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   terminal chained pages available, and DAO later removed ownership while leaving
   a stale available bit. That separate writer defect requires corrected creation
   and a new comparison; successful payload reads do not erase it.
+
+## EXP-0236 — Multiple Memo/OLE columns, indexes and native continuation
+
+- Six corrected creation cases and six native continuation pairs pass complete
+  DAO/Rust payload, schema, directed traversal, finite Seek, index-counter and
+  allocation checks. Two main cases have 205/213 rows, four alternating Memo/OLE
+  columns and three numeric indexes; Items is first with explicit Long IDs or
+  follows populated Notes with generated Auto IDs. Four twelve-row cases cover
+  six long columns with zero/one index and five long columns with two/three
+  indexes. Four one-more-column requests fail the checked map-page capacity.
+- Null, inline, single and chained values include controlled boundaries. Each
+  native continuation inserts 4 KiB Memo, 33-byte OLE, 32-byte Memo and
+  2,037-byte OLE values, changes another row across inline/chained/null forms,
+  and deletes a row on both Rust and native outputs. Notes page hashes remain
+  exact. Corrected captures contain no mixed-storage pages or available chained
+  pages; all 730 native active payload slots are referenced exactly once. Thirty
+  empty deleted sibling slots are handled by the EXP-0235 reader grammar.
+- Source `0316073ac8585a13e3e123f8ed05788d742720e3` includes the suite at
+  `ec02f43e4e6268be5bfcd409f1ab585663bb1f04` and narrow reader successor
+  `77af6c295573c6c7514962577056e64bc3371738`, atop creation `c29e258`.
+  All chained creation pages are now unavailable, consistent with EXP-0234;
+  single-page availability remains the checked physical-capacity policy.
+- Accepted private checks: `shared/checks/20260915-multiple-long-values-r2/`.
+  Captures: `shared/outbox/20260915T061148Z-multiple-long-val-0d07ec/`.
+  `multiple-long-value-creation-report.json` SHA-256
+  `3c43bc8de0d0d2c5517f7c7e19456fade63ffd5f98e9e97fef73d3b19f0d128c`;
+  `result.json` SHA-256
+  `7ec291f49ff7a5523dc4b568dc27afb408780e1c1a8e2a94f891f13a1d499224`;
+  manifest SHA-256
+  `bc01ebdcc1e76d59fcf9687f07908db063addff3de7da996fbe821e7a45fe169`;
+  environment SHA-256
+  `3759f84cf2e6f95790734432b7806229e6bd91b6a8c97e7b92b7034fe41a7805`.
+  Provider is the fresh local DAO 3.6 environment from EXP-0221.
+- The first acquisition remains a structural failure, despite all native
+  payload/schema pairs agreeing. After the reader fix, analysis found sixteen
+  available-only, globally-free stale terminal-chain pages across six Rust
+  candidates (1/1/4/4/3/3); native controls had none. DAO had removed ownership
+  while the candidate's former available bit remained set. Those stale pages
+  retain ordinary old fragment bytes; live c800 siblings are separate pages.
+  Original captures: `shared/outbox/20260915T060218Z-multiple-long-val-d8d6e7/`.
+  Retained diagnostic SHA-256
+  `6f4f170005acace37b5dfef86cf5e660047554ab7e8c342d796de26b8e120dac`.
+  The accepted result comes from corrected creation and a fresh acquisition,
+  not reclassification of that failed run. Existing catalog, definition, row
+  and inline-map capacities still bound this finite capability.
+
+## EXP-0237 — AutoNumber allocation, explicit IDs and signed-boundary wrap
+
+- Eight native cases combine DAO Recordset/SQL insertion, zero/three indexes,
+  and two replicas. Nineteen checkpoints each yield 152 images. Complete raw
+  and DAO Id/Tag/Memo rows match an independent cumulative model; schema,
+  table counts, all numeric key/locator trees, capture identity chains and
+  unrelated Anchor pages also validate. Eight illegal Id updates and eight
+  intentional indexed duplicates are recorded refusals, not successful writes.
+- In this inventory, allocating an AutoNumber advances the persisted TDEF
+  `[16,20)` state by one as a wrapping 32-bit unsigned value. Generated Id
+  interprets those bits as signed Long. An explicit signed Long is accepted
+  on insert; its unsigned bits replace the state only if greater than the
+  just-allocated value. Lower explicit IDs still consume an allocation.
+  Thus explicit -5 after positive state sets state -5, explicit 50 thereafter
+  leaves the allocated state -4, and the next generated Id is -3. Ordinary
+  deletion retains state; changing the existing AutoNumber Id 2 to 200 during
+  UPDATE is refused through both Recordset and SQL.
+- A dependent eight-case boundary inventory (64 images) confirms generation
+  from signed maximum to signed minimum and from -1 to zero. Explicit positive
+  1000 after state signed-maximum leaves the newly allocated signed-minimum
+  state; unsigned comparison, rather than signed maximum, governs the reset.
+  All replicas/methods agree, with full raw/DAO rows and numeric trees checked.
+- Native indexed duplicate failures can consume the allocation and an explicit
+  higher reset even though no row is added. The dependent case raises state
+  from 1 to signed-maximum on a rejected duplicate of that maximum, after which
+  generation yields signed-minimum. Rust's pre-publication refusal guarantee
+  deliberately preserves the whole source, including state. Successful insertion
+  semantics are a separate compatibility claim from native failure side effects.
+- Initial private root `shared/checks/20260915-autonumber-state-discovery/`;
+  `report.json` SHA-256
+  `9d248d4bcaa25f3820feed365f9fea400053303d8a0f8090d9a724343bdb7d50`.
+  Captures `shared/outbox/20260915T061700Z-autonumber-state/`.
+  The report pins producer, matrix, environment, three project helper files and
+  every captured MDB. The dependent report below separately covers the higher
+  failed reset; it does not revise the first report's narrower failure inventory.
+- Dependent private root `shared/checks/20260915-autonumber-state-boundaries/`;
+  `report.json` SHA-256
+  `af17f117f27befb365635b40b55ad9b97e2fc379f43a348687a0864c4ce1a5af`.
+  Captures `shared/outbox/20260915T062200Z-autonumber-boundaries/`.
+  Both roots retain matrices, producers, analyzers and actual fresh local
+  DAO 3.6 environments. This finite native discovery does not validate a Rust
+  AutoNumber writer, randomized AutoNumber mode or arbitrary increment settings.

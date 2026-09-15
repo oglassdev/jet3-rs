@@ -19,7 +19,7 @@ pub struct RowUpdate<'a> {
 /// Replaces a complete ordinary row on its current page without changing its slot.
 ///
 /// Supports scalar/null/Boolean/Text/Binary values in relationship-free
-/// non-AutoIncrement tables, including independent Memo/OLE columns. The page must be inline-owned and
+/// tables, including independent Memo/OLE columns. The page must be inline-owned and
 /// allocated, with consistent metadata and ordinary live rows or known empty
 /// `c000` tombstones. The data page and row locator remain fixed. Up to three
 /// indexes with one or two supported numeric fields admit key and null changes,
@@ -45,6 +45,8 @@ pub struct RowUpdate<'a> {
 /// Callers must exclude external writers throughout this Unix-only operation.
 /// One resource budget covers planning, copying and complete private verification.
 /// Pre-publication failure preserves the original; errors identify publish stages.
+/// An AutoNumber field accepts its unchanged Long value or `RowValue::AutoIncrement`
+/// to retain its value. Changing that field is refused and its counter is retained.
 pub fn update_row(
     path: impl AsRef<Path>,
     request: RowUpdate<'_>,
@@ -65,8 +67,10 @@ where
 {
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = crate::update::indexed_writable_table(&mut database, request.table, budget)?;
-    if definition.columns().iter().any(|c| c.auto_increment()) {
-        return Err(UpdateError::Unsupported("AutoIncrement row replacement"));
+    let auto = crate::auto_number_mutation::AutoNumber::load(&definition)?;
+    let mut lowered = [RowValue::Null; u8::MAX as usize];
+    if let Some(auto) = auto {
+        auto.copy_values(request.values, &mut lowered, budget)?;
     }
     let mut index = if definition.physical_indexes().is_empty() {
         None
@@ -93,6 +97,34 @@ where
         }
         *target = column.into();
     }
+    let mut observed = 0_u32;
+    let mut found = false;
+    {
+        let mut rows = database.rows(&definition, budget)?;
+        while let Some(mut row) = rows.next_row()? {
+            if row.locator() != row.storage_locator() {
+                return Err(UpdateError::Unsupported("overflow row"));
+            }
+            observed = observed
+                .checked_add(1)
+                .ok_or(UpdateError::Mismatch("row count overflow"))?;
+            if let Some(auto) = auto {
+                let value = auto.read(&mut row)?;
+                if row.locator() == request.row {
+                    auto.retain(&mut lowered[..request.values.len()], value)?;
+                }
+            }
+            found |= row.locator() == request.row;
+        }
+    }
+    if !found {
+        return Err(UpdateError::NotFound("row"));
+    }
+    let values = if auto.is_some() {
+        &lowered[..request.values.len()]
+    } else {
+        request.values
+    };
     let mut long_values = crate::long_value_mutation::LongValues::load(
         &mut database,
         &definition,
@@ -101,12 +133,7 @@ where
     )?;
     long_values.remove_selected(budget)?;
     let mut encoded = [0; PAGE_BYTES];
-    let length = long_values.encode_row(
-        &layout[..columns.len()],
-        request.values,
-        &mut encoded,
-        budget,
-    )?;
+    let length = long_values.encode_row(&layout[..columns.len()], values, &mut encoded, budget)?;
     let mut minimum = [0; PAGE_BYTES];
     let nulls = [RowValue::Null; u8::MAX as usize];
     let minimum_length = crate::encode_row(
@@ -116,23 +143,6 @@ where
         budget,
     )?
     .get() as usize;
-    let mut observed = 0_u32;
-    let mut found = false;
-    {
-        let mut rows = database.rows(&definition, budget)?;
-        while let Some(row) = rows.next_row()? {
-            if row.locator() != row.storage_locator() {
-                return Err(UpdateError::Unsupported("overflow row"));
-            }
-            observed = observed
-                .checked_add(1)
-                .ok_or(UpdateError::Mismatch("row count overflow"))?;
-            found |= row.locator() == request.row;
-        }
-    }
-    if !found {
-        return Err(UpdateError::NotFound("row"));
-    }
     let mut count_page = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut count_page, budget)?;
     crate::row_update_page::check_count(&count_page, observed, budget)?;
@@ -170,7 +180,7 @@ where
     )?;
     maps.stage(&mut database, &mut edits, budget)?;
     if let Some(index) = &mut index {
-        index.replace(request.row, request.values, budget)?;
+        index.replace(request.row, values, budget)?;
         index.stage(&mut database, &definition, &mut edits, budget)?;
     }
     edits.publish(path, database.into_source(), budget, hook)

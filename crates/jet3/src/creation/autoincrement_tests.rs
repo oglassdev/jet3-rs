@@ -64,7 +64,11 @@ fn autoincrement_invalid_values_and_types_leave_no_file() -> TestResult {
         columns: &[AUTO],
         ..auto_table()
     };
-    for value in [RowValue::Null, RowValue::Long(1), RowValue::Text(b"1")] {
+    for value in [
+        RowValue::Null,
+        RowValue::Boolean(true),
+        RowValue::Text(b"1"),
+    ] {
         assert!(matches!(
             create_database_with_rows(directory.target(), &table, &[&[value]], &mut budget()),
             Err(CreateDatabaseError::Compose(
@@ -174,5 +178,114 @@ fn autoincrement_positive_counts_are_not_limited_to_the_observed_sample() -> Tes
         &bytes[20 * crate::PAGE_BYTES + 16..20 * crate::PAGE_BYTES + 20],
         &257_i32.to_le_bytes()
     );
+    Ok(())
+}
+
+#[test]
+fn autoincrement_explicit_ids_wrap_with_independent_indexed_tables() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let indexes = [
+        IndexSpec {
+            name: b"PrimaryKey",
+            fields: &[field(0, IndexDirection::Ascending)],
+            kind: IndexKind::Primary,
+        },
+        IndexSpec {
+            name: b"ByTag",
+            fields: &[field(1, IndexDirection::Descending)],
+            kind: IndexKind::Unique,
+        },
+        IndexSpec {
+            name: b"ByPair",
+            fields: &[
+                field(0, IndexDirection::Descending),
+                field(1, IndexDirection::Ascending),
+            ],
+            kind: IndexKind::Ordinary,
+        },
+    ];
+    let inputs = [
+        RowValue::Long(i32::MAX),
+        RowValue::Long(1000),
+        RowValue::Long(-1),
+        RowValue::AutoIncrement,
+        RowValue::AutoIncrement,
+        RowValue::Long(10),
+        RowValue::AutoIncrement,
+        RowValue::Long(i32::MIN),
+        RowValue::AutoIncrement,
+    ];
+    let expected = [i32::MAX, 1000, -1, 0, 1, 10, 11, i32::MIN, i32::MIN + 1];
+    let values: Vec<_> = inputs
+        .into_iter()
+        .enumerate()
+        .map(|(tag, id)| [id, RowValue::Long(tag as i32)])
+        .collect();
+    let rows: Vec<_> = values.iter().map(|row| row.as_slice()).collect();
+    let requests = [
+        TableRows {
+            table: TableSpec {
+                name: b"Plain",
+                ..auto_table()
+            },
+            rows: &rows,
+        },
+        TableRows {
+            table: TableSpec {
+                name: b"Indexed",
+                indexes: &indexes,
+                ..auto_table()
+            },
+            rows: &rows,
+        },
+    ];
+    create_database_with_table_rows(directory.target(), &requests, &mut budget())?;
+    let mut operation = budget();
+    let mut database = DatabaseReader::open(directory.target(), &mut operation)?;
+    let roots = crate::creation::api::candidate_table_roots(
+        &mut database,
+        &requests.map(|request| request.table),
+        &mut operation,
+    )?;
+    for root in roots {
+        let table = database.table_definition(root.ok_or("missing root")?, &mut operation)?;
+        assert_eq!(&table.raw_header()[16..20], &(i32::MIN + 1).to_le_bytes());
+        let mut ids = Vec::new();
+        {
+            let mut cursor = database.rows(&table, &mut operation)?;
+            while let Some(row) = cursor.next_row()? {
+                let id = row
+                    .field(crate::ColumnOrdinal::new(0))
+                    .and_then(|v| v.raw_bytes())
+                    .ok_or("missing ID")?;
+                ids.push(i32::from_le_bytes(id.try_into()?));
+            }
+        }
+        assert_eq!(ids, expected);
+        if !table.indexes().is_empty() {
+            crate::index_mutation::load(&mut database, &table, &mut operation)?;
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn autoincrement_explicit_duplicate_unique_ids_leave_no_file() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let indexes = [IndexSpec {
+        name: b"PrimaryKey",
+        fields: &[field(0, IndexDirection::Ascending)],
+        kind: IndexKind::Primary,
+    }];
+    let table = TableSpec {
+        indexes: &indexes,
+        ..auto_table()
+    };
+    let rows: &[&[RowValue<'_>]] = &[
+        &[RowValue::Long(-1), RowValue::Long(1)],
+        &[RowValue::Long(-1), RowValue::Long(2)],
+    ];
+    assert!(create_database_with_rows(directory.target(), &table, rows, &mut budget()).is_err());
+    assert!(directory.entries()?.is_empty());
     Ok(())
 }

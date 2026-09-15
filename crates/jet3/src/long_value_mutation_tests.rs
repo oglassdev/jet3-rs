@@ -61,6 +61,9 @@ impl Drop for Fixture {
 }
 impl Fixture {
     fn new(indexes: bool) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::with_auto(indexes, false)
+    }
+    fn with_auto(indexes: bool, auto: bool) -> Result<Self, Box<dyn std::error::Error>> {
         let directory = std::env::temp_dir().join(format!(
             "jet3-lval-mutation-{}-{}",
             std::process::id(),
@@ -68,14 +71,26 @@ impl Fixture {
         ));
         fs::create_dir(&directory)?;
         let result = Self { directory };
+        let mut columns = COLUMNS;
+        if auto {
+            columns[0] = ColumnSpec::new(b"Id", ColumnType::AutoIncrement);
+        }
         let first = [
-            RowValue::Long(1),
+            if auto {
+                RowValue::AutoIncrement
+            } else {
+                RowValue::Long(1)
+            },
             RowValue::Long(1),
             RowValue::Memo(&[b'a'; 33]),
             RowValue::LongBinary(&[0x11; 33]),
         ];
         let second = [
-            RowValue::Long(2),
+            if auto {
+                RowValue::AutoIncrement
+            } else {
+                RowValue::Long(2)
+            },
             RowValue::Long(1),
             RowValue::Memo(&[b'b'; 33]),
             RowValue::LongBinary(&[0x22; 4096]),
@@ -87,7 +102,7 @@ impl Fixture {
                 TableRows {
                     table: TableSpec {
                         name: b"Rows",
-                        columns: &COLUMNS,
+                        columns: &columns,
                         indexes: if indexes { &INDEXES } else { &[] },
                     },
                     rows: &[&first, &second],
@@ -534,5 +549,128 @@ fn rejected_payloads_duplicates_and_chain_budget_leave_no_private_publication() 
     );
     assert_eq!(fs::read(fixture.path())?, original);
     assert_eq!(fs::read_dir(&fixture.directory)?.count(), 1);
+    Ok(())
+}
+
+#[test]
+fn autonumber_payload_mutations_generate_retain_and_wrap_state() -> TestResult {
+    for indexed in [false, true] {
+        let fixture = Fixture::with_auto(indexed, true)?;
+        let state = || -> Result<i32, Box<dyn std::error::Error>> {
+            let table = fixture.definition()?;
+            Ok(i32::from_le_bytes(table.raw_header()[16..20].try_into()?))
+        };
+        assert_eq!(state()?, 2);
+        for (value, id, expected_state) in [
+            (RowValue::AutoIncrement, 3, 3),
+            (RowValue::Long(100), 100, 100),
+            (RowValue::Long(0), 0, 101),
+            (RowValue::Long(-5), -5, -5),
+            (RowValue::AutoIncrement, -4, -4),
+        ] {
+            insert_row(
+                fixture.path(),
+                b"Rows",
+                &[
+                    value,
+                    RowValue::Long(5),
+                    RowValue::Memo(&[b'x'; 4096]),
+                    RowValue::LongBinary(&[0x55; 33]),
+                ],
+                &mut budget(),
+            )?;
+            assert!(fixture.snapshot()?.contains_key(&id));
+            assert_eq!(state()?, expected_state);
+        }
+        let row = fixture.snapshot()?[&-4].locator;
+        update_row(
+            fixture.path(),
+            RowUpdate {
+                table: b"Rows",
+                row,
+                values: &[
+                    RowValue::AutoIncrement,
+                    RowValue::Null,
+                    RowValue::Memo(b"updated"),
+                    RowValue::LongBinary(&[0xaa; 8192]),
+                ],
+            },
+            &mut budget(),
+        )?;
+        assert_eq!(state()?, -4);
+        assert_eq!(
+            fixture.snapshot()?[&-4].payloads,
+            [Some(b"updated".to_vec()), Some(vec![0xaa; 8192])]
+        );
+        let before = fs::read(fixture.path())?;
+        assert!(
+            update_row(
+                fixture.path(),
+                RowUpdate {
+                    table: b"Rows",
+                    row,
+                    values: &[
+                        RowValue::Long(777),
+                        RowValue::Null,
+                        RowValue::Null,
+                        RowValue::Null,
+                    ]
+                },
+                &mut budget()
+            )
+            .is_err()
+        );
+        assert_eq!(fs::read(fixture.path())?, before);
+        if indexed {
+            assert!(
+                insert_row(
+                    fixture.path(),
+                    b"Rows",
+                    &[
+                        RowValue::Long(100),
+                        RowValue::Long(5),
+                        RowValue::Memo(&[b'q'; 8192]),
+                        RowValue::Null,
+                    ],
+                    &mut budget()
+                )
+                .is_err()
+            );
+            assert_eq!(fs::read(fixture.path())?, before);
+        }
+        for sample in fixture.snapshot()?.values() {
+            delete_row(
+                fixture.path(),
+                RowDelete {
+                    table: b"Rows",
+                    row: sample.locator,
+                },
+                &mut budget(),
+            )?;
+        }
+        assert_eq!(state()?, -4);
+        for (value, id, expected_state) in [
+            (RowValue::Long(-1), -1, -1),
+            (RowValue::AutoIncrement, 0, 0),
+            (RowValue::Long(i32::MAX), i32::MAX, i32::MAX),
+            (RowValue::AutoIncrement, i32::MIN, i32::MIN),
+            (RowValue::Long(10), 10, i32::MIN + 1),
+        ] {
+            insert_row(
+                fixture.path(),
+                b"Rows",
+                &[
+                    value,
+                    RowValue::Long(7),
+                    RowValue::Memo(b"boundary"),
+                    RowValue::Null,
+                ],
+                &mut budget(),
+            )?;
+            assert!(fixture.snapshot()?.contains_key(&id));
+            assert_eq!(state()?, expected_state);
+        }
+        fixture.validate()?;
+    }
     Ok(())
 }

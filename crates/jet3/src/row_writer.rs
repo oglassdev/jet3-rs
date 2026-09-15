@@ -78,8 +78,8 @@ impl From<&ColumnDefinition> for RowColumnLayout {
 pub enum RowValue<'a> {
     /// Absent value; for Boolean columns equivalent to `false`.
     Null,
-    /// Generate the next positive ID during initial database creation.
-    /// Required for AutoIncrement columns; standalone row encoding refuses it.
+    /// Generate the next AutoNumber ID during creation or insertion; signed IDs wrap.
+    /// During full-row replacement, retain the existing ID. Standalone encoding refuses it.
     AutoIncrement,
     /// Boolean stored as the presence bit.
     Boolean(bool),

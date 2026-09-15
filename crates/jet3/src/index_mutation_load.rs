@@ -33,9 +33,6 @@ pub(crate) fn load(
                 .columns()
                 .get(ordinal)
                 .ok_or(UpdateError::NotFound("key column"))?;
-            if column.auto_increment() {
-                return Err(UpdateError::Unsupported("AutoIncrement indexed column"));
-            }
             let kind = match column.physical_type() {
                 ColumnPhysicalType::Boolean => ColumnType::Boolean,
                 ColumnPhysicalType::Byte => ColumnType::Byte,

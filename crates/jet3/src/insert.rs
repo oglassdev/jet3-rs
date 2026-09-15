@@ -15,7 +15,7 @@ use std::path::Path;
 /// fields admit primary, unique, nonunique, descending and nullable keys. Each
 /// complete tree and row/key correspondence must validate. Changed trees retain
 /// their roots, reuse reserved index pages and append nodes as needed. Other
-/// key types, AutoIncrement and relationships are refused. Memo/OLE payloads
+/// key types and relationships are refused. Memo/OLE payloads
 /// use independent column maps; raw caller-supplied headers are refused.
 /// If no populated page fits, a released global-free page belonging to this table
 /// is reused, or one EOF page is appended, within existing inline maps. No slot reuse,
@@ -27,6 +27,11 @@ use std::path::Path;
 /// disjoint column ownership, then reused or appended. Single and chained
 /// storage use separate pools. Data, payloads, indexes and their allocation bits
 /// publish together.
+///
+/// One AutoNumber column accepts `RowValue::AutoIncrement` or an explicit Long.
+/// Successful insertion advances its persisted state, with unsigned explicit-ID
+/// resets and wrapping generation established by EXP-0237. Rejected requests
+/// preserve the file, including the counter; DAO can consume a number on failure.
 ///
 /// The new row, appended slot, page free/count fields, availability and table count
 /// change on unindexed existing-page insertion. Indexed insertion additionally
@@ -78,9 +83,15 @@ where
 {
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = crate::update::indexed_writable_table(&mut database, table, budget)?;
-    if definition.columns().iter().any(|c| c.auto_increment()) {
-        return Err(UpdateError::Unsupported("AutoIncrement table"));
-    }
+    let mut auto = crate::auto_number_mutation::AutoNumber::load(&definition)?;
+    let mut lowered = [RowValue::Null; u8::MAX as usize];
+    let values = if let Some(state) = auto {
+        state.copy_values(values, &mut lowered, budget)?;
+        auto = Some(state.insert(&mut lowered[..values.len()])?);
+        &lowered[..values.len()]
+    } else {
+        values
+    };
     let mut index = if definition.indexes().is_empty() && definition.physical_indexes().is_empty() {
         None
     } else {
@@ -115,9 +126,12 @@ where
     let mut observed_rows = 0_u32;
     {
         let mut rows = database.rows(&definition, budget)?;
-        while let Some(row) = rows.next_row()? {
+        while let Some(mut row) = rows.next_row()? {
             if row.locator() != row.storage_locator() {
                 return Err(UpdateError::Unsupported("overflow row"));
+            }
+            if let Some(auto) = auto {
+                auto.read(&mut row)?;
             }
             observed_rows = observed_rows
                 .checked_add(1)
@@ -126,8 +140,11 @@ where
     }
     let mut source_definition = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut source_definition, budget)?;
-    let patched_definition =
+    let mut patched_definition =
         crate::row_insert_page::increment_count(&source_definition, observed_rows, budget)?;
+    if let Some(auto) = auto {
+        auto.write(&mut patched_definition, budget)?;
+    }
     let mut owned_bytes = [0; PAGE_BYTES];
     let owned = inline_map(
         &mut database,

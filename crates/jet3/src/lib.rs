@@ -40,6 +40,8 @@ pub mod allocation;
 mod allocation_patch;
 pub mod allocation_traverse;
 pub mod atomic;
+mod auto_number_mutation;
+mod auto_number_state;
 pub mod binary;
 pub mod binary_writer;
 pub mod candidate;

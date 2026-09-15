@@ -205,11 +205,11 @@ pub fn create_database(
 /// Currency, Single and Double. Floating negative zero and nonfinite values,
 /// Boolean nulls and other key types are refused. Non-Long nullable/composite
 /// combinations are candidate generalizations awaiting DAO validation.
-/// One AutoIncrement column requires [`RowValue::AutoIncrement`] in every row;
-/// IDs start at 1 independently per table and the last generated ID is persisted.
-/// Null and explicit IDs are refused, as are counts reaching the signed Long
-/// boundary. DAO state observations cover 256 initial rows and a subsequent 257;
-/// larger counts and this composed generation await candidate validation.
+/// One AutoIncrement column accepts [`RowValue::AutoIncrement`] or an explicit Long.
+/// Generation starts at 1 independently per table and wraps through signed Long
+/// boundaries. Each inserted row advances the persisted allocation state before
+/// applying an explicit ID using the unsigned comparison established by EXP-0237.
+/// Null IDs are refused. Candidate generation requires separate DAO validation.
 /// Memo and LongBinary columns accept nonempty typed payloads or null alongside
 /// numeric indexes and generated IDs; the long-value columns themselves cannot
 /// be indexed. Every long-value column has its own owned/available map pair,
@@ -341,8 +341,8 @@ fn check_initial_table_rows(
     let definition = database
         .table_definition(root, budget)
         .map_err(CandidateCheckError::Definition)?;
-    let generated =
-        InitialAutoIncrement::new(table, rows.len()).map_err(CandidateCheckError::RowEncoding)?;
+    let mut generated =
+        InitialAutoIncrement::new(table, rows, budget).map_err(CandidateCheckError::RowEncoding)?;
     if let Some(generated) = generated {
         let mut raw = [0_u8; crate::PAGE_BYTES];
         database
@@ -381,7 +381,7 @@ fn check_initial_table_rows(
         .map_err(CandidateCheckError::Rows)?;
     for (ordinal, row) in rows.iter().enumerate() {
         let mut lowered = [RowValue::Null; u8::MAX as usize];
-        let row = if let Some(generated) = generated {
+        let row = if let Some(generated) = generated.as_mut() {
             generated
                 .lower(row, ordinal, &mut lowered, cursor.owned.budget_mut())
                 .map_err(CandidateCheckError::RowEncoding)?;
