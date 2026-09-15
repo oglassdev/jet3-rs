@@ -112,9 +112,11 @@ def native_arm(arm):
 
 def native_contents(data, arm):
     catalog = indexes.catalog
-    definition, _, records = catalog._discover_catalog(data)
-    name_slot, id_slot = [catalog._ordinal(definition, n) for n in ('Name', 'Id')]
-    roots = {r['values'][name_slot]: r['values'][id_slot] for r in records}
+    from catalog_pages_native import inspect
+    system = inspect(data)
+    objects = system['MSysObjects']
+    name_slot, id_slot = [catalog._ordinal(objects['definition'], n) for n in ('Name', 'Id')]
+    roots = {r['values'][name_slot]: r['values'][id_slot] for r in objects['rows']}
     for spec in arm['tables']:
         table = catalog._definition(data, roots[spec['name']])
         require([c['name'] for c in table['columns']] == spec['columns'], 'Native full column names')
@@ -133,8 +135,6 @@ def native_contents(data, arm):
             mapped = set(catalog._locator_pages(data, physical['map'], 'native index map'))
             require({n['page'] for n in nodes} <= mapped and not owned.intersection(mapped), 'Native distinct data/index ownership')
             owned.update(mapped)
-    from catalog_pages_native import inspect
-    inspect(data)
 
 
 def raw_layout(data, arm):

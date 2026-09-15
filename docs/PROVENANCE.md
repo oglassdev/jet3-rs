@@ -16330,3 +16330,24 @@ The scripts, recipe, source/helper identities, provider probes, all successful
 and refused outcomes, and all closed MDB identities remain in these roots.
 No candidate writer compatibility or support-matrix movement is established
 by this native-only discovery.
+
+## EXP-0251 — Creation counter/name boundaries and native successors
+
+- Candidate source `5a7a3f5`: ten creation cases in two replicas, including
+  128/255/256 tables and 64-byte table/column names with 63-byte index names.
+  Every case also receives native insertions on its first and last table.
+  Outbox `20260915T095619Z-creation-tables-77360f` retains all 80 complete,
+  successful native captures, but the overall comparison fails: the native
+  successor analyzer used an older catalog-discovery helper that refuses
+  active overflow rows. The failure is `table 2 page 18 row 21: active overflow
+  rows are outside this experiment`; there is no accepted candidate outcome
+  from this run.
+- The successor analyzer reads the native catalog through the existing
+  EXP-0228/0241 overflow-aware catalog decoder. This retains complete system
+  row payload, ownership, hidden-target and index-key/locator checks. A local
+  diagnostic passes those checks on all 40 retained native successors; the
+  original failed comparison is unchanged. A fresh run binds the correction.
+- Failed run identities:
+  - manifest: 180,470 bytes, SHA-256 `d29f7271012a45496caf4f4593a3eeb0ad0e6f62902b46e99dae22d18b61ef34`.
+  - native result: 31,418,867 bytes, SHA-256 `f1f416a1b90393514095e45f9cf0b39d4562d292e7d8eaf17d2181925ef5f160`.
+  - comparison: 466,830 bytes, SHA-256 `311af05af607dffddaa05c35fdaaafe8deb14b8d60279e168677835d20e684f2`.
