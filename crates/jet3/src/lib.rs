@@ -45,6 +45,7 @@ pub mod binary_writer;
 pub mod candidate;
 pub mod catalog;
 mod catalog_name_key;
+mod catalog_overflow;
 pub mod catalog_record;
 pub mod catalog_record_writer;
 pub mod column_definition;

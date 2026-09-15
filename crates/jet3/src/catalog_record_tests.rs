@@ -181,15 +181,25 @@ fn directory_accepts_deleted_zero_length_tombstones_and_skips_them()
     ]);
     let mut resources = budget();
     let mut directory = CatalogPageDirectory::validate(&page, &mut resources)?;
-    assert_eq!(directory.next_active(&page)?, Some(active.as_slice()));
-    assert_eq!(directory.next_active(&page)?, Some(later.as_slice()));
+    assert_eq!(
+        directory
+            .next_active(&page)?
+            .map(|entry| &page[entry.range()]),
+        Some(active.as_slice())
+    );
+    assert_eq!(
+        directory
+            .next_active(&page)?
+            .map(|entry| &page[entry.range()]),
+        Some(later.as_slice())
+    );
     assert_eq!(directory.next_active(&page)?, None);
     assert_eq!(resources.item_work(), 3);
     Ok(())
 }
 
 #[test]
-fn directory_rejects_count_flags_offsets_overlap_and_active_overflow() {
+fn directory_rejects_count_flags_offsets_and_overlap() {
     let mut resources = budget();
     let mut page = [0_u8; PAGE_BYTES];
     page[8..10].copy_from_slice(&1020_u16.to_le_bytes());
@@ -225,11 +235,7 @@ fn directory_rejects_count_flags_offsets_overlap_and_active_overflow() {
                 directory_end: 12,
             },
         ),
-        (
-            0x4000 | 2040,
-            CatalogRecordError::ActiveOverflowRow { row: 0 },
-        ),
-    ] as [(u16, CatalogRecordError); 4]
+    ] as [(u16, CatalogRecordError); 3]
     {
         let mut candidate = [0_u8; PAGE_BYTES];
         candidate[8..10].copy_from_slice(&1_u16.to_le_bytes());

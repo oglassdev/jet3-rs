@@ -27,9 +27,13 @@
     },
     {
       "id": "database.validate",
-      "implementation": "not_started",
-      "verification": "unverified",
-      "evidence": []
+      "implementation": "partial",
+      "verification": "internal_only",
+      "evidence": [
+        "crates/jet3/src/validation.rs",
+        "crates/jet3/src/validation_tests.rs",
+        "crates/jet3-cli/src/validate.rs"
+      ]
     },
     {
       "id": "format.header_and_version",
