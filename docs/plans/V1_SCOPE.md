@@ -149,12 +149,14 @@ IDs and allocation state. The CLI exposes full-row replacement. Publication
 supports Unix and Windows; Windows flushes the file before publication without
 a separate directory-sync guarantee.
 
-Tables participating in one enforced, non-cascading, single ascending Long
-relationship per endpoint support these row mutations, including nullable
-foreign keys and Memo/OLE payloads. Both reciprocal index records and the
-relationship catalog must agree; existing orphan keys and damaged indexes are
-refused. Child keys must resolve to a parent, and referenced parent keys cannot
-be changed or deleted. Multiple, composite, cascading and self-referencing
+Tables participating in enforced, non-cascading, single ascending Long
+relationships support these row mutations, including multiple constraints,
+self-references, nullable foreign keys and Memo/OLE payloads. All reciprocal
+records and the relationship catalog must agree; existing orphan keys and
+damaged indexes are refused. Every resulting non-null child key must occur
+in its parent. Atomic self-linked insert, full-row replacement and deletion
+are admitted when the resulting rows satisfy every constraint. Shared foreign
+physical indexes are updated once. Composite, cascading and other-key
 relationships remain outside this mutation scope.
 
 EXP-0212 covers seventeen hosted update recipes. EXP-0221 adds local DAO
@@ -320,6 +322,16 @@ source. Thirty-six DAO refusal captures retain the same query definitions and
 storage, and 36 Rust refusal records preserve their whole input. The suite
 retains the full relationship, schema, value, index and allocation comparisons
 from EXP-0271. Query execution and action/crosstab/DDL queries are not covered.
+
+EXP-0273/0274 extends mutation comparisons to five graph shapes, a shared-FK
+physical index, atomic self-references and Memo growth/shrink/Null transitions,
+each replicated twice. The portable evaluator compares 92 complete Rust/DAO
+snapshots, raw keys and locators, both prefix words, allocation and payload
+reachability, and unchanged schema/properties/system catalogs. It derives 28
+byte-exact Rust constraint refusals and eight additional native refusal results.
+Native successors pass from both lineages. The finite cases exercise at most
+two simultaneous constraints on an endpoint; relationship creation/drop and
+composite/cascading relationships remain separate work.
 
 ### Remaining work
 

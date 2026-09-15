@@ -580,3 +580,6 @@ pub(crate) use relationship_candidate::{compose_relationship, compose_relationsh
 #[path = "autoincrement.rs"]
 mod autoincrement;
 pub(crate) use autoincrement::InitialAutoIncrement;
+
+#[cfg(all(test, any(unix, windows)))]
+mod relationship_graph_mutation_tests;

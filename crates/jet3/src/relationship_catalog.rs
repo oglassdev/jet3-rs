@@ -29,17 +29,9 @@ pub(crate) fn load(
     budget: &mut ResourceBudget,
 ) -> Result<Vec<Constraint>, UpdateError> {
     let records = records(database, name, budget)?;
-    if records.len() > 1 {
-        return Err(UpdateError::Unsupported("multiple relationship mutation"));
-    }
     let mut result = Vec::new();
     reserve(&mut result, records.len(), budget)?;
     for record in &records {
-        if record.parent.eq_ignore_ascii_case(&record.child) {
-            return Err(UpdateError::Unsupported(
-                "self-referencing relationship mutation",
-            ));
-        }
         let parent = table(database, &record.parent, budget)?;
         let child = table(database, &record.child, budget)?;
         budget.charge_work_units(
@@ -49,9 +41,6 @@ pub(crate) fn load(
                 + child.indexes().len()) as u64
                 * 255,
         )?;
-        if parent.relationships().count() != 1 || child.relationships().count() != 1 {
-            return Err(UpdateError::Unsupported("multiple endpoint relationships"));
-        }
         let parent_column = key_column(&parent, &record.parent_column)?;
         let child_column = key_column(&child, &record.child_column)?;
         let mut foreign = child.relationships().filter(|relation| {
@@ -83,14 +72,52 @@ pub(crate) fn load(
             child_record,
         });
     }
-    budget.charge_work_units(target.indexes().len() as u64)?;
-    if target.relationships().count() != result.len() {
+    check_target(target, &result, budget)?;
+    incoming(database, target.root(), &result, budget)?;
+    Ok(result)
+}
+
+fn record_matches(root: PageNumber, record: &[u8; 20], constraint: &Constraint) -> bool {
+    (root == constraint.parent.root() && *record == constraint.parent_record)
+        || (root == constraint.child.root() && *record == constraint.child_record)
+}
+
+fn endpoint_count(target: PageNumber, constraints: &[Constraint]) -> usize {
+    constraints.iter().fold(0, |count, constraint| {
+        count
+            + usize::from(constraint.parent.root() == target)
+            + usize::from(constraint.child.root() == target)
+    })
+}
+
+fn check_target(
+    target: &TableDefinition,
+    constraints: &[Constraint],
+    budget: &mut ResourceBudget,
+) -> Result<(), UpdateError> {
+    budget.charge_work_units(
+        (target.indexes().len() as u64).saturating_mul(constraints.len() as u64 * 40 + 1),
+    )?;
+    let mut count = 0;
+    for relation in target.relationships() {
+        if constraints
+            .iter()
+            .filter(|constraint| record_matches(target.root(), relation.raw_record(), constraint))
+            .count()
+            != 1
+        {
+            return Err(UpdateError::Mismatch(
+                "unresolved target relationship record",
+            ));
+        }
+        count += 1;
+    }
+    if count != endpoint_count(target.root(), constraints) {
         return Err(UpdateError::Mismatch(
             "relationship catalog/index inventory",
         ));
     }
-    incoming(database, target.root(), &result, budget)?;
-    Ok(result)
+    Ok(())
 }
 
 fn incoming(
@@ -127,12 +154,7 @@ fn incoming(
             budget.charge_work_units(constraints.len() as u64 * 40)?;
             let matches = constraints
                 .iter()
-                .filter(|constraint| {
-                    (root == constraint.parent.root()
-                        && *relation.raw_record() == constraint.parent_record)
-                        || (root == constraint.child.root()
-                            && *relation.raw_record() == constraint.child_record)
-                })
+                .filter(|constraint| record_matches(root, relation.raw_record(), constraint))
                 .count();
             if matches != 1 {
                 return Err(UpdateError::Mismatch(
@@ -144,7 +166,7 @@ fn incoming(
             ))?;
         }
     }
-    if count != constraints.len() {
+    if count != endpoint_count(target, constraints) {
         return Err(UpdateError::Mismatch("incoming relationship inventory"));
     }
     Ok(())

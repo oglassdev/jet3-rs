@@ -47,8 +47,9 @@ use std::path::Path;
 /// Callers must exclude external writers throughout this operation on Unix or Windows.
 /// A pre-publication failure preserves the original; publication errors identify
 /// their stage. One resource budget covers planning, copying and full verification.
-/// Each endpoint may participate in only one relationship; multiple relationships
-/// and other key types, cascades, or self-references are refused.
+/// Every affected enforced, non-cascading Long relationship is checked, including
+/// multiple relationships and self-references. Every resulting non-null child
+/// key must occur in its parent table. Other key types and cascades are refused.
 pub fn insert_row(
     path: impl AsRef<Path>,
     table: &[u8],

@@ -422,7 +422,6 @@ fn decode_definition(
                 TableDefinitionKind::User => USER_PRIMARY_FLAGS,
                 TableDefinitionKind::System => SYSTEM_PRIMARY_FLAGS,
             },
-            table_root: root,
             geometry,
         },
         budget,

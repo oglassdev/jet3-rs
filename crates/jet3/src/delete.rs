@@ -46,8 +46,9 @@ pub struct RowDelete<'a> {
 /// The same resource budget covers planning, private copying and full-file
 /// verification. Any pre-publication failure preserves the original; publication
 /// errors identify their stage, including post-publication sync failures.
-/// Each endpoint may participate in only one relationship; multiple relationships
-/// and other key types, cascades, or self-references are refused.
+/// Every affected enforced, non-cascading Long relationship is checked, including
+/// multiple relationships and self-references. Every resulting non-null child
+/// key must occur in its parent table. Other key types and cascades are refused.
 pub fn delete_row(
     path: impl AsRef<Path>,
     request: RowDelete<'_>,

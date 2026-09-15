@@ -604,7 +604,7 @@ fn an_existing_orphan_is_not_silently_repaired_by_a_later_write() -> TestResult 
 }
 
 #[test]
-fn multiple_logical_relationships_on_one_endpoint_are_refused() -> TestResult {
+fn duplicate_reciprocal_relationship_records_are_refused() -> TestResult {
     let fixture = fixture()?;
     let selected = locator(&fixture, b"Child", 12)?;
     let mut work = budget();
@@ -639,7 +639,9 @@ fn multiple_logical_relationships_on_one_endpoint_are_refused() -> TestResult {
     assert!(
         matches!(
             result,
-            Err(UpdateError::Unsupported("multiple endpoint relationships"))
+            Err(UpdateError::Mismatch(
+                "ambiguous reciprocal relationship index"
+            ))
         ),
         "{result:?}"
     );

@@ -49,8 +49,9 @@ pub struct RowUpdate<'a> {
 /// Pre-publication failure preserves the original; errors identify publish stages.
 /// An AutoNumber field accepts its unchanged Long value or `RowValue::AutoIncrement`
 /// to retain its value. Changing that field is refused and its counter is retained.
-/// Each endpoint may participate in only one relationship; multiple relationships
-/// and other key types, cascades, or self-references are refused.
+/// Every affected enforced, non-cascading Long relationship is checked, including
+/// multiple relationships and self-references. Every resulting non-null child
+/// key must occur in its parent table. Other key types and cascades are refused.
 pub fn update_row(
     path: impl AsRef<Path>,
     request: RowUpdate<'_>,

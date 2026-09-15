@@ -238,7 +238,7 @@ pub enum IndexDefinitionError {
         /// Zero-based logical-index ordinal.
         logical_index: u16,
     },
-    /// A relationship reference is zero, self-referential, or out of range.
+    /// A relationship reference is zero or out of range.
     InvalidRelationshipReference {
         /// Zero-based logical-index ordinal.
         logical_index: u16,
@@ -306,7 +306,6 @@ pub(crate) struct IndexDecodeContext<'a> {
     pub(crate) physical_count: u16,
     pub(crate) supported_physical_flags: &'static [u8],
     pub(crate) primary_flags: u8,
-    pub(crate) table_root: PageNumber,
     pub(crate) geometry: PageGeometry,
 }
 
@@ -486,7 +485,8 @@ pub(crate) fn decode_indexes(
                     }
                 };
                 let related_table = PageNumber::new(u64::from(related_raw));
-                if related_raw == 0 || related_table == context.table_root {
+                // EXP-0273: an enforced relationship may reference its own table.
+                if related_raw == 0 {
                     return Err(IndexDefinitionError::InvalidRelationshipReference {
                         logical_index,
                         page: related_table,
