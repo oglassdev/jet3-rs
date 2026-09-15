@@ -216,7 +216,11 @@
         "oracle/windows-dao/scripts/indexed_row_candidate.py",
         "oracle/windows-dao/scripts/indexed_boundary.py",
         "crates/jet3/src/unique_index.rs",
-        "oracle/windows-dao/scripts/index_tree_mutation.py"
+        "oracle/windows-dao/scripts/index_tree_mutation.py",
+        "crates/jet3/src/row_reuse_page.rs",
+        "crates/jet3/src/row_reuse_tests.rs",
+        "crates/jet3/examples/practical_lifecycle_candidate.rs",
+        "oracle/windows-dao/scripts/practical_lifecycle.py"
       ]
     },
     {
@@ -266,7 +270,11 @@
         "oracle/windows-dao/scripts/indexed_row_candidate.py",
         "oracle/windows-dao/scripts/indexed_boundary.py",
         "crates/jet3/src/unique_index.rs",
-        "oracle/windows-dao/scripts/index_tree_mutation.py"
+        "oracle/windows-dao/scripts/index_tree_mutation.py",
+        "crates/jet3/src/row_reuse_page.rs",
+        "crates/jet3/src/row_reuse_tests.rs",
+        "crates/jet3/examples/practical_lifecycle_candidate.rs",
+        "oracle/windows-dao/scripts/practical_lifecycle.py"
       ]
     },
     {

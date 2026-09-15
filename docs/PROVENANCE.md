@@ -15330,3 +15330,47 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   SHA-256 `2b8a2588d4424a9c06586c6b8fa775387c07a92712513122a940761ee15cbca9`.
   All six exact data-page reconstructions, map transitions, rows and counters
   agree. This observation precedes separate Rust/DAO mutation validation.
+
+
+### EXP-0227 existing-suite verification
+
+- Clean `09d97fc25b4da698d71baa82abf297791315eb28` matched all four
+  permanent local suites, including native compressed-tree continuations.
+  Reports under `shared/checks/20260915-storage-initial/` have SHA-256:
+  indexed-boundary `543c6246bddee4ec0da8b2c351bf22a39d88265f131c817941da5311dffcdc94`;
+  indexed-rows `a5a14b81803298959e111a0a2b966c0b7cdd7426ce742113707710528e0e8777`;
+  creation-tables `e4fbcc28a62334858ed3095d7473657ef990162a1af1e1d985d1f14ce0032bd4`;
+  index-trees `360a5b30d8a57f1ec468c096fcd4683ef7a700b0c0ccebfc389ecd23e258b241`.
+
+## EXP-0229 — Public Items/Notes lifecycle and released-page reuse match DAO
+
+- Clean `a488710b045e38570e75ddbc609ee4d9f1954510` uses public APIs to
+  create Items (Long primary Id, Text(80) Name, nullable Currency Price,
+  Boolean Active) and unrelated Notes (Long Id, Memo Body containing a
+  4 KiB payload and a null row). An independent typed model and a separate
+  DAO-created control history cover eight paired checkpoints.
+- The main history creates empty Items, inserts 220 rows, replaces names,
+  prices/nulls and Boolean values (including dense first-page rows), deletes
+  eight scattered rows, then inserts 40 more. Checkpoint row counts are
+  0/220/220/212/252. Loading crosses eleven data pages and a depth-two index;
+  the final Rust image uses thirteen data pages.
+- A separate three-row history deletes all rows and reinserts one. The
+  released table page is reused at slot zero, with the file staying at 31
+  pages. This composes the native EXP-0227 reuse observation through public
+  mutation and publication APIs.
+- All eight pairs matched complete schema, typed rows, primary traversal,
+  and 262 present/absent Seek probes per checkpoint. Each history preserves
+  its own Notes definition, maps, data and long-value page hashes. Candidate
+  Notes bytes are checked before/after both Rust mutations and DAO capture;
+  candidate and independently created control layouts need not be identical.
+- Duplicate-key, wrong Currency value type, malformed index owner and
+  encoded-byte budget refusals return errors and preserve exact input bytes.
+  These are pre-publication checks; no post-publication rollback claim follows.
+- `scripts/dao-check.py practical-lifecycle` repeats this finite scenario.
+  Private report:
+  `shared/checks/20260915-practical-lifecycle-initial/practical-lifecycle/report.json`,
+  SHA-256 `bb76fc3eb6621209b8152a4fa52613816a4287d27afa2c439f785f96bc9610ee`.
+  Captures are `shared/outbox/20260915T043600Z-practical-lifecyc-bde6cb/`;
+  manifest SHA-256 `39ea72ad4ca36e86bdd882d27c3bd8a83d42a03ab1862abc9ab741400435aca6`.
+  The provider is the fresh local DAO 3.6 environment recorded in EXP-0221.
+  This meets the practical Items/Notes milestone, not the broader v1 inventory.
