@@ -45,6 +45,40 @@ fn observed_numeric_bytes_directions_and_locators_survive_publication() -> TestR
                 vec![0x7f, 0xbf, 0xf0, 0, 0, 0, 0, 0, 0],
             ],
         ),
+        (
+            ColumnType::Single,
+            [RowValue::Single(0.0), RowValue::Single(-0.0)],
+            vec![
+                vec![0x7f, 0x7f, 0xff, 0xff, 0xff],
+                vec![0x7f, 0x80, 0, 0, 0],
+            ],
+        ),
+        (
+            ColumnType::Double,
+            [RowValue::Double(0.0), RowValue::Double(-0.0)],
+            vec![
+                vec![0x7f, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff],
+                vec![0x7f, 0x80, 0, 0, 0, 0, 0, 0, 0],
+            ],
+        ),
+        (
+            ColumnType::DateTime,
+            [
+                RowValue::DateTime { days: 1.25 },
+                RowValue::DateTime { days: -1.25 },
+            ],
+            vec![
+                vec![0x7f, 0x40, 0x0b, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff],
+                vec![0x7f, 0xbf, 0xf4, 0, 0, 0, 0, 0, 0],
+            ],
+        ),
+        (
+            ColumnType::Binary {
+                max_len: std::num::NonZeroU8::MAX,
+            },
+            [RowValue::Binary(&[0]), RowValue::Binary(&[])],
+            vec![vec![0], vec![0x7f, 0, 0, 0, 0, 0, 0, 0, 0, 1]],
+        ),
     ] {
         for direction in [IndexDirection::Ascending, IndexDirection::Descending] {
             let directory = TestDirectory::create()?;
@@ -210,13 +244,11 @@ fn wide_numeric_components_pack_across_leaf_boundaries() -> TestResult {
 fn excluded_scalar_values_and_types_never_publish() -> TestResult {
     for (column, value) in [
         (ColumnType::Boolean, RowValue::Null),
-        (ColumnType::Single, RowValue::Single(-0.0)),
         (ColumnType::Single, RowValue::Single(f32::INFINITY)),
         (ColumnType::Single, RowValue::Single(f32::NAN)),
-        (ColumnType::Double, RowValue::Double(-0.0)),
         (ColumnType::Double, RowValue::Double(f64::NEG_INFINITY)),
         (ColumnType::Double, RowValue::Double(f64::NAN)),
-        (ColumnType::DateTime, RowValue::DateTime { days: 1.0 }),
+        (ColumnType::DateTime, RowValue::DateTime { days: f64::NAN }),
         (ColumnType::Guid, RowValue::Guid([0; 16])),
     ] {
         let directory = TestDirectory::create()?;

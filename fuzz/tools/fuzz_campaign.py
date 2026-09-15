@@ -742,7 +742,12 @@ def run_campaign(
         }
         report_path = temporary / "report.json"
         write_json(report_path, report)
-        validate_report(root, report_path)
+        try:
+            validate_report(root, report_path)
+        except ValidationError:
+            # Keep the failed report, target log and crash inputs for diagnosis.
+            publish_directory(temporary, output)
+            raise
         publish_directory(temporary, output)
         return observer["result"]
     except BaseException:
@@ -784,11 +789,17 @@ def run_smoke(
                     cargo_fuzz,
                     suite / name,
                 )
-            results = [futures[target["name"]].result() for target in targets]
+            results = []
+            for target in targets:
+                name = target["name"]
+                try:
+                    results.append(futures[name].result())
+                except Exception as error:
+                    raise ValidationError(f"{name}: {error}") from error
         publish_directory(suite, output)
         return results
     except BaseException:
-        shutil.rmtree(suite, ignore_errors=True)
+        publish_directory(suite, output)
         raise
 
 

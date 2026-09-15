@@ -2,7 +2,7 @@
 from multi_level_index_structure import catalog, require
 
 
-WIDTHS = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 4, 7: 8}
+WIDTHS = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 4, 7: 8, 8: 8}
 
 
 def record_width(record, fields):
@@ -11,7 +11,19 @@ def record_width(record, fields):
         require(offset < len(record), 'Missing numeric component')
         marker = record[offset] ^ (255 if descending else 0)
         require(marker in (0, 127) and not (kind == 1 and marker == 0), 'Numeric component marker')
-        offset += 1 + (WIDTHS[kind] if marker else 0)
+        offset += 1
+        if not marker: continue
+        if kind == 9:
+            for chunk in range(32):
+                require(offset + 9 <= len(record), 'Incomplete Binary chunk')
+                suffix = record[offset + 8]; payload = record[offset:offset + 8]; offset += 9
+                if suffix == 9: continue
+                width = suffix ^ (255 if descending else 0)
+                require(1 <= width <= 8 and chunk * 8 + width <= 255, 'Binary terminal length')
+                require(payload[width:] == bytes([255 if descending else 0]) * (8 - width), 'Binary padding')
+                break
+            else: raise ValueError('Unterminated Binary component')
+        else: offset += WIDTHS[kind]
     return offset + 4
 
 
@@ -23,7 +35,7 @@ def tree(data, root, owner, fields):
         seen.add(number)
         page = catalog._page(data, number, 'index node')
         branch = page[0] == 3
-        require(page[0] in (3, 4) and page[1] == 1 and page[21] in ((1, 2) if branch else (0,)), 'Index node header')
+        require(page[0] in (3, 4) and page[1] == 1 and page[21] in ((1, 2, 3) if branch else (0,)), 'Index node header')
         require(int.from_bytes(page[4:8], 'little') == owner, 'Index owner mismatch')
         prefix = page[20]
         previous, following, tail = [int.from_bytes(page[offset:offset + 4], 'little') for offset in (8, 12, 16)]
@@ -32,14 +44,19 @@ def tree(data, root, owner, fields):
         boundaries = [position * 8 + bit for position, byte in enumerate(page[22:248]) for bit in range(8) if byte & (1 << bit)]
         require(all(prefix < end <= 1800 for end in boundaries), 'Index boundary outside entry area')
         require(int.from_bytes(page[2:4], 'little') == 1800 - (boundaries[-1] if boundaries else 0), 'Index free space mismatch')
-        require(bool(boundaries) or (not branch and prefix == 0), 'Empty branch or unmatched prefix')
+        # EXP-0246: a class-one root can retain only its tail child after deletion.
+        require(bool(boundaries) or prefix == 0, 'Empty node with unmatched prefix')
+        require(bool(boundaries) or not branch or (depth == 1 and page[21] == 1), 'Unobserved empty intermediate node')
         node = dict(page=number, depth=depth, previous=previous, next=following, tail=tail, prefix=prefix,
                     entries=len(boundaries), children=[], header_class=page[21], stale_separators=0)
         nodes.append(node)
         start, entries = prefix, []
         for end in boundaries:
             entry = area[:prefix] + area[start:end]
-            require(len(entry) == record_width(entry, fields) + (4 if branch else 0), 'Invalid numeric record width')
+            # Full leaf keys are independently rebuilt from physical row values by the caller.
+            # At the 255-byte cap, the CRC obscures the remaining component grammar.
+            shortened = any(kind == 9 for kind, _ in fields) and len(entry) == 259 + (4 if branch else 0)
+            require(shortened or len(entry) == record_width(entry, fields) + (4 if branch else 0), 'Invalid scalar record width')
             entries.append(entry)
             start = end
         require(entries == sorted(entries), 'Unsorted complete index entries')

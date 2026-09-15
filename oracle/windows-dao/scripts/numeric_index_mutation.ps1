@@ -13,11 +13,17 @@ foreach ($name in @('Identity', 'Release', 'Write-Json')) {
 function Failure($Record) {
     return @{ endpoint = $script:endpoint; message = $Record.Exception.Message; hresult = $Record.Exception.HResult; stack = $Record.ScriptStackTrace }
 }
+function Binary-Bytes([string]$Hex) {
+    $bytes = New-Object byte[] ($Hex.Length / 2)
+    for ($i = 0; $i -lt $bytes.Length; $i++) { $bytes[$i] = [Convert]::ToByte($Hex.Substring($i * 2, 2), 16) }
+    return ,$bytes
+}
 function Variant([int]$Type, $Value) {
     if ($null -eq $Value) { return [DBNull]::Value }
     switch ($Type) {
         1 { return [bool]$Value }; 2 { return [byte]$Value }; 3 { return [int16]$Value }; 4 { return [int]$Value }
         5 { return [double]([decimal]$Value / [decimal]10000) }; 6 { return [single]$Value }; 7 { return [double]$Value }
+        8 { return [datetime]::FromOADate([double]$Value) }; 9 { return ,([byte[]](Binary-Bytes ([string]$Value))) }
         default { throw 'Unknown numeric type' }
     }
 }
@@ -31,6 +37,7 @@ function Set-Cell($Recordset, $Case, [int]$Column, $Value) {
             3 { $field.Value = [int16]$Value }; 4 { $field.Value = [int]$Value }
             5 { $field.Value = [decimal]([decimal]$Value / [decimal]10000) }
             6 { $field.Value = [single]$Value }; 7 { $field.Value = [double]$Value }
+            8 { $field.Value = [datetime]::FromOADate([double]$Value) }; 9 { $field.Value = [byte[]](Binary-Bytes ([string]$Value)) }
             default { throw 'Unknown numeric type' }
         }
     } finally { Release $field }
@@ -46,7 +53,7 @@ function Read-Row($Recordset, [string]$Name, $Case) {
     $values = [object[]]::new($Case.fields.Count)
     for ($i = 0; $i -lt $values.Length; $i++) {
         $value = $Recordset.Fields.Item([string]$Case.fields[$i][0]).Value
-        $values[$i] = if ($value -is [DBNull]) { $null } elseif ([int]$Case.fields[$i][1] -eq 5) { [long]([decimal]$value * [decimal]10000) } else { $value }
+        $values[$i] = if ($value -is [DBNull]) { $null } elseif ([int]$Case.fields[$i][1] -eq 5) { [long]([decimal]$value * [decimal]10000) } elseif ([int]$Case.fields[$i][1] -eq 8) { ([datetime]$value).ToOADate() } elseif ([int]$Case.fields[$i][1] -eq 9) { [BitConverter]::ToString([byte[]]$value).Replace('-', '').ToLowerInvariant() } else { $value }
     }
     return ,$values
 }

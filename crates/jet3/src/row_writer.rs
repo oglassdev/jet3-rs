@@ -15,8 +15,7 @@ use crate::{
 
 /// `EXP-0060`: one-byte column count, so at most 255 columns.
 const MAX_COLUMN_COUNT: usize = u8::MAX as usize;
-/// `EXP-0060`: rows longer than 255 bytes use one jump byte for boundary
-/// high bits; only single-variable-column wide rows were isolated.
+/// `EXP-0060`: multi-variable rows are bounded to the first offset block.
 const MAX_NARROW_ROW_LEN: usize = u8::MAX as usize;
 /// `EXP-0060` / `EXP-0172`: supported single-variable boundaries stay below 512.
 const MAX_WIDE_BOUNDARY: usize = 2 * (u8::MAX as usize + 1) - 1;
@@ -103,7 +102,7 @@ pub enum RowValue<'a> {
         /// Day count as stored.
         days: f64,
     },
-    /// Short binary bytes.
+    /// Short binary bytes; an empty slice saves as null.
     Binary(&'a [u8]),
     /// Text already encoded in the database code page.
     Text(&'a [u8]),
@@ -383,7 +382,14 @@ fn validate(
                 operation: "size encoded-row variable trailer",
             }))?;
     }
-    let wide = length > MAX_NARROW_ROW_LEN && variable_count > 0;
+    if variable_count > 1 && length > MAX_NARROW_ROW_LEN {
+        return Err(RowWriteError::UnsupportedWideVariableOffsets {
+            variable_count,
+            row_length: length,
+        });
+    }
+    // EXP-0245: a one-variable row of exactly 256 bytes has no jump byte.
+    let wide = length > 256 && variable_count > 0;
     if wide {
         if variable_count != 1 {
             return Err(RowWriteError::UnsupportedWideVariableOffsets {
@@ -607,6 +613,8 @@ fn write_row(
     for (ordinal, (column, value)) in columns.iter().zip(values).enumerate() {
         let present = match (column.physical_type, value) {
             (ColumnPhysicalType::Boolean, RowValue::Boolean(bit)) => *bit,
+            // EXP-0243: empty Binary values save as null.
+            (ColumnPhysicalType::Binary, RowValue::Binary([])) => false,
             (_, RowValue::Null) => false,
             (ColumnPhysicalType::Boolean, _) => false,
             _ => true,
@@ -653,17 +661,16 @@ fn write_row(
     }
     if shape.variable_count > 0 {
         // EXP-0060: boundaries in reverse order, low byte each.
-        let mut jump = 0_u8;
         for ordinal in (0..=shape.variable_count).rev() {
             let boundary = boundaries[ordinal];
             writer.write_u8((boundary & 0xff) as u8)?;
-            let reversed = shape.variable_count - ordinal;
-            // EXP-0172: same-block wide fixed prefixes use a zero jump byte.
-            if shape.wide && boundaries[0] < 256 && boundary & 0x100 != 0 {
-                jump |= 1 << reversed;
-            }
         }
         if shape.wide {
+            // EXP-0060/0172/0245: first boundary in the second block, or none.
+            let jump = boundaries[..=shape.variable_count]
+                .iter()
+                .position(|boundary| *boundary >= 256)
+                .map_or(0xff, |ordinal| ordinal as u8);
             writer.write_u8(jump)?;
         }
         writer.write_u8(shape.variable_count as u8)?;

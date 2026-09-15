@@ -692,10 +692,7 @@ fn rejects_each_node_header_and_reference_corruption() {
             entries: &[],
         },
     );
-    assert!(matches!(
-        parse_page(&empty_branch, PageKind::IntermediateIndex, 0),
-        Err(IndexTreeError::EmptyIntermediate { .. })
-    ));
+    assert!(parse_page(&empty_branch, PageKind::IntermediateIndex, 0).is_ok());
 
     let mut outside_sibling = root;
     outside_sibling[8..12].copy_from_slice(&(PAGE_COUNT as u32).to_le_bytes());

@@ -41,6 +41,13 @@ pub(crate) fn load(
                 ColumnPhysicalType::Currency => ColumnType::Currency,
                 ColumnPhysicalType::Single => ColumnType::Single,
                 ColumnPhysicalType::Double => ColumnType::Double,
+                ColumnPhysicalType::DateTime => ColumnType::DateTime,
+                ColumnPhysicalType::Binary => ColumnType::Binary {
+                    max_len: u8::try_from(column.size())
+                        .ok()
+                        .and_then(std::num::NonZeroU8::new)
+                        .ok_or(UpdateError::Mismatch("binary index field capacity"))?,
+                },
                 _ => return Err(UpdateError::Unsupported("non-numeric index key")),
             };
             let kind = NumericKeyType::from_column(kind)
@@ -107,7 +114,7 @@ pub(crate) fn load(
         }
         let locator = row.locator();
         let values = row_values(&mut row, &result.columns)?;
-        let budget = cursor.owned.budget_mut();
+        let budget = row.budget_mut();
         for index in &mut result.indexes {
             if let Some(entry) = index.encode(&values, locator, budget)? {
                 reserve(&mut index.entries, 1, budget)?;
@@ -126,7 +133,7 @@ pub(crate) fn load(
         budget.charge_work_units(
             (index.entries.len() as u64)
                 .saturating_mul((index.entries.len().max(1).ilog2() + 1) as u64)
-                .saturating_mul(4 * ENTRY_CAPACITY as u64),
+                .saturating_mul(sort_cost(&index.fields)),
         )?;
         index
             .entries
@@ -151,7 +158,7 @@ pub(crate) fn load(
         budget.charge_work_units(
             (tree.nodes().len() as u64)
                 .saturating_mul((index.mapped.len().max(1).ilog2() + 1) as u64)
-                .saturating_add(index.entries.len() as u64 * ENTRY_CAPACITY as u64),
+                .saturating_add(index.entries.len() as u64 * record_capacity(&index.fields) as u64),
         )?;
         if tree
             .nodes()
@@ -178,7 +185,7 @@ pub(crate) fn load(
 }
 
 pub(super) fn row_values<'value>(
-    row: &mut RowView<'_, '_>,
+    row: &mut RowView<'value, '_>,
     columns: &[bool; u8::MAX as usize],
 ) -> Result<[RowValue<'value>; u8::MAX as usize], UpdateError> {
     let mut values = [RowValue::Null; u8::MAX as usize];
@@ -191,7 +198,7 @@ pub(super) fn row_values<'value>(
                 ColumnOrdinal::new(ordinal as u16),
                 TextCodePage::Windows1252,
             )?
-            .ok_or(UpdateError::NotFound("numeric key column"))?;
+            .ok_or(UpdateError::NotFound("index key column"))?;
         values[ordinal] = match value.kind() {
             ValueKind::Null => RowValue::Null,
             ValueKind::Boolean(v) => RowValue::Boolean(*v),
@@ -201,6 +208,12 @@ pub(super) fn row_values<'value>(
             ValueKind::Currency(v) => RowValue::Currency { scaled: v.scaled() },
             ValueKind::Single(v) => RowValue::Single(*v),
             ValueKind::Double(v) => RowValue::Double(*v),
+            ValueKind::DateTime(v) => RowValue::DateTime { days: v.days() },
+            ValueKind::Binary(_) => RowValue::Binary(
+                row.field(ColumnOrdinal::new(ordinal as u16))
+                    .and_then(|field| field.raw_bytes())
+                    .ok_or(UpdateError::Mismatch("missing binary key bytes"))?,
+            ),
             _ => return Err(UpdateError::Unsupported("non-numeric index value")),
         };
     }

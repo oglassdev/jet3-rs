@@ -193,7 +193,7 @@ pub fn create_database(
 /// a slot and room for an all-null row are marked available; this construction
 /// policy has not been established as DAO's allocation policy.
 /// Each table accepts up to three indexes. Each
-/// index has one or two numeric columns (including a generated AutoIncrement
+/// index has one or two supported scalar columns (including a generated AutoIncrement
 /// column), with each field ascending or descending. Multiple populated indexes
 /// use separate roots/maps and independent trees.
 /// Uncompressed branch/leaf trees grow within the existing inline-map and
@@ -201,16 +201,18 @@ pub fn create_database(
 /// allowing repeated null-bearing keys. The index null policy includes keys,
 /// omits all-null keys, or requires every component; primary indexes require
 /// every component. Supported components are Boolean, Byte, Integer, Long,
-/// Currency, Single and Double. Floating negative zero and nonfinite values,
-/// Boolean nulls and other key types are refused. EXP-0232 records the finite
-/// numeric lifecycle comparison, including nullable/composite combinations.
+/// Currency, Single, Double, DateTime and Binary. Nonfinite floating values,
+/// Boolean nulls, Text and GUID keys are refused. Empty Binary saves as null.
+/// EXP-0243/0245 establish Date fractions, floating negative zero and Binary keys.
+/// Keys longer than 255 bytes retain a prefix plus a checksum; distinct values
+/// colliding after shortening are duplicate keys, matching DAO uniqueness.
 /// One AutoIncrement column accepts [`RowValue::AutoIncrement`] or an explicit Long.
 /// Generation starts at 1 independently per table and wraps through signed Long
 /// boundaries. Each inserted row advances the persisted allocation state before
 /// applying an explicit ID using the unsigned comparison established by EXP-0237.
 /// Null IDs are refused. EXP-0239 compares explicit and wrapping initial IDs.
 /// Memo and LongBinary columns accept nonempty typed payloads or null alongside
-/// numeric indexes and generated IDs; the long-value columns themselves cannot
+/// scalar indexes and generated IDs; the long-value columns themselves cannot
 /// be indexed. Every long-value column has its own owned/available map pair,
 /// in column order after the table and index maps on the shared map page.
 /// Its physical capacity bounds the column count. EXP-0236 compares multiple

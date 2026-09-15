@@ -22,7 +22,7 @@ pub struct RowUpdate<'a> {
 /// tables, including independent Memo/OLE columns. The page must be inline-owned and
 /// allocated, with consistent metadata and ordinary live rows or known empty
 /// `c000` tombstones. The data page and row locator remain fixed. Up to three
-/// indexes with one or two supported numeric fields admit key and null changes,
+/// indexes with one or two supported scalar fields admit key and null changes,
 /// with uniqueness enforced for fully present keys.
 /// Existing checked row-encoding limits apply, including variable-offset widths.
 /// The replacement must fit the existing contiguous space. Available membership

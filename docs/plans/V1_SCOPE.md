@@ -52,7 +52,7 @@ and roadmap #75 remain open.
 
 Creation admits up to 127 tables with multi-page system catalogs and catalog
 indexes, within the existing 1,024-page allocation limit. It supports multi-page
-initial rows, explicit/generated AutoIncrement IDs, and up to three numeric
+initial rows, explicit/generated AutoIncrement IDs, and up to three numeric, Date or Binary
 indexes per table.
 Indexes have one or two components and can span multiple levels. Independent
 Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
@@ -93,9 +93,9 @@ is separate work. Existing name and definition restrictions also remain.
 Public APIs implement bounded field updates, insertion into populated pages or
 one EOF data page or a released target-table page, deletion/compaction,
 last-live-row page release, same-page row replacement, independent Memo/OLE
-payload mutation, and multi-level numeric index maintenance. A table may
+payload mutation, and multi-level index maintenance. A table may
 have up to three indexes with one or two Boolean, Byte, Integer, Long, Currency,
-Single or Double components, including mixed directions, duplicates and null
+Single, Double, Date or Binary components, including mixed directions, duplicates and null
 policies. Rebuilt trees keep their roots, reuse reserved index pages, and append
 nodes within inline maps. Indexed EOF insertion publishes data, allocation, table counts and index
 changes together. Memo/OLE insertion and full-row replacement support null,
@@ -140,6 +140,15 @@ state and numeric key/locator records, with Anchor payload pages preserved.
 EXP-0242 adds native Windows NTFS publication tests and all eight practical
 lifecycle DAO pairs using databases created and mutated entirely on Windows.
 
+EXP-0243/0245 establish Date/negative-zero and Binary key encodings, long-key
+shortening, collision behavior, single-variable row boundaries and depth-four
+roots. EXP-0246 adds all 35 scalar lifecycle comparisons (70 captures): five
+cases through five checkpoints, native writes on both outputs, and Rust edits
+to native inputs. Complete values, schema, traversal/Seek, key/locator records,
+counters and Notes preservation match. Native deletion can retain a class-one
+index root with a single tail child; that bounded shape is now readable and
+mutable. Original failed analyzer outcomes remain recorded separately.
+
 ### Validation
 
 The read-only library and CLI validator walk catalogued user tables with one
@@ -153,7 +162,7 @@ reading follows native overflow records using the shared row-locator grammar
 ### Remaining work
 
 - Extend creation beyond current schema/index-key and inline-allocation bounds.
-- Extend updates beyond current numeric key types/counts and component limits,
+- Extend updates beyond current index key types/counts and component limits,
   to relationship targets, additional payload/schema combinations, broader
   data-page/live-slot reuse, cross-page row growth and indirect maps.
 - Cover remaining DAO inventories, stored-query preservation and broader

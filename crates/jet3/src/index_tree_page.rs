@@ -9,8 +9,8 @@ const ENTRY_AREA_LEN: usize = PAGE_BYTES - ENTRY_AREA_OFFSET;
 const BOUNDARY_BITMAP_OFFSET: usize = 22;
 const HEADER_MARKER: u8 = 1;
 const LEAF_NODE_MARKER: u8 = 0;
-// EXP-0146 admits both observed branch classes without treating them as depth.
-const INTERMEDIATE_NODE_MARKERS: [u8; 2] = [1, 2];
+// EXP-0146/0245 admit observed branch classes without treating them as depth.
+const INTERMEDIATE_NODE_MARKERS: [u8; 3] = [1, 2, 3];
 
 #[derive(Debug)]
 pub(crate) struct ParsedNode {
@@ -155,7 +155,11 @@ pub(crate) fn parse_node(
             expected: expected_free,
         });
     }
-    if node_kind == IndexNodeKind::Intermediate && entry_count == 0 {
+    // EXP-0246: deletion can retain a class-one root with only its tail child.
+    if node_kind == IndexNodeKind::Intermediate
+        && entry_count == 0
+        && (pending.depth != 1 || marker != 1)
+    {
         return Err(IndexTreeError::EmptyIntermediate { page: pending.page });
     }
     Ok(ParsedNode {

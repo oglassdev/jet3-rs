@@ -1,10 +1,15 @@
-//! Numeric component transforms observed in EXP-0126/0150.
+//! Scalar component transforms observed in EXP-0126/0150/0243.
 //!
 //! Non-Long nullable/composite construction is a candidate generalization of
-//! EXP-0148. Negative zero and nonfinite floating values remain unsupported.
+//! EXP-0148. Nonfinite floating values remain unsupported.
 use crate::{ColumnType, IndexDirection, RowValue};
 
-pub(crate) const MAX_COMPONENT_BYTES: usize = 9;
+pub(crate) const MAX_COMPONENT_BYTES: usize = 1 + 9 * 255_usize.div_ceil(8);
+
+pub(crate) enum KeyPrefix {
+    Complete(usize),
+    Partial { maximum: usize },
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NumericKeyType {
@@ -15,23 +20,49 @@ pub(crate) enum NumericKeyType {
     Currency,
     Single,
     Double,
+    DateTime,
+    Binary { max_len: u8 },
 }
 
 impl NumericKeyType {
-    pub(crate) fn encoded_length(self, marker: u8, direction: IndexDirection) -> Option<usize> {
+    pub(crate) const fn maximum_length(self) -> usize {
+        match self {
+            Self::Boolean | Self::Byte => 2,
+            Self::Integer => 3,
+            Self::Long | Self::Single => 5,
+            Self::Currency | Self::Double | Self::DateTime => 9,
+            Self::Binary { max_len } => 1 + 9 * (max_len as usize).div_ceil(8),
+        }
+    }
+
+    pub(crate) fn prefix(self, key: &[u8], direction: IndexDirection) -> Option<KeyPrefix> {
+        let Some(&marker) = key.first() else {
+            return Some(KeyPrefix::Partial {
+                maximum: self.maximum_length(),
+            });
+        };
         let marker = if direction == IndexDirection::Descending {
             marker ^ 0xff
         } else {
             marker
         };
         match marker {
-            0 if self != Self::Boolean => Some(1),
-            0x7f => Some(match self {
-                Self::Boolean | Self::Byte => 2,
-                Self::Integer => 3,
-                Self::Long | Self::Single => 5,
-                Self::Currency | Self::Double => 9,
-            }),
+            0 if self != Self::Boolean => Some(KeyPrefix::Complete(1)),
+            0x7f => {
+                if let Self::Binary { max_len } = self {
+                    return crate::binary_index_key::prefix(key, max_len, direction);
+                }
+                if self == Self::Boolean && key.get(1).is_some_and(|byte| !matches!(byte, 0 | 0xff))
+                {
+                    return None;
+                }
+                let length = self.maximum_length();
+                Some(if key.len() < length {
+                    KeyPrefix::Partial { maximum: length }
+                } else {
+                    KeyPrefix::Complete(length)
+                })
+            }
             _ => None,
         }
     }
@@ -45,6 +76,10 @@ impl NumericKeyType {
             ColumnType::Currency => Self::Currency,
             ColumnType::Single => Self::Single,
             ColumnType::Double => Self::Double,
+            ColumnType::DateTime => Self::DateTime,
+            ColumnType::Binary { max_len } => Self::Binary {
+                max_len: max_len.get(),
+            },
             _ => return None,
         })
     }
@@ -62,6 +97,9 @@ impl NumericKeyType {
             (_, RowValue::Null) => {
                 output[0] = 0;
                 1
+            }
+            (Self::Binary { max_len }, RowValue::Binary(value)) => {
+                return crate::binary_index_key::encode(value, max_len, direction, output);
             }
             (Self::Boolean, RowValue::Boolean(value)) => {
                 output[1] = if value { 0 } else { 0xff };
@@ -88,9 +126,7 @@ impl NumericKeyType {
                 output[1] ^= 0x80;
                 9
             }
-            (Self::Single, RowValue::Single(value))
-                if value.is_finite() && value.to_bits() != 0x8000_0000 =>
-            {
+            (Self::Single, RowValue::Single(value)) if value.is_finite() => {
                 let bits = value.to_bits();
                 let ordered = if value.is_sign_negative() {
                     !bits
@@ -101,7 +137,8 @@ impl NumericKeyType {
                 5
             }
             (Self::Double, RowValue::Double(value))
-                if value.is_finite() && value.to_bits() != 0x8000_0000_0000_0000 =>
+            | (Self::DateTime, RowValue::DateTime { days: value })
+                if value.is_finite() =>
             {
                 let bits = value.to_bits();
                 let ordered = if value.is_sign_negative() {
@@ -131,6 +168,7 @@ mod tests {
     fn floating_zero_subnormals_normals_and_extremes_order_exactly() {
         let mut output = [0; MAX_COMPONENT_BYTES];
         for (value, expected) in [
+            (-0.0_f32, [0x7f, 0x7f, 0xff, 0xff, 0xff]),
             (0.0_f32, [0x7f, 0x80, 0, 0, 0]),
             (f32::from_bits(1), [0x7f, 0x80, 0, 0, 1]),
             (f32::MIN_POSITIVE, [0x7f, 0x80, 0x80, 0, 0]),
@@ -148,6 +186,10 @@ mod tests {
             assert_eq!(output[..5], expected);
         }
         for (value, expected) in [
+            (
+                -0.0_f64,
+                [0x7f, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff],
+            ),
             (0.0_f64, [0x7f, 0x80, 0, 0, 0, 0, 0, 0, 0]),
             (f64::from_bits(1), [0x7f, 0x80, 0, 0, 0, 0, 0, 0, 1]),
             (f64::MIN_POSITIVE, [0x7f, 0x80, 0x10, 0, 0, 0, 0, 0, 0]),
@@ -165,7 +207,7 @@ mod tests {
                 ),
                 Some(9)
             );
-            assert_eq!(output, expected);
+            assert_eq!(output[..9], expected);
         }
         assert_eq!(
             NumericKeyType::Integer.encode(

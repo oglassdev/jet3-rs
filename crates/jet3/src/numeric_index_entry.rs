@@ -1,14 +1,17 @@
 //! Bounded numeric records: EXP-0126/0150 components, EXP-0148 null policies,
 //! and EXP-0062 three-byte page plus one-byte slot locators.
 
-use crate::numeric_index_key::{MAX_COMPONENT_BYTES, NumericKeyType};
+use crate::binary_index_key::MAX_KEY_BYTES;
+use crate::numeric_index_key::{KeyPrefix, MAX_COMPONENT_BYTES, NumericKeyType};
 use crate::{
-    Error, IndexDirection, IndexNullPolicy, PageNumber, ResourceBudget, RowLocator, RowValue,
+    ByteCount, Error, IndexDirection, IndexNullPolicy, PageNumber, ResourceBudget, RowLocator,
+    RowValue,
 };
 
 pub(crate) const MAX_FIELDS: usize = 2;
 const LOCATOR_BYTES: usize = 4;
-pub(crate) const ENTRY_CAPACITY: usize = MAX_FIELDS * MAX_COMPONENT_BYTES + LOCATOR_BYTES;
+const INLINE_BYTES: usize = 22;
+pub(crate) const ENTRY_CAPACITY: usize = MAX_KEY_BYTES + LOCATOR_BYTES;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct NumericIndexField {
@@ -40,9 +43,54 @@ impl std::fmt::Display for EntryError {
 
 impl std::error::Error for EntryError {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RecordBytes {
+    Inline([u8; INLINE_BYTES]),
+    Wide(Vec<u8>),
+}
+
+impl RecordBytes {
+    fn new(raw: &[u8], budget: &mut ResourceBudget) -> Result<Self, Error> {
+        if raw.len() <= INLINE_BYTES {
+            let mut bytes = [0; INLINE_BYTES];
+            bytes[..raw.len()].copy_from_slice(raw);
+            return Ok(Self::Inline(bytes));
+        }
+        budget.charge_allocation(ByteCount::new(raw.len() as u64))?;
+        let mut bytes = Vec::new();
+        bytes.try_reserve_exact(raw.len()).map_err(|_| Error::Io {
+            operation: "reserve wide index record",
+            kind: std::io::ErrorKind::OutOfMemory,
+        })?;
+        bytes.extend_from_slice(raw);
+        Ok(Self::Wide(bytes))
+    }
+
+    fn bytes(&self) -> &[u8] {
+        match self {
+            Self::Inline(bytes) => bytes,
+            Self::Wide(bytes) => bytes,
+        }
+    }
+}
+
+pub(crate) fn record_capacity(fields: &[NumericIndexField]) -> usize {
+    fields
+        .iter()
+        .fold(0_usize, |total, field| {
+            total.saturating_add(field.kind.maximum_length())
+        })
+        .min(MAX_KEY_BYTES)
+        + LOCATOR_BYTES
+}
+
+pub(crate) fn sort_cost(fields: &[NumericIndexField]) -> u64 {
+    (4 * record_capacity(fields) + size_of::<NumericIndexEntry>()) as u64
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct NumericIndexEntry {
-    bytes: [u8; ENTRY_CAPACITY],
+    bytes: RecordBytes,
     key_len: usize,
     has_null: bool,
 }
@@ -51,32 +99,49 @@ pub(crate) struct NumericIndexEntry {
 pub(crate) fn valid_key_shape(
     fields: &[NumericIndexField],
     null_policy: IndexNullPolicy,
-    mut key: &[u8],
+    key: &[u8],
 ) -> bool {
-    if !(1..=MAX_FIELDS).contains(&fields.len()) {
+    if !(1..=MAX_FIELDS).contains(&fields.len()) || key.len() > MAX_KEY_BYTES {
         return false;
     }
+    key_shape(fields, null_policy, key, false)
+        || (key.len() == MAX_KEY_BYTES
+            && key_shape(fields, null_policy, &key[..MAX_KEY_BYTES - 2], true))
+}
+
+fn key_shape(
+    fields: &[NumericIndexField],
+    null_policy: IndexNullPolicy,
+    mut key: &[u8],
+    shortened: bool,
+) -> bool {
+    let mut consumed = 0;
     let mut all_null = true;
-    for field in fields {
-        let Some(length) = key
-            .first()
-            .and_then(|marker| field.kind.encoded_length(*marker, field.direction))
-        else {
+    for (ordinal, field) in fields.iter().enumerate() {
+        let Some(prefix) = field.kind.prefix(key, field.direction) else {
             return false;
         };
-        let Some((component, rest)) = key.split_at_checked(length) else {
+        let length = match prefix {
+            KeyPrefix::Complete(length) => length,
+            KeyPrefix::Partial { maximum } => {
+                let remaining: usize = fields[ordinal + 1..]
+                    .iter()
+                    .map(|field| field.kind.maximum_length())
+                    .sum();
+                return shortened && consumed + maximum + remaining > MAX_KEY_BYTES;
+            }
+        };
+        let Some((_, rest)) = key.split_at_checked(length) else {
             return false;
         };
         if length == 1 && null_policy == IndexNullPolicy::Required {
             return false;
         }
-        if field.kind == NumericKeyType::Boolean && !matches!(component[1], 0 | 0xff) {
-            return false;
-        }
         all_null &= length == 1;
+        consumed += length;
         key = rest;
     }
-    key.is_empty() && !(all_null && null_policy == IndexNullPolicy::IgnoreAllNull)
+    !shortened && key.is_empty() && !(all_null && null_policy == IndexNullPolicy::IgnoreAllNull)
 }
 
 impl NumericIndexEntry {
@@ -103,18 +168,18 @@ impl NumericIndexEntry {
             }
             .into());
         }
-        let mut entry = Self {
-            bytes: [0; ENTRY_CAPACITY],
-            key_len: 0,
-            has_null: false,
-        };
+        let mut key_len = 0;
+        let mut has_null = false;
         let mut all_null = true;
+        let mut raw_key = [0; MAX_FIELDS * MAX_COMPONENT_BYTES];
         for field in fields {
             let value = values.get(field.column).ok_or(EntryError::MissingColumn {
                 column: field.column,
             })?;
-            let null = matches!(value, RowValue::Null);
-            entry.has_null |= null;
+            let null = matches!(value, RowValue::Null)
+                || (matches!(field.kind, NumericKeyType::Binary { .. })
+                    && matches!(value, RowValue::Binary([])));
+            has_null |= null;
             all_null &= null;
             let mut component = [0; MAX_COMPONENT_BYTES];
             let length = field
@@ -124,28 +189,33 @@ impl NumericIndexEntry {
                     column: field.column,
                     kind: field.kind,
                 })?;
-            entry.bytes[entry.key_len..entry.key_len + length]
-                .copy_from_slice(&component[..length]);
-            entry.key_len += length;
+            raw_key[key_len..key_len + length].copy_from_slice(&component[..length]);
+            key_len += length;
         }
-        if entry.has_null && null_policy == IndexNullPolicy::Required {
+        if has_null && null_policy == IndexNullPolicy::Required {
             return Err(EntryError::NullRequired);
         }
         if all_null && null_policy == IndexNullPolicy::IgnoreAllNull {
             return Ok(None);
         }
-        entry.bytes[entry.key_len..entry.key_len + 3]
-            .copy_from_slice(&(page as u32).to_be_bytes()[1..]);
-        entry.bytes[entry.key_len + LOCATOR_BYTES - 1] = locator.slot();
-        Ok(Some(entry))
+        budget.charge_work_units(key_len as u64 * 9)?;
+        key_len = crate::binary_index_key::shorten(&mut raw_key[..key_len]);
+        raw_key[key_len..key_len + 3].copy_from_slice(&(page as u32).to_be_bytes()[1..]);
+        raw_key[key_len + LOCATOR_BYTES - 1] = locator.slot();
+        let bytes = RecordBytes::new(&raw_key[..key_len + LOCATOR_BYTES], budget)?;
+        Ok(Some(Self {
+            bytes,
+            key_len,
+            has_null,
+        }))
     }
 
     pub(crate) fn key(&self) -> &[u8] {
-        &self.bytes[..self.key_len]
+        &self.bytes.bytes()[..self.key_len]
     }
 
     pub(crate) fn record(&self) -> &[u8] {
-        &self.bytes[..self.key_len + LOCATOR_BYTES]
+        &self.bytes.bytes()[..self.key_len + LOCATOR_BYTES]
     }
 
     pub(crate) const fn has_null(&self) -> bool {
@@ -153,7 +223,7 @@ impl NumericIndexEntry {
     }
 
     pub(crate) fn locator(&self) -> RowLocator {
-        let bytes = &self.bytes[self.key_len..];
+        let bytes = &self.bytes.bytes()[self.key_len..];
         RowLocator::new(
             PageNumber::new(u64::from(u32::from_be_bytes([
                 0, bytes[0], bytes[1], bytes[2],
