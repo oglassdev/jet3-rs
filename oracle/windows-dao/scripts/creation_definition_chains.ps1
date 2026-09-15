@@ -11,16 +11,8 @@ foreach ($name in @('Identity', 'Release', 'Write-Json')) {
     if ($found.Count -ne 1) { throw 'Missing helper' }
     Invoke-Expression $found[0].Extent.Text
 }
-$sharedProducer = Join-Path $env:JET3_WORK 'multiple_long_value_creation.ps1'
-$ast = [Management.Automation.Language.Parser]::ParseFile($sharedProducer, [ref]$tokens, [ref]$errors)
-if ($errors.Count) { throw 'Shared producer syntax' }
-foreach ($name in @('Failure', 'Set-Cell', 'Set-Row', 'Read-Row', 'Read-Rows', 'New-Control', 'Mutate', 'Capture')) {
-    $found = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $false))
-    if ($found.Count -ne 1) { throw 'Missing shared producer function' }
-    $definition = $found[0].Extent.Text
-    if ($name -eq 'Set-Cell') { $definition = $definition.Replace('4 { $field.Value = [int]$Value }', '2 { $field.Value = [byte]$Value }; 4 { $field.Value = [int]$Value }') }
-    Invoke-Expression $definition
-}
+$daoHelper = Join-Path $env:JET3_WORK 'creation_definition_chains_dao.ps1'
+. $daoHelper
 $script:endpoint = 'manifest'
 $manifestPath = Join-Path $env:JET3_WORK 'creation-definition-chains.json'
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
@@ -52,7 +44,7 @@ $selected = @($manifest.cases | Where-Object { $_.name -ceq $CaseName })
 if ($selected.Count -ne 1) { throw 'Expected one declared case' }
 $manifest.cases = $selected
 try {
-    foreach ($pair in @(@($PSCommandPath, 'oracle/windows-dao/scripts/creation_definition_chains.ps1'), @($sharedProducer, 'oracle/windows-dao/scripts/multiple_long_value_creation.ps1'), @($helper, 'oracle/windows-dao/scripts/field_update.ps1'))) {
+    foreach ($pair in @(@($PSCommandPath, 'oracle/windows-dao/scripts/creation_definition_chains.ps1'), @($daoHelper, 'oracle/windows-dao/scripts/creation_definition_chains_dao.ps1'), @($helper, 'oracle/windows-dao/scripts/field_update.ps1'))) {
         if ((Identity $pair[0]).sha256 -cne $manifest.inputs.($pair[1]).sha256) { throw 'Producer/helper identity differs' }
     }
     foreach ($property in $manifest.files.PSObject.Properties) {

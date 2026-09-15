@@ -143,12 +143,12 @@ def prepare(candidates: Path, revision: str):
         case['layout'] = raw_check(image.read_bytes(), receipt, case, rows, counters, candidate=True)
         case['notes_pages'] = notes_identity(image.read_bytes())
         for path in (image, snapshot): files[path.name] = identity(path)
-    sources = [Path(__file__), SCRIPT, EXAMPLE, EXAMPLE.parent / 'creation_definition_chains_support/snapshot.rs', Path(raw_index.__file__), Path(raw_index.catalog.__file__), Path(lval.__file__), Path(lval.__file__).with_suffix('.ps1'), Path(__file__).with_name('creation_definition_chains_structure.py')]
+    sources = [Path(__file__), SCRIPT, EXAMPLE, EXAMPLE.parent / 'creation_definition_chains_support/snapshot.rs', Path(raw_index.__file__), Path(raw_index.catalog.__file__), Path(lval.__file__), Path(__file__).with_name('creation_definition_chains_dao.ps1'), Path(__file__).with_name('creation_definition_chains_structure.py')]
     sources += [Path(__file__).with_name(name) for name in ['numeric_index_mutation.py', 'index_tree_mutation.py', 'index_tree_mutation_structure.py', 'multi_level_index_structure.py', 'field_update.ps1']]
     manifest = dict(document_type='creation_definition_chains_inputs', source_revision=revision, cases=cases, files=files,
                     generator_binary=identity(GENERATOR), inputs={str(p.relative_to(ROOT)): identity(p) for p in sources})
     write(candidates / MANIFEST, manifest)
-    for source in [SCRIPT, Path(lval.__file__).with_suffix('.ps1'), Path(__file__).with_name('field_update.ps1')]: shutil.copy2(source, candidates / source.name)
+    for source in [SCRIPT, Path(__file__).with_name('creation_definition_chains_dao.ps1'), Path(__file__).with_name('field_update.ps1')]: shutil.copy2(source, candidates / source.name)
     return manifest
 
 
