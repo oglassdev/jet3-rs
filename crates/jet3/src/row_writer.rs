@@ -102,7 +102,7 @@ pub enum RowValue<'a> {
         /// Day count as stored.
         days: f64,
     },
-    /// Short binary bytes.
+    /// Short binary bytes; an empty slice saves as null.
     Binary(&'a [u8]),
     /// Text already encoded in the database code page.
     Text(&'a [u8]),

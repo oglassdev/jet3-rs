@@ -3,7 +3,8 @@
 
 use super::*;
 use crate::numeric_index_entry::{
-    ENTRY_CAPACITY, EntryError, MAX_FIELDS, NumericIndexEntry as Entry, NumericIndexField,
+    EntryError, MAX_FIELDS, NumericIndexEntry as Entry, NumericIndexField, record_capacity,
+    sort_cost,
 };
 use crate::numeric_index_key::NumericKeyType;
 use crate::{IndexNullPolicy, IndexTree, RowLocator};
@@ -162,7 +163,9 @@ impl InitialLongIndex {
         let count = self.entries.len() as u64;
         // The unstable sort has O(n log n) worst-case work; charge byte comparisons.
         budget.charge_work_units(
-            count * u64::from(count.max(1).ilog2() + 1) * 4 * ENTRY_CAPACITY as u64,
+            count
+                * u64::from(count.max(1).ilog2() + 1)
+                * sort_cost(&self.fields[..self.field_count]),
         )?;
         self.entries
             .sort_unstable_by(|a, b| a.record().cmp(b.record()));
@@ -247,7 +250,9 @@ impl InitialLongIndex {
         tree: &IndexTree,
         budget: &mut ResourceBudget,
     ) -> Result<bool, ComposeError> {
-        budget.charge_work_units(self.entries.len() as u64 * ENTRY_CAPACITY as u64)?;
+        budget.charge_work_units(
+            self.entries.len() as u64 * record_capacity(&self.fields[..self.field_count]) as u64,
+        )?;
         Ok(self.entries.len() == tree.entries().len()
             && self
                 .entries

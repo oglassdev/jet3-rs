@@ -11,7 +11,7 @@ use std::path::Path;
 /// Inserts a row on an available page, a released target-table page, or one EOF page.
 ///
 /// Values use the existing checked scalar/Text/Binary row encoder, including null
-/// and Boolean fields. Up to three indexes with one or two supported numeric
+/// and Boolean fields. Up to three indexes with one or two supported scalar
 /// fields admit primary, unique, nonunique, descending and nullable keys. Each
 /// complete tree and row/key correspondence must validate. Changed trees retain
 /// their roots, reuse reserved index pages and append nodes as needed. Other

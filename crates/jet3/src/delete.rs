@@ -18,7 +18,7 @@ pub struct RowDelete<'a> {
 /// Supports relationship-free tables, retaining any AutoNumber state. Memo/OLE fragments
 /// are removed from their independent column storage after complete reference
 /// and ownership validation; emptied payload pages become globally free.
-/// Up to three indexes with one or two supported numeric fields admit deletion,
+/// Up to three indexes with one or two supported scalar fields admit deletion,
 /// including duplicate and nullable keys. Each matching entry is removed by row
 /// locator and changed trees retain their roots. Surplus index pages remain
 /// reserved for reuse; retained index counters are unchanged.

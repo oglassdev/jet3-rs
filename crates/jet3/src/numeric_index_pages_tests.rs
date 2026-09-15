@@ -145,7 +145,7 @@ fn empty_tree_resets_header_and_keeps_all_payload_slack() -> TestResult {
 fn invalid_inventory_assignment_widths_and_node_limits_are_checked() -> TestResult {
     let narrow = entry([RowValue::Null; 2], 0)?;
     let wide = entry([RowValue::Currency { scaled: 1 }, RowValue::Double(1.0)], 0)?;
-    let entries = [narrow; 84];
+    let entries = vec![narrow; 84];
     let layout = NumericIndexPages::new(&entries, 1, &mut budget())?;
     let image = |ordinal, entries: &[NumericIndexEntry], page, owner| {
         layout.image(
@@ -163,7 +163,7 @@ fn invalid_inventory_assignment_widths_and_node_limits_are_checked() -> TestResu
         image(1, &entries, page, owner),
         image(0, &entries[..83], page, owner),
         image(0, &entries, None, owner),
-        image(0, &[wide; 84], page, owner),
+        image(0, &vec![wide.clone(); 84], page, owner),
     ] {
         assert!(matches!(result, Err(TreeBuildError::Layout(_))));
     }
@@ -181,7 +181,7 @@ fn invalid_inventory_assignment_widths_and_node_limits_are_checked() -> TestResu
         Err(TreeBuildError::NodeLimit { maximum: 0 })
     ));
     assert!(matches!(
-        NumericIndexPages::new(&[wide; 82], 2, &mut budget()),
+        NumericIndexPages::new(&vec![wide; 82], 2, &mut budget()),
         Err(TreeBuildError::NodeLimit { maximum: 2 })
     ));
     Ok(())

@@ -133,7 +133,7 @@ pub(crate) fn load(
         budget.charge_work_units(
             (index.entries.len() as u64)
                 .saturating_mul((index.entries.len().max(1).ilog2() + 1) as u64)
-                .saturating_mul(4 * ENTRY_CAPACITY as u64),
+                .saturating_mul(sort_cost(&index.fields)),
         )?;
         index
             .entries
@@ -158,7 +158,7 @@ pub(crate) fn load(
         budget.charge_work_units(
             (tree.nodes().len() as u64)
                 .saturating_mul((index.mapped.len().max(1).ilog2() + 1) as u64)
-                .saturating_add(index.entries.len() as u64 * ENTRY_CAPACITY as u64),
+                .saturating_add(index.entries.len() as u64 * record_capacity(&index.fields) as u64),
         )?;
         if tree
             .nodes()

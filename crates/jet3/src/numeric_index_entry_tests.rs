@@ -460,3 +460,50 @@ fn whole_composite_key_is_shortened_after_its_components() -> Result<(), Box<dyn
     }
     Ok(())
 }
+
+#[test]
+fn binary_record_storage_charges_before_heap_allocation() -> Result<(), Box<dyn std::error::Error>>
+{
+    let fields = [NumericIndexField {
+        column: 0,
+        direction: IndexDirection::Ascending,
+        kind: NumericKeyType::Binary { max_len: 255 },
+    }];
+    let limited = |bytes| {
+        ResourceBudget::new(
+            ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(bytes)),
+        )
+    };
+    NumericIndexEntry::encode(
+        &fields,
+        &[RowValue::Binary(&[0; 8])],
+        IndexNullPolicy::Include,
+        LOCATOR,
+        &mut limited(0),
+    )?
+    .ok_or("inline entry")?;
+    assert!(matches!(
+        NumericIndexEntry::encode(
+            &fields,
+            &[RowValue::Binary(&[0; 9])],
+            IndexNullPolicy::Include,
+            LOCATOR,
+            &mut limited(22)
+        ),
+        Err(EntryError::Encoding(Error::ResourceLimitExceeded {
+            kind: ResourceLimitKind::AllocationBytes,
+            ..
+        }))
+    ));
+    let entry = NumericIndexEntry::encode(
+        &fields,
+        &[RowValue::Binary(&[0; 9])],
+        IndexNullPolicy::Include,
+        LOCATOR,
+        &mut limited(23),
+    )?
+    .ok_or("wide entry")?;
+    assert_eq!(entry.record().len(), 23);
+    assert_eq!(entry.locator(), LOCATOR);
+    Ok(())
+}

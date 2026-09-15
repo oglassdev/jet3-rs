@@ -1,6 +1,6 @@
 //! Numeric index mutations use EXP-0062/0126/0148/0150, with counters from EXP-0230.
 use crate::numeric_index_entry::{
-    ENTRY_CAPACITY, EntryError, NumericIndexEntry, NumericIndexField,
+    EntryError, NumericIndexEntry, NumericIndexField, record_capacity, sort_cost,
 };
 use crate::numeric_index_pages::{NumericIndexPages, TreeBuildError};
 use crate::page_edits::{PageEdits, reserve};
@@ -64,7 +64,10 @@ impl MutableIndex {
         update_counter: bool,
         budget: &mut ResourceBudget,
     ) -> Result<(), UpdateError> {
-        budget.charge_work_units(self.entries.len() as u64 * (ENTRY_CAPACITY + 1) as u64)?;
+        budget.charge_work_units(
+            self.entries.len() as u64
+                * (2 * record_capacity(&self.fields) + size_of::<NumericIndexEntry>()) as u64,
+        )?;
         let first = self.entries.partition_point(|r| r.key() < entry.key());
         let present = self
             .entries
@@ -84,7 +87,10 @@ impl MutableIndex {
     }
 
     fn remove(&mut self, row: RowLocator, budget: &mut ResourceBudget) -> Result<(), UpdateError> {
-        budget.charge_work_units(self.entries.len() as u64 * (ENTRY_CAPACITY + 1) as u64)?;
+        budget.charge_work_units(
+            self.entries.len() as u64
+                * (2 * record_capacity(&self.fields) + size_of::<NumericIndexEntry>()) as u64,
+        )?;
         if let Some(position) = self.entries.iter().position(|r| r.locator() == row) {
             self.entries.remove(position);
             self.changed = true;
@@ -201,7 +207,10 @@ impl Indexes {
     ) -> Result<(), UpdateError> {
         for index in &mut self.indexes {
             let new = index.encode(values, row, budget)?;
-            budget.charge_work_units(index.entries.len() as u64 * (ENTRY_CAPACITY + 1) as u64)?;
+            budget.charge_work_units(
+                index.entries.len() as u64
+                    * (2 * record_capacity(&index.fields) + size_of::<NumericIndexEntry>()) as u64,
+            )?;
             let old = index.entries.iter().find(|r| r.locator() == row);
             if old == new.as_ref() {
                 continue;
