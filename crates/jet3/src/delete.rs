@@ -15,7 +15,9 @@ pub struct RowDelete<'a> {
 
 /// Deletes one ordinary row, compacting its page or releasing an emptied page.
 ///
-/// Supports relationship-free tables without AutoIncrement or long values.
+/// Supports relationship-free tables without AutoIncrement. Memo/OLE fragments
+/// are removed from their independent column storage after complete reference
+/// and ownership validation; emptied payload pages become globally free.
 /// Up to three indexes with one or two supported numeric fields admit deletion,
 /// including duplicate and nullable keys. Each matching entry is removed by row
 /// locator and changed trees retain their roots. Surplus index pages remain
@@ -60,30 +62,12 @@ where
 {
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = crate::update::indexed_writable_table(&mut database, request.table, budget)?;
-    if !definition.long_value_maps().is_empty()
-        || definition.columns().iter().any(|c| {
-            c.auto_increment()
-                || matches!(
-                    c.physical_type(),
-                    crate::ColumnPhysicalType::Memo | crate::ColumnPhysicalType::LongBinary
-                )
-        })
-    {
-        return Err(UpdateError::Unsupported(
-            "AutoIncrement or long-value table",
-        ));
+    if definition.columns().iter().any(|c| c.auto_increment()) {
+        return Err(UpdateError::Unsupported("AutoIncrement table"));
     }
     let mut index = if definition.indexes().is_empty() && definition.physical_indexes().is_empty() {
         None
     } else {
-        if definition.columns().iter().any(|c| {
-            matches!(
-                c.physical_type(),
-                crate::ColumnPhysicalType::Memo | crate::ColumnPhysicalType::LongBinary
-            )
-        }) {
-            return Err(UpdateError::Unsupported("indexed long-value table"));
-        }
         Some(crate::index_mutation::load(
             &mut database,
             &definition,
@@ -124,7 +108,15 @@ where
     database.read_raw_page(definition.root(), &mut source_definition, budget)?;
     let patched_definition =
         crate::row_delete_page::decrement_count(&source_definition, observed_rows, budget)?;
+    let mut long_values = crate::long_value_mutation::LongValues::load(
+        &mut database,
+        &definition,
+        Some(request.row),
+        budget,
+    )?;
+    long_values.remove_selected(budget)?;
     let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
+    long_values.stage(&mut database, &mut edits, budget)?;
     edits.replace(
         crate::update_pages::PageChange {
             page: request.row.page(),
@@ -160,9 +152,7 @@ where
         allocation,
         budget,
     )?;
-    for change in maps.changes() {
-        edits.replace(change, budget)?;
-    }
+    maps.stage(&mut database, &mut edits, budget)?;
     if let Some(index) = &mut index {
         index.remove(request.row, budget)?;
         index.stage(&mut database, &definition, &mut edits, budget)?;

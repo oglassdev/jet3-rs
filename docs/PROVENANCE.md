@@ -15551,3 +15551,75 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   boxed-Single capture. Their partial checkpoints remain available. Corrected
   typed capture and representable Seek queries produced the accepted successor.
   These harness failures are not reported as successful comparisons.
+
+## EXP-0234 — Native Memo/OLE lifecycles and independent column storage
+
+- Eight native DAO cases (two replicas each of Memo, OLE, four mixed columns,
+  and generated AutoIncrement with two mixed columns) have eight cumulative
+  checkpoints: empty, seed, shrink/null, grow, partial delete, clear, reinsert,
+  replace. All 64 images pass independent complete row/payload/schema checks,
+  three directed numeric index key/locator bijections, Auto state, allocation
+  and capture-identity checks. The unrelated Anchor definition, map, data and
+  4 KiB Memo pages remain exact. Auto state is 0, then 10 retained through
+  clearing, then 11 and 12 for subsequent generated insertions.
+- Per-column LVAL owned sets are pairwise disjoint and separate from general
+  table-owned pages. Every active external slot is referenced exactly once by
+  its owning column. All retained owned pages have dense flag-free directories.
+  Partial deletion compacts and renumbers shared-page slots and updates surviving
+  headers/chain pointers; this inventory establishes no live-page tombstones.
+- All 56 single-storage page-stage instances are available and hold 112 values;
+  all 802 chain-page instances are unavailable, including terminal fragments
+  with substantial free space. No mixed single/chained page occurs. These are
+  observed allocator choices, not universal size thresholds.
+- Every released page leaves column ownership and live references and becomes
+  globally free. There are 334 released tag-01/LVAL pages retaining old active
+  bytes, plus eight two-slot and eight three-slot tag-09/LVAL pages whose
+  directory words are all c800. Reuse includes 90 former tag-01/LVAL pages,
+  16 tag-09/LVAL pages and eight tag-09 former Rows data pages, each reinitialized
+  and exclusively remapped. Stale page bytes alone do not establish ownership.
+- Independent GPT-5.6 Sol analysis is reproducible byte-for-byte and pins four
+  project helper blobs at `1568a18`, the producer, matrix, environment, result
+  and all 64 MDB identities. Private root:
+  `shared/checks/20260915-long-value-lifecycle-discovery/`.
+  `analyze.py` SHA-256
+  `902935d252ba064d64c852506b27f38c944119e47336a32eedd4d7007990308a`;
+  `analysis-report.json` SHA-256
+  `ae21472da7a627524539741a0faefb92c62b55526df93982a19b6366addfcb36`.
+  Captures: `shared/outbox/20260915T054500Z-long-value-lifecycle/`.
+- This is native discovery, not Rust mutation compatibility. Coverage is
+  CP1252 ASCII Memo and deterministic OLE payloads of 1–8,243 bytes, at most
+  four long columns and twelve generated/ordinary IDs. A writer that retains
+  live c000 tombstones or chooses different available-page membership requires
+  separate DAO verification. The current reader's flagged-sibling guard rejects
+  no live native page in this finite inventory.
+
+## EXP-0235 — Empty deleted slots beside live long-value fragments
+
+- Native DAO continuations of six multiple-long-column creation pairs retain
+  empty c000 directory slots beside live external payloads. The twelve native
+  candidate/control images have complete payloads independently decoded and
+  matched to DAO snapshots. Each candidate has one live Blob page with a leading
+  c800 slot and a 33-byte active row. Each native control has four deleted
+  sibling slots, including repeated leading c800 entries and a trailing c7df
+  entry after a live row. Thus the deleted form is not limited to freed pages.
+- The existing reader refused any flagged sibling while resolving an otherwise
+  valid active fragment. The corrected bound admits only exact c000 flags whose
+  masked start equals the preceding row boundary, and only for a sibling of the
+  requested locator. Such a slot is empty and consumes no bytes. It leaves the
+  preceding boundary unchanged. Flagged targets, nonempty c000 spans and all
+  other flagged forms remain rejected. GPT-5.6 Sol independently reviewed the
+  bounds, target rejection, ordering, resource work and complete payload result.
+- Focused constructed cases cover leading, intervening and trailing deleted
+  siblings, references to deleted slots, nonempty c000 corruption and other
+  flag subsets. The native inventory additionally covers repeated leading slots.
+- Private analysis in `shared/checks/20260915-multiple-long-values-r1/`:
+  `live-tombstone-analysis.py` SHA-256
+  `60890f4af5597548f7d79d0279c916326e6e33c0a5da035138db2287867c072b`;
+  `live-tombstone-analysis.json` SHA-256
+  `8acdc0873e203cd24d300867d811b6546435bbc6a70af7468b7913429a750e29`.
+  Captures: `shared/outbox/20260915T060218Z-multiple-long-val-d8d6e7/`.
+- This establishes the reader's sibling-slot grammar. The creation comparison
+  itself remains structurally unsuccessful: its former candidate policy marked
+  terminal chained pages available, and DAO later removed ownership while leaving
+  a stale available bit. That separate writer defect requires corrected creation
+  and a new comparison; successful payload reads do not erase it.

@@ -322,10 +322,9 @@ fn corrupt_metadata_values_and_resources_preserve_original() -> TestResult {
 
 #[test]
 fn unsupported_tables_and_available_map_membership_are_refused() -> TestResult {
-    for (kind, value) in [
-        (ColumnType::AutoIncrement, RowValue::AutoIncrement),
-        (ColumnType::Memo, RowValue::Memo(b"memo")),
-    ] {
+    {
+        let kind = ColumnType::AutoIncrement;
+        let value = RowValue::AutoIncrement;
         let f = Fixture::new(&[ColumnSpec::new(b"Id", kind)], &[&[value]])?;
         let original = fs::read(f.path())?;
         assert!(matches!(

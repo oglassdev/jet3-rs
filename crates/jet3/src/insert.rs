@@ -15,12 +15,18 @@ use std::path::Path;
 /// fields admit primary, unique, nonunique, descending and nullable keys. Each
 /// complete tree and row/key correspondence must validate. Changed trees retain
 /// their roots, reuse reserved index pages and append nodes as needed. Other
-/// key types, AutoIncrement, long values and relationships are refused.
+/// key types, AutoIncrement and relationships are refused. Memo/OLE payloads
+/// use independent column maps; raw caller-supplied headers are refused.
 /// If no populated page fits, a released global-free page belonging to this table
 /// is reused, or one EOF page is appended, within existing inline maps. No slot reuse,
 /// map growth or compaction is implemented. An existing selected page must fit
 /// the requested row and its directory slot; availability afterward reflects
 /// whether another minimum-length row and slot fit.
+///
+/// External payload pages are validated against every live field reference and
+/// disjoint column ownership, then reused or appended. Single and chained
+/// storage use separate pools. Data, payloads, indexes and their allocation bits
+/// publish together.
 ///
 /// The new row, appended slot, page free/count fields, availability and table count
 /// change on unindexed existing-page insertion. Indexed insertion additionally
@@ -72,18 +78,8 @@ where
 {
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = crate::update::indexed_writable_table(&mut database, table, budget)?;
-    if !definition.long_value_maps().is_empty()
-        || definition.columns().iter().any(|c| {
-            c.auto_increment()
-                || matches!(
-                    c.physical_type(),
-                    ColumnPhysicalType::Memo | ColumnPhysicalType::LongBinary
-                )
-        })
-    {
-        return Err(UpdateError::Unsupported(
-            "AutoIncrement or long-value table",
-        ));
+    if definition.columns().iter().any(|c| c.auto_increment()) {
+        return Err(UpdateError::Unsupported("AutoIncrement table"));
     }
     let mut index = if definition.indexes().is_empty() && definition.physical_indexes().is_empty() {
         None
@@ -110,9 +106,12 @@ where
         }
         *target = column.into();
     }
+    let mut long_values =
+        crate::long_value_mutation::LongValues::load(&mut database, &definition, None, budget)?;
     let mut encoded = [0; PAGE_BYTES];
-    let length =
-        crate::encode_row(&layout[..columns.len()], values, &mut encoded, budget)?.get() as usize;
+    let length = long_values.encode_row(&layout[..columns.len()], values, &mut encoded, budget)?;
+    let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
+    long_values.stage(&mut database, &mut edits, budget)?;
     let mut observed_rows = 0_u32;
     {
         let mut rows = database.rows(&definition, budget)?;
@@ -175,7 +174,6 @@ where
             break Some((page, patched, slot));
         }
     };
-    let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
     let row = if let Some((page, patched, slot)) = selected {
         edits.replace(
             crate::update_pages::PageChange {
@@ -196,9 +194,7 @@ where
             },
             budget,
         )?;
-        for change in maps.changes() {
-            edits.replace(change, budget)?;
-        }
+        maps.stage(&mut database, &mut edits, budget)?;
         RowLocator::new(page, slot)
     } else {
         let mut minimum = [0; PAGE_BYTES];
@@ -215,16 +211,10 @@ where
             &definition,
             &encoded[..length],
             &minimum[..minimum_length],
+            edits.next_append_page()?,
             budget,
         )?;
-        let (changes, count) = plan.changes(crate::update_pages::PageChange {
-            page: definition.root(),
-            before: &source_definition,
-            after: patched_definition.as_bytes(),
-        });
-        for change in &changes[..count] {
-            edits.replace(*change, budget)?;
-        }
+        plan.maps.stage(&mut database, &mut edits, budget)?;
         if plan.page.get() < database.geometry().page_count() {
             edits.set_image(&mut database, plan.page, plan.image, budget)?;
         } else if edits.append(plan.image, budget)? != plan.page {

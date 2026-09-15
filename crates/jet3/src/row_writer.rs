@@ -109,7 +109,7 @@ pub enum RowValue<'a> {
     Text(&'a [u8]),
     /// Replication ID in conventional display-byte order.
     Guid([u8; 16]),
-    /// Memo payload in database-code-page bytes, for `create_database_with_rows`.
+    /// Memo payload in database-code-page bytes, for database creation and row mutations.
     /// The standalone row encoder requires the lower-level `LongValue` form.
     Memo(&'a [u8]),
     /// OLE payload bytes, for `create_database_with_rows`.

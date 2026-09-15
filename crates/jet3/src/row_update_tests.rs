@@ -440,10 +440,9 @@ fn unsupported_schema_map_and_variable_width_states_are_preserved() -> TestResul
         &mut b
     )?);
     drop(db);
-    for (kind, value) in [
-        (ColumnType::AutoIncrement, RowValue::AutoIncrement),
-        (ColumnType::Memo, RowValue::Null),
-    ] {
+    {
+        let kind = ColumnType::AutoIncrement;
+        let value = RowValue::AutoIncrement;
         fs::remove_file(f.path())?;
         let columns = [ColumnSpec::new(b"Id", kind)];
         crate::create_database_with_rows(

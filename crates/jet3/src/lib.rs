@@ -74,6 +74,7 @@ pub mod limits;
 mod long_index_key;
 pub mod long_value;
 pub mod long_value_map;
+mod long_value_mutation;
 mod long_value_writer;
 pub mod map_location;
 mod memo_property;

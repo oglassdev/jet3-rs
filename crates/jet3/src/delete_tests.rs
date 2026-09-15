@@ -259,10 +259,9 @@ fn private_corruption_and_shared_read_budget_are_detected() -> ResultTest {
 
 #[test]
 fn unsupported_schema_refuses_and_deletion_restores_available_membership() -> ResultTest {
-    for (kind, value) in [
-        (ColumnType::AutoIncrement, RowValue::AutoIncrement),
-        (ColumnType::Memo, RowValue::Memo(b"payload")),
-    ] {
+    {
+        let kind = ColumnType::AutoIncrement;
+        let value = RowValue::AutoIncrement;
         let f = Fixture::new(2)?;
         fs::remove_file(f.path())?;
         let columns = [ColumnSpec::new(b"Id", kind)];
