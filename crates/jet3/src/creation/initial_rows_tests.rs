@@ -180,7 +180,7 @@ fn exhausted_row_slots_spill_to_the_next_page() -> TestResult {
 }
 
 #[test]
-fn initial_rows_refuse_a_continued_definition() -> TestResult {
+fn initial_rows_create_and_reopen_a_continued_definition() -> TestResult {
     let directory = TestDirectory::create()?;
     let names = (0..70)
         .map(|ordinal| format!("Field{ordinal:05}").into_bytes())
@@ -194,13 +194,25 @@ fn initial_rows_refuse_a_continued_definition() -> TestResult {
         columns: &columns,
         indexes: &[],
     };
-    assert!(matches!(
-        create_database_with_rows(directory.target(), &table, &[], &mut budget()),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::UnsupportedInitialRowSchema
-        ))
-    ));
-    assert!(directory.entries()?.is_empty());
+    let row = vec![RowValue::Long(37); columns.len()];
+    create_database_with_rows(directory.target(), &table, &[&row], &mut budget())?;
+    let mut b = budget();
+    let mut db = DatabaseReader::open(directory.target(), &mut b)?;
+    let definition = db.table_definition(PageNumber::new(20), &mut b)?;
+    assert_eq!(definition.columns().len(), columns.len());
+    assert_eq!(definition.row_count(), 1);
+    let mut cursor = db.rows(&definition, &mut b)?;
+    let mut actual = cursor.next_row()?.ok_or("missing continued-table row")?;
+    for column in definition.columns() {
+        assert!(matches!(
+            actual
+                .value(column.ordinal(), crate::TextCodePage::Windows1252)?
+                .ok_or("missing column")?
+                .kind(),
+            crate::ValueKind::Long(37)
+        ));
+    }
+    assert!(cursor.next_row()?.is_none());
     Ok(())
 }
 
