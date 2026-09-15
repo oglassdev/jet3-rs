@@ -19,7 +19,9 @@ use std::path::Path;
 /// If no populated page fits, a released global-free page belonging to this table
 /// is reused, or one EOF page is appended. Inline maps convert to indirect storage
 /// and missing bitmap slots are allocated within the existing reference row.
-/// Live-page slot reuse and compaction are not implemented. A selected page must fit
+/// New slots may coexist with logical overflow links and hidden storage rows;
+/// the complete table graph must have unique, owned targets. Live-page slot reuse
+/// is not implemented. A selected page must fit
 /// the requested row and its directory slot; availability afterward reflects
 /// whether another minimum-length row and slot fit.
 ///
@@ -68,6 +70,7 @@ where
 {
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = crate::update::indexed_writable_table(&mut database, table, budget)?;
+    crate::row_mutation_graph::RowGraph::load(&mut database, &definition, None, budget)?;
     let mut auto = crate::auto_number_mutation::AutoNumber::load(&definition)?;
     let mut lowered = [RowValue::Null; u8::MAX as usize];
     let values = if let Some(state) = auto {
@@ -112,9 +115,6 @@ where
     {
         let mut rows = database.rows(&definition, budget)?;
         while let Some(mut row) = rows.next_row()? {
-            if row.locator() != row.storage_locator() {
-                return Err(UpdateError::Unsupported("overflow row"));
-            }
             if let Some(auto) = auto {
                 auto.read(&mut row)?;
             }
@@ -151,11 +151,12 @@ where
             return Err(UpdateError::Mismatch("available page not owned"));
         }
         database.read_raw_page(page, &mut source_page, budget)?;
-        if let Some((patched, slot)) = crate::row_insert_page::append(
+        if let Some((patched, slot)) = crate::row_insert_page::append_physical(
             page,
             definition.root(),
             &source_page,
             &encoded[..length],
+            crate::row_slot::RowSlot::Ordinary,
             budget,
         )? {
             break Some((page, patched, slot));

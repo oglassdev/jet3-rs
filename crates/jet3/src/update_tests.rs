@@ -410,9 +410,7 @@ fn a_valid_locator_from_another_table_is_rejected() -> TestResult {
     };
     assert!(matches!(
         update_field(fixture.path(), wrong, &mut budget()),
-        Err(UpdateError::Directory(
-            crate::RowDirectoryError::UnexpectedOwner { .. }
-        ))
+        Err(UpdateError::NotFound("row"))
     ));
     assert_eq!(fs::read(fixture.path())?, original);
     fixture.assert_only_original()

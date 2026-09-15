@@ -28,6 +28,9 @@ use model::*;
 #[path = "wide_row_support/io.rs"]
 mod io;
 use io::*;
+#[path = "wide_row_support/create.rs"]
+mod create;
+use create::create;
 
 struct Case {
     name: &'static str,

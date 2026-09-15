@@ -243,9 +243,6 @@ fn references(
         let Some(mut row) = cursor.next_row()? else {
             break;
         };
-        if row.locator() != row.storage_locator() {
-            return Err(UpdateError::Unsupported("overflow row with long values"));
-        }
         let remove = selected == Some(row.locator());
         pending.clear();
         for (column, map) in result.maps.iter().enumerate() {

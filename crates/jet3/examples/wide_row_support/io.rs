@@ -170,40 +170,6 @@ pub(super) fn apply(
     }
     Ok(())
 }
-pub(super) fn create(path: &Path, case: &Case, model: &BTreeMap<i32, Row>) -> Result<()> {
-    let index_fields = case.index_fields();
-    let values = model.values().map(|r| values(r)).collect::<Vec<_>>();
-    let rows = values.iter().map(Vec::as_slice).collect::<Vec<_>>();
-    jet3::create_database_with_table_rows(
-        path,
-        &[
-            TableRows {
-                table: TableSpec {
-                    name: b"Items",
-                    columns: &case.columns(),
-                    indexes: &case.indexes(&index_fields),
-                },
-                rows: &rows,
-            },
-            TableRows {
-                table: TableSpec {
-                    name: b"Notes",
-                    columns: &[
-                        ColumnSpec::new(b"Id", ColumnType::Long),
-                        ColumnSpec::new(b"Body", ColumnType::Memo),
-                    ],
-                    indexes: &[],
-                },
-                rows: &[
-                    &[RowValue::Long(7), RowValue::Memo(MEMO)],
-                    &[RowValue::Long(8), RowValue::Null],
-                ],
-            },
-        ],
-        &mut budget(),
-    )?;
-    Ok(())
-}
 pub(super) fn notes(
     db: &mut DatabaseReader<FileSource>,
     table: &TableDefinition,
@@ -358,14 +324,18 @@ pub(super) fn save(
         .map(|(id, (_, l))| format!("[{id},{},{}]", l.page().get(), l.slot()))
         .collect::<Vec<_>>()
         .join(",");
-    let pages = actual
-        .values()
-        .map(|(_, l)| l.page().get())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .map(|p| p.to_string())
-        .collect::<Vec<_>>()
-        .join(",");
+    let pages = {
+        let mut owned = db.owned_pages(table.root(), &mut b)?;
+        let mut pages = BTreeSet::new();
+        while let Some(page) = owned.next_page()? {
+            pages.insert(page.get());
+        }
+        pages
+            .into_iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    };
     fs::write(
         directory.join(format!("{}-{phase}.snapshot.json", case.name())),
         format!(

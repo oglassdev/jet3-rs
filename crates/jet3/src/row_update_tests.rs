@@ -1,4 +1,6 @@
 use super::*;
+#[path = "row_overflow_tests.rs"]
+mod overflow;
 use crate::{ByteCount, ColumnOrdinal, ColumnSpec, ColumnType, ResourceLimits, TableSpec};
 use std::{
     fs,

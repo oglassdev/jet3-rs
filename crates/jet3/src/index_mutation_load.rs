@@ -125,9 +125,6 @@ pub(crate) fn load(
         let Some(mut row) = cursor.next_row()? else {
             break;
         };
-        if row.locator() != row.storage_locator() {
-            return Err(UpdateError::Unsupported("overflow indexed row"));
-        }
         let locator = row.locator();
         let values = crate::numeric_row_values::read(&mut row, &result.columns)?;
         let budget = row.budget_mut();

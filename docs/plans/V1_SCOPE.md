@@ -120,7 +120,7 @@ match. Native catalog overflow rows retain their logical index locators.
 
 Public APIs implement bounded field updates, insertion into populated pages or
 one EOF data page or a released target-table page, deletion/compaction,
-last-live-row page release, same-page row replacement, independent Memo/OLE
+last-live-row page release, row replacement with stable logical locators, independent Memo/OLE
 payload mutation, and multi-level index maintenance. A table may
 have up to 32 indexes with one to ten Boolean, Byte, Integer, Long, Currency,
 Single, Double, Date, Binary, variable Text or GUID components, including mixed
@@ -132,7 +132,10 @@ changes together. Memo/OLE insertion and full-row replacement support null,
 inline, single-page and chained payloads. Payload pages are validated against
 all live references and their owning column, with separate single/chained
 storage pools; deletion releases emptied payload pages for reuse. The encoded
-row must still fit the existing data page during replacement. One AutoIncrement
+row must still fit the native row-size limit. Growth can retain a hidden storage
+slot or move directly to a new one; shrinking can collapse back to the logical
+slot. Deletion removes both slots and releases emptied pages. Mutation of
+multi-hop overflow chains remains refused. One AutoIncrement
 column accepts generated or explicit IDs on insertion; replacement and deletion retain existing
 IDs and allocation state. The CLI exposes full-row replacement. Publication
 supports Unix and Windows; Windows flushes the file before publication without
@@ -235,12 +238,23 @@ comparison passes all 76 retained discovery captures (372 rows). Untouched old
 rows retain their raw bodies; rewritten and inserted rows use the current
 schema. This covers appended variable columns with an unchanged fixed prefix.
 
+EXP-0263 accepts 36 overflow lifecycle pairs (72 captures), including Rust
+mutations of existing DAO overflow rows and native writes on both outputs.
+Growth, equal-size edits, fixed primary-key changes, source collapse, direct
+hidden-target relocation, shared-page deletion and released-page reuse preserve
+logical locators and complete values. Index traversal/Seek, physical keys,
+ownership and unrelated Notes agree. Independent physical checks also cover
+ordinary insertion on Rust pages holding logical links. Full-row replacement
+can reallocate the selected Memo/OLE storage; unrelated headers and values stay
+unchanged, and fixed-field updates preserve the selected payload storage too.
+This finite comparison does not establish a universal page-selection policy.
+
 ### Remaining work
 
 - Extend creation to remaining schema/index-key combinations and relationship forms.
 - Extend updates to remaining index key types/collations, relationship targets,
   additional payload/schema combinations, broader
-  data-page/live-slot reuse and cross-page row growth.
+  data-page/live-slot reuse and multi-hop row growth.
 - Cover remaining DAO inventories, stored-query preservation and broader
   failure/rollback behavior. Local VM and hosted runs may both establish
   evidence; preregistration and per-run approval are not required.

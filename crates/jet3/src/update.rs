@@ -125,7 +125,9 @@ conversion!(crate::IndexTreeError, Index);
 ///
 /// Supports Byte, Integer, Long, Currency, Single, Double, DateTime, GUID and
 /// exact-width fixed Text. Null transitions, Boolean presence bits, AutoIncrement,
-/// variable fields and hidden/overflow rows remain unsupported. A missing or
+/// and variable fields remain unsupported. A logical overflow locator resolves to
+/// its uniquely owned hidden row; its index entries retain the logical locator.
+/// Selected multi-hop chains are refused. A missing or
 /// unreadable relationship catalog and unresolved non-ASCII relationship endpoint
 /// names are also refused.
 /// Only the requested field, index nodes and necessary index allocation bits
@@ -159,6 +161,18 @@ where
     }
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = guarded_table(&mut database, request.table, true, budget)?;
+    let graph = crate::row_mutation_graph::RowGraph::load(
+        &mut database,
+        &definition,
+        Some(request.row),
+        budget,
+    )?;
+    if graph.selected.len() > 2 {
+        return Err(UpdateError::Unsupported(
+            "mutation of multi-hop overflow chain",
+        ));
+    }
+    let storage = *graph.selected.last().ok_or(UpdateError::NotFound("row"))?;
     let column = definition
         .columns()
         .get(usize::from(request.column.get()))
@@ -176,17 +190,10 @@ where
     )?;
     let index_change = crate::update_index_key::plan(&mut database, &definition, request, budget)?;
     let mut original_page = [0; PAGE_BYTES];
-    database.read_raw_page(request.row.page(), &mut original_page, budget)?;
-    let directory = RowDirectory::validate(
-        request.row.page(),
-        definition.root(),
-        &original_page,
-        budget,
-    )?;
-    let entry = directory.entry(&original_page, request.row.slot())?;
-    if entry.hidden() || entry.overflow() {
-        return Err(UpdateError::Unsupported("hidden or overflow row"));
-    }
+    database.read_raw_page(storage.page(), &mut original_page, budget)?;
+    let directory =
+        RowDirectory::validate(storage.page(), definition.root(), &original_page, budget)?;
+    let entry = directory.entry(&original_page, storage.slot())?;
     let mut before = [0; u8::MAX as usize];
     let relative = {
         let mut rows = database.rows(&definition, budget)?;
@@ -195,8 +202,8 @@ where
             if row.locator() != request.row {
                 continue;
             }
-            if row.storage_locator() != request.row {
-                return Err(UpdateError::Unsupported("overflow row"));
+            if row.storage_locator() != storage {
+                return Err(UpdateError::Mismatch("overflow storage locator"));
             }
             let range = row
                 .present_fixed_field_range(request.column)
@@ -229,7 +236,7 @@ where
     let mut patched = PageImage::from_bytes(original_page);
     patched.write_at(PageOffset::new(start as u64), &replacement[..width], budget)?;
     let field_change = crate::update_pages::PageChange {
-        page: request.row.page(),
+        page: storage.page(),
         before: &original_page,
         after: patched.as_bytes(),
     };

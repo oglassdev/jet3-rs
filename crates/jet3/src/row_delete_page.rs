@@ -1,5 +1,6 @@
 //! Slot-preserving compaction and tombstones from EXP-0162 (EXP-0059/0060 layout).
 use crate::row_directory::RowDirectory;
+use crate::row_slot::RowSlot;
 use crate::{PAGE_BYTES, PageImage, PageNumber, PageOffset, ResourceBudget, UpdateError};
 const FREE_BYTES: usize = 2;
 const DIRECTORY: usize = 10;
@@ -14,6 +15,7 @@ pub(crate) enum Deletion {
     Released(PageImage),
 }
 
+#[cfg(test)]
 impl Deletion {
     pub fn image(&self) -> &PageImage {
         match self {
@@ -29,12 +31,39 @@ pub(crate) fn remove(
     slot: u8,
     budget: &mut ResourceBudget,
 ) -> Result<Deletion, UpdateError> {
+    remove_inner(page, owner, source, slot, false, budget)
+}
+
+pub(crate) fn remove_physical(
+    page: PageNumber,
+    owner: PageNumber,
+    source: &[u8; PAGE_BYTES],
+    slot: u8,
+    budget: &mut ResourceBudget,
+) -> Result<Deletion, UpdateError> {
+    remove_inner(page, owner, source, slot, true, budget)
+}
+
+fn remove_inner(
+    page: PageNumber,
+    owner: PageNumber,
+    source: &[u8; PAGE_BYTES],
+    slot: u8,
+    physical: bool,
+    budget: &mut ResourceBudget,
+) -> Result<Deletion, UpdateError> {
     let directory = RowDirectory::validate(page, owner, source, budget)?;
     let range = directory.entry(source, slot)?.range();
     let mut live = 0;
     budget.charge_work_units(2 * u64::from(directory.row_count()))?;
     for ordinal in 0..directory.row_count() {
         let entry = directory.entry(source, ordinal as u8)?;
+        if physical {
+            if RowSlot::read(&entry)? != RowSlot::Deleted {
+                live += 1;
+            }
+            continue;
+        }
         if entry.hidden() && entry.overflow() && entry.range().is_empty() {
             continue;
         }
@@ -99,10 +128,10 @@ pub(crate) fn remove(
                 .filter(|v| *v <= PAGE_BYTES)
                 .ok_or(UpdateError::Mismatch("compacted row offset"))?
         };
-        let flags = if ordinal == u16::from(slot) || entry.hidden() {
+        let flags = if ordinal == u16::from(slot) {
             TOMBSTONE
         } else {
-            0
+            RowSlot::read(&entry)?.flags()
         };
         let word =
             u16::try_from(start).map_err(|_| UpdateError::Mismatch("tombstone offset"))? | flags;
