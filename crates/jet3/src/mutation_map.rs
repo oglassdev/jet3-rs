@@ -62,11 +62,23 @@ impl MapBits {
                 )?;
             }
             AllocationMapLayout::Indirect { references } => {
+                if result.row.len() != crate::usage_map_writer::INDIRECT_ROW_BYTES {
+                    return Err(UpdateError::Unsupported(
+                        "indirect allocation map row width",
+                    ));
+                }
+                let mut zero_seen = false;
                 for (slot, raw) in record.raw()[references].chunks_exact(4).enumerate() {
                     budget.charge_items(1)?;
                     let reference = u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]);
                     if reference == 0 {
+                        zero_seen = true;
                         continue;
+                    }
+                    if zero_seen {
+                        return Err(UpdateError::Mismatch(
+                            "nonzero bitmap reference after empty slot",
+                        ));
                     }
                     let number = PageNumber::new(u64::from(reference));
                     budget.charge_work_units(result.spans.len() as u64)?;

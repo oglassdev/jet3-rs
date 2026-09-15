@@ -58,6 +58,9 @@ impl PendingMap {
         budget: &mut ResourceBudget,
     ) -> Result<(), UpdateError> {
         let global = self.is_global();
+        let mut original = Vec::new();
+        reserve(&mut original, self.bits.row.len(), budget)?;
+        original.extend_from_slice(&self.bits.row);
         for (page, desired) in std::mem::take(&mut self.changes) {
             self.bits.set(
                 page,
@@ -83,7 +86,7 @@ impl PendingMap {
                 number += 1;
             }
         }
-        self.bits.stage(database, edits, budget)
+        self.bits.stage(database, edits, &original, budget)
     }
 }
 
@@ -158,11 +161,12 @@ impl MapBits {
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
     ) -> Result<(), UpdateError> {
-        if self.row.len() < 5 || !(self.row.len() - 1).is_multiple_of(4) {
-            return Err(UpdateError::Unsupported(
-                "allocation map conversion row capacity",
-            ));
+        let length = crate::usage_map_writer::INDIRECT_ROW_BYTES;
+        if self.row.len() < length {
+            let additional = length - self.row.len();
+            reserve(&mut self.row, additional, budget)?;
         }
+        self.row.resize(length, 0);
         let old = std::mem::take(&mut self.spans);
         self.row.fill(0);
         self.row[0] = 1;
@@ -201,58 +205,46 @@ impl MapBits {
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
     ) -> Result<usize, UpdateError> {
-        let first = slot
-            .checked_mul(EXTENDED_BITMAP_BITS)
-            .ok_or(UpdateError::Mismatch("allocation slot base"))?;
-        budget.charge_work_units(self.spans.len() as u64 + 1)?;
-        let position = self.spans.partition_point(|span| span.first < first);
-        if self
-            .spans
-            .get(position)
-            .is_some_and(|span| span.first == first)
-        {
-            return Ok(position);
-        }
-        let AllocationMapLayout::Indirect { references } = &self.layout else {
-            return Err(UpdateError::Mismatch("indirect allocation layout"));
-        };
-        if slot >= (references.len() / 4) as u64 {
+        if slot >= crate::usage_map_writer::INDIRECT_REFERENCE_SLOTS as u64 {
             return Err(UpdateError::Unsupported(
                 "indirect allocation reference capacity",
             ));
         }
-        let mut bytes = Vec::new();
-        reserve(&mut bytes, (EXTENDED_BITMAP_BITS / 8) as usize, budget)?;
-        bytes.resize((EXTENDED_BITMAP_BITS / 8) as usize, 0);
-        if global {
-            let start = eof.saturating_sub(first).min(EXTENDED_BITMAP_BITS);
-            budget.charge_work_units(EXTENDED_BITMAP_BITS - start)?;
-            for bit in start..EXTENDED_BITMAP_BITS {
-                put_bit(&mut bytes, bit as usize, true)?;
+        // EXP-0057: active references form a prefix before the zero slots.
+        while self.spans.len() <= slot as usize {
+            let ordinal = self.spans.len();
+            let first = ordinal as u64 * EXTENDED_BITMAP_BITS;
+            let mut bytes = Vec::new();
+            reserve(&mut bytes, (EXTENDED_BITMAP_BITS / 8) as usize, budget)?;
+            bytes.resize((EXTENDED_BITMAP_BITS / 8) as usize, 0);
+            if global {
+                let start = eof.saturating_sub(first).min(EXTENDED_BITMAP_BITS);
+                budget.charge_work_units(EXTENDED_BITMAP_BITS - start)?;
+                for bit in start..EXTENDED_BITMAP_BITS {
+                    put_bit(&mut bytes, bit as usize, true)?;
+                }
             }
-        }
-        reserve(&mut self.spans, 1, budget)?;
-        let page = edits.append(PageImage::new(PageKind::ExtendedUsageBitmap), budget)?;
-        let offset = references.start + slot as usize * 4;
-        let reference = u32::try_from(page.get())
-            .map_err(|_| UpdateError::Mismatch("bitmap reference width"))?;
-        self.row[offset..offset + 4].copy_from_slice(&reference.to_le_bytes());
-        self.spans.insert(
-            position,
-            BitSpan {
+            reserve(&mut self.spans, 1, budget)?;
+            let page = edits.append(PageImage::new(PageKind::ExtendedUsageBitmap), budget)?;
+            let offset = 1 + ordinal * 4;
+            let reference = u32::try_from(page.get())
+                .map_err(|_| UpdateError::Mismatch("bitmap reference width"))?;
+            self.row[offset..offset + 4].copy_from_slice(&reference.to_le_bytes());
+            self.spans.push(BitSpan {
                 first,
                 page,
                 offset: 4,
                 bytes,
-            },
-        );
-        Ok(position)
+            });
+        }
+        Ok(slot as usize)
     }
 
     fn stage(
-        self,
+        mut self,
         database: &mut DatabaseReader<FileSource>,
         edits: &mut PageEdits,
+        original: &[u8],
         budget: &mut ResourceBudget,
     ) -> Result<(), UpdateError> {
         match self.layout {
@@ -261,22 +253,11 @@ impl MapBits {
                     .spans
                     .first()
                     .ok_or(UpdateError::Mismatch("inline map storage"))?;
-                edits.patch_bytes(
-                    database,
-                    self.locator.page(),
-                    self.range.start + bitmap.start,
-                    &span.bytes,
-                    budget,
-                )?;
+                self.row[bitmap].copy_from_slice(&span.bytes);
+                edits.map_record(database, self.locator, original, &self.row, budget)?;
             }
             AllocationMapLayout::Indirect { .. } => {
-                edits.patch_bytes(
-                    database,
-                    self.locator.page(),
-                    self.range.start,
-                    &self.row,
-                    budget,
-                )?;
+                edits.map_record(database, self.locator, original, &self.row, budget)?;
                 for span in self.spans {
                     edits.patch_bytes(database, span.page, 0, &[5, 1, 0, 0], budget)?;
                     edits.patch_bytes(database, span.page, span.offset, &span.bytes, budget)?;

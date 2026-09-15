@@ -19,6 +19,9 @@ pub const EXTENDED_BITMAP_BITS: u64 = CRATE_EXTENDED_BITMAP_BITS;
 // SRC-0020: record type bytes and fixed field lengths.
 const INLINE_RECORD_TYPE: u8 = 0x00;
 const INDIRECT_RECORD_TYPE: u8 = 0x01;
+// EXP-0254: mutable indirect records contain exactly 33 references.
+pub(crate) const INDIRECT_REFERENCE_SLOTS: usize = 33;
+pub(crate) const INDIRECT_ROW_BYTES: usize = 1 + 4 * INDIRECT_REFERENCE_SLOTS;
 const INLINE_HEADER_LEN: u64 = 5;
 const REFERENCE_LEN: u64 = 4;
 // SRC-0020: a Jet 3 type-05 page is `05 01 00 00` followed by 2,044 bitmap

@@ -3,7 +3,7 @@ use super::*;
 use crate::{ExtendedUsageMapEncoder, encode_indirect_references};
 
 // A 133-byte row contains 33 independent reference slots (EXP-0254).
-const REFERENCE_COUNT: usize = 33;
+const REFERENCE_COUNT: usize = crate::usage_map_writer::INDIRECT_REFERENCE_SLOTS;
 pub(super) const PAGE_LIMIT: u64 = REFERENCE_COUNT as u64 * crate::EXTENDED_BITMAP_BITS;
 
 pub(super) struct AllocationMaps {
@@ -57,10 +57,12 @@ impl AllocationMaps {
         for page in pages {
             budget.charge_items(1)?;
             let slot = (page / crate::EXTENDED_BITMAP_BITS) as usize;
-            if positions[slot] == usize::MAX {
-                let (position, number) = self.allocate(slot as u64, budget)?;
-                positions[slot] = position;
-                refs[slot] = number;
+            for previous in 0..=slot {
+                if positions[previous] == usize::MAX {
+                    let (position, number) = self.allocate(previous as u64, budget)?;
+                    positions[previous] = position;
+                    refs[previous] = number;
+                }
             }
             self.extra[positions[slot]].set_page(PageNumber::new(page), budget)?;
         }
@@ -156,4 +158,23 @@ pub(super) fn check_page(page: u64) -> Result<(), ComposeError> {
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_late_first_member_keeps_an_active_reference_prefix() -> Result<(), ComposeError> {
+        let mut maps = AllocationMaps::new(40000);
+        let mut b = ResourceBudget::new(crate::ResourceLimits::default());
+        let row = maps.row(std::iter::once(20000), &mut b)?;
+        assert_eq!(&row[..9], &[1, 0x40, 0x9c, 0, 0, 0x41, 0x9c, 0, 0]);
+        assert!(row[9..].iter().all(|byte| *byte == 0));
+        assert_eq!(maps.extra.len(), 2);
+        assert!(!maps.extra[0].is_set(PageNumber::new(0))?);
+        assert!(!maps.extra[0].is_set(PageNumber::new(16351))?);
+        assert!(maps.extra[1].is_set(PageNumber::new(20000))?);
+        Ok(())
+    }
 }

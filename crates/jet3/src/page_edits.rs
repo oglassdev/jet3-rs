@@ -175,6 +175,75 @@ impl PageEdits {
         self.maps[position].change(member, expected, desired, self.first_append, budget)
     }
 
+    pub(crate) fn map_record(
+        &mut self,
+        database: &mut DatabaseReader<FileSource>,
+        locator: MapRowLocator,
+        expected: &[u8],
+        desired: &[u8],
+        budget: &mut ResourceBudget,
+    ) -> Result<(), UpdateError> {
+        let mut before = [0; PAGE_BYTES];
+        database.read_raw_page(locator.page(), &mut before, budget)?;
+        budget.charge_work_units(self.changes.len() as u64)?;
+        let mut current = self
+            .changes
+            .iter()
+            .find(|change| change.page == locator.page())
+            .map_or_else(
+                || PageImage::from_bytes(before),
+                |change| change.after.clone(),
+            );
+        let page =
+            crate::classify_page(locator.page(), current.as_bytes(), budget).map_err(|error| {
+                UpdateError::Definition(crate::TableDefinitionError::Page(
+                    crate::DatabasePageError::Classification(error),
+                ))
+            })?;
+        let record =
+            crate::locate_usage_map(page, locator, budget).map_err(UpdateError::UsageMap)?;
+        if record.raw() != expected {
+            return Err(UpdateError::Mismatch(
+                "allocation record changed during staging",
+            ));
+        }
+        let range = record.range();
+        if expected.len() == desired.len() {
+            current.write_at(PageOffset::from_usize(range.start)?, desired, budget)?;
+        } else {
+            // SRC-0020 supplies the data-page owner field; EXP-0162 supplies row movement.
+            let bytes = current.as_bytes();
+            let owner = PageNumber::new(u64::from(u32::from_le_bytes([
+                bytes[4], bytes[5], bytes[6], bytes[7],
+            ])));
+            current = crate::row_update_page::replace(
+                locator.page(),
+                owner,
+                bytes,
+                locator.row(),
+                desired,
+                budget,
+            )?;
+        }
+        if let Some(change) = self
+            .changes
+            .iter_mut()
+            .find(|change| change.page == locator.page())
+        {
+            change.after = current;
+        } else {
+            self.replace(
+                PageChange {
+                    page: locator.page(),
+                    before: &before,
+                    after: current.as_bytes(),
+                },
+                budget,
+            )?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn patch_bytes(
         &mut self,
         database: &mut DatabaseReader<FileSource>,

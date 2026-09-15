@@ -84,11 +84,11 @@ fn empty_availability_window_does_not_allocate_for_a_clear_bit() -> TestResult {
 
 #[test]
 fn reference_capacity_and_bitmap_budget_fail_before_publication() -> TestResult {
-    let mut map = inline(0, &[0; 4]); // Two type-1 reference slots.
+    let mut map = inline(0, &[0; 4]);
     let mut edits = PageEdits::new(30);
     assert!(
         map.set(
-            PageNumber::new(32704),
+            PageNumber::new(33 * 16352),
             true,
             false,
             30,
