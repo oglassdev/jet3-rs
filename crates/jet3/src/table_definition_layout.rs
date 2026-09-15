@@ -8,7 +8,6 @@ use crate::column_definition_writer::{
     COLUMN_RECORD_LEN, ColumnSpec, LOGICAL_RECORD_LEN, MAX_NAME_LEN, PHYSICAL_PREFIX_LEN,
     PHYSICAL_RECORD_LEN, SystemColumnClassSpec, resolve_column,
 };
-use crate::data_page_directory::MAX_STORED_ROW_LEN;
 use crate::table_definition_writer::TableDefinitionWriteError;
 use crate::{Error, TableDefinitionKind};
 
@@ -137,11 +136,7 @@ pub(crate) fn validate_column_layout(
                 operation: "size minimum encoded-row jump table",
             }))?;
     }
-    let maximum = if variables == 0 {
-        MAX_STORED_ROW_LEN
-    } else {
-        crate::row_offsets::MAX_VARIABLE_ROW_LEN
-    };
+    let maximum = crate::row_offsets::maximum_length(usize::from(variables));
     if minimum_row_len > maximum {
         return Err(TableDefinitionWriteError::RowLayoutTooLarge {
             minimum: minimum_row_len,

@@ -344,29 +344,35 @@ fn reproduces_exp_0060_controls_and_wide_single_variable_rows()
 }
 
 #[test]
-fn accepts_the_absolute_maximum_single_page_row() -> Result<(), RowWriteError> {
+fn accepts_the_native_fixed_row_capacity() -> Result<(), RowWriteError> {
     let full = [0x5a_u8; 255];
-    let tail = [0xa5_u8; 249];
-    let mut layout: Vec<_> = (0_u16..7)
-        .map(|index| {
-            RowColumnLayout::new(
-                ColumnPhysicalType::Text,
-                ColumnStorageClass::Fixed {
-                    offset: index * 255,
-                },
-                255,
-            )
-        })
-        .collect();
+    let tail = [0xa5_u8; 211];
+    let mut layout = vec![RowColumnLayout::new(
+        ColumnPhysicalType::Long,
+        ColumnStorageClass::Fixed { offset: 0 },
+        4,
+    )];
+    layout.extend((0_u16..7).map(|index| {
+        RowColumnLayout::new(
+            ColumnPhysicalType::Text,
+            ColumnStorageClass::Fixed {
+                offset: 4 + index * 255,
+            },
+            255,
+        )
+    }));
     layout.push(RowColumnLayout::new(
         ColumnPhysicalType::Text,
-        ColumnStorageClass::Fixed { offset: 7 * 255 },
-        249,
+        ColumnStorageClass::Fixed {
+            offset: 4 + 7 * 255,
+        },
+        211,
     ));
-    let mut values = vec![RowValue::Text(&full); 7];
+    let mut values = vec![RowValue::Long(1)];
+    values.extend([RowValue::Text(&full); 7]);
     values.push(RowValue::Text(&tail));
 
-    assert_eq!(encode(&layout, &values)?.len(), PAGE_BYTES - 12);
+    assert_eq!(encode(&layout, &values)?.len(), 2003);
     Ok(())
 }
 
@@ -462,7 +468,7 @@ fn rejects_mismatches_unsupported_shapes_small_output_and_exhausted_budget() {
         ),
         Err(RowWriteError::RowTooLong {
             length: 2_298,
-            maximum: PAGE_BYTES - 12,
+            maximum: 2003,
         })
     );
     let many = vec![long; 256];

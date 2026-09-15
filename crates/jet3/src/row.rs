@@ -213,6 +213,13 @@ pub enum RowError {
         /// Sourced row variable-field count.
         actual: u8,
     },
+    /// The complete ordinary row exceeds the native limit for its layout.
+    RowTooLong {
+        /// Complete physical row length.
+        length: usize,
+        /// Maximum complete length for this row layout.
+        maximum: usize,
+    },
     /// The row's jump bytes do not form a canonical variable-offset trailer.
     UnsupportedWideVariableOffsets {
         /// Sourced variable-field count.

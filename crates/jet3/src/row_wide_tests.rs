@@ -252,3 +252,34 @@ fn schema_minimum_accounts_for_every_jump_byte() -> Result<(), Box<dyn std::erro
     }
     Ok(())
 }
+
+#[test]
+fn reader_rejects_a_variable_row_beyond_native_capacity() -> Result<(), Box<dyn std::error::Error>>
+{
+    let columns = variable_columns(8);
+    let mut values = vec![RowValue::Long(1)];
+    values.extend([RowValue::Text(&[b'X'; 255]); 7]);
+    values.push(RowValue::Text(&[b'Y'; 203]));
+    let mut raw = encode(&layouts(&columns)?, &values)?;
+    assert_eq!(raw.len(), 2012);
+    raw.insert(1993, b'Z');
+    raw[1994] = (1994 % 256) as u8;
+    let bytes = database_bytes(&columns, &[&raw])?;
+    let mut budget = budget_for(&bytes);
+    let mut db =
+        DatabaseReader::from_source(SliceSource::new(&bytes, budget.read_budget())?, &mut budget)?;
+    let table = db.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
+    let error = db
+        .rows(&table, &mut budget)?
+        .next_row()
+        .err()
+        .ok_or("oversized row accepted")?;
+    assert_eq!(
+        error,
+        crate::RowError::RowTooLong {
+            length: 2013,
+            maximum: 2012
+        }
+    );
+    Ok(())
+}

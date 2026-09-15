@@ -7,7 +7,6 @@
 
 use std::fmt;
 
-use crate::data_page_directory::MAX_STORED_ROW_LEN;
 use crate::{
     BinaryWriter, ByteCount, ByteOffset, ColumnDefinition, ColumnPhysicalType, ColumnStorageClass,
     Error, ResourceBudget,
@@ -388,11 +387,7 @@ fn validate(
         .ok_or(RowWriteError::Resource(Error::Arithmetic {
             operation: "size encoded-row jump bytes",
         }))?;
-    let maximum = if variable_count == 0 {
-        MAX_STORED_ROW_LEN
-    } else {
-        crate::row_offsets::MAX_VARIABLE_ROW_LEN
-    };
+    let maximum = crate::row_offsets::maximum_length(variable_count);
     if length > maximum {
         return Err(RowWriteError::RowTooLong { length, maximum });
     }

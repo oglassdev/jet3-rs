@@ -69,6 +69,13 @@ impl RowLayout {
             .iter()
             .filter(|c| matches!(c.storage(), ColumnStorageClass::Variable { .. }))
             .count() as u8;
+        let maximum = crate::row_offsets::maximum_length(usize::from(variable_count));
+        if row.len() > maximum {
+            return Err(RowError::RowTooLong {
+                length: row.len(),
+                maximum,
+            });
+        }
         let null_start = row.len() - null_len;
         if variable_count == 0 {
             if null_start != fixed_boundary {

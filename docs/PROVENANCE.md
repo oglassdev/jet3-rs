@@ -16822,3 +16822,36 @@ by this native-only discovery.
   `192ea167307c8109d04caa95f4c79a76290893b0cdcfc88270e658072e9f8d26`.
   `wide-row-report.json`: 796866 bytes, SHA256
   `8bb90b61a7eddd45c5054db08ab41e9bdab1c56cf5513ed6ff681c92571d2bcf`.
+
+## EXP-0261 — Exact sampled fixed-only schema and row capacity
+
+- **Source:** fresh DAO 3.6 x86 run `20260915T124036Z-fixed-cap-r1`
+  from `/tmp/jet3-row-capacity-discovery/exp0261/`; retained output is
+  `/home/alex/development/vms/jet3-windows/shared/outbox/20260915T124036Z-fixed-cap-r1/`.
+- **Provider:** DAO 3.6 DLL `03.60.9765.0`, x86, SHA256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  full environment retained. Four workers cover 36 fresh schemas in two exact
+  replicas. There are 18 accepted schemas/full rows and 18 final-field schema
+  refusals, with 36 complete native schema/value captures.
+- **Observed boundary:** `total_fixed_bytes` includes the four-byte Long Id.
+  With nine physical columns and two presence bytes, total fixed bytes 2000
+  succeeds and independently decoded raw length is
+  `1 + 2000 + 2 = 2003`; total 2001, predicted raw length 2004, is refused at
+  final-field append. With 17 physical columns and three presence bytes, total
+  fixed bytes 1999 succeeds at raw length `1 + 1999 + 3 = 2003`; total 2000,
+  predicted raw length 2004, is refused. Both layouts sampled every total from
+  1996 through 2004.
+- **Finite rule:** for these fixed-only ordinary schemas (`V = 0`), DAO accepts
+  the complete encoded length `L = 1 + total_fixed_bytes + ceil(P/8)` through
+  2003 and refuses the adjacent 2004 schema. Combined with EXP-0260, this
+  supports a 2003 fixed-only row limit and a 2012 variable-row limit. The 2036
+  page-slot maximum remains a separate long-value physical framing bound.
+- **Comparisons:** every accepted schema was captured empty and after inserting
+  a full non-null row; complete field properties, values and raw row bytes and
+  length match. Every refusal occurs only while appending the final fixed Text
+  field with HRESULT -2146825241 and `Record is too large`; the complete closed
+  prefix image is byte-identical before and after. Both replicas agree exactly.
+- **Pins:** the answered report, matrix, producer, draft and every MDB identity
+  are pinned in `accepted-pins.json` and `images.json` beside this draft.
+- **Answered report identity:** 81652 bytes, SHA256
+  `0931af7ca1279a293e470c9c5b2edff82058b3f0da9d08f1c46569fd12ec06c6`.

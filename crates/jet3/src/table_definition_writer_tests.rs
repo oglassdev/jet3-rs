@@ -466,7 +466,7 @@ fn rejects_structural_errors_before_writing() {
         ),
         Err(TableDefinitionWriteError::RowLayoutTooLarge {
             minimum: 2_298,
-            maximum: PAGE_BYTES - 12,
+            maximum: 2003,
         })
     );
 

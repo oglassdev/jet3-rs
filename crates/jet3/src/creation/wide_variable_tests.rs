@@ -2,6 +2,74 @@ use super::*;
 use crate::{ColumnOrdinal, RawField, RowValue, SliceSource, create_database_with_rows};
 
 #[test]
+fn fixed_schema_capacity_includes_the_presence_map() -> TestResult {
+    for (count, total) in [(8, 2000), (16, 1999)] {
+        let directory = TestDirectory::create()?;
+        let names: Vec<_> = (0..count).map(|i| format!("F{i:02}")).collect();
+        let widths: Vec<_> = (0..count)
+            .map(|i| (total - 4) / count + usize::from(i < (total - 4) % count))
+            .collect();
+        let mut columns = vec![ID];
+        columns.extend(names.iter().zip(&widths).map(|(name, &width)| {
+            ColumnSpec::new(
+                name.as_bytes(),
+                ColumnType::FixedText {
+                    len: nz(width as u8),
+                },
+            )
+        }));
+        let payloads: Vec<_> = widths.iter().map(|&width| vec![b'X'; width]).collect();
+        let mut values = vec![RowValue::Long(1)];
+        values.extend(payloads.iter().map(|bytes| RowValue::Text(bytes)));
+        let spec = TableSpec {
+            name: b"Items",
+            columns: &columns,
+            indexes: &[],
+        };
+        create_database_with_rows(directory.target(), &spec, &[&values], &mut budget())?;
+        let original = fs::read(directory.target())?;
+        {
+            let mut work = budget();
+            let mut db = DatabaseReader::open(directory.target(), &mut work)?;
+            let definition = db.table_definition(PageNumber::new(20), &mut work)?;
+            let mut rows = db.rows(&definition, &mut work)?;
+            let row = rows.next_row()?.ok_or("missing fixed row")?;
+            assert_eq!(row.raw_bytes().len(), 2003);
+            for (i, payload) in payloads.iter().enumerate() {
+                assert_eq!(
+                    row.field(ColumnOrdinal::new(i as u16 + 1)),
+                    Some(RawField::Bytes(payload))
+                );
+            }
+        }
+        columns[1] = ColumnSpec::new(
+            names[0].as_bytes(),
+            ColumnType::FixedText {
+                len: nz(widths[0] as u8 + 1),
+            },
+        );
+        let invalid = TableSpec {
+            name: b"Items",
+            columns: &columns,
+            indexes: &[],
+        };
+        assert!(matches!(
+            create_database(directory.target(), &[invalid], &mut budget()),
+            Err(CreateDatabaseError::Compose(ComposeError::Schema(
+                TableSchemaPlanError::Definition(
+                    crate::TableDefinitionWriteError::RowLayoutTooLarge {
+                        minimum: 2004,
+                        maximum: 2003
+                    }
+                )
+            )))
+        ));
+        assert_eq!(fs::read(directory.target())?, original);
+    }
+    Ok(())
+}
+
+#[test]
 fn all_variable_rows_disambiguate_the_final_boundary_and_reject_bad_trailers() -> TestResult {
     // EXP-0258: ff means both an unused threshold and boundary ordinal 255.
     let directory = TestDirectory::create()?;
