@@ -46,18 +46,11 @@ pub(crate) fn append(
     if free != packed_start - directory_end {
         return Err(UpdateError::Mismatch("data page free-byte count"));
     }
-    // Candidate scope retains capacity for another equal-sized row and slot;
-    // this is not a DAO available-map threshold or allocation policy.
     let needed = row
         .len()
         .checked_add(ENTRY_BYTES)
         .ok_or(UpdateError::Mismatch("row width"))?;
-    if count >= u16::from(u8::MAX)
-        || free
-            < needed
-                .checked_mul(2)
-                .ok_or(UpdateError::Mismatch("row capacity"))?
-    {
+    if count > u16::from(u8::MAX) || free < needed {
         return Ok(None);
     }
     let start = packed_start
@@ -103,4 +96,40 @@ pub(crate) fn increment_count(
         budget,
     )?;
     Ok(patched)
+}
+
+/// Candidate availability policy: an appended minimum row and directory slot fit.
+/// EXP-0060 supplies the physical slots; this does not model DAO's allocation policy.
+pub(crate) fn has_capacity(page: &[u8; PAGE_BYTES], minimum: usize) -> bool {
+    let count = u16::from_le_bytes([page[SLOT_COUNT], page[SLOT_COUNT + 1]]);
+    let free = usize::from(u16::from_le_bytes([page[FREE_BYTES], page[FREE_BYTES + 1]]));
+    count <= u16::from(u8::MAX) && minimum.checked_add(ENTRY_BYTES).is_some_and(|n| free >= n)
+}
+
+pub(crate) fn minimum_length(
+    columns: &[crate::ColumnDefinition],
+    budget: &mut ResourceBudget,
+) -> Result<usize, UpdateError> {
+    use crate::{ColumnPhysicalType, ColumnStorageClass, RowColumnLayout, RowValue};
+    if columns.len() > u8::MAX as usize {
+        return Err(UpdateError::Unsupported("row column count"));
+    }
+    let mut layout = [RowColumnLayout::new(
+        ColumnPhysicalType::Long,
+        ColumnStorageClass::Fixed { offset: 0 },
+        4,
+    ); u8::MAX as usize];
+    budget.charge_items(columns.len() as u64)?;
+    for (entry, column) in layout.iter_mut().zip(columns) {
+        *entry = column.into();
+    }
+    let nulls = [RowValue::Null; u8::MAX as usize];
+    let mut encoded = [0; PAGE_BYTES];
+    Ok(crate::encode_row(
+        &layout[..columns.len()],
+        &nulls[..columns.len()],
+        &mut encoded,
+        budget,
+    )?
+    .get() as usize)
 }

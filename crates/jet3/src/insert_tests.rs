@@ -237,7 +237,7 @@ fn later_page_selection_and_capacity_boundary() -> TestResult {
     assert_eq!(locator.page(), f.pages[1]);
     let owner = PageNumber::new(20);
     let page = PageNumber::new(23);
-    for free in [23_u16, 24] {
+    for free in [11_u16, 12] {
         let mut bytes = [0; PAGE_BYTES];
         bytes[0] = 1;
         bytes[4..8].copy_from_slice(&20_u32.to_le_bytes());
@@ -245,7 +245,7 @@ fn later_page_selection_and_capacity_boundary() -> TestResult {
         bytes[2..4].copy_from_slice(&free.to_le_bytes());
         bytes[10..12].copy_from_slice(&(12 + free).to_le_bytes());
         let value = crate::row_insert_page::append(page, owner, &bytes, &[0; 10], &mut budget())?;
-        assert_eq!(value.is_some(), free == 24);
+        assert_eq!(value.is_some(), free == 12);
     }
     f.clean()
 }
@@ -370,7 +370,7 @@ fn physical_slot_limit_and_table_count_overflow_are_structured() -> TestResult {
     let mut bytes = [0; PAGE_BYTES];
     bytes[0] = 1;
     bytes[4..8].copy_from_slice(&20_u32.to_le_bytes());
-    for count in [254_u16, 255] {
+    for count in [255_u16, 256] {
         bytes[8..10].copy_from_slice(&count.to_le_bytes());
         for slot in 0..count as usize {
             bytes[10 + 2 * slot..12 + 2 * slot]
@@ -386,7 +386,7 @@ fn physical_slot_limit_and_table_count_overflow_are_structured() -> TestResult {
                 &mut budget()
             )?
             .is_some(),
-            count == 254
+            count == 255
         );
     }
     bytes[12..16].copy_from_slice(&u32::MAX.to_le_bytes());

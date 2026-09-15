@@ -15307,3 +15307,100 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
 - Private report:
   `shared/checks/20260915-validator-overflow-fixed/report.json`, SHA-256
   `b158c865a5a723a62df3fed4cc4ba6fa6c4aedb809d0011a39b9ff2c358d3525`.
+
+## EXP-0227 — Native reuse of a released multi-slot data page
+
+- Reinserted Id 100 / Value 999 into six native deletion results from
+  EXP-0224 (last surviving keys 0, 2 and 5, two copies each). Every DAO run
+  reused released data page 24 at slot 0 and retained the file length.
+- The complete data-page patch restores tag 01, changes the physical slot
+  count from six to one, writes directory word `07f6` and the ten-byte row at
+  offset 2038. Free bytes are 2026. Old directory words outside the new
+  physical count and all other slack retain their bytes. The source six-slot
+  empty page also had 2026 free bytes, so that field happens to stay equal.
+- Global-free membership clears, owned/available membership sets, table
+  count becomes one and the retained index counter becomes seven. Only
+  pages 0, 1, 20, 21, 23 and 24 change. This supports reusing a global-free,
+  released page belonging to the target table; it establishes no policy for
+  reusing another object's freed page or choosing among several candidates.
+- Private inputs: `shared/outbox/20260915T033100Z-last-slots/`.
+  Native outputs and actual provider environment:
+  `shared/outbox/20260915T041000Z-released-reuse/`.
+  Complete checked report: `shared/checks/20260915-released-page-reuse/report.json`,
+  SHA-256 `2b8a2588d4424a9c06586c6b8fa775387c07a92712513122a940761ee15cbca9`.
+  All six exact data-page reconstructions, map transitions, rows and counters
+  agree. This observation precedes separate Rust/DAO mutation validation.
+
+
+### EXP-0227 existing-suite verification
+
+- Clean `09d97fc25b4da698d71baa82abf297791315eb28` matched all four
+  permanent local suites, including native compressed-tree continuations.
+  Reports under `shared/checks/20260915-storage-initial/` have SHA-256:
+  indexed-boundary `543c6246bddee4ec0da8b2c351bf22a39d88265f131c817941da5311dffcdc94`;
+  indexed-rows `a5a14b81803298959e111a0a2b966c0b7cdd7426ce742113707710528e0e8777`;
+  creation-tables `e4fbcc28a62334858ed3095d7473657ef990162a1af1e1d985d1f14ce0032bd4`;
+  index-trees `360a5b30d8a57f1ec468c096fcd4683ef7a700b0c0ccebfc389ecd23e258b241`.
+
+## EXP-0229 — Public Items/Notes lifecycle and released-page reuse match DAO
+
+- Clean `a488710b045e38570e75ddbc609ee4d9f1954510` uses public APIs to
+  create Items (Long primary Id, Text(80) Name, nullable Currency Price,
+  Boolean Active) and unrelated Notes (Long Id, Memo Body containing a
+  4 KiB payload and a null row). An independent typed model and a separate
+  DAO-created control history cover eight paired checkpoints.
+- The main history creates empty Items, inserts 220 rows, replaces names,
+  prices/nulls and Boolean values (including dense first-page rows), deletes
+  eight scattered rows, then inserts 40 more. Checkpoint row counts are
+  0/220/220/212/252. Loading crosses eleven data pages and a depth-two index;
+  the final Rust image uses thirteen data pages.
+- A separate three-row history deletes all rows and reinserts one. The
+  released table page is reused at slot zero, with the file staying at 31
+  pages. This composes the native EXP-0227 reuse observation through public
+  mutation and publication APIs.
+- All eight pairs matched complete schema, typed rows, primary traversal,
+  and 262 present/absent Seek probes per checkpoint. Each history preserves
+  its own Notes definition, maps, data and long-value page hashes. Candidate
+  Notes bytes are checked before/after both Rust mutations and DAO capture;
+  candidate and independently created control layouts need not be identical.
+- Duplicate-key, wrong Currency value type, malformed index owner and
+  encoded-byte budget refusals return errors and preserve exact input bytes.
+  These are pre-publication checks; no post-publication rollback claim follows.
+- `scripts/dao-check.py practical-lifecycle` repeats this finite scenario.
+  Private report:
+  `shared/checks/20260915-practical-lifecycle-initial/practical-lifecycle/report.json`,
+  SHA-256 `bb76fc3eb6621209b8152a4fa52613816a4287d27afa2c439f785f96bc9610ee`.
+  Captures are `shared/outbox/20260915T043600Z-practical-lifecyc-bde6cb/`;
+  manifest SHA-256 `39ea72ad4ca36e86bdd882d27c3bd8a83d42a03ab1862abc9ab741400435aca6`.
+  The provider is the fresh local DAO 3.6 environment recorded in EXP-0221.
+  This meets the practical Items/Notes milestone, not the broader v1 inventory.
+
+
+## EXP-0231 — Seeded dense-page and released-storage mutations match DAO
+
+- Sol high independently exercised clean `c9d38a9f843758ea9cf7a676ed5c23c6e145abe9`
+  with six seeds and 50 scheduled operations each. Of 300 attempts, 271
+  succeeded and all 271 were replayed through DAO with matching complete
+  typed Items/Notes rows, metadata, directed traversal, typed Seek probes,
+  raw key/locator membership, counters and Notes page hashes.
+- Every seed exercised capacity exhaustion (88 appends total), same-width
+  replacement and deletion on a dense unavailable page, last-row release,
+  and reuse of that released page without EOF growth. Each of the latter
+  paths occurred six times. Narrow, wide and mixed rows and both index
+  directions were included.
+- The 29 refusals preserved exact input bytes: 27 intentional duplicates
+  and two remaining contiguous-growth scope gaps (seed 71543 step 42 and
+  seed 71545 step 46). No unexpected Rust failure, native rejection,
+  semantic mismatch or Notes change occurred. Refusals are coverage gaps,
+  not successful mutations.
+- The first host attempt stopped on a harness assertion after 61 validated
+  operations: an existing page correctly remained available after one
+  append. It is retained separately; the successor fills that page until
+  availability actually clears. No DAO run or implementation failure is
+  attributed to the first attempt.
+- Private final root: `shared/checks/20260915-random-storage-sol-c9d38a9-2/`.
+  `summary.json` SHA-256
+  `24169959739aca2579725ffeb2f3c1b408b047edc65b24f7745d19782e799ff9`.
+  `retained-artifacts.json` pins 116 local and 305 outbox files.
+  Captures: `shared/outbox/20260915T050500Z-random-storage-c9d38a9-sol/`.
+  Original attempt: `shared/checks/20260915-random-storage-sol-c9d38a9/`.

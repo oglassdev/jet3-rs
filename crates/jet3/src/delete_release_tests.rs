@@ -48,20 +48,19 @@ fn sole_release_preserves_all_except_observed_fields_and_three_map_bits() -> Res
     let def = db.table_definition(f.root, &mut b)?;
     assert!(db.rows(&def, &mut b)?.next_row()?.is_none());
     drop(db);
-    // Current insertion intentionally appends EOF; it does not reuse released pages.
     let locator = crate::insert_row(
         f.path(),
         b"Rows",
         &[RowValue::Long(99), RowValue::Long(-9900)],
         &mut budget(),
     )?;
+    assert_eq!(locator.page(), f.row.page());
+    assert_eq!(locator.slot(), 0);
+    let after = fs::read(f.path())?;
+    assert_eq!(after.len(), before.len());
     assert_eq!(
-        locator.page().get(),
-        before.len() as u64 / PAGE_BYTES as u64
-    );
-    assert_eq!(
-        &fs::read(f.path())?[base..base + PAGE_BYTES],
-        &expected[base..base + PAGE_BYTES]
+        &after[base + 12..base + 2038],
+        &expected[base + 12..base + 2038]
     );
     f.clean()
 }
@@ -71,14 +70,18 @@ fn release_map_mismatch_alias_and_indirect_references_refuse_atomically() -> Res
     let f = Fixture::new(1)?;
     let before = fs::read(f.path())?;
     let records = maps(&f)?;
-    for (location, range) in &records {
+    for (role, (location, range)) in records.iter().enumerate() {
         let bit = f.row.page().get() as usize;
         let offset = location.page().get() as usize * PAGE_BYTES + range.start + 5 + bit / 8;
         let mut bad = before.clone();
         bad[offset] ^= 1 << (bit % 8);
         fs::write(f.path(), &bad)?;
-        assert!(delete_row(f.path(), f.request(), &mut budget()).is_err());
-        assert_eq!(fs::read(f.path())?, bad);
+        if role == 2 {
+            delete_row(f.path(), f.request(), &mut budget())?;
+        } else {
+            assert!(delete_row(f.path(), f.request(), &mut budget()).is_err());
+            assert_eq!(fs::read(f.path())?, bad);
+        }
     }
     let global = records[0].0.page().get() as usize * PAGE_BYTES + records[0].1.start;
     let root = f.root.get() as usize * PAGE_BYTES;

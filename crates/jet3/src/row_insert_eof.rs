@@ -1,4 +1,4 @@
-//! Single EOF allocation: SRC-0020/EXP-0057 map framing and EXP-0051 free bits;
+//! Released-page reuse (EXP-0227) or single EOF allocation: SRC-0020/EXP-0057 map framing and EXP-0051 free bits;
 //! EXP-0065 Q2 clears the new EOF bit. Row packing uses EXP-0060/EXP-0116.
 use crate::allocation_patch::{AllocationChange, MapPatches};
 use crate::update_pages::PageChange;
@@ -39,7 +39,11 @@ pub(crate) fn plan(
     minimum: &[u8],
     budget: &mut ResourceBudget,
 ) -> Result<EofInsert, UpdateError> {
-    let page = PageNumber::new(database.geometry().page_count());
+    let reusable = crate::row_reuse_page::find(database, definition, budget)?;
+    let page = reusable.as_ref().map_or(
+        PageNumber::new(database.geometry().page_count()),
+        |(page, _)| *page,
+    );
     // Map references to data pages must remain representable by Jet's u24 locators.
     if page.get() > 0x00ff_ffff {
         return Err(UpdateError::Unsupported("EOF page reference width"));
@@ -57,6 +61,17 @@ pub(crate) fn plan(
     let mut image = builder.finish();
     let [lo, hi] = free.to_le_bytes();
     image.write_at(PageOffset::new(1), &[1, lo, hi], budget)?;
+    if let Some((_, before)) = reusable {
+        let mut retained = PageImage::from_bytes(before);
+        // EXP-0227 resets the physical directory to slot zero while retaining slack.
+        retained.write_at(PageOffset::new(0), &image.as_bytes()[..12], budget)?;
+        retained.write_at(
+            PageOffset::new((crate::PAGE_BYTES - encoded.len()) as u64),
+            encoded,
+            budget,
+        )?;
+        image = retained;
+    }
     let maps = crate::allocation_patch::plan(
         database,
         definition,

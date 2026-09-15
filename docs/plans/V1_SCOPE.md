@@ -72,7 +72,8 @@ and wider definitions in the tested layouts.
 ### Updates
 
 Public APIs implement bounded field updates, insertion into populated pages or
-one EOF data page, deletion/compaction, last-live-row page release, same-page
+one EOF data page or a released target-table page, deletion/compaction,
+last-live-row page release, same-page
 scalar row replacement, and multi-level unique Long index maintenance. Rebuilt
 trees keep their root, reuse reserved index pages, and append nodes within inline
 maps. Indexed EOF insertion publishes data, allocation, table counts and index
@@ -85,7 +86,10 @@ counter after deletion; Rust now preserves it on deletion and increments its
 prior value on insertion. EXP-0216 and EXP-0218 remain historical failed runs.
 EXP-0223 adds five tree lifecycle cases and two DAO-compressed input
 continuations, including depth-three growth and empty-table reuse. EXP-0224
-records native last-live-row release with retained deleted slots.
+records native last-live-row release with retained deleted slots. EXP-0227
+establishes target-table released-page reuse; dense-page updates now recompute
+availability, and insertion requires space for the requested row and slot.
+EXP-0229 completes the practical Items/Notes lifecycle with eight DAO pairs.
 
 ### Validation
 
@@ -101,7 +105,8 @@ reading follows native overflow records using the shared row-locator grammar
 
 - Extend creation beyond current schema/index-key and inline-allocation bounds.
 - Extend updates to composite/nonunique/null index keys,
-  relationship and long-value targets, free-page/slot reuse and indirect maps.
+  relationship and long-value targets, broader free-page/live-slot reuse and
+  indirect maps.
 - Cover remaining DAO inventories, stored-query preservation and broader
   failure/rollback behavior. Local VM and hosted runs may both establish
   evidence; preregistration and per-run approval are not required.
@@ -129,7 +134,7 @@ and resource failures rejected before publication must preserve the original
 file byte-for-byte; post-publication sync errors retain their documented
 potentially-visible-change semantics.
 
-This is a concrete milestone within v1, not a substitute for the full scope or
-release gates. Indexed insertion crosses data-page and index-leaf boundaries;
-the complete Items/Notes scenario and broader v1 inventories still require
-their recorded DAO comparisons.
+EXP-0229 completes this milestone: all eight paired checkpoints match DAO,
+including dense-page changes, released-page reuse and Notes preservation.
+This is a concrete milestone within v1, not a substitute for the full scope,
+broader DAO inventories or release gates.

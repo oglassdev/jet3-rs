@@ -52,7 +52,10 @@ repeated deletion, subsequent native insertion and duplicate rejection.
 The `creation-tables` suite covers catalog capacity and multiple indexes on
 later tables. The `index-trees` suite covers tree growth/shrinkage, complete row
 replacement and empty-table reuse, then feeds DAO-compressed outputs back
-through Rust and compares a second DAO round.
+through Rust and compares a second DAO round. The `practical-lifecycle` suite
+creates an Items/Notes database, inserts 220 items, changes values on dense
+pages, deletes rows and inserts more, while preserving unrelated Memo data.
+A separate delete-all/reinsert arm checks released-page reuse without file growth.
 These finite suites do not establish general Jet 3 compatibility.
 
 `just windows-dev-probe` and the existing `windows-dev-*` recipes remain useful

@@ -8,20 +8,20 @@ use std::convert::Infallible;
 use std::error::Error as StdError;
 use std::path::Path;
 
-/// Inserts an encoded row on a populated available page or one new EOF page.
+/// Inserts a row on an available page, a released target-table page, or one EOF page.
 ///
 /// Values use the existing checked scalar/Text/Binary row encoder, including null
 /// and Boolean fields. One unique/primary present Long index is supported when
 /// its complete tree and row/key correspondence validate. The tree is rebuilt
 /// with its existing root, reusing reserved index pages and appending nodes as needed.
 /// Other indexes, AutoIncrement, long values and relationships are refused.
-/// If no populated page fits, one EOF page is appended
-/// only within existing inline global/owned/available maps. No reuse,
-/// map growth or compaction is implemented. An existing selected page must
-/// retain capacity for one more equal-sized row and representable directory slot;
-/// this is a candidate restriction, not a DAO free-space threshold.
+/// If no populated page fits, a released global-free page belonging to this table
+/// is reused, or one EOF page is appended, within existing inline maps. No slot reuse,
+/// map growth or compaction is implemented. An existing selected page must fit
+/// the requested row and its directory slot; availability afterward reflects
+/// whether another minimum-length row and slot fit.
 ///
-/// Only the new row, appended slot, page free/count fields and table row count
+/// The new row, appended slot, page free/count fields, availability and table count
 /// change on unindexed existing-page insertion. Indexed insertion additionally
 /// updates index nodes/maps and increments the retained index counter. EOF insertion clears its global free
 /// bit and sets owned/available bits, marking available when a minimum encoded
@@ -183,6 +183,20 @@ where
             },
             budget,
         )?;
+        let minimum = crate::row_insert_page::minimum_length(columns, budget)?;
+        let maps = crate::allocation_patch::plan(
+            &mut database,
+            &definition,
+            page,
+            crate::allocation_patch::AllocationChange::Retain {
+                before: true,
+                available: crate::row_insert_page::has_capacity(patched.as_bytes(), minimum),
+            },
+            budget,
+        )?;
+        for change in maps.changes() {
+            edits.replace(change, budget)?;
+        }
         RowLocator::new(page, slot)
     } else {
         let mut minimum = [0; PAGE_BYTES];
@@ -209,11 +223,12 @@ where
         for change in &changes[..count] {
             edits.replace(*change, budget)?;
         }
-        let page = edits.append(plan.image, budget)?;
-        if page != plan.page {
+        if plan.page.get() < database.geometry().page_count() {
+            edits.set_image(&mut database, plan.page, plan.image, budget)?;
+        } else if edits.append(plan.image, budget)? != plan.page {
             return Err(UpdateError::Mismatch("EOF placement"));
         }
-        RowLocator::new(page, 0)
+        RowLocator::new(plan.page, 0)
     };
     if let Some(index) = &mut index {
         let Some(RowValue::Long(value)) = values.get(usize::from(index.column.get())) else {
