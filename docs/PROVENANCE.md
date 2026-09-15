@@ -17673,3 +17673,109 @@ Server 2022 build 20348, en-US. The predecessor run
 its extra JSON array layer in field/index inventories. No native continuation
 was included in this discovery. These controls do not establish Rust
 compatibility, other relationship forms, other providers or whole-v1 support.
+## EXP-0271 — Rich relationship creation with paired native lifecycles
+
+**Outcome.** Source `f1d031aefbc385f1ebec7115da53800c63b9e926` passes the
+three EXP-0270 creation cases in two replicas, followed by row mutations and
+native continuations. Retained run `20260915T213000Z-rich-rel-accept-r1` contains
+90 successful captures: four checkpoints and one native successor for each of
+six cases across three lineages. Those lineages are Rust creation/Rust mutation,
+DAO creation/DAO mutation, and retained DAO creation/Rust mutation. All compare
+against the complete requested value model and native schema. The successful
+captures contain 792 table rows, 1,296 traversal rows and 1,296 Seek results.
+Thirty-six additional native refusals return the expected DAO errors; all
+36 Rust refusals preserve their complete input bytes.
+
+The original five-child inputs include nullable/duplicate Long foreign keys,
+a separate child primary, ordinary or generated IDs, empty Text/Memo options,
+null-normalized empty OLE and independent 1/33/2036/2037/4096-byte payloads. The
+43-column boundary combines eight Memo/OLE columns, 20 child allocation-map
+rows, a two-page definition and an exact two-fragment, 2,884-byte column-property
+payload. Final rich/boundary creation omits the AutoIncrement default-property
+block as observed in EXP-0270. Parent/plain candidate default properties may be
+absent; their full DAO field-property arrays match the native controls.
+
+Lifecycle stages insert Parent 20 and children 900/901 with present/null foreign
+keys, replace two complete child rows including 4,096-byte Memo and OLE changes,
+and delete both original FK-1 children before Parent 1. DAO then changes Child
+900's FK from 3 to 2, deletes Child 901 and deletes Parent 20 on all three outputs.
+DAO full-row controls leave the unchanged AutoNumber field unassigned during
+Edit because it is read-only there; complete captures verify its value along
+with every mutable field. Explicit AutoNumber IDs are assigned during AddNew.
+
+**Comparison.** The committed `rich_relationship_*` scripts reproduce the
+matrix, native seeds, Rust candidates, recipes and complete comparison. Every
+capture checks all values, table attributes, column definitions and complete
+captured DAO field-property/index arrays; traversal includes every field and
+Seek covers every distinct non-null key plus a missing key. Physical checks
+rebuild every user key/locator, check flags, roots and ownership, and validate
+reciprocal relationship records, the catalog row and all three system
+relationship index locators. Global, table, index and per-column payload maps
+are disjoint from incompatible owners and free/metadata pages. Every active
+Memo/OLE fragment is reached through its own column map. Parent pages remain
+byte-identical during child-only replacement. Columns, properties and
+relationship metadata remain stable through all mutations and native successors.
+
+Foreign prefixes reflect their different construction histories. Rust-created
+inputs retain `(0,4)` throughout. Native-created inputs start at `(5,4)`, retain
+that pair during insertion, then reach `(3,3)`, `(1,1)` and `(0,0)` after the two
+replacements, ordered deletions and native successor respectively. The native
+and Rust mutations of those native inputs agree exactly. Ordinary child-primary
+prefixes become `(0,7)` after insertion and retain it. These are explicit
+per-lineage assertions, not a requirement that independent constructions have
+identical historical counters.
+
+Orphan insert/update returns DAO 3201 and referenced-parent deletion returns
+3200. Refused native images retain complete rows, schema, keys, relationship
+records, properties, allocation maps and payload reachability. DAO may advance
+page-0 bookkeeping, the primary prefix or generated-ID state on failed insertion;
+an orphan update of a native-created input can decrement the foreign first word.
+These side effects are retained separately. Rust does not emulate failed-write
+bookkeeping and leaves all 36 refusal inputs byte-identical.
+
+**Retention and verification.** Artifacts are outside git under
+`shared/checks/20260915-rich-relationship-acceptance`, including full candidate
+source, exact VM inbox/outbox, native seeds, recipes, all local outputs, retained
+failed/pre-strengthening outcomes, final comparison code and logs. Key SHA-256s:
+
+- Matrix: `de70f73d3ebf09bc8838e30e81bcf1d8b66de15d7a1b6a7a69b3ec9ff6690522`.
+- Final report: `d7492cc8a60b3b2db7d246d2d2ee442a7614add1417470a02fc707a9f2d7313e`.
+- Final evaluator: `6cf1f176e75e07bde00ed7da6c82f0335f78ff127f8476a805e6f3f0d7d3a424`.
+- Candidate source archive: `a390ab666c2e471cc3c5e783417e1e67278f3bfd08953a8ba26d278810aac6bf`.
+- `FINAL-SHA256SUMS`, 575 files: `1ee04259183b779fa9207d825012597316437c0ed7a4b321b9bd7a4399552a9b`.
+
+Provider is x86 DAO.DBEngine.36 version 3.6, dao360.dll 03.60.9765.0 SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`, Windows
+Server 2022 build 20348, en-US. The evaluator asserts provider facts, worker
+identities, complete operation/role/Seek inventories, original input and Rust
+checkpoint identities, exact refused requests and source-specific preservation.
+Independent GPT-5.6 Sol high review cleared the implementation, property change
+and bounded acceptance audit. `just ready` passed 1,508 test executions with
+zero failures and the five customary ignored tests in both passes. All eleven
+candidate CI checks passed, including Windows/macOS/Linux, Miri and fuzz smoke.
+Root reproduction regenerated all 99 recipe/MDB files byte-for-byte from the
+native controls. The portable evaluator also passes against the retained run.
+
+The exploratory run `20260915T212100Z-rich-rel-accept-exp-r1` remains rejected
+for old candidate property bytes and the DAO AutoNumber Edit assignment. Initial
+reports that lacked explicit counter/inventory assertions are retained as
+pre-strengthening artifacts; final acceptance includes those checks plus full
+schema and refusal comparisons. No comparison was weakened to obtain a pass.
+
+To reproduce, generate `matrix.json` with `rich_relationship_matrix.py OUTPUT
+REVISION`, run `rich_relationship_create.ps1` with that matrix on the local DAO
+VM, then use `rich_relationship_prepare.py MATRIX NATIVE_OUTBOX OUTPUT
+CREATION_GENERATOR MUTATION_GENERATOR REVISION`. Run
+`rich_relationship_lifecycle.ps1` with its `acceptance-input.zip`; retain the
+run's inbox and outbox together. Evaluate with `rich_relationship_lifecycle.py
+INPUT_DIRECTORY RETAINED_RUN_DIRECTORY NEW_REPORT`. Each producer uses
+`scripts/windows-dao-ps.py` and a fresh run ID. Reports use new paths.
+
+**Limits.** This comparison covers populated creation across exactly two tables
+with one enforced, ascending, non-cascading Long relationship and a separate
+ascending child primary. Empty creation, multiple/composite/descending/cascading/
+self-referencing relationships and relationship schema changes are not included.
+There is no unrelated Notes table in this suite. Existing tests cover structured
+name-collision refusal, the parent definition's exact-capacity continuation and
+budget failures without adding DAO claims for those cases. No universal provider,
+relationship or whole-v1 compatibility is established by this finite run.

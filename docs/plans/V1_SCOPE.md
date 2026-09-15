@@ -295,6 +295,15 @@ keys, counters, allocation, logical locators and unrelated Notes. Fourteen Rust
 refusals preserve their complete input. Multiple, composite, cascading and
 self-referencing relationships remain outside this comparison.
 
+EXP-0270/0271 adds richer two-table relationship creation: a separate child
+primary, generated IDs, nullable foreign keys, independent payloads and column
+options, including chained definitions/properties and map rows on multiple pages.
+Ninety successful captures cover creation, insert/replace/delete, native
+successors and Rust mutations of native controls. Complete values, captured DAO
+schema properties, traversal/Seek, physical keys, per-lineage counters and
+ownership agree. Thirty-six DAO refusals return the expected errors and 36 Rust
+refusals preserve the whole input. Broader relationship forms remain open.
+
 ### Remaining work
 
 - Extend creation to remaining schema/index-key combinations and relationship forms.

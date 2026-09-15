@@ -367,7 +367,12 @@
         "crates/jet3/src/creation/api.rs",
         "crates/jet3/src/creation/api_relationship.rs",
         "crates/jet3/src/creation/relationship_tests.rs",
-        "crates/jet3/src/creation/relationship_rows_tests.rs"
+        "crates/jet3/src/creation/relationship_rows_tests.rs",
+        "crates/jet3/src/creation/rich_relationship_tests.rs",
+        "crates/jet3/examples/rich_relationship_candidate.rs",
+        "oracle/windows-dao/scripts/rich_relationship_lifecycle.py",
+        "oracle/windows-dao/scripts/rich_relationship_lifecycle.ps1",
+        "oracle/windows-dao/scripts/rich_relationship_prepare.py"
       ]
     },
     {
