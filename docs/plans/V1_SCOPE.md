@@ -74,22 +74,30 @@ and wider definitions in the tested layouts.
 Public APIs implement bounded field updates, insertion into populated pages or
 one EOF data page or a released target-table page, deletion/compaction,
 last-live-row page release, same-page
-scalar row replacement, and multi-level unique Long index maintenance. Rebuilt
-trees keep their root, reuse reserved index pages, and append nodes within inline
-maps. Indexed EOF insertion publishes data, allocation, table counts and index
+scalar row replacement, and multi-level numeric index maintenance. A table may
+have up to three indexes with one or two Boolean, Byte, Integer, Long, Currency,
+Single or Double components, including mixed directions, duplicates and null
+policies. Rebuilt trees keep their roots, reuse reserved index pages, and append
+nodes within inline maps. Indexed EOF insertion publishes data, allocation, table counts and index
 changes together. The CLI exposes full-row replacement. Publication is Unix-only.
 
 EXP-0212 covers seventeen hosted update recipes. EXP-0221 adds local DAO
 comparisons for indexed insertion/deletion, boundary insertion, native
 continuations and duplicate rejection. EXP-0219 identifies the retained index
-counter after deletion; Rust now preserves it on deletion and increments its
-prior value on insertion. EXP-0216 and EXP-0218 remain historical failed runs.
+counter after deletion for present unique Long keys; Rust preserves it on
+deletion and increments its prior value on insertion of those keys. EXP-0216 and EXP-0218 remain historical failed runs.
 EXP-0223 adds five tree lifecycle cases and two DAO-compressed input
 continuations, including depth-three growth and empty-table reuse. EXP-0224
 records native last-live-row release with retained deleted slots. EXP-0227
 establishes target-table released-page reuse; dense-page updates now recompute
 availability, and insertion requires space for the requested row and slot.
 EXP-0229 completes the practical Items/Notes lifecycle with eight DAO pairs.
+EXP-0230 establishes numeric counters: only insertion of a currently absent,
+included key increments them; deletion and key edits retain them, even when
+current distinct keys exceed the stored counter. EXP-0232 compares fifteen
+numeric lifecycle checkpoints, three native successor pairs and three
+native-input continuations, including composite depth-three growth and
+compressed Boolean/Currency/Double trees.
 
 ### Validation
 
@@ -104,9 +112,9 @@ reading follows native overflow records using the shared row-locator grammar
 ### Remaining work
 
 - Extend creation beyond current schema/index-key and inline-allocation bounds.
-- Extend updates to composite/nonunique/null index keys,
-  relationship and long-value targets, broader free-page/live-slot reuse and
-  indirect maps.
+- Extend updates beyond current numeric key types/counts and component limits,
+  to relationship and long-value targets, broader free-page/live-slot reuse,
+  cross-page row growth and indirect maps.
 - Cover remaining DAO inventories, stored-query preservation and broader
   failure/rollback behavior. Local VM and hosted runs may both establish
   evidence; preregistration and per-run approval are not required.

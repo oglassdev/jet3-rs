@@ -15445,3 +15445,70 @@ Retained original/control SHA-256 identities; the sole Rust destination repeats
   Captures: `shared/outbox/20260915T045500Z-counters-below-distinct/`.
   Both directories retain matrices, producers, analyzer and actual provider
   environment. DAO is the fresh local 3.6 provider from EXP-0221.
+
+## EXP-0232 — Multiple numeric indexes across row and tree lifecycles
+
+- Local DAO comparison accepts three table shapes, each with three indexes,
+  an independent Long primary key and an unrelated Notes Memo table. The
+  integral case covers Byte/Integer composite keys and descending Boolean;
+  the wide case covers Currency/Double unique composite keys and descending
+  Single; the deep case covers variable-width nullable Currency/Double keys.
+  Primary, unique/nonunique, mixed directions, include-null and ignore-all-null
+  policies are represented. All fifteen lifecycle checkpoints match complete
+  DAO schema, typed rows, directed traversal and the finite full-key Seek set.
+- Integral insertion grows all three trees across leaves. Deleting and
+  reinserting rows reuses lower released data pages, with duplicate records
+  ordered by the complete encoded key and row locator. The deep composite tree
+  grows from depth two at 5,673 rows to depth three at 5,674, with all-null and
+  partial-null records included. Field edits, full-row null transitions,
+  deletions and reinsertion retain the EXP-0230 counter semantics. The wide
+  Single index retains counter zero after edits create two included keys.
+- DAO then inserts, updates and deletes on both Rust and native outputs;
+  all three resulting pairs match. Rust subsequently inserts, edits and
+  deletes from each retained native control, followed by another paired DAO
+  comparison: all three pass. The integral source contains a compressed
+  Boolean node; the deep source contains 67 compressed Double and 44 compressed
+  Currency/Double nodes. The wide source is uncompressed and retains Single
+  continuation coverage without a compression claim.
+- Independent raw analysis checks every key/locator against decoded live rows,
+  retained counters, schema, allocation membership, leaf order, sibling links,
+  depth and EXP-0225 upper fences. Rust mutation loading additionally checks
+  each reconstructed branch key's schema-permitted component shape, allowing
+  historical null-bearing fences independently of current rows. Sol review
+  identified and reproduced an overly broad branch-width guard; the corrected
+  reader refuses both shorter and longer malformed Long branch keys even
+  when their ordering bounds remain valid, preserving the full input file.
+- Notes definition, map, data and long-value page hashes stay unchanged through
+  Rust mutations and DAO read-only captures. Two duplicate requests targeting
+  the third unique index preserve the entire source. Focused corruption and
+  late resource/counter-limit tests also require exact pre-publication preservation.
+- Accepted initial comparison source:
+  `f78b49063699d5a754c2cfc3f4c94376e37d0d84`. Report:
+  `shared/outbox/20260915T052052Z-numeric-indexes-d6c182/numeric-index-mutation-report.json`,
+  SHA-256 `50548998540cdd2f9f72d1b325ad38a168321405310a525ab9d6d6eeb99b67e3`.
+  Dependent continuation source `7d1cfcec58240bada7dc6b26f73670b49a466902`
+  has identical production code and extends only the continuation inventory.
+  Report `shared/checks/20260915-numeric-continuation-successor/report.json`,
+  SHA-256 `912fdbc55a3179562e326cb6647e7d0cfccd3f20bdf5eac9617d8e2871152a88`;
+  captures `shared/outbox/20260915T052621Z-numeric-indexes-123a4e/`.
+- Earlier attempts remain retained. The first producer stopped on PowerShell
+  numeric marshalling while filling native controls, before comparing candidates:
+  `shared/checks/20260915-numeric-index-mutations-initial/numeric-indexes/report.json`,
+  SHA-256 `c525327e4d02003a573f437de9d87e5eece1208813a905a67dbcec5cf8ab59ce`.
+  Explicit typed assignments corrected it. The accepted initial comparison's
+  suite wrapper then failed a continuation-preparation assumption that the
+  wide native source would be compressed. Its unchanged failed wrapper is
+  `shared/checks/20260915-numeric-all-suites-successor/numeric-indexes/report.json`,
+  SHA-256 `cf4f749b79e189778e0795eee96e8f6786a4e1e4ceecc254c2094c1f0dacfc00`.
+  The separate dependent inventory above adds the actually compressed deep
+  source and retains the wide case.
+- The other five repeatable suites also match on `f78b490`, under
+  `shared/checks/20260915-numeric-all-suites-successor/`. Report SHA-256:
+  indexed-boundary `8f87c6ee5d2d34261debf6945b971941f9d74ca2ff2f34386a8d6b7acdebd0a9`;
+  indexed-rows `8a56dc4663cf3c5da7cac426f8bbb6a9861628b0a9bd8e5e95083f20a394c06f`;
+  creation-tables `79ab7c1bc53b4ae84a044f41b8c47c6a08302c26c245ade6c90709e11b1a4d73`;
+  index-trees `58ad81a69e886cc47c3528e49e9f8aa3c39c9dee5f1f8893f61ff1b443c699f4`;
+  index-trees/continuation `dfe63599a05c863145bd3ada7f2a359b8ffaa430e09aee9b2116c4e978f469f0`;
+  practical-lifecycle `03713bd37fe6559ee45222d01f3efe3263a4df66da2e73e61b94a794c38702e0`.
+  Provider details are retained per run: the fresh local DAO 3.6 environment
+  from EXP-0221. This is finite numeric mutation evidence, not whole-v1 completion.

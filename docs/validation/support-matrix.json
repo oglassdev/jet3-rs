@@ -222,7 +222,9 @@
         "crates/jet3/src/row_reuse_page.rs",
         "crates/jet3/src/row_reuse_tests.rs",
         "crates/jet3/examples/practical_lifecycle_candidate.rs",
-        "oracle/windows-dao/scripts/practical_lifecycle.py"
+        "oracle/windows-dao/scripts/practical_lifecycle.py",
+        "crates/jet3/examples/numeric_index_mutation_candidate.rs",
+        "oracle/windows-dao/scripts/numeric_index_mutation.py"
       ]
     },
     {
@@ -278,7 +280,9 @@
         "crates/jet3/src/row_reuse_page.rs",
         "crates/jet3/src/row_reuse_tests.rs",
         "crates/jet3/examples/practical_lifecycle_candidate.rs",
-        "oracle/windows-dao/scripts/practical_lifecycle.py"
+        "oracle/windows-dao/scripts/practical_lifecycle.py",
+        "crates/jet3/examples/numeric_index_mutation_candidate.rs",
+        "oracle/windows-dao/scripts/numeric_index_mutation.py"
       ]
     },
     {
