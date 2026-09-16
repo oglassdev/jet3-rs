@@ -19247,3 +19247,85 @@ Report SHA-256 is
 reproduced byte for byte. The selected lifecycle inventory totals 50 lineages
 and 386 operations; failed copies never become continuation inputs. These are
 native observations. Rust candidate readback acceptance is recorded separately.
+
+The boundary supplement, `20260916T112328Z-scalar-rel-supplement-r1`, accepts
+eight creation captures across Text(16) to Text(8), Binary(16) to Binary(8),
+exact Text(255) and exact Binary(255), each replicated twice. Its report SHA-256
+is `099cf4f5864774871d46dd5c97f0f905186e86bf854e6d8d60c7eb14ad1d1728`.
+Run `20260916T112452Z-scalar-rel-supp-life-r1` adds 72 operations on those
+eight sources: 56 successful key/null/row transitions and 16 exact 3200/3201
+refusals. Full shortened 255-byte index keys and locators, complete values,
+getters, catalogs and allocation remain checked. Report SHA-256 is
+`0816db43f760e91db47f9fbe74ed5c5a417e817831c55849628b45775dfd5c60`.
+
+Run `20260916T113103Z-scalar-rel-fixed-field-r1` separately checks native
+field assignment for Byte, Integer, Long, Currency, Single, Double, Date, GUID
+and FixedText(8), twice each. All 18 assignments to an existing parent key
+succeed; all 18 isolated assignments to a missing key refuse 3201. Complete
+values, getters, traversal/Seek, raw trees/locators, prefixes and maps are
+checked. Report SHA-256 is
+`2f486b8957b28f4c7d4f7d9d29ba6108f6530ea71ad82532ab491d835046ea6a`.
+Root independently reproduces all three supplement reports byte for byte.
+
+
+## EXP-0289 — Scalar relationship differential acceptance
+
+Production source `4f3fbeb93f8046b2a2426cd3ca97b57477970dc1` passes 38 creation
+pairs and 494 same-input mutation pairs against the EXP-0288 DAO environment:
+350 successful mutations and 144 expected refusals. The main creation report
+contains 30 pairs; the reverse-width/255-byte supplement contains eight.
+The lifecycle inventory combines 362 original selected operations, sixteen
+corrected Boolean operations, eight explicit IEEE signed-zero operations,
+72 width/boundary operations and 36 direct fixed-field operations. All Rust
+outputs pass strict validation. This acceptance covers the finite schemas,
+values, assignments and transitions in those reproducible recipes.
+
+Creation comparisons include complete actual property getters, rows, index
+traversal and Seek; raw columns, values, logical selectors, every physical key
+byte apart from construction-specific row locators, exact second counters,
+relationship catalog rows/objects/ACEs and complete system-index key semantics.
+Rust construction creates indexes before rows and retains zero first counters;
+DAO's relation-after-rows construction history is checked separately.
+
+Mutation comparisons include complete actual property getters, rows, traversal
+and Seek, physical key bytes and locators, both counter words, complete maps,
+ownership, reachable payloads, relationship/system metadata and every system
+page. Successful counters match exactly. Rust refusals preserve every input
+byte. The native refusal counter/header effects are checked against the finite
+EXP-0288 model, with every other byte constrained. Same-input metadata dates
+remain exact. Normalization is limited to explicitly assigned-null fixed-field
+padding with a clear presence bit, and selected Memo/OLE descriptor placement
+when the Rust request replaces the complete row. Payload bytes, descriptor
+semantics, allocation and all other row bytes remain checked.
+
+The final report SHA-256 values are:
+
+- 30 creation pairs:
+  `fc542f32e5bf60a4d441def098b5bc97cee4a562a29e9ae45db4b1e9138b03bc`.
+- Eight creation supplement pairs:
+  `effb151ac9c81652f4c608e6148a490a2e82a413436922837f87f30fda40ae91`.
+- 494 lifecycle pairs:
+  `fb353ebf182ed6059be8e4e6c67ba78be48b4c6b359fcbcd3f9817e3b48b81e6`.
+
+Root independently replayed all three reports byte for byte from the durable
+archive at `shared/checks/20260916-scalar-relationship-acceptance`, beneath the
+local Windows VM root documented in `docs/LOCAL_WINDOWS_VM.md`. The archive
+contains 6,767 files, including source/binary pins, recipes, native and Rust
+inputs/outputs, complete receipts, failed attempts, exact historical evaluators
+and replay commands. All 6,766 manifest entries and the exact file inventory
+were independently verified. Manifest SHA-256 is
+`887560e02582814ccad7f05d7ac6b3b2992489f01690f4faa039632bd2f6b14a`;
+findings SHA-256 is
+`ce7a2fe031d15ac5f493e88de03461fcc5fd5a87a00aa04b09dac5dee6590da6`;
+production pins SHA-256 is
+`e2a5aca1b95aa4fc2c2959783eb69bf9695e0b9282074c2757ac683b62969e57`.
+
+The faulty initial Seek helper, ZIP-expansion race, six invalid lifecycle
+recipes, inconclusive JSON negative-zero receipt, initial Boolean column offset,
+preflight/status failures and evaluator representation failures are retained
+alongside corrected runs. Failed native creation files remain terminal controls;
+strict validation is not weakened for their catalog row-count discrepancy.
+Independent GPT-5.6 Sol high review covered production changes and lifecycle
+preparation. `just ready` passed 1,638 test executions, zero failures, ten ignored.
+Composite/cascading relationships and existing relationship schema edits remain
+outside this acceptance.

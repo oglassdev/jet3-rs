@@ -367,3 +367,25 @@ Retain failed preparation and evaluator
 outputs alongside corrected runs. EXP-0285 records acceptance of all 252 pairs
 (226 successes and 26 refusals), the independently reproduced complete report,
 and the verified durable archive. The tested updates use full-row replacement.
+
+
+## Scalar relationship acceptance
+
+EXP-0288/0289 cover 38 creation pairs and 494 mutation pairs, including compatible
+Text/Binary widths, 255-byte keys, explicit signed zeros and fixed-field changes.
+The durable private bundle is `shared/checks/20260916-scalar-relationship-acceptance`.
+Replay its complete readbacks and raw storage comparisons with:
+
+```sh
+bash oracle/windows-dao/scripts/replay_scalar_relationship_acceptance.sh \
+  /path/to/20260916-scalar-relationship-acceptance/evidence \
+  /path/to/20260916-scalar-relationship-acceptance/prepared \
+  /path/to/jet3-rs /tmp/scalar-relationship-replay
+```
+
+The archive retains exact producers, recipes, MDB inputs/outputs, failed attempts,
+source/binary pins and historical evaluators. The portable scripts reproduce the
+same comparisons; their report evaluator hashes differ from the historical
+filenames. `prepare_scalar_relationship_creation.py` and
+`prepare_scalar_relationship_lifecycle.py` replay the retained recipes through a
+new Rust candidate. Preparation alone does not establish DAO acceptance.

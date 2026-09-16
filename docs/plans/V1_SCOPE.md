@@ -90,8 +90,8 @@ index capacity and the caller's resource budget. Nullable keys and a separate
 child primary are admitted. Other columns retain generated IDs, Text/Memo
 options, independent Memo/OLE maps and definition/property chains. The singular
 APIs retain their two-ordered-table Long bounds. Composite keys and cascades
-remain outside relationship creation scope. EXP-0288 records scalar eligibility;
-complete scalar differential acceptance remains pending.
+remain outside relationship creation scope. EXP-0288/0289 record scalar
+eligibility and 38 creation plus 494 mutation comparisons.
 
 Schema names use defined Windows-1252 bytes and the observed English-US
 collation for ordering and duplicate detection. Stored names retain their exact
@@ -188,6 +188,15 @@ DAO getters, rows, traversal/Seek, raw keys, schema, maps and retained counters.
 Native refusals may change exact historical counters and a header byte; Rust
 refusals preserve their entire inputs. Generated parent trees share the existing
 relationship counter rule while retaining declared descending indexes.
+
+EXP-0288/0289 extend the finite relationship comparisons to all twelve supported
+scalar key types, compatible Text/Binary widths and fixed/variable Text, 255-byte
+keys, Boolean-null normalization and explicit IEEE signed zeros. Thirty-eight
+creation pairs and 494 mutation pairs (350 successes, 144 refusals) compare full
+DAO getters, rows, traversal/Seek, raw keys, counters, maps and system storage.
+FixedText inputs use explicit width padding. Rust refusals preserve their entire
+inputs; native refusal effects are checked separately. Composite keys, cascades
+and relationship schema edits remain open.
 
 ### Updates
 
