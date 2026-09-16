@@ -163,6 +163,8 @@ fn create(arm: &Value, output: &Path, replicas: u64) -> Result<()> {
         },
     ];
     let relation = RelationshipSpec {
+        cascade_updates: false,
+        cascade_deletes: false,
         name: b"ParentChild",
         parent: TableRef::Ordinal(0),
         child: TableRef::Ordinal(1),

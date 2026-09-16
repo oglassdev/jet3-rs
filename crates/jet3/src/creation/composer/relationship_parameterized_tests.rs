@@ -51,6 +51,8 @@ fn renamed(two: bool) -> ([TableSpec<'static>; 2], RelationshipSpec<'static>) {
             },
         ],
         RelationshipSpec {
+            cascade_updates: false,
+            cascade_deletes: false,
             name: if two {
                 b"Owner2_Details4"
             } else {

@@ -96,52 +96,71 @@ where
         },
         |private, budget| -> Result<(), UpdateError> {
             let mut candidate = FileSource::open(private, budget.read_budget())?;
-            if candidate.len().get() != expected_length {
-                return Err(UpdateError::Mismatch("file length"));
-            }
-            let mut expected = [0; PAGE_BYTES];
-            let mut actual = [0; PAGE_BYTES];
-            let mut position = 0;
-            while position < length.get() {
-                let count = (length.get() - position).min(PAGE_BYTES as u64) as usize;
-                original.read_exact_at(
-                    ByteOffset::new(position),
-                    &mut expected[..count],
-                    budget.read_budget(),
-                )?;
-                candidate.read_exact_at(
-                    ByteOffset::new(position),
-                    &mut actual[..count],
-                    budget.read_budget(),
-                )?;
-                for change in changes {
-                    if position == change.page.get() * PAGE_BYTES as u64 {
-                        if &expected != change.before {
-                            return Err(UpdateError::Mismatch("original page changed"));
-                        }
-                        expected = *change.after;
-                    }
-                }
-                budget.charge_work_units(count as u64 + changes.len() as u64)?;
-                if expected[..count] != actual[..count] {
-                    return Err(UpdateError::Mismatch("unrelated or requested bytes"));
-                }
-                position += count as u64;
-            }
-            for (ordinal, image) in append.iter().enumerate() {
-                candidate.read_exact_at(
-                    ByteOffset::new(length.get() + ordinal as u64 * PAGE_BYTES as u64),
-                    &mut actual,
-                    budget.read_budget(),
-                )?;
-                budget.charge_work_units(PAGE_BYTES as u64)?;
-                if &actual != image.as_bytes() {
-                    return Err(UpdateError::Mismatch("appended page bytes"));
-                }
-            }
-            Ok(())
+            verify_changes(
+                &mut original,
+                &mut candidate,
+                changes,
+                append,
+                expected_length,
+                budget,
+            )
         },
         hook,
     )?;
+    Ok(())
+}
+
+pub(crate) fn verify_changes(
+    original: &mut FileSource,
+    candidate: &mut FileSource,
+    changes: &[PageChange<'_>],
+    append: &[crate::PageImage],
+    expected_length: u64,
+    budget: &mut ResourceBudget,
+) -> Result<(), UpdateError> {
+    let length = original.len();
+    if candidate.len().get() != expected_length {
+        return Err(UpdateError::Mismatch("file length"));
+    }
+    let mut expected = [0; PAGE_BYTES];
+    let mut actual = [0; PAGE_BYTES];
+    let mut position = 0;
+    while position < length.get() {
+        let count = (length.get() - position).min(PAGE_BYTES as u64) as usize;
+        original.read_exact_at(
+            ByteOffset::new(position),
+            &mut expected[..count],
+            budget.read_budget(),
+        )?;
+        candidate.read_exact_at(
+            ByteOffset::new(position),
+            &mut actual[..count],
+            budget.read_budget(),
+        )?;
+        for change in changes {
+            if position == change.page.get() * PAGE_BYTES as u64 {
+                if &expected != change.before {
+                    return Err(UpdateError::Mismatch("original page changed"));
+                }
+                expected = *change.after;
+            }
+        }
+        budget.charge_work_units(count as u64 + changes.len() as u64)?;
+        if expected[..count] != actual[..count] {
+            return Err(UpdateError::Mismatch("unrelated or requested bytes"));
+        }
+        position += count as u64;
+    }
+    for (ordinal, image) in append.iter().enumerate() {
+        candidate.read_exact_at(
+            ByteOffset::new(length.get() + ordinal as u64 * PAGE_BYTES as u64),
+            &mut actual,
+            budget.read_budget(),
+        )?;
+        budget.charge_work_units(PAGE_BYTES as u64)?;
+        if &actual != image.as_bytes() {
+            return Err(UpdateError::Mismatch("appended page bytes"));
+        }
+    }
     Ok(())
 }

@@ -278,6 +278,8 @@ pub fn write_fixture(id: &str, output: &Path) -> Result<()> {
             output,
             &requests,
             &RelationshipSpec {
+                cascade_updates: false,
+                cascade_deletes: false,
                 name: relation.name.as_bytes(),
                 parent: TableRef::Ordinal(usize::from(relation.parent_table)),
                 child: TableRef::Ordinal(usize::from(relation.child_table)),

@@ -10,7 +10,7 @@ use crate::{
 pub(super) fn load(
     database: &mut DatabaseReader<FileSource>,
     table: &TableDefinition,
-    selected: Option<(RowLocator, Option<ColumnOrdinal>)>,
+    selected: Option<(RowLocator, Option<&[ColumnOrdinal]>)>,
     budget: &mut ResourceBudget,
 ) -> Result<LongValues, UpdateError> {
     let mut result = LongValues {
@@ -227,7 +227,7 @@ fn exclude_other_ownership(
 fn references(
     database: &mut DatabaseReader<FileSource>,
     table: &TableDefinition,
-    selected: Option<(RowLocator, Option<ColumnOrdinal>)>,
+    selected: Option<(RowLocator, Option<&[ColumnOrdinal]>)>,
     result: &mut LongValues,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
@@ -292,7 +292,8 @@ fn references(
                 page.seen[word] |= mask;
                 if remove_row
                     && selected.is_some_and(|(_, selected_column)| {
-                        selected_column.is_none_or(|value| value == result.maps[column].column())
+                        selected_column
+                            .is_none_or(|values| values.contains(&result.maps[column].column()))
                     })
                 {
                     page.removed[word] |= mask;

@@ -1,39 +1,76 @@
 //! Single-field row rewrites using EXP-0060/0061/0262 storage and EXP-0290 assignment semantics.
-use std::{error::Error as StdError, path::Path};
-
 use crate::{
     ColumnPhysicalType, ColumnStorageClass, DatabaseReader, FieldUpdate, FileSource, PAGE_BYTES,
-    PublishStage, ResourceBudget, RowColumnLayout, RowValue, TableDefinition, UpdateError,
+    ResourceBudget, RowColumnLayout, RowValue, TableDefinition, UpdateError,
 };
 
-pub(crate) fn replace<H, HE>(
-    path: &Path,
-    mut database: DatabaseReader<FileSource>,
-    definition: TableDefinition,
+pub(crate) fn plan(
+    database: &mut DatabaseReader<FileSource>,
+    definition: &TableDefinition,
     graph: crate::row_mutation_graph::RowGraph,
     request: FieldUpdate<'_>,
+    check_relationships: bool,
     budget: &mut ResourceBudget,
-    hook: H,
-) -> Result<(), UpdateError>
-where
-    H: FnMut(PublishStage) -> Result<(), HE>,
-    HE: StdError + Send + Sync + 'static,
-{
+) -> Result<crate::page_edits::PageEdits, UpdateError> {
+    if check_relationships {
+        crate::relationship_mutation::check(
+            database,
+            definition,
+            request.table,
+            crate::relationship_mutation::Change::Field(request.row, request.column, request.value),
+            budget,
+        )?;
+    }
+    plan_fields(
+        database,
+        definition,
+        graph,
+        request.row,
+        &[(request.column, request.value)],
+        budget,
+    )
+}
+
+pub(crate) fn plan_fields(
+    database: &mut DatabaseReader<FileSource>,
+    definition: &TableDefinition,
+    graph: crate::row_mutation_graph::RowGraph,
+    selected_row: crate::RowLocator,
+    assignments: &[(crate::ColumnOrdinal, RowValue<'_>)],
+    budget: &mut ResourceBudget,
+) -> Result<crate::page_edits::PageEdits, UpdateError> {
     let columns = definition.columns();
-    if columns.len() > usize::from(u8::MAX) {
+    if columns.len() > usize::from(u8::MAX) || assignments.len() > columns.len() {
         return Err(UpdateError::Unsupported("row column count"));
     }
-    let selected = columns
-        .get(usize::from(request.column.get()))
-        .ok_or(UpdateError::NotFound("column"))?;
-    let options = crate::column_value_policy::options(&mut database, &definition, budget)?;
-    crate::column_value_policy::check_value(
-        request.column.get(),
-        selected.physical_type(),
-        selected.storage(),
-        options[usize::from(request.column.get())],
-        request.value,
-    )?;
+    if graph.selected.len() > 2 {
+        return Err(UpdateError::Unsupported(
+            "mutation of multi-hop overflow chain",
+        ));
+    }
+    let mut assigned = [false; u8::MAX as usize];
+    let mut selected_columns = [crate::ColumnOrdinal::new(0); u8::MAX as usize];
+    let options = crate::column_value_policy::options(database, definition, budget)?;
+    for (position, &(ordinal, value)) in assignments.iter().enumerate() {
+        let index = usize::from(ordinal.get());
+        let column = columns.get(index).ok_or(UpdateError::NotFound("column"))?;
+        if column.auto_increment() {
+            return Err(UpdateError::Unsupported("AutoIncrement column"));
+        }
+        if assigned[index] {
+            return Err(UpdateError::Unsupported("duplicate field assignment"));
+        }
+        assigned[index] = true;
+        selected_columns[position] = ordinal;
+        crate::column_value_policy::check_value(
+            ordinal.get(),
+            column.physical_type(),
+            column.storage(),
+            options[index],
+            value,
+        )?;
+    }
+    let selected_columns = &selected_columns[..assignments.len()];
     let mut layout = [RowColumnLayout::new(
         ColumnPhysicalType::Long,
         ColumnStorageClass::Fixed { offset: 0 },
@@ -47,28 +84,31 @@ where
         *target = column.into();
     }
     let layout = &layout[..columns.len()];
-    let mut long_values = crate::long_value_mutation::LongValues::load_field(
-        &mut database,
-        &definition,
-        request.row,
-        request.column,
+    let mut long_values = crate::long_value_mutation::LongValues::load_fields(
+        database,
+        definition,
+        selected_row,
+        selected_columns,
         budget,
     )?;
     long_values.remove_selected(budget)?;
     let mut encoded = [0; PAGE_BYTES];
     let length = {
-        let mut rows = database.rows(&definition, budget)?;
+        let mut rows = database.rows(definition, budget)?;
         let mut length = None;
         while let Some(mut row) = rows.next_row()? {
-            if row.locator() != request.row {
+            if row.locator() != selected_row {
                 continue;
             }
             let mut values = [RowValue::Null; u8::MAX as usize];
             row.budget_mut().charge_items(columns.len() as u64)?;
             for column in columns {
                 let ordinal = column.ordinal();
-                values[usize::from(ordinal.get())] = if ordinal == request.column {
-                    request.value
+                values[usize::from(ordinal.get())] = if let Some((_, value)) = assignments
+                    .iter()
+                    .find(|(selected, _)| *selected == ordinal)
+                {
+                    *value
                 } else if matches!(
                     column.physical_type(),
                     ColumnPhysicalType::Memo | ColumnPhysicalType::LongBinary
@@ -81,16 +121,16 @@ where
                     crate::numeric_row_values::read_column(&mut row, ordinal)?
                 };
             }
-            let size = long_values.encode_field_row(
+            let size = long_values.encode_fields_row(
                 layout,
                 &values[..columns.len()],
-                request.column,
+                selected_columns,
                 &mut encoded,
                 row.budget_mut(),
             )?;
             // Retain unassigned fixed bytes, including the padding of null fields.
             for column in columns {
-                if column.ordinal() == request.column
+                if assigned[usize::from(column.ordinal().get())]
                     || column.physical_type() == ColumnPhysicalType::Boolean
                 {
                     continue;
@@ -115,23 +155,28 @@ where
         }
         length.ok_or(UpdateError::NotFound("row"))?
     };
-    crate::relationship_mutation::check(
-        &mut database,
-        &definition,
-        request.table,
-        crate::relationship_mutation::Change::Field(request.row, request.column, request.value),
-        budget,
-    )?;
-    let index = crate::update_index_key::plan(&mut database, &definition, request, budget)?;
+    let mut index = if definition.physical_indexes().iter().any(|index| {
+        index
+            .fields()
+            .iter()
+            .any(|field| selected_columns.contains(&field.column()))
+    }) {
+        Some(crate::index_mutation::load(database, definition, budget)?)
+    } else {
+        None
+    };
+    if let Some(index) = &mut index {
+        index.replace_fields(database, definition, selected_row, assignments, budget)?;
+    }
     let mut minimum = [0; PAGE_BYTES];
     let nulls = [RowValue::Null; u8::MAX as usize];
     let minimum_length =
         crate::encode_row(layout, &nulls[..columns.len()], &mut minimum, budget)?.get() as usize;
     let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
-    long_values.stage(&mut database, &mut edits, budget)?;
+    long_values.stage(database, &mut edits, budget)?;
     crate::row_mutation_place::replace(
-        &mut database,
-        &definition,
+        database,
+        definition,
         &graph.selected,
         &encoded[..length],
         &minimum[..minimum_length],
@@ -139,7 +184,7 @@ where
         budget,
     )?;
     if let Some(index) = index {
-        index.stage(&mut database, &definition, &mut edits, budget)?;
+        index.stage(database, definition, &mut edits, budget)?;
     }
-    edits.publish(path, database, budget, hook)
+    Ok(edits)
 }

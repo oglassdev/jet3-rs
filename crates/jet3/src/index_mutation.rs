@@ -229,7 +229,7 @@ impl Indexes {
         &mut self,
         row: RowLocator,
         values: &[RowValue<'_>],
-        column: Option<crate::ColumnOrdinal>,
+        columns: Option<&[crate::ColumnOrdinal]>,
         budget: &mut ResourceBudget,
     ) -> Result<(), UpdateError> {
         for index in &mut self.indexes {
@@ -241,11 +241,12 @@ impl Indexes {
             let old = index.entries.iter().find(|r| r.locator() == row);
             // EXP-0268/0286: equal relationship-key assignments also update retained state.
             if index.relationship_counter
-                && column.is_none_or(|column| {
-                    index
-                        .fields
-                        .iter()
-                        .any(|field| field.column == usize::from(column.get()))
+                && columns.is_none_or(|columns| {
+                    index.fields.iter().any(|field| {
+                        columns
+                            .iter()
+                            .any(|column| field.column == usize::from(column.get()))
+                    })
                 })
             {
                 index.counter = Some(Change::RemoveRelationshipEntry);
@@ -268,19 +269,44 @@ impl Indexes {
         request: FieldUpdate<'_>,
         budget: &mut ResourceBudget,
     ) -> Result<(), UpdateError> {
+        self.replace_fields(
+            database,
+            table,
+            request.row,
+            &[(request.column, request.value)],
+            budget,
+        )
+    }
+
+    pub(crate) fn replace_fields(
+        &mut self,
+        database: &mut DatabaseReader<FileSource>,
+        table: &TableDefinition,
+        selected: RowLocator,
+        assignments: &[(crate::ColumnOrdinal, RowValue<'_>)],
+        budget: &mut ResourceBudget,
+    ) -> Result<(), UpdateError> {
+        let mut columns = [crate::ColumnOrdinal::new(0); u8::MAX as usize];
+        if assignments.len() > columns.len() {
+            return Err(UpdateError::Unsupported("field assignment count"));
+        }
+        for (target, &(column, _)) in columns.iter_mut().zip(assignments) {
+            *target = column;
+        }
         budget.charge_items(u8::MAX as u64)?;
         let mut cursor = database.rows(table, budget)?;
         while let Some(mut row) = cursor.next_row()? {
-            if row.locator() == request.row {
+            if row.locator() == selected {
                 let mut values = crate::numeric_row_values::read(&mut row, &self.columns)?;
-                let target = values
-                    .get_mut(usize::from(request.column.get()))
-                    .ok_or(UpdateError::NotFound("column"))?;
-                *target = request.value;
+                for &(column, value) in assignments {
+                    *values
+                        .get_mut(usize::from(column.get()))
+                        .ok_or(UpdateError::NotFound("column"))? = value;
+                }
                 return self.replace_selected(
-                    request.row,
+                    selected,
                     &values,
-                    Some(request.column),
+                    Some(&columns[..assignments.len()]),
                     row.budget_mut(),
                 );
             }

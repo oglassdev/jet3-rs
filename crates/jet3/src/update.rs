@@ -192,12 +192,28 @@ where
 {
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = guarded_table(&mut database, request.table, true, budget)?;
-    let graph = crate::row_mutation_graph::RowGraph::load(
+    if let Some(cascade) = crate::cascade::prepare(
         &mut database,
         &definition,
-        Some(request.row),
+        request.table,
+        crate::relationship_mutation::Change::Field(request.row, request.column, request.value),
         budget,
-    )?;
+    )? {
+        return cascade.publish(path, database, budget, hook);
+    }
+    let edits = plan(&mut database, &definition, request, true, budget)?;
+    edits.publish(path, database, budget, hook)
+}
+
+pub(crate) fn plan(
+    database: &mut DatabaseReader<crate::FileSource>,
+    definition: &crate::TableDefinition,
+    request: FieldUpdate<'_>,
+    check_relationships: bool,
+    budget: &mut ResourceBudget,
+) -> Result<crate::page_edits::PageEdits, UpdateError> {
+    let graph =
+        crate::row_mutation_graph::RowGraph::load(database, definition, Some(request.row), budget)?;
     if graph.selected.len() > 2 {
         return Err(UpdateError::Unsupported(
             "mutation of multi-hop overflow chain",
@@ -217,7 +233,7 @@ where
     {
         true
     } else {
-        let mut rows = database.rows(&definition, budget)?;
+        let mut rows = database.rows(definition, budget)?;
         let mut rewrite = false;
         while let Some(row) = rows.next_row()? {
             if row.locator() == request.row {
@@ -228,8 +244,13 @@ where
         rewrite
     };
     if rewrite {
-        return crate::field_update::replace(
-            path, database, definition, graph, request, budget, hook,
+        return crate::field_update::plan(
+            database,
+            definition,
+            graph,
+            request,
+            check_relationships,
+            budget,
         );
     }
     let mut replacement = [0; u8::MAX as usize];
@@ -240,14 +261,16 @@ where
         &mut replacement,
         budget,
     )?;
-    crate::relationship_mutation::check(
-        &mut database,
-        &definition,
-        request.table,
-        crate::relationship_mutation::Change::Field(request.row, request.column, request.value),
-        budget,
-    )?;
-    let index_change = crate::update_index_key::plan(&mut database, &definition, request, budget)?;
+    if check_relationships {
+        crate::relationship_mutation::check(
+            database,
+            definition,
+            request.table,
+            crate::relationship_mutation::Change::Field(request.row, request.column, request.value),
+            budget,
+        )?;
+    }
+    let index_change = crate::update_index_key::plan(database, definition, request, budget)?;
     let mut original_page = [0; PAGE_BYTES];
     database.read_raw_page(storage.page(), &mut original_page, budget)?;
     let directory =
@@ -255,7 +278,7 @@ where
     let entry = directory.entry(&original_page, storage.slot())?;
     let mut before = [0; u8::MAX as usize];
     let relative = {
-        let mut rows = database.rows(&definition, budget)?;
+        let mut rows = database.rows(definition, budget)?;
         let mut found = None;
         while let Some(row) = rows.next_row()? {
             if row.locator() != request.row {
@@ -302,9 +325,9 @@ where
     let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
     edits.replace(field_change, budget)?;
     if let Some(index) = index_change {
-        index.stage(&mut database, &definition, &mut edits, budget)?;
+        index.stage(database, definition, &mut edits, budget)?;
     }
-    edits.publish(path, database, budget, hook)
+    Ok(edits)
 }
 
 #[cfg(all(test, any(unix, windows)))]

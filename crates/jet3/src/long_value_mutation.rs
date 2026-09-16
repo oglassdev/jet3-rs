@@ -59,14 +59,14 @@ impl LongValues {
         load::load(database, table, selected.map(|row| (row, None)), budget)
     }
 
-    pub fn load_field(
+    pub fn load_fields(
         database: &mut DatabaseReader<FileSource>,
         table: &TableDefinition,
         row: RowLocator,
-        column: ColumnOrdinal,
+        columns: &[ColumnOrdinal],
         budget: &mut ResourceBudget,
     ) -> Result<Self, UpdateError> {
-        load::load(database, table, Some((row, Some(column))), budget)
+        load::load(database, table, Some((row, Some(columns))), budget)
     }
 
     pub fn remove_selected(&mut self, budget: &mut ResourceBudget) -> Result<(), UpdateError> {
@@ -108,11 +108,11 @@ impl LongValues {
     }
 
     /// Unselected descriptors must come from the validated source row.
-    pub fn encode_field_row(
+    pub fn encode_fields_row(
         &mut self,
         layout: &[RowColumnLayout],
         values: &[RowValue<'_>],
-        selected: ColumnOrdinal,
+        selected: &[ColumnOrdinal],
         output: &mut [u8],
         budget: &mut ResourceBudget,
     ) -> Result<usize, UpdateError> {
@@ -123,7 +123,7 @@ impl LongValues {
         &mut self,
         layout: &[RowColumnLayout],
         values: &[RowValue<'_>],
-        selected: Option<ColumnOrdinal>,
+        selected: Option<&[ColumnOrdinal]>,
         output: &mut [u8],
         budget: &mut ResourceBudget,
     ) -> Result<usize, UpdateError> {
@@ -140,7 +140,9 @@ impl LongValues {
                 RowValue::Memo(bytes) => (*bytes, ColumnPhysicalType::Memo),
                 RowValue::LongBinary(bytes) => (*bytes, ColumnPhysicalType::LongBinary),
                 RowValue::LongValue(_)
-                    if selected.is_some_and(|column| usize::from(column.get()) != ordinal) =>
+                    if selected.is_some_and(|columns| {
+                        !columns.contains(&ColumnOrdinal::new(ordinal as u16))
+                    }) =>
                 {
                     continue;
                 }

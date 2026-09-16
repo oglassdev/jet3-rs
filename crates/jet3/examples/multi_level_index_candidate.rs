@@ -125,6 +125,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
         ],
         &RelationshipSpec {
+            cascade_updates: false,
+            cascade_deletes: false,
             name: b"ParentChildren",
             parent: TableRef::Ordinal(0),
             child: TableRef::Ordinal(1),

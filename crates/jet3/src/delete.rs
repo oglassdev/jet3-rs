@@ -69,38 +69,52 @@ where
 {
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = crate::update::indexed_writable_table(&mut database, request.table, budget)?;
-    let graph = crate::row_mutation_graph::RowGraph::load(
-        &mut database,
-        &definition,
-        Some(request.row),
-        budget,
-    )?;
-    if graph.selected.len() > 2 {
-        return Err(UpdateError::Unsupported(
-            "mutation of multi-hop overflow chain",
-        ));
-    }
-    crate::relationship_mutation::check(
+    if let Some(cascade) = crate::cascade::prepare(
         &mut database,
         &definition,
         request.table,
         crate::relationship_mutation::Change::Delete(request.row),
         budget,
-    )?;
-    let auto = crate::auto_number_mutation::AutoNumber::load(&definition)?;
+    )? {
+        return cascade.publish(path, database, budget, hook);
+    }
+    let edits = plan(&mut database, &definition, request, true, budget)?;
+    edits.publish(path, database, budget, hook)
+}
+
+pub(crate) fn plan(
+    database: &mut DatabaseReader<crate::FileSource>,
+    definition: &crate::TableDefinition,
+    request: RowDelete<'_>,
+    check_relationships: bool,
+    budget: &mut ResourceBudget,
+) -> Result<crate::page_edits::PageEdits, UpdateError> {
+    let graph =
+        crate::row_mutation_graph::RowGraph::load(database, definition, Some(request.row), budget)?;
+    if graph.selected.len() > 2 {
+        return Err(UpdateError::Unsupported(
+            "mutation of multi-hop overflow chain",
+        ));
+    }
+    if check_relationships {
+        crate::relationship_mutation::check(
+            database,
+            definition,
+            request.table,
+            crate::relationship_mutation::Change::Delete(request.row),
+            budget,
+        )?;
+    }
+    let auto = crate::auto_number_mutation::AutoNumber::load(definition)?;
     let mut index = if definition.indexes().is_empty() && definition.physical_indexes().is_empty() {
         None
     } else {
-        Some(crate::index_mutation::load(
-            &mut database,
-            &definition,
-            budget,
-        )?)
+        Some(crate::index_mutation::load(database, definition, budget)?)
     };
     let mut observed_rows = 0_u32;
     let mut found = false;
     {
-        let mut rows = database.rows(&definition, budget)?;
+        let mut rows = database.rows(definition, budget)?;
         while let Some(mut row) = rows.next_row()? {
             if let Some(auto) = auto {
                 auto.read(&mut row)?;
@@ -121,19 +135,19 @@ where
     let patched_definition =
         crate::row_delete_page::decrement_count(&source_definition, observed_rows, budget)?;
     let mut long_values = crate::long_value_mutation::LongValues::load(
-        &mut database,
-        &definition,
+        database,
+        definition,
         Some(request.row),
         budget,
     )?;
     long_values.remove_selected(budget)?;
     let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
-    long_values.stage(&mut database, &mut edits, budget)?;
+    long_values.stage(database, &mut edits, budget)?;
     let mut pages = crate::row_mutation_pages::RowPages::new();
     for row in graph.selected.iter().rev() {
-        pages.remove(&mut database, definition.root(), *row, budget)?;
+        pages.remove(database, definition.root(), *row, budget)?;
     }
-    pages.stage(&mut database, &definition, &mut edits, budget)?;
+    pages.stage(database, definition, &mut edits, budget)?;
     edits.replace(
         crate::update_pages::PageChange {
             page: definition.root(),
@@ -144,9 +158,9 @@ where
     )?;
     if let Some(index) = &mut index {
         index.remove(request.row, budget)?;
-        index.stage(&mut database, &definition, &mut edits, budget)?;
+        index.stage(database, definition, &mut edits, budget)?;
     }
-    edits.publish(path, database, budget, hook)
+    Ok(edits)
 }
 
 #[cfg(all(test, any(unix, windows)))]

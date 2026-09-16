@@ -352,3 +352,6 @@ impl PageEdits {
         )
     }
 }
+
+#[path = "page_edits_sequence.rs"]
+mod sequence;

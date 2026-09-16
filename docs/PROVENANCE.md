@@ -19710,3 +19710,111 @@ the candidate images. The corrected producer reran all 72 images. This result
 resolves the graph blockers recorded in EXP-0291/0292 for the tested schemas;
 it does not establish cascades, arbitrary untested graphs, or relationship edits
 on existing schemas.
+
+## EXP-0294 — Native cascading relationship lifecycle observations
+
+Run `20260916T135500Z-cascade-native-r2` uses the EXP-0293 local DAO 3.6
+provider and retains sixteen lineages across eight schemas, each replicated
+twice. Producer SHA-256 is
+`a6f4b78755a43702ecb68cff108b613fb0a5826a01ba0d90e25943fb434a8b33`;
+input ZIP SHA-256 is
+`b1a110d31120656b39bd82c6960c94d862524319a81a068a4254c0ab6a10f03b`;
+closed worker receipt SHA-256 is
+`c190529a8f018f68092ee550e8d1bed88e3e486e85d2d96bd0d83acfd0840afb`.
+Inputs, native images and complete getter/traversal/Seek receipts are retained
+under the private `cascading-relationships/native-discovery/runs` directory.
+This entry records native observations; Rust candidate acceptance is separate.
+
+Central relationship attributes independently encode cascade updates as 256 and
+cascade deletes as 4096, with both as 4352. Both reciprocal logical records
+carry update/delete context bytes `[1,0]`, `[0,1]` or `[1,1]`; the zero-attribute
+control retains `[0,0]`. Relation and field getters retain the requested values.
+Equal parent-key assignments and full replacements succeed when cascade updates
+are enabled. Changed parent keys update matching children; deletion cascades
+only with the delete option. Without the respective option the referenced parent
+operation refuses with DAO 3200. A two-edge Root/Middle/Leaf chain propagates
+updates, full replacements and deletions through both edges. Self-reference
+updates change both the parent key and matching self/other-child foreign keys.
+A shared foreign key constrained by another parent refuses a cascade with DAO
+3397 when the replacement key is absent from that other parent, and accepts it
+when present. Ordinary child orphan assignments continue to refuse with 3201.
+
+The actual mutation inventory is 68 successes and 36 refusals. The composite
+Long/Text fixture's relation append refuses with 3201 in both replicas, and its
+sixteen planned events are explicitly skipped with no after image. They are not
+cascade mutation evidence. An additive followup corrects the nullable unique
+parent fixture and records null-tuple and self-assignment controls separately.
+Raw storage/counter analysis and Rust differential results will be appended
+when complete; no general nullable/composite cascade rule follows from this run.
+
+The completed initial native evaluator verifies all 140 captures, including
+complete provider/receipt identities, rows and recursive cascade effects,
+physical key/locator entries and counters, maps/allocation/payload reachability,
+relationship/system metadata, continuation links, and exact refusal residues.
+Its final report SHA-256 is
+`58b168262be787a1ff53b9d5be4488ef0963bf0d58b7b18da19fce8fc847a110`;
+evaluator SHA-256 is
+`c012ed3a40ac337f3f833bff7836d3d57cb972cc454003397f5540991d3e497a`.
+The durable `checks/20260916-cascade-relationship-discovery` archive has 220
+files including manifest SHA-256
+`5502dd75e752f47783806ea15264716cd75a4a87f1477676557a97f523dc843d`.
+Root independently replayed the report byte-for-byte and verified all 219 listed
+file identities and exact inventory, totaling 50,820,634 bytes without manifest.
+
+Update cascades assign each matching child row, even on equal parent assignment.
+Foreign retained counters therefore undergo EXP-0268's saturating removal
+transition once per assigned child row: first word decreases if positive, and
+DistinctCount is capped at the decreased first word. Once the first word is zero,
+these assignments retain the second word. The initial two-child Long equal
+assignment changes foreign first/count 4/3 to 2/2; the self case changes 3/2 to
+1/1; both levels of the chain change accordingly. Subsequent retaining full
+replacements can exhaust the first word. Actual key changes update all selected
+keys/locators, and delete cascades remove entries while retaining the observed
+stale counters. Most native refusal images are byte-exact; orphan insert failures
+advance page zero and the child primary counter. The failed composite relation
+creation retains six changed bytes and MSysObjects declared eleven/live ten.
+
+## EXP-0295 — Composite null cascades and explicit self assignments
+
+Additive run `20260916T143000Z-cascade-composite-followup-r1` corrects the
+composite fixture by using a nullable unique parent tuple index and a separate
+Id primary index, with exact initial parents for both partial-null shapes and
+all-null children. It retains the original eight-operation history and adds
+eleven isolated null-tuple controls. Three isolated self-replacement controls
+resolve caller assignment precedence. Four relations are accepted; all 44 actual
+mutations complete as 36 successes and eight refusals, without skips. Both
+replicas agree in complete captured semantics and raw transitions.
+
+Producer SHA-256 is
+`862dcfee3ebbd45354f46373330b2220ca356b0ed7e81d0d5ebeee756d1c576b`;
+input ZIP SHA-256 is
+`aeb591f439b02cc140fef9c16bdf8b084f93010466f86273feaef293e41486a0`.
+The accepted native report SHA-256 is
+`f1b239bd8f93652555a75eee094d79a049f0dc7ba4b07a27770644cc4081c7b1`.
+
+Cascade selection matches the complete old parent tuple, including null
+components. Changing (10,null) to (11,null) or filling its second component
+updates the exact matching child; the mirrored (null,Alpha) cases do likewise.
+Changing an all-null parent to (40,null) or (40,Zulu) updates its all-null child,
+and deleting that parent deletes that child. Equal and changed assignments use
+the same per-row foreign-counter transition, with each affected physical tree
+updated once for a composite assignment. An all-null child remains exempt from
+requiring a parent during ordinary constraint validation; this exemption does
+not remove it from cascade selection.
+
+A full self-row replacement retains explicitly assigned foreign-key values.
+For Key10/Fk10, replacing Key with11 while explicitly retaining Fk10 refuses
+with DAO3201; setting Fk30 to another existing parent succeeds and cascades the
+other child rows to11; setting Fk99 refuses3201. Thus cascade assignment must
+not overwrite the selected row's explicit caller FK. A parent-only field edit
+can cascade its unassigned self FK. These probes retain exact refused native
+counter effects: foreign first/count 3/2 becomes1/1 in both self refusals and the
+successful replacement. Rust refusals are still required to preserve the input.
+
+The durable `checks/20260916-cascade-composite-followup` archive contains 106
+files including manifest SHA-256
+`2a6871a44237d1d1ac548c622bb2230f03635cb6adf1a58363bc466156c4e3c3`.
+Root independently reproduced the report byte-for-byte and verified all 105
+listed hashes/sizes and the exact inventory (10,584,390 bytes excluding manifest).
+The initial refused composite creation and skipped events remain retained. These
+are native format/behavior observations; candidate acceptance remains separate.

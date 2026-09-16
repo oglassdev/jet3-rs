@@ -79,13 +79,29 @@ where
 {
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = crate::update::indexed_writable_table(&mut database, request.table, budget)?;
-    let graph = crate::row_mutation_graph::RowGraph::load(
+    if let Some(cascade) = crate::cascade::prepare(
         &mut database,
         &definition,
-        Some(request.row),
+        request.table,
+        crate::relationship_mutation::Change::Replace(request.row, request.values),
         budget,
-    )?;
-    let auto = crate::auto_number_mutation::AutoNumber::load(&definition)?;
+    )? {
+        return cascade.publish(path, database, budget, hook);
+    }
+    let edits = plan(&mut database, &definition, request, true, budget)?;
+    edits.publish(path, database, budget, hook)
+}
+
+pub(crate) fn plan(
+    database: &mut DatabaseReader<crate::FileSource>,
+    definition: &crate::TableDefinition,
+    request: RowUpdate<'_>,
+    check_relationships: bool,
+    budget: &mut ResourceBudget,
+) -> Result<crate::page_edits::PageEdits, UpdateError> {
+    let graph =
+        crate::row_mutation_graph::RowGraph::load(database, definition, Some(request.row), budget)?;
+    let auto = crate::auto_number_mutation::AutoNumber::load(definition)?;
     let mut lowered = [RowValue::Null; u8::MAX as usize];
     if let Some(auto) = auto {
         auto.copy_values(request.values, &mut lowered, budget)?;
@@ -93,11 +109,7 @@ where
     let mut index = if definition.physical_indexes().is_empty() {
         None
     } else {
-        Some(crate::index_mutation::load(
-            &mut database,
-            &definition,
-            budget,
-        )?)
+        Some(crate::index_mutation::load(database, definition, budget)?)
     };
     let columns = definition.columns();
     if columns.len() > usize::from(u8::MAX) {
@@ -118,7 +130,7 @@ where
     let mut observed = 0_u32;
     let mut found = false;
     {
-        let mut rows = database.rows(&definition, budget)?;
+        let mut rows = database.rows(definition, budget)?;
         while let Some(mut row) = rows.next_row()? {
             observed = observed
                 .checked_add(1)
@@ -140,23 +152,25 @@ where
     } else {
         request.values
     };
-    crate::column_value_policy::check(&mut database, &definition, values, budget)?;
+    crate::column_value_policy::check(database, definition, values, budget)?;
     let mut long_values = crate::long_value_mutation::LongValues::load(
-        &mut database,
-        &definition,
+        database,
+        definition,
         Some(request.row),
         budget,
     )?;
     long_values.remove_selected(budget)?;
     let mut encoded = [0; PAGE_BYTES];
     let length = long_values.encode_row(&layout[..columns.len()], values, &mut encoded, budget)?;
-    crate::relationship_mutation::check(
-        &mut database,
-        &definition,
-        request.table,
-        crate::relationship_mutation::Change::Replace(request.row, values),
-        budget,
-    )?;
+    if check_relationships {
+        crate::relationship_mutation::check(
+            database,
+            definition,
+            request.table,
+            crate::relationship_mutation::Change::Replace(request.row, values),
+            budget,
+        )?;
+    }
     let mut minimum = [0; PAGE_BYTES];
     let nulls = [RowValue::Null; u8::MAX as usize];
     let minimum_length = crate::encode_row(
@@ -170,10 +184,10 @@ where
     database.read_raw_page(definition.root(), &mut count_page, budget)?;
     crate::row_update_page::check_count(&count_page, observed, budget)?;
     let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
-    long_values.stage(&mut database, &mut edits, budget)?;
+    long_values.stage(database, &mut edits, budget)?;
     crate::row_mutation_place::replace(
-        &mut database,
-        &definition,
+        database,
+        definition,
         &graph.selected,
         &encoded[..length],
         &minimum[..minimum_length],
@@ -182,9 +196,9 @@ where
     )?;
     if let Some(index) = &mut index {
         index.replace(request.row, values, budget)?;
-        index.stage(&mut database, &definition, &mut edits, budget)?;
+        index.stage(database, definition, &mut edits, budget)?;
     }
-    edits.publish(path, database, budget, hook)
+    Ok(edits)
 }
 
 #[cfg(all(test, any(unix, windows)))]

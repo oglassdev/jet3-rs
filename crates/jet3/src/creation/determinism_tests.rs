@@ -169,6 +169,8 @@ fn empty_and_populated_relationship_metadata_repeat() -> TestResult {
         },
     ];
     let relationship = RelationshipSpec {
+        cascade_updates: false,
+        cascade_deletes: false,
         name: b"ParentChildren",
         parent: TableRef::Name(b"Parents"),
         child: TableRef::Name(b"Children"),

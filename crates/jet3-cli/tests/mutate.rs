@@ -278,3 +278,77 @@ fn replace_updates_indexed_text_and_nulls_preserving_locator() -> Result {
     assert_eq!(std::fs::read(&path)?, before);
     Ok(())
 }
+
+#[test]
+fn cascade_options_flow_from_create_through_update_and_delete() -> Result {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("cascade.mdb");
+    let created = request(
+        "create",
+        &path,
+        &json!({"tables":[
+        {"name":"Rows","columns":[{"name":"Id","type":"long"}],
+         "indexes":[{"name":"ById","kind":"primary","fields":[{"column":"Id"}]}],
+         "rows":[[{"long":1}]]},
+        {"name":"Child","columns":[{"name":"Foreign","type":"long"}],"rows":[[{"long":1}],[{"long":1}]]}
+    ],"relationships":[{"name":"ParentChild","cascade_updates":true,"cascade_deletes":true,
+       "parent":{"table":"Rows","column":"Id"},"child":{"table":"Child","column":"Foreign"}}]}),
+    )?;
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    let row = rows(&path)?[0].0;
+    let changed = request(
+        "mutate",
+        &path,
+        &json!({"operation":"update","table":"Rows",
+        "row":locator(row),"column":0,"value":{"long":11}}),
+    )?;
+    assert!(
+        changed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&changed.stderr)
+    );
+    let snapshot = Command::new(env!("CARGO_BIN_EXE_jet3-cli"))
+        .arg("inspect")
+        .arg(&path)
+        .arg("--rows")
+        .output()?;
+    assert!(snapshot.status.success());
+    let document: Value = serde_json::from_slice(&snapshot.stdout)?;
+    assert!(
+        document["tables"]
+            .as_array()
+            .ok_or("tables")?
+            .iter()
+            .any(|table| table["rows"] == json!([{"Foreign":11},{"Foreign":11}]))
+    );
+    let deleted = request(
+        "mutate",
+        &path,
+        &json!({"operation":"delete","table":"Rows","row":locator(row)}),
+    )?;
+    assert!(
+        deleted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&deleted.stderr)
+    );
+    let snapshot = Command::new(env!("CARGO_BIN_EXE_jet3-cli"))
+        .arg("inspect")
+        .arg(&path)
+        .arg("--rows")
+        .output()?;
+    assert!(snapshot.status.success());
+    let document: Value = serde_json::from_slice(&snapshot.stdout)?;
+    assert!(
+        document["tables"]
+            .as_array()
+            .ok_or("tables")?
+            .iter()
+            .filter(|table| table["kind"] == "User")
+            .all(|table| table["rows"] == json!([]))
+    );
+    Ok(())
+}

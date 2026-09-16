@@ -112,7 +112,7 @@ pub struct RelationshipField<'a> {
     pub child: ColumnRef<'a>,
 }
 
-/// One non-cascading relationship between two tables.
+/// One enforced relationship between two tables.
 ///
 /// Names are database-encoded bytes, subject to the bounded creation name
 /// encoder. See [`crate::create_database_with_relationships`] for scalar graph
@@ -122,6 +122,8 @@ pub struct RelationshipField<'a> {
 /// use jet3::{ColumnRef, RelationshipField, RelationshipSpec, TableRef};
 ///
 /// let relationship = RelationshipSpec {
+///     cascade_updates: false,
+///     cascade_deletes: false,
 ///     name: b"AccountsEvents",
 ///     parent: TableRef::Name(b"Accounts"),
 ///     child: TableRef::Name(b"Events"),
@@ -133,6 +135,10 @@ pub struct RelationshipField<'a> {
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct RelationshipSpec<'a> {
+    /// Update matching foreign keys when a parent key is assigned.
+    pub cascade_updates: bool,
+    /// Delete matching child rows when a parent row is deleted.
+    pub cascade_deletes: bool,
     /// Caller-chosen relationship and child foreign-index name.
     pub name: &'a [u8],
     /// Referenced table.

@@ -69,6 +69,8 @@ fn relation(
     column: u16,
 ) -> RelationshipSpec<'static> {
     RelationshipSpec {
+        cascade_updates: false,
+        cascade_deletes: false,
         name,
         parent: TableRef::Ordinal(parent),
         child: TableRef::Ordinal(child),

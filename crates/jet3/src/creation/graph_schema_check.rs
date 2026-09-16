@@ -132,6 +132,7 @@ pub(super) fn check(
                 tables[parent].0,
                 RelationshipSide::ForeignTable,
                 logical_ordinal,
+                spec.flags(),
             )?;
             logical_ordinal += 1;
         }
@@ -192,6 +193,7 @@ pub(super) fn check(
                 tables[child].0,
                 RelationshipSide::PrimaryTable,
                 logical_ordinal,
+                spec.flags(),
             )?;
             logical_ordinal += 1;
         }
@@ -211,6 +213,7 @@ fn check_relation(
     target: PageNumber,
     side: RelationshipSide,
     selector: usize,
+    flags: crate::relationship_flags::RelationshipFlags,
 ) -> Result<(), CandidateCheckError> {
     let mismatch = |detail| CandidateCheckError::Mismatch { detail };
     let mut matching = definition
@@ -224,7 +227,7 @@ fn check_relation(
         || relation.related_table() != target
         || relation.side() != side
         || relation.raw_selector() as usize != selector
-        || relation.raw_context() != [0, 0]
+        || relation.raw_context() != flags.context()
     {
         return Err(mismatch("graph logical relationship schema"));
     }

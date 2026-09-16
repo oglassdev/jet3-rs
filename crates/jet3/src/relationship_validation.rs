@@ -31,7 +31,7 @@ pub(crate) fn validate<S: ReadAt>(
             .ok_or(UpdateError::Mismatch("empty relationship"))?;
         budget.charge_work_units(group.len() as u64 * 5 * 255)?;
         let supported = group.iter().any(|record| {
-            record.metadata[0] == 0
+            crate::relationship_flags::RelationshipFlags::decode(record.metadata[0]).is_some()
                 && (1..=crate::numeric_index_entry::MAX_FIELDS as i32).contains(&record.metadata[1])
                 && record.name.len() <= 63
                 && [

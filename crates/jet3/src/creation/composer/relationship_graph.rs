@@ -170,6 +170,7 @@ fn assemble(
                 .map(move |(ordinal, (&parent_column, &child_column))| {
                     relationship_pages::RelationshipRow {
                         name: edge.name,
+                        flags: edge.flags,
                         child_table: child.name,
                         child_column: child.columns[usize::from(child_column)].name(),
                         parent_table: parent.name,

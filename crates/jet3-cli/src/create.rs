@@ -178,6 +178,10 @@ enum Direction {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Relation {
+    #[serde(default)]
+    cascade_updates: bool,
+    #[serde(default)]
+    cascade_deletes: bool,
     name: Name,
     parent: Endpoint,
     child: Endpoint,
@@ -210,6 +214,8 @@ impl Relation {
 
     fn spec<'a>(&'a self, fields: &'a [RelationshipField<'a>]) -> RelationshipSpec<'a> {
         RelationshipSpec {
+            cascade_updates: self.cascade_updates,
+            cascade_deletes: self.cascade_deletes,
             name: self.name.bytes(),
             parent: TableRef::Name(self.parent.table.bytes()),
             child: TableRef::Name(self.child.table.bytes()),
