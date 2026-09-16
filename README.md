@@ -72,7 +72,7 @@ foreign indexes are supported. Atomic
 self-reference changes follow physical index order: if the foreign index precedes
 the parent index, the child key must exist before the edit.
 Related-row payloads retain the normal Memo/OLE mutation bounds. Orphan writes
-and changes to referenced parent keys are refused before publication.
+and changes to parent keys referenced by other rows are refused before publication.
 
 Creation and updates remain partial: schema combinations, index key types,
 allocation, and relationship mutation are restricted. Publication supports Unix

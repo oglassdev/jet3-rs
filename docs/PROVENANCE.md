@@ -19640,3 +19640,73 @@ replacement refusal. All 82 focused relationship tests pass and independent
 GPT-5.6 Sol high review finds no correctness issues. These are native controls
 and focused implementation checks; graph differential acceptance follows
 separately.
+
+## EXP-0293 — Composite graph candidate acceptance
+
+Final production source `56f2aa5c13037f46928629c7c014c61f22228f42` passes all
+72 graph comparisons: twelve creations, 32 successful same-input mutations and
+28 refusals. The inputs are the valid self/shared-index graphs and followups in
+EXP-0292, including partial-overlap and reversed endpoint mappings, Boolean
+foreign keys shared by two parents, FixedText, ascending and generated parent
+indexes, external child references and null tuples. Four identical-vector
+creation refusals additionally match DAO 3206 and publish no Rust file; their
+terminal native catalog residue remains recorded separately.
+
+Run `20260916T142000Z-composite-graph-readback-r2` uses DAO.DBEngine.36,
+32-bit DAO 3.6, DLL version 03.60.9765.0, English-US and CP1252. The provider DLL
+SHA-256 is `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+The readback producer and input ZIP SHA-256 values are respectively
+`991a3810e5fd07f80ce18b7652fc030010aa91f40851ce75e75e79b49bd647ee` and
+`051c8368335d308ccdaf9e7b549dd7315f6538d21ae01f01153b6aa24e40f435`.
+All 72 images have complete read-only identities, getters, relation metadata,
+rows, index traversal and full-arity Seek inventories. Raw comparisons check
+keys, locators, logical/physical records and counters, allocation ownership,
+payload reachability, relationship catalogs and system storage. Independent
+creations compare semantics and independently checked physical storage; their
+page counts/layout need not be equal. Synthetic missing-key Seek controls use
+typed trailing components, whose incidental values are projected only for
+confirmed no-match results. Embedded index-read errors fail evaluation.
+
+Successful mutations compare exact DAO snapshots and complete decoded storage,
+with only the established assigned-null fixed-slot padding and selected
+full-replacement payload descriptor placement allowances. The provider transaction
+byte is observed separately. All 28 Rust refusals preserve their complete input
+and DAO snapshot. Native refusal images retain the exact finite page-zero and
+physical-index counter changes; those byte transitions are checked before
+comparison of the remaining unchanged state. No native failure image becomes a
+continuation source.
+
+The candidate CLI, creation helper and source archive SHA-256 values are:
+
+- `7a649b343cf96aba0c68ff46bc7277a82cd586122d1bb80baa446a3afe24f3e7`
+- `0d0297042c6e5658973cc1e2eb771eafb9f68c4f18be768949f66877cd5fcc1c`
+- `f45793a938887ee4a4c5372e0e84f87310362cb4f7d773122cb29ab042a36a06`
+
+The final source also reproduces every previously accepted EXP-0291 output
+byte-for-byte: twelve creations and 264 mutations. The reproduction record
+`IDENTICAL_PRIOR_OUTPUTS.json` has SHA-256
+`04a5b859c3da1df94f12549721de19eaf0a2a02860b20e3bd38807f7655e0922`.
+Together these suites establish 348 finite comparisons: 24 creations and
+324 mutations, comprising 174 successes and 150 refusals. The final production
+candidate passes `just ready` with 1,660 test executions, zero failures and ten
+ignored; independent GPT-5.6 Sol high review clears both graph corrections.
+
+The graph accepted report SHA-256 is
+`a05dacdfaeb282e5a1b2858d638fb90f5e7009c05ed0a962044a5b40f8683fcd`;
+evaluator SHA-256 is
+`cd75ccbd3c79a3300e5bf3f77f02f115ccbacaec189a28793350c82a1980bbbe`.
+The durable private archive is `checks/20260916-composite-graph-acceptance`,
+containing 2,444 files including `MANIFEST.json`, whose SHA-256 is
+`6b895ac964b6ee638036518267ee1e1ed62914ddedb6128984d5e8217263fa2b`.
+Root independently reproduced its report byte-for-byte using the archive-local
+`replay.sh`, and verified all 2,443 listed sizes/hashes and the exact inventory
+(535,475,925 bytes excluding the manifest). It retains discovery/followup inputs,
+source/binaries, preparation requests/results, reproduction records, complete
+observer dependencies and failed candidates/captures.
+
+Readback r1 is a retained harness failure: artificial trailing Null in Boolean
+Seek produced COM -2146825126 and incomplete Seek inventories, without changing
+the candidate images. The corrected producer reran all 72 images. This result
+resolves the graph blockers recorded in EXP-0291/0292 for the tested schemas;
+it does not establish cascades, arbitrary untested graphs, or relationship edits
+on existing schemas.

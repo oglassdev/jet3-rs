@@ -97,8 +97,10 @@ creation scope. EXP-0288/0289 record scalar eligibility and 38 creation plus
 and 276 accepted comparisons: twelve creations, 142 successful mutations and
 122 refusals. EXP-0292 adds the native self-reference creation boundary:
 identical complete parent/child field vectors are refused, while individual
-components may overlap. The corrected guard and self/shared-index graph
-supplement are undergoing candidate DAO comparisons.
+components may overlap. EXP-0293 accepts the corrected guard and self/shared-index
+graph supplement: twelve creations, 32 successful mutations and 28 refusals.
+The final candidate also reproduces all 276 main-suite outputs byte-for-byte,
+bringing the combined finite evidence to 348 comparisons.
 
 Schema names use defined Windows-1252 bytes and the observed English-US
 collation for ordering and duplicate detection. Stored names retain their exact
