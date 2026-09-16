@@ -91,9 +91,39 @@ fn public_create_update_and_typed_errors_preserve_source() -> Result {
         locator(row)
     );
     assert_eq!(rows(&path)?[1].1, -42);
+    for value in [Value::Null, json!({"long": -42})] {
+        let output = request(
+            "mutate",
+            &path,
+            &json!({"operation":"update","table":"Rows","row":locator(row),"column":0,"value":value}),
+        )?;
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        if value.is_null() {
+            let inspection = Command::new(env!("CARGO_BIN_EXE_jet3-cli"))
+                .arg("inspect")
+                .arg(&path)
+                .arg("--rows")
+                .output()?;
+            assert!(inspection.status.success());
+            let document: Value = serde_json::from_slice(&inspection.stdout)?;
+            assert!(
+                document["tables"]
+                    .as_array()
+                    .ok_or("tables")?
+                    .iter()
+                    .any(|table| {
+                        table["kind"] == "User"
+                            && table["rows"] == json!([{"Id":1},{"Id":null},{"Id":3}])
+                    })
+            );
+        }
+    }
     let before = std::fs::read(&path)?;
     for input in [
-        json!({"operation":"update","table":"Rows","row":locator(row),"column":0,"value":null}),
         json!({"operation":"update","table":"Rows","row":locator(row),"column":0}),
         json!({"operation":"update","table":"Rows","row":{"page":999,"slot":1},"column":0,"value":{"long":7}}),
         json!({"operation":"update","table":"Rows","row":locator(row),"column":0,"value":{"long":2147483648_i64}}),
