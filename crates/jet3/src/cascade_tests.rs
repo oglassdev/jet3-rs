@@ -626,3 +626,75 @@ fn cascade_journal_merges_successive_and_appended_pages_and_rejects_stale_plans(
     assert_eq!(fs::read(&original_path)?, original_bytes);
     Ok(())
 }
+
+#[test]
+fn cascade_autoincrement_marker_requires_an_autonumber_row_replacement() -> TestResult {
+    for auto_number in [false, true] {
+        let directory = Directory::new()?;
+        let path = directory.path().join("marker.mdb");
+        let mut columns = COLUMNS.to_vec();
+        if auto_number {
+            columns[1] = ColumnSpec::new(b"Key", ColumnType::AutoIncrement);
+        }
+        let values = [
+            RowValue::Long(1),
+            RowValue::Long(10),
+            RowValue::Memo(b"before"),
+        ];
+        create_database_with_relationships_and_rows(
+            &path,
+            &[
+                TableRows {
+                    table: TableSpec {
+                        columns: &columns,
+                        ..table(b"Parent", true)
+                    },
+                    rows: &[&values],
+                },
+                TableRows {
+                    table: table(b"Child", false),
+                    rows: &[&values],
+                },
+            ],
+            &[relation(b"ParentChild", 0, 1, true, true)],
+            &mut budget(),
+        )?;
+        let selected = locator(&path, b"Parent", 1)?;
+        let before = fs::read(&path)?;
+        let result = update_field(
+            &path,
+            FieldUpdate {
+                table: b"Parent",
+                row: selected,
+                column: ColumnOrdinal::new(1),
+                value: RowValue::AutoIncrement,
+            },
+            &mut budget(),
+        );
+        assert!(matches!(result, Err(UpdateError::Unsupported(_))));
+        assert_eq!(fs::read(&path)?, before);
+        let result = update_row(
+            &path,
+            RowUpdate {
+                table: b"Parent",
+                row: selected,
+                values: &[
+                    RowValue::Long(1),
+                    RowValue::AutoIncrement,
+                    RowValue::Memo(b"after"),
+                ],
+            },
+            &mut budget(),
+        );
+        if auto_number {
+            result?;
+            assert_eq!(keys(&path, b"Parent", &[1])?, vec![vec![Some(10)]]);
+            assert_eq!(keys(&path, b"Child", &[1])?, vec![vec![Some(10)]]);
+            validate_file(&path)?;
+        } else {
+            assert!(matches!(result, Err(UpdateError::Unsupported(_))));
+            assert_eq!(fs::read(&path)?, before);
+        }
+    }
+    Ok(())
+}

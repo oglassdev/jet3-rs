@@ -55,6 +55,15 @@ pub(crate) fn prepare<'a>(
         };
         if let Some(value) = replacement {
             let value = if matches!(value, RowValue::AutoIncrement) {
+                let column = target
+                    .columns()
+                    .get(usize::from(field.column.get()))
+                    .ok_or(UpdateError::NotFound("cascade assignment column"))?;
+                if !matches!(change, Change::Replace(_, _)) || !column.auto_increment() {
+                    return Err(UpdateError::Unsupported(
+                        "AutoIncrement requires an AutoNumber row replacement",
+                    ));
+                }
                 field.before.value()
             } else {
                 value
