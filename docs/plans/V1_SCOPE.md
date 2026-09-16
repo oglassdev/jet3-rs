@@ -75,8 +75,8 @@ shared foreign physical indexes and unrelated tables in any order. Parent keys
 may be Long or AutoIncrement and require a unique index. The first eligible
 ascending logical name selects the parent tree, including nonprimary and nullable
 unique indexes. Descending-only parents generate a shared ascending tree with
-the same null policy; EXP-0286 records the native observations, with complete
-Rust acceptance pending. Mutations reject changing or removing a null parent
+the same null policy; EXP-0286/0287 record native observations and 18 creation
+plus 84 lifecycle comparisons. Mutations reject changing or removing a null parent
 while null child keys remain, and permit deleting the sole null self-reference.
 Null child insertion remains exempt from requiring a matching parent. Child
 keys must be Long. Existing ordinary ascending FK indexes
@@ -177,6 +177,14 @@ successes and 20 expected refusals. Actual property-collection getters were
 compared across all 170 initial/output images, alongside complete values,
 indexes, counters, allocation and unrelated storage. This is finite evidence;
 other key types, cascades and existing-schema relationship edits remain open.
+
+EXP-0286/0287 add descending-only parent indexes, nullable parent mutation
+boundaries and physical-order self-reference checks. Eighteen creation pairs
+and 84 same-input lifecycle pairs (40 successes, 44 refusals) compare complete
+DAO getters, rows, traversal/Seek, raw keys, schema, maps and retained counters.
+Native refusals may change exact historical counters and a header byte; Rust
+refusals preserve their entire inputs. Generated parent trees share the existing
+relationship counter rule while retaining declared descending indexes.
 
 ### Updates
 

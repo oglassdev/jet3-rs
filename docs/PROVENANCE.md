@@ -19067,3 +19067,78 @@ manifest SHA-256 is
 This archive includes complete inputs, providers, producers, reports and failed
 or superseded attempts. It establishes native format observations; Rust
 differential acceptance remains separate.
+
+## EXP-0287 — Descending-parent creation and lifecycle acceptance
+
+Production source `8fda6c8252eb47d1519ad9048acda8fca933b541` implements
+EXP-0286's generated ascending parent trees, shared aliases, retained counters,
+null-parent constraints and physical-order self-reference checks. Its source
+archive SHA-256 is
+`b516389d6a3b5449b0f0751b86094fcc1e30f022c0d038b544b88cf8ca43b32b`;
+CLI `295d1dd43abdba3189fa6316671a23bc1e56f0333537d1db983eccad87546aac`;
+creation example `ae8c8b263ec499e1c8c5241dcedf7ce9ccc64841cd57e3313f0196784a0974bd`.
+`just ready` passes 1,628 test executions, zero failures and ten ignored tests,
+plus formatting, Clippy, docs and quick acceptance. Log SHA-256 is
+`69ec89d101cce6718d49a3af30e339b047fcf7d4e012d6a5d5a8b5573db4f10b`.
+Independent GPT-5.6 Sol high review found no blocker in the final physical-order
+rule and regressions; the earlier generated-only candidate rule was corrected
+before this source was frozen.
+
+Creation run `20260916T094632Z-desc-parent-acceptance-r1` accepts 18 pairs
+(nine schemas in two replicas). These include descending primary and required
+unique parents, duplicate-null nullable parents, ascending preference,
+shared generated parent trees, self-references, both physical orders of two
+eligible descending indexes, and unrelated Memo data. Complete actual DAO
+properties, rows, traversal/Seek, raw columns, logical/physical index semantics,
+key/locator correspondence, system indexes and allocation are checked. Native
+rows-before-relation and candidate relation-before-rows retain their distinct,
+explicitly checked first-word histories. Report SHA-256 is
+`03fc080d6c540e07e68c78613e1d421ec69894ffd5224f000f6d425711a7bf8d`;
+root independently replayed the report byte for byte.
+
+The lifecycle suite accepts 84 same-input pairs: 40 successful operations and
+44 expected refusals, covering empty/populated generated trees, positive and
+zero retained prefixes, nullable parents with and without null children,
+self-delete, self-link changes and both physical index orders. Complete
+actual-getter readbacks are retained in
+`20260916T095553Z-desc-parent-life-capture-r2` (52 images),
+`20260916T100611Z-desc-parent-control-capture-r2` (24), and
+`20260916T100942Z-desc-self-order-r2` (eight). Every Rust stage starts from the
+exact native predecessor; isolated refused copies never become continuation
+inputs. The portable evaluator is `descending_parent_lifecycle.py`, with
+preparation and capture in `prepare_descending_parent_lifecycle.py` and
+`descending_parent_capture.ps1`. Report SHA-256 is
+`b8cea6863cb57eff0262fe9c83933f188f3aaf10e26ee6caee81a4417dab31ac`.
+
+Successful pairs match all retained counters. Refusals preserve the entire
+Rust input; native failed copies are checked against the exact affected physical
+trees and prefix transitions. Failed insertion advances only newly encountered
+keys in trees preceding the foreign constraint check. Failed key assignment
+or deletion applies the established decrement/clamp to assigned relationship
+trees, including generated parent trees. Every other raw counter, row, key,
+locator, map and schema record remains compared. Native changed-byte scope is
+limited to those verified prefix fields and header byte 1538. Actual DAO
+DistinctCount getters are checked against each raw second word before projecting
+the exact refusal differences. Only explicitly assigned null Long padding may
+be normalized: the two main null-child inserts differ at row offsets 6 and 8,
+inside the absent ParentId slot `[5,9)`. Other row bytes remain compared.
+System pages/indexes and all unselected rows remain unchanged.
+
+The final source reproduces all 18 earlier creation images and 76 earlier
+mutation images byte for byte, with identical request semantics; eight final
+physical-order cases were prepared directly from that source. Reproduction
+report SHA-256 is
+`b63e17015170e5ea56fe7638c0eb3a6f9d7c7adb946b551fa3881e9fda8ecab2`.
+Failed and superseded native discovery and capture-adapter/preflight attempts
+are retained separately. This finite result does not establish composite,
+non-Long, cascading or arbitrary relationship schema-edit compatibility.
+
+Independent Sol replay reproduces the lifecycle report byte for byte and
+confirms the exact failed-copy counter formulas against all 20 retained refused
+self-control probes. The durable combined acceptance archive is
+`shared/checks/20260916-descending-parent-acceptance` beneath the local VM root.
+Its 813 listed evidence files total 137,898,013 bytes; the manifest SHA-256 is
+`b576b59e1d47bfa457975ca77992c553328e462b376a989cb97f5ecebdf45243`.
+Root independently verifies every listed size/hash and the complete inventory,
+including the three nested capture manifests. All MDB/provider/VM bytes remain
+outside the repository.
