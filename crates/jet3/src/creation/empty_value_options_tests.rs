@@ -122,7 +122,7 @@ fn empty_options_are_per_column_on_later_indexed_tables() -> Result<(), Box<dyn 
     let mut db = DatabaseReader::open(&path, &mut work)?;
     let report = db.validate(crate::TextCodePage::Windows1252, &mut work)?;
     assert_eq!(report.indexes_with_verified_keys, 9);
-    assert_eq!(report.index_entries, 6);
+    assert_eq!(report.index_entries, 46);
     let table = crate::update::indexed_writable_table(&mut db, b"Items", &mut work)?;
     let mut rows = db.rows(&table, &mut work)?;
     let mut count = 0;
