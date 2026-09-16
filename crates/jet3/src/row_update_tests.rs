@@ -497,7 +497,7 @@ fn full_slot_directory_allows_replacement_but_hidden_payload_is_refused() -> Tes
 }
 
 #[test]
-fn dao_boolean_zero_offset_schema_reaches_public_row_replacement() -> TestResult {
+fn boolean_zero_and_legacy_offsets_reach_public_row_replacement() -> TestResult {
     let f = Fixture::new(3)?;
     fs::remove_file(f.path())?;
     let columns = [
@@ -540,20 +540,17 @@ fn dao_boolean_zero_offset_schema_reaches_public_row_replacement() -> TestResult
     let raw = *definition.columns()[4].raw_record();
     assert_eq!(
         definition.columns()[4].storage(),
-        ColumnStorageClass::Fixed { offset: 8 }
+        ColumnStorageClass::Fixed { offset: 0 }
     );
     drop(db);
-    let mut before = fs::read(f.path())?;
+    let original = fs::read(f.path())?;
     let base = f.root.get() as usize * PAGE_BYTES;
-    let positions: Vec<_> = before[base..base + PAGE_BYTES]
+    let positions: Vec<_> = original[base..base + PAGE_BYTES]
         .windows(raw.len())
         .enumerate()
         .filter_map(|(i, v)| (v == raw).then_some(base + i))
         .collect();
     assert_eq!(positions.len(), 1);
-    // EXP-0198 retained DAO definition: Boolean ordinal4, size1, fixed offset0.
-    before[positions[0] + 14..positions[0] + 16].copy_from_slice(&0_u16.to_le_bytes());
-    fs::write(f.path(), &before)?;
     let values = [
         RowValue::Long(1),
         RowValue::Null,
@@ -561,10 +558,15 @@ fn dao_boolean_zero_offset_schema_reaches_public_row_replacement() -> TestResult
         RowValue::Binary(&[1, 35, 69, 103, 137, 171, 205, 239]),
         RowValue::Boolean(false),
     ];
-    let wanted = expected(&before, f.locators[0], &encoded(&f, &values)?);
-    update_row(f.path(), f.request(0, &values), &mut budget())?;
-    assert_eq!(fs::read(f.path())?, wanted);
-    assert_eq!(f.rows()?.len(), 2);
+    for offset in [0_u16, 8] {
+        let mut before = original.clone();
+        before[positions[0] + 14..positions[0] + 16].copy_from_slice(&offset.to_le_bytes());
+        fs::write(f.path(), &before)?;
+        let wanted = expected(&before, f.locators[0], &encoded(&f, &values)?);
+        update_row(f.path(), f.request(0, &values), &mut budget())?;
+        assert_eq!(fs::read(f.path())?, wanted);
+        assert_eq!(f.rows()?.len(), 2);
+    }
     Ok(())
 }
 

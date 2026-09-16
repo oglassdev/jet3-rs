@@ -19199,3 +19199,51 @@ agree across all 30 positive images, but the two Boolean replicas fail exact
 column-metadata comparison. The failed candidate/source and raw report are
 retained under the private `scalar-relationships/creation-r1` work root; the
 writer is corrected to emit zero for user Boolean fields as well as system fields.
+
+Strict Rust validation at revision `4f3fbeb93f8046b2a2426cd3ca97b57477970dc1`
+passes all 30 native accepted-creation images. All 14 incompatible-schema
+refusal images instead retain `MSysObjects` declared row count 11 with 10 live
+rows, repeating the failed-creation residue in EXP-0279. Their complete captures
+establish the native refusal outcome, but do not establish integrity or make
+these terminal failed copies valid continuation inputs. The validator remains
+strict. Input hashes are unchanged by this read-only check. The private
+`scalar-relationships/native-validation-r1/report.json` is 45,341 bytes,
+SHA-256 `f857679a02820fcfc75bc5e5f4ce0f3f1d539c4d78c9dbc902306e11cf202eed`.
+
+Native lifecycle discovery retains 44 valid lineages from
+`20260916T104156Z-scalar-rel-life-r2`: 362 operations, 258 successes and 104
+refusals. Both replicas agree on complete values, actual properties,
+traversal/Seek, raw scalar keys and locators, prefixes, system indexes and maps.
+Every non-Boolean exact type admits the planned insertion, reassignment, null
+transition and deletion. Orphan writes refuse 3201; referenced-parent and
+null-parent changes/deletions refuse 3200. Populated Text(8) to Text(16),
+Text(8) to FixedText(8), and Binary(8) to Binary(16) lifecycles also pass.
+Text matching accepts case changes and trailing spaces, including `écho` against
+`Écho`, but refuses accent-stripped `Echo` against `Écho`. FixedText case changes
+match; short `AB` and `AB ` inputs are padded to the declared width and match.
+Empty Binary child assignment stores null. The selected report is 99,352,704
+bytes, SHA-256 `8aaa70c3e2fd0f30c15398a046a0c392b6172fd58e1b6f531660420faca6103a`;
+root independently reproduces it byte for byte.
+
+Six original lineages are excluded explicitly: two Boolean recipes addressed
+an absent row, and four signed-zero recipes attempted to replace a null parent
+while null children remained. Their failed outputs and evaluation remain
+retained. Run `20260916T111635Z-scalar-rel-life-correction-r1` corrects the
+Boolean row selection; its two Boolean lineages contain 16 operations, 14
+successes and two refusals, including null-to-True and null-to-False assignment.
+The selected Boolean report SHA-256 is
+`4a38ae490a9d06a21ed636e98e13661dcffbdd5c66c6b5c3064b4fa46e25d53b`.
+Its four ordinary-JSON signed-zero lineages remain inconclusive because the
+receipt loses the attempted sign; they are not used as equality evidence.
+
+Run `20260916T112204Z-scalar-rel-zero-bits-r1` instead supplies explicit IEEE
+little-endian hex objects and constructs the Single/Double variants with
+`BitConverter`. Both replicas insert a positive-zero parent, then refuse a
+negative-zero child with DAO 3201. Thus these relationship comparisons retain
+the distinct positive/negative zero index keys already observed in EXP-0243.
+The four lineages contain eight operations, four successes and four refusals.
+Report SHA-256 is
+`4e40f73a9622247e05c6b63f0d2b27d8136010f3194343cc0969ee6def37433a`, independently
+reproduced byte for byte. The selected lifecycle inventory totals 50 lineages
+and 386 operations; failed copies never become continuation inputs. These are
+native observations. Rust candidate readback acceptance is recorded separately.

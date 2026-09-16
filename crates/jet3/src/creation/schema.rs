@@ -94,7 +94,7 @@ pub struct TableSpec<'a> {
     pub indexes: &'a [IndexSpec<'a>],
 }
 
-/// A table in the ordered input to [`crate::create_database_with_relationship`].
+/// A table in the ordered input to the relationship creation APIs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TableRef<'a> {
     /// Zero-based position in the supplied table slice.
@@ -115,7 +115,8 @@ pub struct RelationshipColumn<'a> {
 /// One non-cascading relationship between two tables.
 ///
 /// Names are database-encoded bytes, subject to the bounded creation name
-/// encoder. See [`crate::create_database_with_relationship`] for schema limits.
+/// encoder. See [`crate::create_database_with_relationships`] for scalar graph
+/// support and [`crate::create_database_with_relationship`] for singular API limits.
 ///
 /// ```
 /// use jet3::{ColumnRef, RelationshipColumn, RelationshipSpec, TableRef};
@@ -136,8 +137,8 @@ pub struct RelationshipColumn<'a> {
 pub struct RelationshipSpec<'a> {
     /// Caller-chosen relationship and child foreign-index name.
     pub name: &'a [u8],
-    /// Referenced primary-key column in the first table.
+    /// Referenced unique-key column.
     pub parent: RelationshipColumn<'a>,
-    /// Referencing Long column in the second table.
+    /// Referencing scalar column.
     pub child: RelationshipColumn<'a>,
 }
