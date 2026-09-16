@@ -1,4 +1,4 @@
-//! Named Boolean field properties from EXP-0208/0266/0270/0277/0283, stored in catalog LvProp.
+//! Named Boolean field properties from EXP-0208/0266/0270/0277/0283/0284, stored in catalog LvProp.
 use crate::{BinaryWriter, ColumnPhysicalType, ColumnSpec, Error, ResourceBudget};
 
 const REQUIRED_DICTIONARY_LENGTH: usize = 16;
@@ -22,7 +22,7 @@ impl<'a> ColumnProperties<'a> {
         if columns.len() > u8::MAX as usize
             || !columns
                 .iter()
-                .any(|column| column.allow_zero_length() || column.required())
+                .any(|column| has_zero_length_property(column.physical_type()) || column.required())
         {
             return None;
         }
@@ -105,6 +105,30 @@ fn boolean(writer: &mut BinaryWriter<'_, '_>, ordinal: u16, value: bool) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn disabled_empty_values_have_an_explicit_property() -> Result<(), Box<dyn std::error::Error>> {
+        for kind in [
+            crate::ColumnType::Text {
+                max_len: std::num::NonZeroU8::new(4).ok_or("width")?,
+            },
+            crate::ColumnType::FixedText {
+                len: std::num::NonZeroU8::new(4).ok_or("width")?,
+            },
+            crate::ColumnType::Memo,
+        ] {
+            let columns = [ColumnSpec::new(b"Payload", kind)];
+            let properties = ColumnProperties::new(&columns).ok_or("explicit false property")?;
+            let mut bytes = vec![0; properties.len()];
+            let mut budget = ResourceBudget::new(crate::ResourceLimits::default());
+            properties.encode(&mut bytes, &mut budget)?;
+            assert_eq!(
+                &bytes[bytes.len() - 18..bytes.len() - 9],
+                &[9, 0, 1, 1, 1, 0, 1, 0, 0]
+            );
+        }
+        Ok(())
+    }
+
     #[test]
     fn auto_number_omits_its_default_property_block() -> Result<(), Box<dyn std::error::Error>> {
         let columns = [

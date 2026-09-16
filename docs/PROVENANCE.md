@@ -18518,3 +18518,35 @@ presence bit, logical value and indexes agree. Do not interpret or require
 stable bytes for absent values. Raw bytes remain retained in the report.
 Defaults/rules, relationship interactions and other index combinations are not
 established by this discovery matrix.
+
+## EXP-0284 — Required acceptance findings and explicit disabled empty values
+
+The first acceptance run, `20260916T063539Z-required-column-acceptance-r1`,
+uses source `e19315a3807fca836e4c9d1e8657075af3b70bf7` and the EXP-0283
+provider. This run is not accepted. Its closed Text Required-false,
+AllowZeroLength-false receipt has SHA-256
+`496c6ad67b1da211f6dfd81e1e9f89217a681edbbefa6cad7b318bf23fd5d844`.
+DAO reports both properties as false in a Rust-created file whose catalog
+LvProp is absent, but accepts inserting an empty BSTR. The source image is
+`935c6e23e6bea04ba414905807bc22c2f2844f375616078a2fac1faa327c3502`;
+the native postimage is
+`27060846cfb7c922a1c9b1f271b660525373f19a9f1b19ca172f02e719c06689`.
+Rust refuses that insertion without changing the file. The explicit false
+property in the native EXP-0283 control rejects the same empty assignment
+with 3315. Creation must therefore persist disabled AllowZeroLength on text
+columns rather than infer enforcement from the reported default property.
+The native property framing and false value remain those of EXP-0266/0283.
+
+The same acceptance run also exposed a preparation error: its GUID requests
+used little-endian storage bytes although RowValue::Guid takes conventional
+GUID display-order bytes (EXP-0061). The original inputs and mismatched
+comparisons are retained. Correcting this adapter is not a format change.
+
+The subsequently closed Memo Required-false, AllowZeroLength-false receipt
+`407a538b190072b6862f5d87783a0684bb6d6da7fc721d4ca84f085d46ec0ffc`
+shows the same absent-property behavior: native empty insertion succeeds,
+with source `d9b01f10d39ccdb65f357482c8db02b04ad93c6c63de1c10de12d9cd3def0f2f`
+and postimage `511774b3ba70616a42a48c000630aec69a45144b504d4b85186a17a617379f4f`.
+The writer fix persists explicit false for variable Text, FixedText and Memo.
+Legacy mutation/validation of absent or partially present properties remains a
+separate limitation; the tested absence result covers variable Text and Memo.

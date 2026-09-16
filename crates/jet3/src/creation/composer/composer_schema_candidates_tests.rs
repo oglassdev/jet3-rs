@@ -350,11 +350,10 @@ fn quad_candidate_bytes() -> Result<Vec<u8>, ComposeError> {
 }
 
 #[test]
-fn the_quad_candidate_decodes_to_its_preregistered_shape() -> TestResult {
-    // EXP-0087: 31 pages after the four creates, page-zero byte 1538 at 8,
-    // and only the first create carrying a long-value page.
+fn the_quad_candidate_preserves_schema_with_explicit_text_properties() -> TestResult {
+    // EXP-0087 schema and EXP-0284 explicit properties on both text tables.
     let quad = quad_candidate_bytes()?;
-    assert_eq!(quad.len(), 31 * crate::PAGE_BYTES);
+    assert_eq!(quad.len(), 33 * crate::PAGE_BYTES);
     assert_eq!(quad[1538], 8);
     assert_eq!(
         &quad[22 * crate::PAGE_BYTES..22 * crate::PAGE_BYTES + 10],
@@ -380,8 +379,8 @@ fn the_quad_candidate_decodes_to_its_preregistered_shape() -> TestResult {
         [
             (b"Alpha".to_vec(), Some(PageNumber::new(20))),
             (b"Beta".to_vec(), Some(PageNumber::new(23))),
-            (b"Gamma".to_vec(), Some(PageNumber::new(25))),
-            (b"Delta".to_vec(), Some(PageNumber::new(28))),
+            (b"Gamma".to_vec(), Some(PageNumber::new(26))),
+            (b"Delta".to_vec(), Some(PageNumber::new(29))),
         ]
     );
     let objects = database.table_definition(PageNumber::new(2), &mut budget)?;
@@ -397,8 +396,8 @@ fn the_quad_candidate_decodes_to_its_preregistered_shape() -> TestResult {
             null_properties += 1;
         }
     }
-    assert_eq!(null_properties, 8 + 4);
-    for (root, columns, indexes) in [(20, 1, 0), (23, 3, 0), (25, 1, 1), (28, 1, 1)] {
+    assert_eq!(null_properties, 8 + 2);
+    for (root, columns, indexes) in [(20, 1, 0), (23, 3, 0), (26, 1, 1), (29, 1, 1)] {
         let definition = database.table_definition(PageNumber::new(root), &mut budget)?;
         assert_eq!(definition.columns().len(), columns, "root {root}");
         assert_eq!(definition.physical_indexes().len(), indexes, "root {root}");
@@ -409,10 +408,10 @@ fn the_quad_candidate_decodes_to_its_preregistered_shape() -> TestResult {
                 .is_none()
         );
     }
-    let gamma = database.table_definition(PageNumber::new(25), &mut budget)?;
-    assert_eq!(gamma.physical_indexes()[0].root(), PageNumber::new(27));
-    let delta = database.table_definition(PageNumber::new(28), &mut budget)?;
-    assert_eq!(delta.physical_indexes()[0].root(), PageNumber::new(30));
+    let gamma = database.table_definition(PageNumber::new(26), &mut budget)?;
+    assert_eq!(gamma.physical_indexes()[0].root(), PageNumber::new(28));
+    let delta = database.table_definition(PageNumber::new(29), &mut budget)?;
+    assert_eq!(delta.physical_indexes()[0].root(), PageNumber::new(32));
     Ok(())
 }
 

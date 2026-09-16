@@ -257,11 +257,11 @@ fn catalog_spill_extends_maps_without_overwriting_existing_destination() -> Test
     let directory = TestDirectory::create()?;
     let names = (0..40).map(|n| format!("T{n:02}")).collect::<Vec<_>>();
     let payload = [b'x'; 200];
-    let values = [RowValue::Text(&payload); 8];
+    let values = [RowValue::Binary(&payload); 8];
     let rows = [values.as_slice(); 26];
     let width = std::num::NonZeroU8::new(200).ok_or("binary width")?;
     let columns = [b"C0", b"C1", b"C2", b"C3", b"C4", b"C5", b"C6", b"C7"]
-        .map(|name| ColumnSpec::new(name, ColumnType::FixedText { len: width }));
+        .map(|name| ColumnSpec::new(name, ColumnType::Binary { max_len: width }));
     let mut requests = names
         .iter()
         .enumerate()

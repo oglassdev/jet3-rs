@@ -81,7 +81,7 @@ fn validation_reports_coverage_and_counts_without_modifying_input() -> TestResul
     assert_eq!(result["checked"]["index_entries"], 42);
     assert_eq!(result["checked"]["indexes_with_verified_keys"], 8);
     assert_eq!(result["coverage_limits"]["uninterpreted_indexes"], 0);
-    assert_eq!(result["checked"]["long_value_bytes"], 4096);
+    assert_eq!(result["checked"]["long_value_bytes"], 4167);
     assert_eq!(result["coverage_limits"]["skipped_system_objects"], 4);
     assert!(
         result["resources"]["bytes_read"]

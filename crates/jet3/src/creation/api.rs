@@ -603,7 +603,9 @@ fn check_long_value_written_pages(
 ) -> Result<(), CandidateCheckError> {
     if !tables.iter().any(|table| {
         table.columns.iter().any(|column| {
-            column.column_type().is_long_value() || column.allow_zero_length() || column.required()
+            column.column_type().is_long_value()
+                || crate::column_properties::has_zero_length_property(column.physical_type())
+                || column.required()
         })
     }) {
         return Ok(());

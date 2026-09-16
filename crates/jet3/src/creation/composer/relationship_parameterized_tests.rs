@@ -78,7 +78,7 @@ fn caller_names_columns_and_both_selector_cases_reopen() -> TestResult {
             .iter()
             .flat_map(|page| page.image().as_bytes().iter().copied())
             .collect::<Vec<_>>();
-        assert_eq!(bytes.len(), (if two { 29 } else { 28 }) * PAGE_BYTES);
+        assert_eq!(bytes.len(), (if two { 30 } else { 29 }) * PAGE_BYTES);
         let mut budget = budget();
         let mut database = DatabaseReader::from_source(
             SliceSource::new(&bytes, budget.read_budget())?,
