@@ -7,6 +7,7 @@ sys.path.insert(0,str(args.repo/'oracle/windows-dao/scripts'))
 import required_column_acceptance as a
 import required_column_discovery as d
 import column_property_checks as props
+from column_property_presence_allocation import check_empty_insert
 require=d.require;identity=d.identity;catalog=d.catalog
 
 def property_observation(data,case):
@@ -80,10 +81,14 @@ with tempfile.TemporaryDirectory(prefix='jet3-property-presence-') as temp:
     if row['values']['Id']!=op['id']:require(row==old[row['values']['Id']],label+': unselected row exact')
    pair[role]=value
   require(d.normalized_snapshot(captures[label]['snapshot'])==d.normalized_snapshot(stage['stage']['capture']['snapshot']),label+': complete DAO snapshot equality')
-  column=before['schema']['columns'][1]
-  require([a.comparable_row(row,column,row['values']['Id']==op['id']) for row in pair['rust']['rows']]==[a.comparable_row(row,column,row['values']['Id']==op['id']) for row in pair['native']['rows']],label+': complete row structure outside assigned null padding/payload placement')
-  for key in ('index','maps','free_pages','global'):require(pair['rust'][key]==pair['native'][key],label+': exact '+key)
-  results.append(dict(id=label,accepted=accepted,native_errors=errors,request=item['request'],before=before,**pair))
+  placement=None
+  if case['id'].endswith('-absent') and ordinal==1:
+   placement=check_empty_insert(native/previous['file'],inputs/item['file'],native/item['native_file'])
+  else:
+   column=before['schema']['columns'][1]
+   require([a.comparable_row(row,column,row['values']['Id']==op['id']) for row in pair['rust']['rows']]==[a.comparable_row(row,column,row['values']['Id']==op['id']) for row in pair['native']['rows']],label+': complete row structure outside assigned null padding/payload placement')
+   for key in ('index','maps','free_pages','global'):require(pair['rust'][key]==pair['native'][key],label+': exact '+key)
+  results.append(dict(id=label,accepted=accepted,native_errors=errors,request=item['request'],placement=placement,before=before,**pair))
  require(len(seen)==252 and len({(i['case']['id'],i['replica']) for i in items})==36,'full 18-schema two-replica scope')
  report=dict(document_type='column_property_presence_acceptance_evaluation',status='pass',source_revision=matrix['source_revision'],binary=matrix['binary'],native_run=args.native_run.name,capture_run=args.capture_run.name,producer=identity(args.producer),evaluator=identity(Path(__file__)),matrix=identity(inputs/'matrix.json'),archive=identity(archive),provider=environment,mutation_pairs=252,accepted=sum(r['accepted'] for r in results),refused=sum(not r['accepted'] for r in results),results=results)
  args.report.write_text(json.dumps(report,indent=2,sort_keys=True,default=a.compact_json)+'\n');print(json.dumps({k:v for k,v in report.items() if k!='results'}))

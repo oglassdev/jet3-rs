@@ -18834,3 +18834,35 @@ empty variable strings only for an explicitly stored false value. Creation
 continues to encode and enforce its requested explicit settings. This entry
 establishes the native policy for the finite controlled inputs; the Rust
 mutation/readback comparison and durable combined archive remain pending.
+
+### Rust preparation and first-insert placement
+
+Production source `4762a8f9ccc4e744678cac3cc42166f16d5954df` passes `just ready`
+with 1,602 passing executions, zero failures and ten ignored tests. Its ready
+log SHA-256 is
+`1dd6d13a06e9e038255bb2af4b5fd6aed0d955c8636f8b5910cbb83a5848672f`.
+The native report above was independently replayed with identical bytes.
+
+The first Rust preparation is retained as failed: one replica incorrectly sent
+variable-field/null changes through `update_field`, whose documented contract
+requires a present fixed-width field. Forty-two expected-success requests were
+refused at that API boundary. Corrected preparation uses full-row replacement
+for all updates; it does not widen that API or discard the original failures.
+
+The six first insertions into wholly absent-property inputs have different
+physical placement. Each source has 24 pages and one free page, 22, released
+from the removed property storage. DAO reuses page 22; Rust appends page 24 and
+retains page 22 as free. Both primary indexes remain on page 23. A bounded
+comparison checks each complete index against its actual row locator, equal
+row bytes/values and tree/schema metadata, exact owned/available/global map bit
+transitions, complete disjoint ownership, and every unrelated source byte.
+Native header byte 1538 transitions from 2 to 4; the other header bytes stay exact.
+This is a finite placement observation, not a universal allocator equivalence.
+
+Corrected preparation contains all 252 same-input operations with no outcome,
+raw comparison or preservation failures. Its source CLI SHA-256 is
+`1e8d595c2134451eb1b2d3a156b05ffa049db465ddd10b33bf103d78901dcdd5`;
+matrix `a9d733d7ef40645cecb431336e5fe858db9c5e891d5f1e4edb259c6f989bfa4b`;
+ZIP `b71ad3e50154b0106c0262255d9ba0615fb0d1342b5aad1c6659712ca48bf247`.
+The complete DAO readback comparison remains pending; Rust-only preparation
+success does not establish compatibility.

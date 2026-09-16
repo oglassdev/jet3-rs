@@ -8,6 +8,7 @@ import required_column_discovery as d
 import required_column_acceptance as acceptance
 import column_property_checks as props
 import relationship_system_indexes as systems
+from column_property_presence_allocation import check_empty_insert
 catalog=d.catalog
 
 def identity(path):
@@ -51,8 +52,7 @@ for case in matrix['cases']:
    if op['kind']=='insert':request=dict(operation='insert',table='Rows',values=[{'long':op['id']},cell])
    else:
     hits=[r['locator'] for r in before['rows'] if r['values']['Id']==op['id']];assert len(hits)==1;locator=dict(page=hits[0]['page'],slot=hits[0]['row'])
-    if replica==1:request=dict(operation='update',table='Rows',row=locator,column=1,value=cell)
-    else:request=dict(operation='replace',table='Rows',row=locator,values=[{'long':op['id']},cell])
+    request=dict(operation='replace',table='Rows',row=locator,values=[{'long':op['id']},cell])
    rq=a.output/(label+'.request.json');write(rq,request);mutation=execute(['mutate',target,'--input',rq],a.output/(label+'.mutate'))
    errors=[] if stage['error'] is None else stage['error']['numbers'];accepted=stage['accepted'];actual=mutation.returncode==0
    if actual!=accepted:failures.append(dict(id=label,kind='outcome',native_accepted=accepted,native_errors=errors,rust_stderr=mutation.stderr))
@@ -61,11 +61,14 @@ for case in matrix['cases']:
    if validation.returncode:failures.append(dict(id=label,kind='validation',stderr=validation.stderr))
    rust,control=raw(target),raw(native);column=before['definition']['columns'][1]
    try:
-    assert rust['entries_hex']==control['entries_hex'],'complete physical keys and locators'
-    assert [acceptance.comparable_row(row,column,row['values']['Id']==op['id']) for row in rust['rows']]==[acceptance.comparable_row(row,column,row['values']['Id']==op['id']) for row in control['rows']],'row bytes outside assigned null padding/payload placement'
-    assert rust['definition']==control['definition'],'complete definitions'
-    for key in ('properties','systems'):assert rust[key]==control[key]==before[key],key
-    for key in ('maps','free_pages','global','system_page_hashes'):assert rust['allocation'][key]==control['allocation'][key],key
+    if case['id'].endswith('-absent') and ordinal==1:
+     check_empty_insert(source,target,native)
+    else:
+     assert rust['entries_hex']==control['entries_hex'],'complete physical keys and locators'
+     assert [acceptance.comparable_row(row,column,row['values']['Id']==op['id']) for row in rust['rows']]==[acceptance.comparable_row(row,column,row['values']['Id']==op['id']) for row in control['rows']],'row bytes outside assigned null padding/payload placement'
+     assert rust['definition']==control['definition'],'complete definitions'
+     for key in ('properties','systems'):assert rust[key]==control[key]==before[key],key
+     for key in ('maps','free_pages','global','system_page_hashes'):assert rust['allocation'][key]==control['allocation'][key],key
    except AssertionError as e:failures.append(dict(id=label,kind='raw_comparison',detail=str(e)))
    items.append(dict(id=label,case=case,replica=replica,ordinal=ordinal,operation=op,request=request,source_file=previous['file'],source_identity=identity(source),native_file=stage['stage']['file'],native_identity=identity(native),receipt=identity(a.native_outbox/(stem+'-result.json')),file=target.name,identity=identity(target),accepted=accepted,native_errors=errors,rust_exit=mutation.returncode,rust_stderr=mutation.stderr))
    previous=stage['stage']

@@ -335,7 +335,8 @@
         "oracle/windows-dao/scripts/column_property_presence.py",
         "oracle/windows-dao/scripts/prepare_column_property_presence_acceptance.py",
         "oracle/windows-dao/scripts/column_property_presence_capture.ps1",
-        "oracle/windows-dao/scripts/column_property_presence_acceptance.py"
+        "oracle/windows-dao/scripts/column_property_presence_acceptance.py",
+        "oracle/windows-dao/scripts/column_property_presence_allocation.py"
       ]
     },
     {
