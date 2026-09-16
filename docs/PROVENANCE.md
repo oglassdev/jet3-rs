@@ -19456,3 +19456,32 @@ or replacing the parent row while retaining that key. All four failed copies
 are byte-identical to their sources. The retained run inventory SHA-256 is
 `5571151a4a3aad04d7350b4530cc24bb5d56cadd97de8eadd7eddc72b063e3fe`.
 These controls extend the assigned-parent guard to scalar constraints as well.
+
+
+The grouped native lifecycle run `20260916T122007Z-composite-life-r1` adds
+220 exact operations across twelve lineages (the six admitted schemas, twice):
+120 successes, 88 expected relationship refusals (3200/3201), and twelve
+expected duplicate-key refusals (3022). It covers inserts, growth/shrinkage,
+nulls, deletion, parent and child key assignments, equal parent assignments,
+complete replacement, and payload-only field edits. Full property collections,
+rows, Seek/traversal, raw keys and locators, both counter words, allocation maps,
+Memo ownership and unrelated system storage were compared at every checkpoint.
+A payload-only field edit on a referenced parent succeeds because it does not
+assign the key; a complete replacement retaining that key still refuses.
+
+The mixed-direction-parent schema has a bounded failed-write observation:
+its four referenced-parent refusals in each replica retain rows and keys but
+increment page zero's transaction byte from 16 to 17 and decrement the generated
+ascending parent's first physical counter and DistinctCount from five to four.
+The other five schemas preserve the whole file for these 3200 operations.
+These native residues are asserted exactly; they do not relax Rust's guarantee
+that a refused mutation preserves its complete input.
+
+The portable native evaluator report has SHA-256
+`daf1e8f2f4578418b3960a632bd325e80a8ef38c5dc587a6b3bbf416cb006f1c`.
+Its 304-file durable archive is retained outside Git at
+`checks/20260916-composite-relationship-lifecycle-discovery`, with manifest
+SHA-256 `eb340b1e3b2addf1f965aacdcd7df12fdff02fd27108d506819e6626faee5fdb`.
+Root independently reproduced the report byte-for-byte and verified every
+manifest entry and the exact file inventory. Failed evaluator attempts remain
+retained. These are native observations; candidate acceptance is recorded separately.
