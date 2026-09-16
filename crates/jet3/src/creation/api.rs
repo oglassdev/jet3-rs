@@ -174,10 +174,10 @@ impl StdError for CandidateCheckError {
 ///
 /// Unsupported layouts fail with [`CreateDatabaseError::Compose`] before
 /// anything is written: creation-counter overflow, exhausted map-reference capacity,
-/// two tables whose names differ only by ASCII case, more than 32 indexes
-/// on a table, or a
-/// name byte above `0x7E`. EXP-0249 bounds table/column names to 64 bytes and
-/// index names to 63; it establishes the 16-bit creation counter carry.
+/// two tables whose names have equal CP1252 collation keys, more than 32 indexes
+/// on a table, or a name outside the supported CP1252 grammar. EXP-0249 bounds
+/// table/column names to 64 bytes and index names to 63; it establishes the
+/// 16-bit creation counter carry.
 /// Table definitions use linked pages within the same
 /// allocation and resource limits, including indexed and later tables.
 pub fn create_database(
@@ -359,7 +359,7 @@ fn check_initial_table_rows(
     first_create: bool,
     budget: &mut ResourceBudget,
 ) -> Result<(), CandidateCheckError> {
-    let next_payload = initial_payload_start(&request.table, root, first_create)
+    let next_payload = initial_payload_start(&request.table, root, first_create, budget)
         .map_err(CandidateCheckError::RowEncoding)?;
     check_initial_table_rows_from(database, request, root, next_payload, budget)
 }

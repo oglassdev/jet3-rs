@@ -18119,3 +18119,162 @@ more complex graph inventories, other providers or whole-v1 compatibility.
   `relationship_graph_lifecycle.py` under `oracle/windows-dao/scripts`.
   GPT-5.6 Sol high independently reviewed production code and the comparisons.
   Final production `just ready` passes 1,554 test executions with zero failures.
+
+## EXP-0276 — Rejected hidden multi-hop overflow hypothesis
+
+- Recorded: 2026-09-16, clean-room native DAO discovery. Four retained EXP-0262
+  one-link sources (ordinary and Memo/OLE tables, two replicas) supply eight
+  explicit two/three-link candidates. The constructor retains the visible
+  `0x4000` logical link, inserts nonempty four-byte hidden `0xc000` links and
+  terminates at the original row body in a `0x8000` hidden slot. It preserves
+  all logical values and index keys/locators and updates allocation maps.
+- Final run `20260916T005315Z-multihop-read-r3`: every native source passes
+  complete schema, 72 Items rows, two Notes rows, index traversal and full-row
+  Seek for every distinct key plus a missing key. Every candidate opens, but
+  complete Items enumeration fails with `Record is deleted.`, HRESULT
+  `-2146825121`. All submitted, before/after-read and retained file identities
+  agree. No mutation arm runs after this read failure.
+- Independent raw evaluation checks the exact chains and terminal bodies,
+  unchanged complete physical index pages/keys, unrelated Notes, payload
+  storage and ownership/availability/global-free maps. Rust structural
+  validation accepted these eight inputs; that does not establish native
+  readability. Existing multi-hop mutation refusals remain unchanged.
+- This rejects only the tested intermediate representation. No native
+  multi-hop sample was available; the result does not exclude other encodings.
+  Earlier runs `20260916T004034Z-multihop-read-r1` (unsupported guest hex helper)
+  and `20260916T004550Z-multihop-read-r2` (missing post-failure candidate copies)
+  remain retained, including their observed native errors.
+- Provider: x86 DAO 3.6, DLL 03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  Windows 10.0.20348, PowerShell 5.1.20348.558, CLR 4.0.30319.42000, en-US.
+  Constructor uses clean-room helpers from `9af90efc716c8a9d7ef015e94fe8c959654ef73e`.
+- Reproduction bundle: private VM `shared/checks/20260916-multihop-discovery`.
+  All 104 manifest entries verify; the root evaluator replay reproduces the
+  canonical report exactly. Manifest SHA-256
+  `03507dcd613f09e19b31a79c4666ac37a96ee6a727831d6d72656a9de9360fe8`;
+  report `20e5e75b6ff0f32d00fb4c6cd6d4e0f022726326bdd702a1c14a6b338a7b85ab`.
+  Inputs, constructors, native producers, evaluator/helpers, provider receipts
+  and all three raw run histories remain private; no MDB bytes are committed.
+
+## EXP-0277 — CP1252 schema names, logical order, collisions and boundaries
+
+- **Method/environment:** clean-room native creation and read-only DAO 3.6
+  comparisons, two replicas, en-US/ANSI 1252, x86 `DAO.DBEngine.36` on Windows
+  Server 2022 (`10.0.20348`). Provider `dao360.dll` `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  Harness source context `9df387a205de9bba201af5bcc39b9e637771757e`;
+  retained producer, matrices, evaluators and helper sources are independently
+  pinned. Final main run `20260916T012323Z-schema-names-r3` retains 138 MDBs:
+  three accepted schema arms and 66 independent probes per replica. Supplement
+  `20260916T014125Z-schema-collide-r1` retains twelve collision-probe MDBs.
+- **Observed names/order:** table, field, index, relationship and catalog names
+  preserve the tested CP1252 bytes. Mixed accents/expansions and 64-byte table
+  and column names with a 63-byte index pass full schema/value/index reads.
+  Append order `ById, Z, a, Á, æ, B` becomes both DAO-visible and raw logical
+  definition order `a, Á, æ, B, ById, Z`, consistent with EXP-0248 Text keys.
+  The accented relationship parent has raw `.rB, PKeyé` records and exposes only
+  `PKeyé` through DAO; the child raw and visible names are
+  `CKeyß, FKeyÆ, Rélation Æ`. Physical index references remain explicit.
+- **Collisions/whitespace:** all three object roles reject the second name in
+  `Case/case`, `AE/Æ`, `ss/ß`, straight/curly apostrophe, `X/X `, and
+  `A B/A B` (NBSP) pairs. Native errors are table 3010, column 3191, index 3284.
+  `e/é` remains distinct. Internal ASCII/NBSP spaces and trailing ASCII spaces
+  are stored exactly; the collation comparison does not change stored names.
+  Leading ASCII space, empty names, TAB and `. ! [ ]` or backtick reject with
+  3125. `SELECT` and `Table` are accepted names.
+- **Limits/controls:** 65-byte table/column names reject with 3001. A 64-byte
+  index is created but selecting it for traversal/Seek fails with HRESULT
+  `-2146825288`, reserved error `-1038`; usable index names remain bounded to 63.
+  NUL-bearing BSTR names truncate at NUL; DEL is retained. U+0081 is an exact
+  BSTR control only and establishes no defined CP1252 representation. The
+  writer continues to refuse controls, DEL and undefined CP1252 bytes. Leading
+  and trailing NBSP remain outside this discovery's observed boundary cases.
+- **Complete comparisons:** every accepted visible index traverses all rows
+  and passes Seek for every distinct key and a missing key. Raw analysis binds
+  catalog keys to exact row locators, checks system allocations and logical
+  ordering, and retains complete property payloads. Accented Text/Memo
+  `AllowZeroLength` fields preserve raw `café`/`mémø` bytes in named `LvProp`
+  blocks. The accented enforced Long relationship preserves its endpoints.
+  Read-only captures leave whole-file hashes unchanged. This is native schema
+  discovery; Rust-created candidates and mutation acceptance are separate work.
+- **Retained evidence:** private bundle
+  `shared/checks/20260916-schema-name-discovery`, 320 manifest-pinned files;
+  manifest SHA-256 `c09e93d1ace1ed5cb3ac2839c47cf85c920c6abc21131ec1b388b2f3c71acc1e`;
+  final report SHA-256 `d699596cbf5353ff4f4b40ee16a54a4aff498a941bca9a9bf04bb6a078e753c4`.
+  Both evaluators independently reproduce their reports byte-for-byte from the
+  retained copy. Historical syntax, CP1252 receipt-helper and incomplete-capture
+  failures, plus the diagnostic ordering run, remain alongside final runs;
+  none establishes acceptance or is overwritten by the successful captures.
+
+## EXP-0278 — CP1252 schema-name creation and mutation acceptance
+
+- **Source and provider:** production `c85c116f50e9cb0625a27f6cf9b2e9b647186277`,
+  binary SHA-256 `9b0cf78d33971f63cd67060f0359f7d18f72bffa58d7010f0b947f1b71648d7e`,
+  source archive SHA-256
+  `492a1bc24954486a4192a50d6d87e7ab0007faf34a38a98ce0447271554c2e80`.
+  The final source reproduces all 76 submitted creation/lifecycle images exactly.
+  Provider is the EXP-0277 Windows Server 2022 x86 DAO 3.6 environment, DLL
+  03.60.9765.0 SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+- **Additional native boundary:** `20260916T014633Z-schema-nbsp-r1` accepts
+  leading and trailing NBSP in table, column and index names, each replicated
+  twice (12 MDBs). Requested names are saved exactly. This extends EXP-0277's
+  observed whitespace cases; leading ASCII space remains refused.
+- **Creation:** `20260916T015202Z-schema-names-create-r3` accepts 12 paired
+  Rust/DAO creations, six groups in two replicas. Each replica contains 32 user
+  tables across mixed logical-index ordering, 64-byte table/column and 63-byte
+  index boundaries, an accented Long relationship, 24 seeded catalog tables,
+  collation expansions/whitespace and a 32-index table. Complete DAO schema,
+  named properties, rows, relations, every traversal row and every distinct/missing
+  Seek result agree. Raw checks cover exact field names, logical order, hidden
+  parent `.rB`, catalog key bytes/collation suffixes and system allocation maps.
+- **Explicit allocator difference:** seeded user `MSysObjects.Id` values and
+  catalog row locators may differ between writers. Their encoded names, parent
+  categories and complete catalog key bytes agree. Both physical layouts are
+  retained and checked independently; byte-identical allocation is not claimed.
+  Only DateCreated/LastUpdated property values are normalized in semantic
+  comparisons; all original values remain in the captures.
+- **Mutation:** `20260916T021732Z-schema-names-life-r2` accepts 48 stage pairs
+  (96 captures): ordering and relationship cases from both Rust and native
+  origins, in two replicas. Forty successful insert, fixed-field update,
+  full-row replacement and delete operations preserve complete values, empty
+  Text/Memo options, named properties, index traversal/Seek, physical key-to-row
+  inventories, both index prefix words, definition roots and allocation maps.
+  System-owned page hashes and property payloads remain exact. Native inputs
+  retain ordinary `FKeyÆ` and relationship `Rélation Æ` aliases on one physical
+  tree; each tree is checked once with all its logical aliases retained.
+- **Refusals:** four orphan FK updates return DAO 3201 and four referenced-parent
+  deletes return 3200. Every Rust refusal preserves its whole input. In these
+  lineages the affected foreign first word is zero, and the native refused
+  images are also byte-exact. This does not replace EXP-0268/0275's positive-word
+  failed-write observations. Separately, 57 CLI name refusals create neither a
+  destination MDB nor extra files; these are internal API checks.
+- **Retained history:** the creation wrapper argument/SSH failures and eight
+  initial PowerShell `$Error` assignment failures remain separate. The accepted
+  lifecycle's host transport reached its 1,200-second wait limit after seven
+  groups; the guest completed the eighth, retained all 96 MDBs and published
+  eight pass receipts, complete worker inventory and exit 0. Its timeout text
+  remains retained. No comparisons were weakened to accept that run.
+- **Verification:** GPT-5.6 Sol high independently reviewed the implementation
+  and native comparisons. `just ready` passes 1,580 test executions with zero
+  failures and ten ignored executions. Root independently compares all 60
+  complete creation/lifecycle snapshot pairs and their 120 read-only file
+  identities. The three portable evaluators reproduce every observation in
+  the frozen native reports. CLI Unicode selection also passes under CP1252
+  and CP1251 without changing its input; this adds no CP1251 writer claim.
+- **Artifacts:** `shared/checks/20260916-schema-name-acceptance`, 2,706-file
+  manifest SHA-256
+  `e787910d51454d7d8d912fb984b011cbf68c689356a7da1dd35189754513dd76`;
+  root report SHA-256
+  `330932b3f1da5d145d2817ade7ca96a19545802be99e632262839ac02fc1f26f`.
+  Native creation report SHA-256
+  `3845d56ad0281ac6c3986501cc4d8d8c0aa82fcb8df3cb7f2925d65af9779908`;
+  lifecycle report SHA-256
+  `cf7e4496f7d4b4402b146c4756985ad7dce4b8d6598242b818be0d8168a5bf9e`.
+  The frozen findings text had a stale source-archive hash; its unchanged text
+  and an additive correction are retained. The accepted reports and final
+  source receipt contain the correct archive hash recorded above.
+- **Limits:** one provider, defined CP1252 names, the stated scalar index and
+  non-cascading Long relationship inventory. Other name encodings, undefined
+  bytes, longer index/relationship names, broader relationship forms and
+  whole-v1 compatibility are not established by these finite comparisons.

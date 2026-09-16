@@ -1,4 +1,5 @@
 //! JSON requests over public row mutation APIs; no storage or publication logic.
+use crate::names::Name;
 use crate::values::{self, Cell};
 use jet3::{
     CatalogObjectClass, ColumnOrdinal, DatabaseReader, ResourceBudget, RowLocator, RowValue,
@@ -15,7 +16,7 @@ pub(crate) const HELP: &str = "\
   jet3-cli mutate <file.mdb> --input <request.json|->
 
 mutate applies one insert, update, replace or delete JSON request through the public API.
-Targets use exact ASCII table names; update/replace/delete require a current page/slot.
+Targets use exact CP1252 table names; update/replace/delete require a current page/slot.
 Callers must exclude concurrent writers. See README.md for current library bounds.
 ";
 #[derive(Debug)]
@@ -46,22 +47,22 @@ pub(crate) fn parse_args(
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
     Insert {
-        table: String,
+        table: Name,
         values: Vec<Option<Cell>>,
     },
     Update {
-        table: String,
+        table: Name,
         row: Locator,
         column: u16,
         #[serde(deserialize_with = "required_value")]
         value: Option<Cell>,
     },
     Delete {
-        table: String,
+        table: Name,
         row: Locator,
     },
     Replace {
-        table: String,
+        table: Name,
         row: Locator,
         values: Vec<Option<Cell>>,
     },
@@ -160,7 +161,7 @@ pub(crate) fn run(command: &MutationCommand) -> Result<String, Failure> {
                 .collect::<Result<Vec<_>, _>>()?;
             (
                 "insert",
-                jet3::insert_row(&command.path, values::ascii(table)?, &values, &mut budget)?,
+                jet3::insert_row(&command.path, table.bytes(), &values, &mut budget)?,
             )
         }
         Request::Update {
@@ -169,7 +170,7 @@ pub(crate) fn run(command: &MutationCommand) -> Result<String, Failure> {
             column,
             value,
         } => {
-            let table = values::ascii(table)?;
+            let table = table.bytes();
             let (locator, column) = resolve(&command.path, table, row, &mut budget, Some(*column))?;
             let value = value.as_ref().map_or(Ok(RowValue::Null), Cell::value)?;
             jet3::update_field(
@@ -185,7 +186,7 @@ pub(crate) fn run(command: &MutationCommand) -> Result<String, Failure> {
             ("update", locator)
         }
         Request::Replace { table, row, values } => {
-            let table = values::ascii(table)?;
+            let table = table.bytes();
             let (locator, _) = resolve(&command.path, table, row, &mut budget, None)?;
             let values = values
                 .iter()
@@ -203,7 +204,7 @@ pub(crate) fn run(command: &MutationCommand) -> Result<String, Failure> {
             ("replace", locator)
         }
         Request::Delete { table, row } => {
-            let table = values::ascii(table)?;
+            let table = table.bytes();
             let (locator, _) = resolve(&command.path, table, row, &mut budget, None)?;
             jet3::delete_row(
                 &command.path,

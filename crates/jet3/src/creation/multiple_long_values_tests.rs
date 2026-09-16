@@ -140,7 +140,12 @@ fn mixed_columns_indexes_and_generated_ids_keep_independent_payloads_and_maps() 
             let start = root.get() as usize * crate::PAGE_BYTES;
             assert_eq!(&original[start + 16..start + 20], &205_i32.to_le_bytes());
         }
-        let first = crate::creation::composer::initial_payload_start(&table, root, !generated)?;
+        let first = crate::creation::composer::initial_payload_start(
+            &table,
+            root,
+            !generated,
+            &mut crate::ResourceBudget::new(crate::ResourceLimits::default()),
+        )?;
         let mut next = first;
         let mut expected_pages = [Vec::new(), Vec::new(), Vec::new()];
         for row in &values {

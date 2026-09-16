@@ -78,6 +78,6 @@ pub(crate) fn ascii(text: &str) -> Result<&[u8], String> {
     if text.is_ascii() {
         Ok(text.as_bytes())
     } else {
-        Err("names and text strings must be ASCII; use byte arrays for encoded text".into())
+        Err("text strings must be ASCII; use byte arrays for encoded text".into())
     }
 }

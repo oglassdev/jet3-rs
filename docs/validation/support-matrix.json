@@ -131,7 +131,11 @@
         "crates/jet3/src/creation/fixed_text_index_tests.rs",
         "crates/jet3/examples/fixed_text_index_candidate.rs",
         "oracle/windows-dao/scripts/fixed_text_index_lifecycle.py",
-        "oracle/windows-dao/scripts/fixed_text_index_lifecycle.ps1"
+        "oracle/windows-dao/scripts/fixed_text_index_lifecycle.ps1",
+        "crates/jet3/src/creation/schema_name_tests.rs",
+        "oracle/windows-dao/acquisition/schema-names.matrix.json",
+        "oracle/windows-dao/scripts/schema_names_prepare.py",
+        "oracle/windows-dao/scripts/schema_names_creation.py"
       ]
     },
     {
@@ -173,7 +177,8 @@
       "evidence": [
         "docs/PROVENANCE.md",
         "crates/jet3/src/text.rs",
-        "crates/jet3/src/text_tests.rs"
+        "crates/jet3/src/text_tests.rs",
+        "crates/jet3-cli/src/names.rs"
       ]
     },
     {
@@ -298,7 +303,9 @@
         "oracle/windows-dao/scripts/query_preservation_lifecycle.ps1",
         "crates/jet3/src/relationship_catalog.rs",
         "crates/jet3/src/creation/composer/relationship_graph_mutation_tests.rs",
-        "oracle/windows-dao/scripts/multiple_relationship_lifecycle.py"
+        "oracle/windows-dao/scripts/multiple_relationship_lifecycle.py",
+        "oracle/windows-dao/scripts/schema_names_lifecycle_prepare.py",
+        "oracle/windows-dao/scripts/schema_names_lifecycle.py"
       ]
     },
     {
@@ -397,7 +404,9 @@
         "oracle/windows-dao/scripts/rich_relationship_prepare.py",
         "crates/jet3/src/relationship_catalog.rs",
         "crates/jet3/src/creation/composer/relationship_graph_mutation_tests.rs",
-        "oracle/windows-dao/scripts/multiple_relationship_lifecycle.py"
+        "oracle/windows-dao/scripts/multiple_relationship_lifecycle.py",
+        "crates/jet3/src/creation/schema_name_tests.rs",
+        "oracle/windows-dao/scripts/schema_names_lifecycle.py"
       ]
     },
     {

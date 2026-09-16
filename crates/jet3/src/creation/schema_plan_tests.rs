@@ -36,7 +36,7 @@ fn spec<'a>(
 
 /// Returns the definition error planning `spec` produced, if it produced one.
 fn definition_error(spec: &TableSpec<'_>) -> Option<TableDefinitionWriteError> {
-    match plan_table_schema(spec, 20, true) {
+    match plan_table_schema(spec, 20, true, &mut budget()) {
         Err(TableSchemaPlanError::Definition(error)) => Some(error),
         _ => None,
     }
@@ -68,7 +68,7 @@ fn long_columns(names: &[Vec<u8>]) -> Vec<ColumnSpec<'_>> {
 fn a_table_without_an_index_appends_a_root_a_map_page_and_a_property_page() -> PlanResult {
     // EXP-0093: three appended pages, Id equal to the root page.
     let columns = [ID, NAME, NOTE];
-    let plan = plan_table_schema(&spec(b"Beta", &columns, &[]), 23, true)?;
+    let plan = plan_table_schema(&spec(b"Beta", &columns, &[]), 23, true, &mut budget())?;
     assert_eq!(plan.object_id(), 23);
     assert_eq!(plan.definition_root(), PageNumber::new(23));
     assert_eq!(plan.map_page(), PageNumber::new(24));
@@ -83,7 +83,7 @@ fn a_later_create_appends_no_property_page() -> PlanResult {
     // EXP-0087: Beta, the second create, appended only its root and map page;
     // Gamma, with one index, appended root, map page, then the index root.
     let columns = [ID, NAME, NOTE];
-    let plan = plan_table_schema(&spec(b"Beta", &columns, &[]), 23, false)?;
+    let plan = plan_table_schema(&spec(b"Beta", &columns, &[]), 23, false, &mut budget())?;
     assert_eq!(plan.object_id(), 23);
     assert_eq!(plan.property_page(), None);
     assert_eq!(plan.appended_page_count(), 2);
@@ -92,7 +92,7 @@ fn a_later_create_appends_no_property_page() -> PlanResult {
         fields: &[key(0)],
         kind: IndexKind::Primary,
     }];
-    let plan = plan_table_schema(&spec(b"Gamma", &[ID], &indexes), 25, false)?;
+    let plan = plan_table_schema(&spec(b"Gamma", &[ID], &indexes), 25, false, &mut budget())?;
     assert_eq!(plan.map_page(), PageNumber::new(26));
     assert_eq!(
         plan.index_placements().collect::<Vec<_>>(),
@@ -106,7 +106,7 @@ fn a_later_create_appends_no_property_page() -> PlanResult {
 fn a_later_create_places_continuations_after_its_map() -> PlanResult {
     let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY + 1);
     let columns = long_columns(&names);
-    let plan = plan_table_schema(&spec(b"Wide", &columns, &[]), 23, false)?;
+    let plan = plan_table_schema(&spec(b"Wide", &columns, &[]), 23, false, &mut budget())?;
     assert_eq!(plan.continuation_page(), Some(PageNumber::new(25)));
     assert_eq!(plan.appended_page_count(), 3);
     Ok(())
@@ -133,7 +133,12 @@ fn later_indexes_have_separate_roots_and_maps_in_physical_order() -> PlanResult 
         },
     ];
     for count in 2..=3 {
-        let plan = plan_table_schema(&spec(b"Beta", &columns, &indexes[..count]), 23, false)?;
+        let plan = plan_table_schema(
+            &spec(b"Beta", &columns, &indexes[..count]),
+            23,
+            false,
+            &mut budget(),
+        )?;
         assert_eq!(plan.property_page(), None);
         assert_eq!(plan.appended_page_count(), 2 + count as u64);
         assert_eq!(
@@ -167,7 +172,7 @@ fn index_roots_follow_the_property_page_in_physical_order() -> PlanResult {
             kind: IndexKind::Ordinary,
         },
     ];
-    let plan = plan_table_schema(&spec(b"Three", &columns, &indexes), 28, true)?;
+    let plan = plan_table_schema(&spec(b"Three", &columns, &indexes), 28, true, &mut budget())?;
     assert_eq!(plan.property_page(), Some(PageNumber::new(30)));
     assert_eq!(
         plan.index_placements().collect::<Vec<_>>(),
@@ -178,7 +183,6 @@ fn index_roots_follow_the_property_page_in_physical_order() -> PlanResult {
         ]
     );
     assert_eq!(plan.appended_page_count(), 6);
-    assert_eq!(logical_index_order(&indexes), [2, 1, 0]);
     Ok(())
 }
 
@@ -201,68 +205,61 @@ fn index_kinds_map_to_the_observed_flag_classes() {
 }
 
 #[test]
-fn index_names_whose_order_depends_on_case_folding_are_refused() {
-    // Byte order puts "Banana" first; case-folded order puts "apple" first.
-    let columns = [ID, LABEL];
-    let indexes = [
-        IndexSpec {
-            name: b"apple",
-            fields: &[key(0)],
-            kind: IndexKind::Ordinary,
-        },
-        IndexSpec {
-            name: b"Banana",
-            fields: &[key(1)],
-            kind: IndexKind::Ordinary,
-        },
-    ];
-    assert_eq!(
-        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20, true),
-        Err(TableSchemaPlanError::UnderdeterminedIndexNameOrder {
-            first: 0,
-            second: 1
-        })
-    );
+fn mixed_case_and_accented_index_names_are_accepted() -> PlanResult {
+    let columns = [ID];
+    let fields = [key(0)];
+    let indexes = [b"ById".as_slice(), b"Z", b"a", b"\xc1", b"\xe6", b"B"].map(|name| IndexSpec {
+        name,
+        fields: &fields,
+        kind: IndexKind::Ordinary,
+    });
+    plan_table_schema(
+        &spec(b"T\xe2ble \xc6", &columns, &indexes),
+        20,
+        true,
+        &mut budget(),
+    )?;
+    Ok(())
 }
 
 #[test]
-fn a_name_byte_above_the_established_range_is_refused() {
-    let columns = [ColumnSpec::new(b"Caf\xe9", ColumnType::Long)];
+fn an_undefined_column_or_index_name_byte_is_refused() {
+    let columns = [ColumnSpec::new(b"Caf\x81", ColumnType::Long)];
     assert_eq!(
-        plan_table_schema(&spec(b"Beta", &columns, &[]), 20, true),
+        plan_table_schema(&spec(b"Beta", &columns, &[]), 20, true, &mut budget()),
         Err(TableSchemaPlanError::NameByteUnestablished {
             role: "column",
             ordinal: 0,
             position: 3,
-            byte: 0xe9,
+            byte: 0x81,
         })
     );
     let columns = [ID];
     let indexes = [IndexSpec {
-        name: b"By\x80",
+        name: b"By\x81",
         fields: &[key(0)],
         kind: IndexKind::Ordinary,
     }];
     assert_eq!(
-        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20, true),
+        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20, true, &mut budget()),
         Err(TableSchemaPlanError::NameByteUnestablished {
             role: "logical index",
             ordinal: 0,
             position: 2,
-            byte: 0x80,
+            byte: 0x81,
         })
     );
 }
 
 #[test]
-fn a_table_name_byte_without_an_established_weight_is_refused() {
+fn an_undefined_table_name_byte_is_refused() {
     let columns = [ID];
     assert_eq!(
-        plan_table_schema(&spec(b"Caf\xe9", &columns, &[]), 20, true),
+        plan_table_schema(&spec(b"Caf\x81", &columns, &[]), 20, true, &mut budget()),
         Err(TableSchemaPlanError::TableNameKey(
             CatalogNameKeyError::UnmappedNameByte {
                 position: 3,
-                byte: 0xe9,
+                byte: 0x81,
             }
         ))
     );
@@ -272,7 +269,7 @@ fn a_table_name_byte_without_an_established_weight_is_refused() {
 fn an_empty_table_name_is_refused() {
     let columns = [ID];
     assert_eq!(
-        plan_table_schema(&spec(b"", &columns, &[]), 20, true),
+        plan_table_schema(&spec(b"", &columns, &[]), 20, true, &mut budget()),
         Err(TableSchemaPlanError::TableNameKey(
             CatalogNameKeyError::EmptyName
         ))
@@ -296,7 +293,7 @@ fn creation_name_limits_cover_table_column_and_index_boundaries() {
                 "column" => spec(b"Items", &named_column, &[]),
                 _ => spec(b"Items", &columns, &indexes),
             };
-            let result = plan_table_schema(&schema, 20, true);
+            let result = plan_table_schema(&schema, 20, true, &mut budget());
             if length == maximum {
                 assert!(result.is_ok(), "{result:?}");
             } else {
@@ -323,7 +320,7 @@ fn an_index_name_too_long_for_the_definition_is_refused() {
         kind: IndexKind::Ordinary,
     }];
     assert!(matches!(
-        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20, true),
+        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20, true, &mut budget()),
         Err(TableSchemaPlanError::NameTooLong {
             role: "logical index",
             length: 256,
@@ -348,8 +345,13 @@ fn index_columns_named_by_name_resolve_to_the_same_ordinals() -> PlanResult {
         fields: &[IndexColumnSpec::descending(1), key(0)],
         kind: IndexKind::Ordinary,
     }];
-    let named = plan_table_schema(&spec(b"Beta", &columns, &by_name), 20, true)?;
-    let ordinal = plan_table_schema(&spec(b"Beta", &columns, &by_ordinal), 20, true)?;
+    let named = plan_table_schema(&spec(b"Beta", &columns, &by_name), 20, true, &mut budget())?;
+    let ordinal = plan_table_schema(
+        &spec(b"Beta", &columns, &by_ordinal),
+        20,
+        true,
+        &mut budget(),
+    )?;
     assert_eq!(named, ordinal);
     assert_eq!(
         named.index_fields().collect::<Vec<_>>(),
@@ -379,7 +381,7 @@ fn an_index_column_name_the_table_lacks_is_refused() {
         kind: IndexKind::Ordinary,
     }];
     assert_eq!(
-        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20, true),
+        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20, true, &mut budget()),
         Err(TableSchemaPlanError::UnknownIndexColumn { index: 0, field: 1 })
     );
 }
@@ -405,7 +407,7 @@ const MANY_COLUMNS: usize = 32;
 #[test]
 fn a_table_without_columns_is_refused() {
     assert_eq!(
-        plan_table_schema(&spec(b"Empty", &[], &[]), 20, true),
+        plan_table_schema(&spec(b"Empty", &[], &[]), 20, true, &mut budget()),
         Err(TableSchemaPlanError::NoColumns)
     );
 }
@@ -456,7 +458,7 @@ fn indexes_beyond_the_native_limit_are_refused() {
         MAX_OBSERVED_INDEXES + 1
     ];
     assert_eq!(
-        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20, true),
+        plan_table_schema(&spec(b"Beta", &columns, &indexes), 20, true, &mut budget()),
         Err(TableSchemaPlanError::UnobservedIndexCount {
             count: MAX_OBSERVED_INDEXES + 1,
             observed: MAX_OBSERVED_INDEXES,
@@ -556,7 +558,7 @@ fn a_first_page_above_the_signed_id_range_is_refused() {
     let columns = [ID];
     let first = i32::MAX as u64 + 1;
     assert_eq!(
-        plan_table_schema(&spec(b"Beta", &columns, &[]), first, true),
+        plan_table_schema(&spec(b"Beta", &columns, &[]), first, true, &mut budget()),
         Err(TableSchemaPlanError::PageOverflow { first, needed: 3 })
     );
 }
@@ -567,10 +569,15 @@ fn a_map_page_no_usage_map_locator_could_name_is_refused() -> PlanResult {
     // run well below the signed Id range.
     let columns = [ID];
     let highest = MAX_MAP_PAGE - 1;
-    let plan = plan_table_schema(&spec(b"Beta", &columns, &[]), highest, true)?;
+    let plan = plan_table_schema(&spec(b"Beta", &columns, &[]), highest, true, &mut budget())?;
     assert_eq!(plan.map_page(), PageNumber::new(MAX_MAP_PAGE));
     assert_eq!(
-        plan_table_schema(&spec(b"Beta", &columns, &[]), highest + 1, true),
+        plan_table_schema(
+            &spec(b"Beta", &columns, &[]),
+            highest + 1,
+            true,
+            &mut budget()
+        ),
         Err(TableSchemaPlanError::MapPageNotAddressable {
             page: MAX_MAP_PAGE + 1,
             maximum: MAX_MAP_PAGE,
@@ -600,7 +607,7 @@ fn continuation_counts_follow_the_established_capacities() {
 fn a_definition_shorter_than_its_root_page_needs_no_continuation() -> PlanResult {
     let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY - 1);
     let columns = long_columns(&names);
-    let plan = plan_table_schema(&spec(b"Wide", &columns, &[]), 20, true)?;
+    let plan = plan_table_schema(&spec(b"Wide", &columns, &[]), 20, true, &mut budget())?;
     assert_eq!(plan.appended_page_count(), 3);
     Ok(())
 }
@@ -611,7 +618,7 @@ fn a_definition_needing_one_continuation_places_it_after_the_property_page() -> 
     // at page 23, directly after the LvProp page, with no index roots.
     let names = names_of_definition_len(DEFINITION_ROOT_CAPACITY + 1);
     let columns = long_columns(&names);
-    let plan = plan_table_schema(&spec(b"Wide", &columns, &[]), 20, true)?;
+    let plan = plan_table_schema(&spec(b"Wide", &columns, &[]), 20, true, &mut budget())?;
     assert_eq!(plan.definition_len(), DEFINITION_ROOT_CAPACITY + 1);
     assert_eq!(plan.property_page(), Some(PageNumber::new(22)));
     assert_eq!(plan.continuation_page(), Some(PageNumber::new(23)));
@@ -619,7 +626,8 @@ fn a_definition_needing_one_continuation_places_it_after_the_property_page() -> 
     let full = names_of_definition_len(DEFINITION_ROOT_CAPACITY + CONTINUATION_CAPACITY);
     let columns = long_columns(&full);
     assert_eq!(
-        plan_table_schema(&spec(b"Wide", &columns, &[]), 20, true)?.appended_page_count(),
+        plan_table_schema(&spec(b"Wide", &columns, &[]), 20, true, &mut budget())?
+            .appended_page_count(),
         5
     );
     Ok(())
@@ -651,8 +659,12 @@ fn definition_chains_precede_index_roots_on_first_and_later_tables() -> PlanResu
         ];
         for first in [false, true] {
             for count in [0, 3] {
-                let plan =
-                    plan_table_schema(&spec(b"Wide", &columns, &indexes[..count]), 20, first)?;
+                let plan = plan_table_schema(
+                    &spec(b"Wide", &columns, &indexes[..count]),
+                    20,
+                    first,
+                    &mut budget(),
+                )?;
                 let fixed = 2 + u64::from(first);
                 let continuation_count = continuation_count(plan.definition_len()) as u64;
                 assert_eq!(
@@ -672,4 +684,25 @@ fn definition_chains_precede_index_roots_on_first_and_later_tables() -> PlanResu
         }
     }
     Ok(())
+}
+
+fn budget() -> crate::ResourceBudget {
+    crate::ResourceBudget::new(crate::ResourceLimits::default())
+}
+
+#[test]
+fn schema_name_comparisons_charge_work_before_scanning() {
+    let columns = [
+        ColumnSpec::new(b"\xc6", ColumnType::Long),
+        ColumnSpec::new(b"AE", ColumnType::Long),
+    ];
+    let mut limited =
+        crate::ResourceBudget::new(crate::ResourceLimits::default().with_max_total_work_units(0));
+    assert!(matches!(
+        plan_table_schema(&spec(b"Items", &columns, &[]), 20, true, &mut limited),
+        Err(TableSchemaPlanError::Resource(
+            crate::Error::ResourceLimitExceeded { .. }
+        ))
+    ));
+    assert_eq!(limited.total_work_units(), 0);
 }

@@ -226,6 +226,7 @@ fn check_relationship_contents(
                 root.get(),
                 position == 0,
                 (position == 0).then_some(relation.name().raw_bytes()),
+                budget,
             )
             .map_err(|error| CandidateCheckError::RowEncoding(ComposeError::Schema(error)))?;
             check_initial_table_rows_from(

@@ -2,7 +2,7 @@ use super::*;
 
 /// Encodes into a fixed buffer and returns the key bytes.
 fn key(parent: i32, name: &[u8]) -> Result<Vec<u8>, CatalogNameKeyError> {
-    let mut buffer = [0_u8; 64];
+    let mut buffer = [0_u8; MAX_CREATION_KEY_BYTES];
     let length = encode_catalog_name_key(parent, name, &mut buffer)?;
     Ok(buffer[..length].to_vec())
 }
@@ -86,19 +86,20 @@ fn negative_parents_sort_below_non_negative_ones() -> Result<(), CatalogNameKeyE
 }
 
 #[test]
-fn a_name_byte_above_the_established_range_is_refused() {
-    // EXP-0087 deliberately derives no weight for these bytes.
+fn extended_names_use_expansions_and_accent_weights() {
+    // EXP-0101/0248: neutral C/A nibbles precede the acute E nibble.
     assert_eq!(
         key(TABLES_ID, b"Caf\xe9"),
-        Err(CatalogNameKeyError::UnmappedNameByte {
-            position: 3,
-            byte: 0xe9,
-        })
+        Ok(b"\x7f\x8f\x00\x00\x01\x7f\x62\x60\x67\x66\x02\x24\x00".to_vec())
     );
+    assert_eq!(key(TABLES_ID, b"Caf\xe9"), key(TABLES_ID, b"CAF\xc9"));
+    assert_eq!(key(TABLES_ID, b"AE"), key(TABLES_ID, b"\xc6"));
+    assert_eq!(key(TABLES_ID, b"ss"), key(TABLES_ID, b"\xdf"));
+    assert_ne!(key(TABLES_ID, b"e"), key(TABLES_ID, b"\xe9"));
 }
 
 #[test]
-fn a_name_byte_access_refuses_in_object_names_has_no_weight() {
+fn forbidden_punctuation_is_refused_before_encoding() {
     for (position, byte) in [b'!', b'.', b'[', b']', b'`'].into_iter().enumerate() {
         assert_eq!(
             key(TABLES_ID, &[b'A', byte]),
@@ -122,7 +123,6 @@ fn a_control_byte_is_refused_rather_than_indexed() {
 #[test]
 fn an_empty_name_is_refused() {
     assert_eq!(key(TABLES_ID, b""), Err(CatalogNameKeyError::EmptyName));
-    assert_eq!(catalog_name_key_len(b""), None);
 }
 
 #[test]
@@ -139,12 +139,20 @@ fn a_short_buffer_is_refused_without_writing_a_partial_key() {
 }
 
 #[test]
-fn every_established_weight_has_a_non_zero_high_nibble() {
-    // EXP-0087's key framing splits the primary section on the first byte whose
-    // high nibble is zero, so no weight may have one.
-    for byte in FIRST_MAPPED_BYTE..=LAST_MAPPED_BYTE {
-        if let Some(weight) = primary_weight(byte) {
-            assert_ne!(weight >> 4, 0, "byte {byte:#04x}");
-        }
+fn undefined_and_overlong_names_preserve_the_output_buffer() {
+    let mut output = [0xa5; MAX_CREATION_KEY_BYTES];
+    for byte in [0x7f, 0x81, 0x8d, 0x8f, 0x90, 0x9d] {
+        assert_eq!(
+            encode_catalog_name_key(TABLES_ID, &[b'A', byte], &mut output),
+            Err(CatalogNameKeyError::UnmappedNameByte { position: 1, byte })
+        );
     }
+    assert_eq!(
+        encode_catalog_name_key(TABLES_ID, &[b'A'; 65], &mut output),
+        Err(CatalogNameKeyError::NameTooLong {
+            length: 65,
+            maximum: 64
+        })
+    );
+    assert_eq!(output, [0xa5; MAX_CREATION_KEY_BYTES]);
 }

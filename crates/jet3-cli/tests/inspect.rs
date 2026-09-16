@@ -122,7 +122,7 @@ fn argument_open_selection_and_input_limit_errors_are_script_friendly() -> Resul
     for args in [
         ["--page", "0", "--rows"].as_slice(),
         ["--table", "Items", "--table", "Other"].as_slice(),
-        ["--table", "é"].as_slice(),
+        ["--table", ""].as_slice(),
     ] {
         let output = inspect(&path, args)?;
         assert_eq!(output.status.code(), Some(2));
@@ -135,6 +135,7 @@ fn argument_open_selection_and_input_limit_errors_are_script_friendly() -> Resul
     for (file, args) in [
         (directory.path().join("missing.mdb"), vec![]),
         (path.clone(), vec!["--table", "Missing"]),
+        (path.clone(), vec!["--table", "é"]),
     ] {
         let output = inspect(&file, &args)?;
         assert_eq!(output.status.code(), Some(1));

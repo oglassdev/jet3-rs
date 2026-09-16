@@ -160,7 +160,7 @@ fn missing_references_wrong_types_and_unsupported_indexes_are_refused() {
 #[test]
 fn name_collisions_and_unsupported_name_bytes_are_refused() {
     let (mut tables, mut spec) = renamed(false);
-    spec.name = b"Link\xff";
+    spec.name = b"Link\x81";
     assert!(matches!(
         compose_relationship(&tables, &spec, &mut budget()),
         Err(ComposeError::NameKey(_))

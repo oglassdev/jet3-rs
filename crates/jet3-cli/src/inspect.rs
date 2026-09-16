@@ -14,7 +14,7 @@ use jet3::{
 use serde_json::{Value, json};
 
 pub(crate) const HELP: &str = "\
-  jet3-cli inspect <file> [--table <ASCII-name>] [--rows] [--code-page 1252|1251]
+  jet3-cli inspect <file> [--table <name>] [--rows] [--code-page 1252|1251]
   jet3-cli inspect <file> --page <number> [--hex]
 
 inspect classifies every page, lists catalog records, decodes every
@@ -69,7 +69,7 @@ pub(crate) fn parse_args(
             let value = arguments.next().ok_or("missing_option_value")?;
             let text = value
                 .to_str()
-                .filter(|text| !text.is_empty() && text.is_ascii())
+                .filter(|text| !text.is_empty())
                 .ok_or("invalid_table_name")?;
             command.table = Some(text.to_owned());
         } else if option == "--code-page" {
@@ -190,7 +190,7 @@ fn inspect_database(
             "kind": format!("{:?}", record.kind()),
             "class": format!("{:?}", record.class()),
             "raw_flags": record.raw_flags(),
-            "name": name_json(record.name().decoded_ascii(), record.name().raw_bytes()),
+            "name": name_json(record.name().raw_bytes(), command.code_page),
             "table_definition": record.table_definition().map(PageNumber::get),
         }));
     }
@@ -204,17 +204,12 @@ fn inspect_database(
         if command
             .table
             .as_ref()
-            .is_some_and(|name| name.as_bytes() != raw_name)
+            .is_some_and(|name| decoded_name(raw_name, command.code_page).as_ref() != Some(name))
         {
             continue;
         }
         selected = true;
-        let name = name_json(
-            std::str::from_utf8(raw_name)
-                .ok()
-                .filter(|name| name.is_ascii()),
-            raw_name,
-        );
+        let name = name_json(raw_name, command.code_page);
 
         let definition = match database.table_definition(PageNumber::new(root), budget) {
             Ok(definition) => definition,
@@ -226,7 +221,7 @@ fn inspect_database(
                 continue;
             }
         };
-        let mut entry = definition_json(&definition);
+        let mut entry = definition_json(&definition, command.code_page);
         entry["name"] = name;
         entry["owned_pages"] = owned_pages_json(database, budget, root, &mut issues);
         if command.rows {
@@ -261,8 +256,15 @@ fn inspect_database(
     }))
 }
 
-fn name_json(decoded: Option<&str>, raw: &[u8]) -> Value {
-    match decoded {
+fn decoded_name(raw: &[u8], code_page: TextCodePage) -> Option<String> {
+    code_page
+        .decode(raw, &mut crate::values::budget())
+        .ok()
+        .map(|decoded| decoded.as_str().to_owned())
+}
+
+fn name_json(raw: &[u8], code_page: TextCodePage) -> Value {
+    match decoded_name(raw, code_page) {
         Some(text) => json!(text),
         None => json!({"raw_hex": hex_string(raw)}),
     }
@@ -275,7 +277,7 @@ fn hex_string(bytes: &[u8]) -> String {
     })
 }
 
-fn definition_json(definition: &TableDefinition) -> Value {
+fn definition_json(definition: &TableDefinition, code_page: TextCodePage) -> Value {
     let maps = definition.maps();
     let columns: Vec<Value> = definition
         .columns()
@@ -283,7 +285,7 @@ fn definition_json(definition: &TableDefinition) -> Value {
         .map(|column| {
             json!({
                 "ordinal": column.ordinal().get(),
-                "name": name_json(column.name().decoded_ascii(), column.name().raw_bytes()),
+                "name": name_json(column.name().raw_bytes(), code_page),
                 "physical_type": format!("{:?}", column.physical_type()),
                 "storage": format!("{:?}", column.storage()),
                 "size": column.size(),
@@ -324,7 +326,7 @@ fn definition_json(definition: &TableDefinition) -> Value {
         .iter()
         .map(|index| {
             json!({
-                "name": name_json(index.name().decoded_ascii(), index.name().raw_bytes()),
+                "name": name_json(index.name().raw_bytes(), code_page),
                 "physical_index": index.physical_index(),
                 "kind": format!("{:?}", index.kind()),
                 "raw_record": hex_string(index.raw_record()),
@@ -418,10 +420,8 @@ fn rows_json(
         };
         let mut fields = serde_json::Map::new();
         for column in definition.columns() {
-            let key = column
-                .name()
-                .decoded_ascii()
-                .map_or_else(|| hex_string(column.name().raw_bytes()), str::to_owned);
+            let key = decoded_name(column.name().raw_bytes(), code_page)
+                .unwrap_or_else(|| hex_string(column.name().raw_bytes()));
             let value = match row.value(column.ordinal(), code_page) {
                 Ok(Some(decoded)) => value_json(decoded.kind(), decoded.raw_bytes()),
                 Ok(None) => Value::Null,
@@ -455,5 +455,34 @@ fn value_json(kind: &ValueKind<'_>, raw: Option<&[u8]>) -> Value {
             "kind": format!("{kind:?}"),
             "raw_hex": raw.map(hex_string),
         }),
+    }
+}
+
+#[cfg(test)]
+mod name_tests {
+    use super::{TextCodePage, decoded_name, json, name_json};
+
+    #[test]
+    fn metadata_names_use_the_selected_code_page_and_retain_undefined_bytes() {
+        assert_eq!(
+            name_json(b"Caf\xe9", TextCodePage::Windows1252),
+            json!("Café")
+        );
+        assert_eq!(
+            name_json(b"\xc0\xff", TextCodePage::Windows1251),
+            json!("Ая")
+        );
+        assert_eq!(
+            decoded_name(b"\xc0\xff", TextCodePage::Windows1251).as_deref(),
+            Some("Ая")
+        );
+        assert_ne!(
+            decoded_name(b"\xc0\xff", TextCodePage::Windows1252).as_deref(),
+            Some("Ая")
+        );
+        assert_eq!(
+            name_json(b"A\x81", TextCodePage::Windows1252),
+            json!({"raw_hex": "4181"})
+        );
     }
 }

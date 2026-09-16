@@ -35,8 +35,10 @@ pub(crate) fn initial_payload_start(
     table: &TableSpec<'_>,
     root: PageNumber,
     first_create: bool,
+    budget: &mut ResourceBudget,
 ) -> Result<u64, ComposeError> {
-    let plan = crate::creation::schema_plan::plan_table_schema(table, root.get(), first_create)?;
+    let plan =
+        crate::creation::schema_plan::plan_table_schema(table, root.get(), first_create, budget)?;
     Ok(root.get() + plan.appended_page_count())
 }
 

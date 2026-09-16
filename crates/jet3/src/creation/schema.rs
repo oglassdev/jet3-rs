@@ -75,7 +75,7 @@ impl<'a> IndexColumnSpec<'a> {
 /// One index of a [`TableSpec`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IndexSpec<'a> {
-    /// Index name; bytes must be at most `0x7E`.
+    /// Index name encoded in Windows-1252, at most 63 bytes.
     pub name: &'a [u8],
     /// Ordered key columns.
     pub fields: &'a [IndexColumnSpec<'a>],
@@ -86,11 +86,11 @@ pub struct IndexSpec<'a> {
 /// One user table to create.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableSpec<'a> {
-    /// Table name; bytes must be at most `0x7E`.
+    /// Table name encoded in Windows-1252, at most 64 bytes.
     pub name: &'a [u8],
     /// The table's columns in ordinal order.
     pub columns: &'a [ColumnSpec<'a>],
-    /// The table's indexes in physical (append) order; at most three.
+    /// The table's indexes in physical (append) order; at most 32.
     pub indexes: &'a [IndexSpec<'a>],
 }
 

@@ -59,7 +59,7 @@ compatibility claim. No separate output configuration is required.
 
 Creation packs tables with multi-page system catalogs and catalog indexes
 with inline and indirect allocation maps. Table and column names admit
-64 ASCII bytes and index names admit 63. Table definitions may
+64 Windows-1252 bytes and index names admit 63. Table definitions may
 span linked pages on first and later tables, including populated and indexed
 schemas. It supports multi-page initial rows, explicit/generated AutoIncrement
 IDs, and up to 32 scalar indexes per table, including Date, Binary, fixed/variable
@@ -79,8 +79,13 @@ independent Memo/OLE maps and definition/property chains. The singular APIs
 retain their two-ordered-table bounds. Other key types, cascades and larger
 relationship graphs remain outside creation scope.
 
-Schema/name combinations, index key types and relationship forms remain
-restricted. Empty OLE payloads store null. Text/Memo columns can independently
+Schema names use defined Windows-1252 bytes and the observed English-US
+collation for ordering and duplicate detection. Stored names retain their exact
+bytes, including accepted whitespace; the CLI converts Unicode names strictly
+to CP1252. Unsupported controls, leading ASCII spaces and `. ! [ ]` or backtick
+are refused. Relationship names share the 63-byte usable index-name limit.
+Other name encodings, index key types and relationship forms remain restricted.
+Empty OLE payloads store null. Text/Memo columns can independently
 allow present-empty values, including later indexed tables and chained column
 properties. Fixed Text retains its exact-width input contract. Existing-table schema changes and
 table/relationship dropping are absent. EXP-0239 adds explicit, negative and
@@ -124,6 +129,15 @@ two replicas, each with native insertions on both outputs. These include
 128/255/256 tables and 64-byte table/column names with 63-byte index names.
 Complete schema, values, traversal/Seek, catalog rows and physical indexes
 match. Native catalog overflow rows retain their logical index locators.
+
+EXP-0277/0278 establish CP1252 name ordering, collisions, whitespace and byte
+boundaries. Twelve creation pairs and 48 mutation pairs cover accented names,
+column properties, a Long relationship, seeded catalogs and all 32 indexes.
+Complete values, schema, traversal/Seek, physical keys, allocation and preserved
+system storage agree. Eight constraint refusals preserve the Rust inputs;
+57 CLI name refusals create no output. The seeded writers may choose different
+object IDs and catalog row locators while storing equal catalog key bytes.
+Other name encodings and relationship forms remain separate work.
 
 ### Updates
 

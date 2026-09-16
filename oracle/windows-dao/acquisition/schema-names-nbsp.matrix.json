@@ -1,0 +1,49 @@
+{
+  "accepted": [],
+  "document_type": "cp1252_nbsp_boundary_control",
+  "probes": [
+    {
+      "id": "table-leading-nbsp",
+      "names": [
+        " lead"
+      ],
+      "role": "table"
+    },
+    {
+      "id": "table-trailing-nbsp",
+      "names": [
+        "trail "
+      ],
+      "role": "table"
+    },
+    {
+      "id": "column-leading-nbsp",
+      "names": [
+        " lead"
+      ],
+      "role": "column"
+    },
+    {
+      "id": "column-trailing-nbsp",
+      "names": [
+        "trail "
+      ],
+      "role": "column"
+    },
+    {
+      "id": "index-leading-nbsp",
+      "names": [
+        " lead"
+      ],
+      "role": "index"
+    },
+    {
+      "id": "index-trailing-nbsp",
+      "names": [
+        "trail "
+      ],
+      "role": "index"
+    }
+  ],
+  "replicas": 2
+}

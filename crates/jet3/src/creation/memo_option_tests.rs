@@ -40,7 +40,7 @@ fn memo_property_encoder_matches_observed_named_block() -> Result<(), Box<dyn St
             .encode(&mut output, &mut ResourceBudget::new(limited))
             .is_err()
     );
-    for invalid in [b"".as_slice(), &[b'x'; 65], &[0xff]] {
+    for invalid in [b"".as_slice(), &[b'x'; 65], &[0x81]] {
         let fields = columns(invalid);
         assert!(crate::column_properties::ColumnProperties::new(&fields).is_none());
     }

@@ -38,7 +38,9 @@
 
 use std::fmt;
 
-use crate::catalog_name_key::{CatalogNameKeyError, validate_catalog_name};
+use crate::catalog_name_key::{
+    CatalogNameKeyError, catalog_names_equal, supported_name_byte, validate_catalog_name,
+};
 use crate::catalog_record_writer::{CatalogRecordWriteError, catalog_record_len};
 use crate::column_definition_writer::{KEY_SLOT_COUNT, PhysicalIndexSpec, validate_physical_index};
 use crate::page_image::PAGE_BYTES;
@@ -62,19 +64,18 @@ pub(crate) const DEFINITION_ROOT_CAPACITY: usize = PAGE_BYTES;
 /// `EXP-0059`, `EXP-0105`: logical definition bytes one continuation holds,
 /// after its four-byte prefix and four-byte next-page reference.
 pub(crate) const CONTINUATION_CAPACITY: usize = PAGE_BYTES - 8;
-/// `EXP-0087`: highest name byte with an established catalog-key weight.
-/// `EXP-0101` is bounded and does not widen this.
-const LAST_ESTABLISHED_NAME_BYTE: u8 = 0x7e;
 
+pub(crate) use super::{ColumnRef, TableSpec};
 #[cfg(test)]
-pub(crate) use super::IndexKind;
-pub(crate) use super::{ColumnRef, IndexSpec, TableSpec};
+pub(crate) use super::{IndexKind, IndexSpec};
 #[cfg(test)]
 use crate::ColumnSpec;
 
 /// Structured failure while planning one new user table.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TableSchemaPlanError {
+    /// The shared work budget is exhausted.
+    Resource(crate::Error),
     /// The table name cannot be encoded into a catalog index key.
     TableNameKey(CatalogNameKeyError),
     /// The table name cannot be encoded into an `MSysObjects` row.
@@ -99,8 +100,7 @@ pub enum TableSchemaPlanError {
         /// Position of the key within the index.
         field: usize,
     },
-    /// A column or index name holds a byte above the range `EXP-0087`
-    /// established weights for.
+    /// A column or index name contains a byte outside the supported grammar.
     NameByteUnestablished {
         /// `"column"` or `"logical index"`.
         role: &'static str,
@@ -125,14 +125,6 @@ pub enum TableSchemaPlanError {
         /// Position of the earlier primary index.
         first: usize,
         /// Position of the later primary index.
-        second: usize,
-    },
-    /// Two index names order differently by byte value and by ASCII
-    /// case-folded value, so their observed name order is underdetermined.
-    UnderdeterminedIndexNameOrder {
-        /// Position of one index.
-        first: usize,
-        /// Position of the other index.
         second: usize,
     },
     /// The appended pages do not fit the addressable page space.
@@ -160,6 +152,7 @@ impl fmt::Display for TableSchemaPlanError {
 impl std::error::Error for TableSchemaPlanError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::Resource(source) => Some(source),
             Self::TableNameKey(source) => Some(source),
             Self::TableNameRow(source) => Some(source),
             Self::Definition(source) => Some(source),
@@ -281,8 +274,9 @@ pub(crate) fn plan_table_schema(
     spec: &TableSpec<'_>,
     first_page: u64,
     first_create: bool,
+    budget: &mut crate::ResourceBudget,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
-    plan_table_schema_with_logical_index(spec, first_page, first_create, None)
+    plan_table_schema_with_logical_index(spec, first_page, first_create, None, budget)
 }
 
 /// Adds the EXP-0059/0268 parent relationship record before assigning pages.
@@ -291,8 +285,15 @@ pub(crate) fn plan_table_schema_with_logical_index(
     first_page: u64,
     first_create: bool,
     extra_name: Option<&[u8]>,
+    budget: &mut crate::ResourceBudget,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
-    plan_table_schema_with_logical_names(spec, first_page, first_create, extra_name.as_slice())
+    plan_table_schema_with_logical_names(
+        spec,
+        first_page,
+        first_create,
+        extra_name.as_slice(),
+        budget,
+    )
 }
 
 /// EXP-0273: distinct relationship records can share a physical index.
@@ -301,14 +302,38 @@ pub(crate) fn plan_table_schema_with_logical_names(
     first_page: u64,
     first_create: bool,
     extra_names: &[&[u8]],
+    budget: &mut crate::ResourceBudget,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
+    budget
+        .charge_work_units(
+            (spec.columns.len().min(255) as u64)
+                .saturating_add(spec.indexes.len().min(32) as u64)
+                .saturating_add(extra_names.len() as u64)
+                .saturating_mul(512),
+        )
+        .map_err(TableSchemaPlanError::Resource)?;
     validate_table_name(spec.name)?;
     if spec.columns.is_empty() {
         return Err(TableSchemaPlanError::NoColumns);
     }
+    if spec.columns.len() > usize::from(u8::MAX) {
+        return Err(TableSchemaPlanError::Definition(
+            TableDefinitionWriteError::TooManyColumns {
+                count: spec.columns.len(),
+                maximum: usize::from(u8::MAX),
+            },
+        ));
+    }
     for (ordinal, column) in spec.columns.iter().enumerate() {
         validate_name_length("column", column.name(), 64)?;
         validate_name_bytes("column", ordinal, column.name())?;
+        validate_distinct_name(
+            "column",
+            ordinal,
+            column.name(),
+            spec.columns[..ordinal].iter().map(|c| c.name()),
+            budget,
+        )?;
     }
     validate_column_layout(spec.columns, TableDefinitionKind::User, &[])
         .map_err(TableSchemaPlanError::Definition)?;
@@ -330,7 +355,9 @@ pub(crate) fn plan_table_schema_with_logical_names(
     for (position, &name) in extra_names.iter().enumerate() {
         let ordinal = spec.indexes.len() + position;
         validate_name_length("logical index", name, 63)?;
-        validate_name_bytes("logical index", ordinal, name)?;
+        if !matches!(name, [b'.', b'r', b'A'..=b'Z']) {
+            validate_name_bytes("logical index", ordinal, name)?;
+        }
         let prior = spec
             .indexes
             .iter()
@@ -338,19 +365,12 @@ pub(crate) fn plan_table_schema_with_logical_names(
             .chain(extra_names[..position].iter().copied());
         validate_name("logical index", ordinal as u16, name, prior.clone())
             .map_err(TableSchemaPlanError::Definition)?;
-        for (first, earlier) in prior.enumerate() {
-            if earlier.cmp(name) != case_folded(earlier).cmp(case_folded(name)) {
-                return Err(TableSchemaPlanError::UnderdeterminedIndexNameOrder {
-                    first,
-                    second: ordinal,
-                });
-            }
-        }
+        validate_distinct_name("logical index", ordinal, name, prior.clone(), budget)?;
     }
     let length = measure_definition(spec, extra_names)?;
     let index_fields = resolve_index_fields(spec)?;
     let plan = assign_pages(spec, first_page, first_create, length, index_fields)?;
-    validate_indexes(spec, &plan)?;
+    validate_indexes(spec, &plan, budget)?;
     Ok(plan)
 }
 
@@ -420,16 +440,15 @@ fn validate_name_length(
     Ok(())
 }
 
-/// Refuses name bytes outside the range `EXP-0087` established.
+/// EXP-0277: object names share the defined CP1252 grammar and reject leading spaces.
 fn validate_name_bytes(
     role: &'static str,
     ordinal: usize,
     name: &[u8],
 ) -> Result<(), TableSchemaPlanError> {
-    match name
-        .iter()
-        .position(|byte| *byte > LAST_ESTABLISHED_NAME_BYTE)
-    {
+    match name.iter().enumerate().position(|(position, byte)| {
+        !supported_name_byte(*byte) || (position == 0 && *byte == b' ')
+    }) {
         Some(position) => Err(TableSchemaPlanError::NameByteUnestablished {
             role,
             ordinal,
@@ -438,6 +457,44 @@ fn validate_name_bytes(
         }),
         None => Ok(()),
     }
+}
+
+fn validate_distinct_name<'a>(
+    role: &'static str,
+    ordinal: usize,
+    name: &[u8],
+    earlier: impl Iterator<Item = &'a [u8]>,
+    budget: &mut crate::ResourceBudget,
+) -> Result<(), TableSchemaPlanError> {
+    for other in earlier {
+        if other.len() > 64 {
+            continue;
+        }
+        budget
+            .charge_work_units(((name.len().min(64) + other.len().min(64)) as u64) * 2 + 1)
+            .map_err(TableSchemaPlanError::Resource)?;
+        let equal = if name.is_ascii()
+            && other.is_ascii()
+            && !name.ends_with(b" ")
+            && !other.ends_with(b" ")
+        {
+            name.eq_ignore_ascii_case(other)
+        } else {
+            budget
+                .charge_work_units(512)
+                .map_err(TableSchemaPlanError::Resource)?;
+            catalog_names_equal(other, name)
+        };
+        if equal {
+            return Err(TableSchemaPlanError::Definition(
+                TableDefinitionWriteError::DuplicateName {
+                    role,
+                    ordinal: ordinal as u16,
+                },
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Returns the exact logical length of the definition `spec` encodes to.
@@ -536,11 +593,11 @@ fn assign_pages(
     })
 }
 
-/// Checks each index against the physical-index encoder, the primary count,
-/// and the name-order rule the logical records will follow.
+/// Checks each index against the physical-index encoder and the primary count.
 fn validate_indexes(
     spec: &TableSpec<'_>,
     plan: &TableSchemaPlan,
+    budget: &mut crate::ResourceBudget,
 ) -> Result<(), TableSchemaPlanError> {
     let mut primary: Option<usize> = None;
     for ((position, planned), fields) in spec.indexes.iter().enumerate().zip(plan.index_fields()) {
@@ -548,6 +605,13 @@ fn validate_indexes(
         // EXP-0249: native 64-byte index names fail Seek; 63 passed.
         validate_name_length("logical index", planned.name, 63)?;
         validate_name_bytes("logical index", position, planned.name)?;
+        validate_distinct_name(
+            "logical index",
+            position,
+            planned.name,
+            spec.indexes[..position].iter().map(|earlier| earlier.name),
+            budget,
+        )?;
         validate_name(
             "logical index",
             ordinal,
@@ -584,33 +648,8 @@ fn validate_indexes(
                 second: position,
             });
         }
-        for (earlier, other) in spec.indexes[..position].iter().enumerate() {
-            if other.name.cmp(planned.name)
-                != case_folded(other.name).cmp(case_folded(planned.name))
-            {
-                return Err(TableSchemaPlanError::UnderdeterminedIndexNameOrder {
-                    first: earlier,
-                    second: position,
-                });
-            }
-        }
     }
     Ok(())
-}
-
-/// Returns the logical (name-ordered) positions of `indexes` as physical
-/// ordinals, the order `EXP-0093` observed logical records to take.
-///
-/// Names are compared by byte value; the planner has already refused pairs
-/// whose byte order and ASCII case-folded order disagree.
-pub(crate) fn logical_index_order(indexes: &[IndexSpec<'_>]) -> Vec<usize> {
-    let mut order: Vec<usize> = (0..indexes.len()).collect();
-    order.sort_by(|left, right| indexes[*left].name.cmp(indexes[*right].name));
-    order
-}
-
-fn case_folded(name: &[u8]) -> impl Iterator<Item = u8> + '_ {
-    name.iter().map(u8::to_ascii_lowercase)
 }
 
 #[cfg(test)]

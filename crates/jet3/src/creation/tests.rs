@@ -202,7 +202,7 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
         kind: IndexKind::Ordinary,
     }];
     let indexed_memo = [NOTE];
-    let high_byte = [ColumnSpec::new(b"Caf\xe9", ColumnType::Long)];
+    let undefined_byte = [ColumnSpec::new(b"Caf\x81", ColumnType::Long)];
     let cases: [(TableSpec<'_>, Accepts); 2] = [
         (
             TableSpec {
@@ -220,14 +220,14 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
         (
             TableSpec {
                 name: b"Accent",
-                columns: &high_byte,
+                columns: &undefined_byte,
                 indexes: &[],
             },
             |error| {
                 matches!(
                     error,
                     ComposeError::Schema(TableSchemaPlanError::NameByteUnestablished {
-                        byte: 0xe9,
+                        byte: 0x81,
                         ..
                     })
                 )
@@ -359,3 +359,6 @@ mod wide_variable;
 
 #[path = "determinism_tests.rs"]
 mod determinism;
+
+#[path = "schema_name_tests.rs"]
+mod schema_names;

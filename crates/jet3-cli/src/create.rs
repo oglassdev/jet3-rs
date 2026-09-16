@@ -1,7 +1,8 @@
 //! JSON input translation for the public database creation APIs.
 use std::{ffi::OsString, num::NonZeroU8, path::PathBuf};
 
-use crate::values::{self, Cell, ascii};
+use crate::names::Name;
+use crate::values::{self, Cell};
 use jet3::{
     ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
     RelationshipColumn, RelationshipSpec, RowValue, TableRef, TableRows, TableSpec,
@@ -56,7 +57,7 @@ struct Request {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Table {
-    name: String,
+    name: Name,
     columns: Vec<Column>,
     #[serde(default)]
     indexes: Vec<Index>,
@@ -67,7 +68,7 @@ struct Table {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Column {
-    name: String,
+    name: Name,
     #[serde(rename = "type")]
     kind: Kind,
     size: Option<NonZeroU8>,
@@ -128,7 +129,7 @@ impl Column {
             Kind::Memo => ColumnType::Memo,
             Kind::LongBinary => ColumnType::LongBinary,
         };
-        let spec = ColumnSpec::new(ascii(&self.name)?, kind);
+        let spec = ColumnSpec::new(self.name.bytes(), kind);
         Ok(if self.allow_zero_length {
             spec.with_allow_zero_length()
         } else {
@@ -140,7 +141,7 @@ impl Column {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Index {
-    name: String,
+    name: Name,
     kind: KeyKind,
     fields: Vec<IndexField>,
 }
@@ -156,7 +157,7 @@ enum KeyKind {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct IndexField {
-    column: String,
+    column: Name,
     #[serde(default)]
     direction: Direction,
 }
@@ -172,7 +173,7 @@ enum Direction {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Relation {
-    name: String,
+    name: Name,
     parent: Endpoint,
     child: Endpoint,
 }
@@ -180,26 +181,26 @@ struct Relation {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Endpoint {
-    table: String,
-    column: String,
+    table: Name,
+    column: Name,
 }
 
 impl Relation {
-    fn spec(&self) -> Result<RelationshipSpec<'_>, String> {
-        Ok(RelationshipSpec {
-            name: ascii(&self.name)?,
-            parent: self.parent.spec()?,
-            child: self.child.spec()?,
-        })
+    fn spec(&self) -> RelationshipSpec<'_> {
+        RelationshipSpec {
+            name: self.name.bytes(),
+            parent: self.parent.spec(),
+            child: self.child.spec(),
+        }
     }
 }
 
 impl Endpoint {
-    fn spec(&self) -> Result<RelationshipColumn<'_>, String> {
-        Ok(RelationshipColumn {
-            table: TableRef::Name(ascii(&self.table)?),
-            column: ColumnRef::Name(ascii(&self.column)?),
-        })
+    fn spec(&self) -> RelationshipColumn<'_> {
+        RelationshipColumn {
+            table: TableRef::Name(self.table.bytes()),
+            column: ColumnRef::Name(self.column.bytes()),
+        }
     }
 }
 
@@ -224,20 +225,18 @@ pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
                     index
                         .fields
                         .iter()
-                        .map(|field| {
-                            Ok(IndexColumnSpec {
-                                column: ColumnRef::Name(ascii(&field.column)?),
-                                direction: match field.direction {
-                                    Direction::Ascending => IndexDirection::Ascending,
-                                    Direction::Descending => IndexDirection::Descending,
-                                },
-                            })
+                        .map(|field| IndexColumnSpec {
+                            column: ColumnRef::Name(field.column.bytes()),
+                            direction: match field.direction {
+                                Direction::Ascending => IndexDirection::Ascending,
+                                Direction::Descending => IndexDirection::Descending,
+                            },
                         })
-                        .collect::<Result<Vec<_>, String>>()
+                        .collect::<Vec<_>>()
                 })
-                .collect()
+                .collect::<Vec<_>>()
         })
-        .collect::<Result<Vec<Vec<_>>, String>>()?;
+        .collect::<Vec<_>>();
     let indexes = request
         .tables
         .iter()
@@ -247,20 +246,18 @@ pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
                 .indexes
                 .iter()
                 .zip(fields)
-                .map(|(index, fields)| {
-                    Ok(IndexSpec {
-                        name: ascii(&index.name)?,
-                        fields,
-                        kind: match index.kind {
-                            KeyKind::Primary => IndexKind::Primary,
-                            KeyKind::Unique => IndexKind::Unique,
-                            KeyKind::Ordinary => IndexKind::Ordinary,
-                        },
-                    })
+                .map(|(index, fields)| IndexSpec {
+                    name: index.name.bytes(),
+                    fields,
+                    kind: match index.kind {
+                        KeyKind::Primary => IndexKind::Primary,
+                        KeyKind::Unique => IndexKind::Unique,
+                        KeyKind::Ordinary => IndexKind::Ordinary,
+                    },
                 })
-                .collect()
+                .collect::<Vec<_>>()
         })
-        .collect::<Result<Vec<Vec<_>>, String>>()?;
+        .collect::<Vec<_>>();
     let rows = request
         .tables
         .iter()
@@ -284,25 +281,20 @@ pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
         .tables
         .iter()
         .enumerate()
-        .map(|(n, table)| {
-            Ok(TableRows {
-                table: TableSpec {
-                    name: ascii(&table.name)?,
-                    columns: &columns[n],
-                    indexes: &indexes[n],
-                },
-                rows: &slices[n],
-            })
+        .map(|(n, table)| TableRows {
+            table: TableSpec {
+                name: table.name.bytes(),
+                columns: &columns[n],
+                indexes: &indexes[n],
+            },
+            rows: &slices[n],
         })
-        .collect::<Result<Vec<_>, String>>()?;
+        .collect::<Vec<_>>();
     let mut budget = values::budget();
     let empty = tables.iter().all(|table| table.rows.is_empty());
     let schema = tables.iter().map(|table| table.table).collect::<Vec<_>>();
     if let Some(relations) = &request.relationships {
-        let relationships = relations
-            .iter()
-            .map(Relation::spec)
-            .collect::<Result<Vec<_>, _>>()?;
+        let relationships = relations.iter().map(Relation::spec).collect::<Vec<_>>();
         if empty {
             create_database_with_relationships(
                 &command.output,
@@ -319,7 +311,7 @@ pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
             )
         }
     } else if let Some(relation) = &request.relationship {
-        let relationship = relation.spec()?;
+        let relationship = relation.spec();
         if empty {
             create_database_with_relationship(&command.output, &schema, &relationship, &mut budget)
         } else {

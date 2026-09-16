@@ -50,7 +50,12 @@ fn exact_definition_boundaries_reassemble_without_padding_or_missing_columns() -
             table: spec,
             rows: &[&row],
         }])?;
-        let plan = plan_table_schema(&spec, 20, true)?;
+        let plan = plan_table_schema(
+            &spec,
+            20,
+            true,
+            &mut crate::ResourceBudget::new(crate::ResourceLimits::default()),
+        )?;
         assert_eq!(plan.definition_len(), length);
         let mut logical = data[20 * PAGE_BYTES..21 * PAGE_BYTES].to_vec();
         let mut next = u32::from_le_bytes(logical[4..8].try_into()?);
@@ -140,7 +145,12 @@ fn later_generated_rows_and_payloads_follow_three_indexed_definition_continuatio
         columns: &columns,
         indexes: &indexes,
     };
-    let plan = plan_table_schema(&spec, 23, false)?;
+    let plan = plan_table_schema(
+        &spec,
+        23,
+        false,
+        &mut crate::ResourceBudget::new(crate::ResourceLimits::default()),
+    )?;
     assert_eq!(
         crate::creation::schema_plan::continuation_count(plan.definition_len()),
         3
