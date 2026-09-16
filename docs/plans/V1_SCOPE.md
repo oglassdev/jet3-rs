@@ -93,10 +93,10 @@ allow present-empty values, including later indexed tables and chained column
 properties. Required column constraints are encoded and enforced on initial rows,
 insertion and replacement, including Boolean and AutoIncrement exceptions and
 empty Binary/OLE normalization. Read-only validation checks Required nulls and
-named Boolean property framing. Native facts are EXP-0283; differential
-acceptance of this implementation remains pending. Fixed Text retains its
-exact-width input contract. Creation persists disabled empty-value properties;
-legacy mutation/validation with absent or partial properties still needs the
+named Boolean property framing. EXP-0283/0284 cover native discovery and
+72 creation plus 204 mutation comparisons, including 70 expected refusals.
+Fixed Text retains its exact-width input contract. Creation persists disabled empty-value properties;
+legacy mutation with absent or partial properties still needs the
 follow-up recorded in EXP-0284. Existing-table schema changes and
 table/relationship dropping are absent. EXP-0239 adds explicit, negative and
 wrapping AutoIncrement IDs to the finite writer comparisons.

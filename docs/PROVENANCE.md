@@ -18550,3 +18550,61 @@ and postimage `511774b3ba70616a42a48c000630aec69a45144b504d4b85186a17a617379f4f`
 The writer fix persists explicit false for variable Text, FixedText and Memo.
 Legacy mutation/validation of absent or partially present properties remains a
 separate limitation; the tested absence result covers variable Text and Memo.
+
+Read-only validation already accepts both retained native empty Text/Memo
+postimages above: the `43e8d80` CLI validates each successfully. Validation
+checks Required nulls and property framing, not AllowZeroLength enforcement
+on stored values. The proven legacy-file mismatch is therefore mutation
+refusal when AllowZeroLength is absent; it is not a demonstrated read-only
+validation failure.
+
+### Accepted corrected Required comparison
+
+Run `20260916T070405Z-required-column-acceptance-r2` uses production source
+`43e8d8088d4a24a207a1b763899e6f8a982b8e4d` and the EXP-0283 provider.
+All 36 schemas pass: 72 independent creation pairs and 204 mutation pairs
+(134 successes and 70 expected refusals), comprising 552 closed MDB captures.
+The corrected GUID adapter supplies display-order bytes. Text, FixedText and
+Memo creation emits explicit Required/AllowZeroLength properties even when
+both are false. All non-Auto mutations start from the same one-row input for
+Rust and DAO; Auto mutation comparisons are excluded for the failed-insert
+counter behavior recorded in EXP-0283. FixedText uses the documented
+exact-width input adapter. Payload columns are not indexed; Id is an ordinary
+Long primary key. All 15 exposed column kinds are covered in creation.
+
+The evaluator compares complete DAO schema, properties, rows, index traversal
+and Seek, requested raw column definitions, named property models, complete
+payload bytes, physical keys/locators/counters, system catalogs and allocation
+ownership. Mutation comparisons preserve schema, properties, unselected rows
+and unrelated system pages. Selected/new raw row bytes agree except assigned
+Null fixed-field padding (EXP-0283) and assigned Memo/OLE descriptor placement;
+complete payload bytes, reachability and disjoint ownership remain checked.
+Rust refusals preserve the entire input. Independent creation may choose
+different valid physical layouts; DateCreated/LastUpdated are the only ignored
+DAO properties between those independent creations. Scalar all-default and
+Auto property payloads may be absent while the complete DAO properties agree.
+
+The immutable private bundle is
+`shared/checks/20260916-required-column-acceptance` beneath the local VM root.
+It retains failed r1 and accepted r2 exact inbox/outbox, preparation histories,
+source archive/pins, evaluators and dependencies, partial reports and targeted
+GUID/Text/Memo diagnostics. All 1,253 manifested files (170,467,023 bytes)
+were independently hash-verified. SHA-256 identities:
+
+- Source archive: `d155df174e785c1a1507f083310562917652486b0fdb157e0b950e6a6dc88298`.
+- Candidate binary: `6383e037dc5773b997910b5851a4f1c39a6dbbb7ad4cf7839e63b4c445247b19`.
+- Input ZIP: `d9e4f152e42fb4657d75a646a3a3e15b7fe9659db5c1326211991c5897897a52`.
+- Matrix: `6d487e89a91ec6cf72d9864deecad90d4d7375c035c9f57fe51ad348070a629a`.
+- Producer: `e7ba3875ccd57f75670fe55de8ec49f034e31d89096e38fa438c0da851f132a5`.
+- Evaluator: `5b2ca3c90b796e73a595664fe5e114e285bf6178acefb35f5f42ff6f0be8d9bf`.
+- Report: `535d828e8f132d58938386047249cfc01eb0a70bf7895e79dc7cf0ad53805b2e`.
+- Findings: `4f314537a4d570f680c39524ef4a78d86b6c98d0bd3b8dd885fff72c7f1cf8cf`.
+- Bundle manifest: `0769ad3729f7d030c14557acfcb18cf04be6061051b155eacab6db7c75e985b5`.
+
+An independent replay reproduced the accepted report byte-for-byte.
+`just ready` passed 1,600 tests with zero failures and ten ignored; independent
+GPT-5.6 Sol high review was clear. The 750 retained validation inputs passed
+at `e19315a`, before the subsequent writer-only explicit-false property fix;
+that sweep is not attributed to the later source revision. Legacy absent or
+partial property mutation, defaults, validation expressions, relationship
+interactions and other index combinations remain outside this accepted scope.
