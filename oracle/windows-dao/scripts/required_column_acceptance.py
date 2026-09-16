@@ -144,7 +144,7 @@ def allocation_observation(data, analysis, user_nodes, systems):
             "system_page_hashes": {str(page): hashlib.sha256(catalog._page(data, page, "system preservation")).hexdigest() for page in sorted(system_pages)}}
 
 
-def observe(path, capture, case, expected_rows):
+def observe(path, capture, case, expected_rows, *, property_reader=property_observation):
     data = path.read_bytes()
     require(identity(path) == capture["before"] == capture["after"], path.name + ": closed read-only capture")
     snapshot = capture["snapshot"]
@@ -197,7 +197,7 @@ def observe(path, capture, case, expected_rows):
     return {"identity": identity(path), "rows": rows, "schema": stable_definition,
             "definition_hashes": {str(page): hashlib.sha256(masked[page * 2048:(page + 1) * 2048]).hexdigest() for page in definition["pages"]},
             "index": {"root": idx["root"], "nodes": nodes, "entries_hex": [entry.hex() for entry in entries], "prefix_hex": idx["prefix_hex"], "count": idx["entry_count"]},
-            "properties": property_observation(data, case), "system_indexes": systems, **allocation}
+            "properties": property_reader(data, case), "system_indexes": systems, **allocation}
 
 
 def compact_json(value):

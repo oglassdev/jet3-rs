@@ -1,10 +1,10 @@
-//! Checked named Boolean properties from EXP-0208/0266/0283.
+//! Checked named Boolean properties from EXP-0208/0266/0283/0285.
 use crate::{BinaryCursor, ByteCount, ColumnDefinition, ColumnPropertyError, ResourceBudget};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct ColumnOptions {
     pub required: bool,
-    pub allow_zero_length: bool,
+    pub allow_zero_length: Option<bool>,
 }
 
 fn require(valid: bool, detail: &'static str) -> Result<(), ColumnPropertyError> {
@@ -129,7 +129,7 @@ pub(crate) fn decode(
                             ),
                             "AllowZeroLength column type",
                         )?;
-                        result[column].allow_zero_length = bytes[6] != 0;
+                        result[column].allow_zero_length = Some(bytes[6] != 0);
                     }
                 }
             }

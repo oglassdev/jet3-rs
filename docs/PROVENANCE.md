@@ -18782,3 +18782,55 @@ combined-source byte reproduction and local checks. Its manifest SHA-256 is
 FINDINGS SHA-256 is
 `952ddbf2447e1b022d57241b1d62f6cf62fea9ad023aafb476d4b94d69dba130`.
 All 682 manifested files (322,033,013 bytes) were independently hash-verified.
+
+## EXP-0285 — Absent and partial Boolean column properties
+
+Native run `20260916T075737Z-property-presence-r1` completes 18 controlled
+schemas in two replicas: 36 receipts, 288 closed MDB checkpoints and 252
+operations (226 successes and 26 refusals). Inputs derive from the EXP-0283
+native empty Text, FixedText and Memo schemas. The six cases are whole catalog
+LvProp absence, another field's Required=false block only, Payload Required
+false/true only, and Payload AllowZeroLength false/true only. Inputs retain the
+known EXP-0060 row/allocation framing and EXP-0266/0283 Boolean property grammar;
+source MDB identities, changed pages and exact property models are recorded.
+The preparation source context is `2d07c8f9e7ac2e06c2818011eab22b19754e95ab`.
+
+Provider is the EXP-0283 x86 DAO.DBEngine.36 environment, with dao360.dll SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+The closed run lives under `shared/{inbox,outbox}/` at the local Windows VM
+root. Complete private inputs and replay artifacts are retained alongside it;
+no MDB/provider bytes enter the repository. SHA-256 identities:
+
+- Input matrix: `1125aa6ee5dee2ca2c3de4d432b9ae62d140e1faf287c24a39d5bf431174eae4`.
+- Input ZIP: `8d7cc39cb42c96690069138a92ba105c6ad186bd518765004a85b59c312e4e44`.
+- Producer: `97c1cb7a910e12656b7f03118020af7052a47a5d7a3f022c4362fafe94bdd8b0`.
+- Evaluator: `7e7af7a4660fe79dd7de6dbf1f178cf2b25390c02e758dd8f1e4be218bd85a25`.
+- Complete native report: `b46bc47cee379234dae1b7ef2fdb06442da39ea622441c891cf0ba3dd1adbd93`.
+
+Both replicas agree on complete captured schema/properties, values, primary
+traversal and Seek after timestamp normalization. Raw checks cover values,
+property descriptors/models, primary keys/locators/counters and system-index
+inventory. Property bytes remain unchanged throughout each lifecycle; every
+refusal leaves the native file byte-for-byte unchanged.
+
+For variable Text and Memo, absent AllowZeroLength reports false through DAO
+but accepts empty insertion and empty replacement. This holds when the whole
+LvProp is absent, only another field has properties, or the same field has
+only Required=false/true. An explicit AllowZeroLength=false record rejects
+both empty operations with 3315; explicit true accepts them. Required=true
+independently rejects null insertion, omitted insertion and null replacement
+with 3314, while still accepting present-empty strings when AllowZeroLength
+is absent. FixedText accepts empty assignments as four spaces in all six
+property-presence cases, with the same Required null refusals.
+
+An earlier probe, `20260916T074700Z-property-defaults-r1`, omitted DAO property
+setters but still produced complete default property records. Its eight closed
+Text receipts and 70 captured images are retained as a failed absence-probe
+hypothesis, not evidence for absent properties. The controlled inputs above
+remove or replace the actual stored records before native operations.
+
+These observations justify retaining property presence internally and rejecting
+empty variable strings only for an explicitly stored false value. Creation
+continues to encode and enforce its requested explicit settings. This entry
+establishes the native policy for the finite controlled inputs; the Rust
+mutation/readback comparison and durable combined archive remain pending.

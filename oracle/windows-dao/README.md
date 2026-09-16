@@ -333,3 +333,32 @@ The evaluator checks all 170 image links and every observed property against
 the optimized snapshots. A direct TableDef getter is a different accessor and
 cannot supply this comparison. EXP-0282 records the accepted complete supplement
 and lifecycle replay; earlier failed or provisional reports stay retained.
+
+## Absent and partial column properties
+
+`prepare_column_property_presence.py` derives 36 private inputs from the
+EXP-0283 empty native Text, FixedText and Memo schemas. It preserves unrelated
+catalog rows and index keys while constructing six property-presence cases:
+whole LvProp absence, another field only, Required false/true only, and
+AllowZeroLength false/true only. It records source identities, changed pages,
+exact property models and local validation results. Local validation alone
+does not establish native behavior.
+
+Run `column_property_presence.ps1` with that output's `matrix.json` and
+`inputs.zip`. The two replicas produce 288 closed checkpoints for 252 native
+insert/update operations. `column_property_presence.py` checks the complete
+native observations using `--repo`, `--root`, `--run-id` and `--report`.
+
+`prepare_column_property_presence_acceptance.py` consumes the closed native
+outbox and its matrix plus the selected Rust CLI binary and source revision.
+Each Rust operation starts from the exact native predecessor image; updates
+exercise field edits in one replica and full-row replacement in the other.
+The resulting `presence-candidates.zip` contains all 252 Rust outputs and
+requests. `column_property_presence_capture.ps1` reads them through DAO,
+including the actual collection property getters, in two workers.
+
+`column_property_presence_acceptance.py --help` lists the native run, capture
+run and producer inputs needed for replay. It requires complete DAO snapshot
+comparisons and raw values, schemas, property records, indexes, ownership maps,
+unchanged rows and byte-exact refusals. Retain failed preparation and evaluator
+outputs alongside corrected runs. Acceptance for this batch remains pending.

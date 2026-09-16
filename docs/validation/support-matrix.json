@@ -329,7 +329,13 @@
         "oracle/windows-dao/scripts/larger_graph_checks.py",
         "oracle/windows-dao/scripts/larger_graph_allocation.py",
         "oracle/windows-dao/scripts/larger_graph_property_checks.py",
-        "oracle/windows-dao/scripts/larger_graph_property_getters.ps1"
+        "oracle/windows-dao/scripts/larger_graph_property_getters.ps1",
+        "oracle/windows-dao/scripts/prepare_column_property_presence.py",
+        "oracle/windows-dao/scripts/column_property_presence.ps1",
+        "oracle/windows-dao/scripts/column_property_presence.py",
+        "oracle/windows-dao/scripts/prepare_column_property_presence_acceptance.py",
+        "oracle/windows-dao/scripts/column_property_presence_capture.ps1",
+        "oracle/windows-dao/scripts/column_property_presence_acceptance.py"
       ]
     },
     {
