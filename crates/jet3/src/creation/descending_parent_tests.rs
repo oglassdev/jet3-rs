@@ -39,6 +39,11 @@ fn definition(
 
 #[test]
 fn descending_parents_generate_ascending_trees_with_the_same_null_policy() -> TestResult {
+    let columns = [
+        PAIR_COLUMNS[0],
+        PAIR_COLUMNS[1],
+        ColumnSpec::new(b"ForeignKey", ColumnType::Long),
+    ];
     for kind in [
         IndexKind::Primary,
         IndexKind::Unique,
@@ -59,7 +64,7 @@ fn descending_parents_generate_ascending_trees_with_the_same_null_policy() -> Te
             ];
             let parent = TableSpec {
                 name: b"Parent",
-                columns: PAIR_COLUMNS,
+                columns: &columns,
                 indexes: &indexes,
             };
             let child_indexes = [IndexSpec {
@@ -69,12 +74,12 @@ fn descending_parents_generate_ascending_trees_with_the_same_null_policy() -> Te
             }];
             let child = TableSpec {
                 name: b"Child",
-                columns: PAIR_COLUMNS,
+                columns: &columns,
                 indexes: &child_indexes,
             };
             let nullable = kind.null_policy() == IndexNullPolicy::Include;
             let rows: &[&[RowValue<'_>]] = &[
-                &[RowValue::Long(1), RowValue::Long(1)],
+                &[RowValue::Long(1), RowValue::Long(1), RowValue::Long(1)],
                 &[
                     RowValue::Long(2),
                     if nullable {
@@ -82,6 +87,7 @@ fn descending_parents_generate_ascending_trees_with_the_same_null_policy() -> Te
                     } else {
                         RowValue::Long(2)
                     },
+                    RowValue::Long(1),
                 ],
                 &[
                     RowValue::Long(3),
@@ -90,6 +96,7 @@ fn descending_parents_generate_ascending_trees_with_the_same_null_policy() -> Te
                     } else {
                         RowValue::Long(3)
                     },
+                    RowValue::Long(1),
                 ],
             ];
             let requests = [
@@ -103,10 +110,17 @@ fn descending_parents_generate_ascending_trees_with_the_same_null_policy() -> Te
                 },
             ];
             let directory = Directory::new()?;
+            let mut relationship = edge(usize::from(!self_reference));
+            if self_reference {
+                relationship.fields = &[RelationshipField {
+                    parent: ColumnRef::Ordinal(1),
+                    child: ColumnRef::Ordinal(2),
+                }];
+            }
             create_database_with_relationships_and_rows(
                 directory.target(),
                 &requests[..if self_reference { 1 } else { 2 }],
-                &[edge(usize::from(!self_reference))],
+                &[relationship],
                 &mut budget(),
             )?;
             let d = definition(&directory.target(), b"Parent")?;

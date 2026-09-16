@@ -20,6 +20,8 @@ use crate::{CatalogObjectKind, RelationshipSpec, TableRef, TextCodePage};
 /// the composer adds a foreign index. Relationships on the same ordered child fields
 /// share its physical index. Each reciprocal relationship record consumes one
 /// of the table's 32 logical index slots; a self-reference consumes two.
+/// A self-reference must have different complete parent and foreign field vectors;
+/// individual components may coincide (EXP-0292).
 /// Other columns retain the normal
 /// creation planner's bounds.
 ///

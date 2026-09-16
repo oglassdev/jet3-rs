@@ -142,6 +142,10 @@ pub(super) fn resolve<'a>(
             push(&mut child_columns, child_column, budget)?;
             push(&mut child_kinds, child_kind, budget)?;
         }
+        // EXP-0292: a partially overlapping self key is allowed, an identical key is not.
+        if parent == child && parent_columns == child_columns {
+            return Err(invalid("self relationship maps the whole key to itself"));
+        }
         let parent_physical = select_existing(
             parent_table,
             &parent_columns,

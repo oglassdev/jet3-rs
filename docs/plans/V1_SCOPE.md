@@ -93,8 +93,12 @@ child primary are admitted. Other columns retain generated IDs, Text/Memo
 options, independent Memo/OLE maps and definition/property chains. The singular
 APIs retain their two-ordered-table Long bounds. Cascades remain outside relationship
 creation scope. EXP-0288/0289 record scalar eligibility and 38 creation plus
-498 mutation comparisons. EXP-0290 records ordered composite creation and native
-lifecycle observations; candidate differential acceptance is pending.
+498 mutation comparisons. EXP-0290/0291 record ordered composite observations
+and 276 accepted comparisons: twelve creations, 142 successful mutations and
+122 refusals. EXP-0292 adds the native self-reference creation boundary:
+identical complete parent/child field vectors are refused, while individual
+components may overlap. The corrected guard and self/shared-index graph
+supplement are undergoing candidate DAO comparisons.
 
 Schema names use defined Windows-1252 bytes and the observed English-US
 collation for ordering and duplicate detection. Stored names retain their exact

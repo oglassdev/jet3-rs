@@ -157,6 +157,58 @@ fn composite_relationship_requires_aligned_unique_fields_and_distinct_components
     Ok(())
 }
 
+#[test]
+fn self_relationship_creation_refuses_identical_keys_but_admits_partial_overlap() -> TestResult {
+    let directory = Directory::new()?;
+    let tables = schema();
+    let scalar = [RelationshipField {
+        parent: ColumnRef::Name(b"Id"),
+        child: ColumnRef::Ordinal(0),
+    }];
+    for fields in [&scalar[..], FIELDS] {
+        let relation = RelationshipSpec {
+            name: b"SelfRelation",
+            parent: TableRef::Name(b"Alpha"),
+            child: TableRef::Ordinal(0),
+            fields,
+        };
+        assert!(matches!(
+            create_database_with_relationships(
+                directory.target(),
+                &tables[..1],
+                &[relation],
+                &mut budget()
+            ),
+            Err(CreateDatabaseError::Compose(
+                ComposeError::UnsupportedRelationship { .. }
+            ))
+        ));
+        assert!(!directory.target().exists());
+    }
+    let partial = [
+        FIELDS[0],
+        RelationshipField {
+            parent: ColumnRef::Ordinal(2),
+            child: ColumnRef::Name(b"Id"),
+        },
+    ];
+    create_database_with_relationships(
+        directory.target(),
+        &tables[..1],
+        &[RelationshipSpec {
+            name: b"PartialSelf",
+            parent: TableRef::Ordinal(0),
+            child: TableRef::Name(b"Alpha"),
+            fields: &partial,
+        }],
+        &mut budget(),
+    )?;
+    let mut database = DatabaseReader::open(directory.target(), &mut budget())?;
+    let report = database.validate(TextCodePage::Windows1252, &mut budget())?;
+    assert_eq!(report.relationships_with_verified_keys, 1);
+    Ok(())
+}
+
 fn locate(
     path: &Path,
     table: &[u8],
