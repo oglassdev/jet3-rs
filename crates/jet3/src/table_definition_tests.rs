@@ -561,7 +561,7 @@ fn rejects_each_logical_index_class_invariant() -> Result<(), Box<dyn std::error
     let primary = primary_definition();
     let cases: &[(usize, u8)] = &[
         (LOGICAL_OFFSET + 8, 1),
-        (LOGICAL_OFFSET, 1),
+        (LOGICAL_OFFSET + 4, 1),
         (LOGICAL_OFFSET + 9, 0),
         (PHYSICAL_OFFSET + 38, 8),
         (LOGICAL_OFFSET + 19, 3),
@@ -788,3 +788,6 @@ mod system;
 
 #[path = "table_definition_terminal_tests.rs"]
 mod terminal;
+
+#[path = "table_definition_alias_tests.rs"]
+mod aliases;

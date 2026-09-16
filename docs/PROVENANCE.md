@@ -18343,3 +18343,17 @@ more complex graph inventories, other providers or whole-v1 compatibility.
   when only a descending unique index qualifies; this construction remains
   deferred. Composite/cascading/cross-type forms and whole-v1 compatibility
   are not established.
+
+### EXP-0279 — Ordinary logical selector clarification
+
+The retained native `child-fk-two-aliases` definitions carry ordinary records
+`010000000100000000ffffffff00000000040400` (`FkA`) and
+`020000000100000000ffffffff00000000040400` (`FkB`), followed by relationship
+selector 3 pointing to physical tree 1. The first ordinary word identifies
+the logical alias; it need not equal the second, physical selector. Both
+complete raw records are retained in the same EXP-0279 bundle. The reader now
+preserves that first word without interpreting it as a physical bound, and
+continues validating the second against the physical inventory. The previous
+equality refusal and its self-generated corruption case were disproved by
+this native input. A failed native-input mutation preparation is retained;
+this clarification makes no additional compatibility claim.
