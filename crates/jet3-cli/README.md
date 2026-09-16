@@ -158,9 +158,12 @@ adds no relationship, index, schema or payload support beyond the linked
 For multiple or self-referencing relationships, use `"relationships": [...]`
 with an array of the same objects. The array currently admits at most two
 enforced, non-cascading single-Long constraints and any supported unrelated
-tables. Parent primary keys may be Long or AutoIncrement; foreign columns must
-be Long. The parent primary index must be first. Supply only one of
-`relationship` and `relationships`. An empty array creates ordinary tables.
+tables. Parent keys may be Long or AutoIncrement and need an ascending unique
+index; the first eligible index in logical name order is selected. Foreign
+columns must be Long. Existing ordinary ascending FK indexes are reused, and
+each relationship alias consumes a slot within the 32-logical-index limit.
+Supply only one of `relationship` and `relationships`. An empty array creates
+ordinary tables.
 
 `mutate` applies one public row operation to an existing database:
 

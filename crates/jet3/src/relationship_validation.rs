@@ -1,4 +1,4 @@
-//! Read-only checks of EXP-0268/0273 relationship metadata and Long keys.
+//! Read-only checks of EXP-0268/0273/0279 relationship metadata and Long keys.
 use super::*;
 use crate::{TextCodePage, ValueKind};
 

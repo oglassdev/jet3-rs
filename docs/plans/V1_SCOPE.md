@@ -72,9 +72,12 @@ are bounded by map-reference capacity and the caller's resource budget.
 The plural relationship APIs admit up to two enforced, non-cascading Long
 constraints, including multiple parents or children, chains, self-references,
 shared foreign physical indexes and unrelated tables in any order. Parent keys
-may be Long or AutoIncrement and require the first declared index to be an
-ascending primary. Child keys must be Long; nullable keys and a separate child
-primary are admitted. Other columns retain generated IDs, Text/Memo options,
+may be Long or AutoIncrement and require an ascending unique index. The first
+eligible logical name selects the parent tree, including nonprimary and nullable
+unique indexes. Child keys must be Long. Existing ordinary ascending FK indexes
+are reused while retaining declared aliases; other child index forms need a
+separate foreign tree. Both endpoint aliases count toward the 32-logical-index
+limit. Nullable keys and a separate child primary are admitted. Other columns retain generated IDs, Text/Memo options,
 independent Memo/OLE maps and definition/property chains. The singular APIs
 retain their two-ordered-table bounds. Other key types, cascades and larger
 relationship graphs remain outside creation scope.
@@ -170,7 +173,9 @@ Tables participating in enforced, non-cascading, single ascending Long
 relationships support these row mutations, including multiple constraints,
 self-references, nullable foreign keys and Memo/OLE payloads. All reciprocal
 records and the relationship catalog must agree; existing orphan keys and
-damaged indexes are refused. Every resulting non-null child key must occur
+damaged indexes are refused. Nullable unique parent keys may contain multiple
+nulls; only non-null keys participate in the constraint. Ordinary logical aliases
+may share one physical tree, which is maintained once. Every resulting non-null child key must occur
 in its parent. Atomic self-linked insert, full-row replacement and deletion
 are admitted when the resulting rows satisfy every constraint. Shared foreign
 physical indexes are updated once. Composite, cascading and other-key

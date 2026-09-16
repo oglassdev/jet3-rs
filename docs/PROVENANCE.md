@@ -18357,3 +18357,16 @@ continues validating the second against the physical inventory. The previous
 equality refusal and its self-generated corruption case were disproved by
 this native input. A failed native-input mutation preparation is retained;
 this clarification makes no additional compatibility claim.
+
+### EXP-0279 — Read-only validation of retained native outcomes
+
+After the ordinary-alias decoder correction, root validates all 92 retained
+MDBs without changing any input byte. All 74 successful creation/lifecycle/
+boundary captures pass. The other 18 are the retained native relation-creation
+refusals or invalid preparations: their `MSysObjects` definition declares 11
+rows while ten live rows remain. The validator reports this count mismatch;
+its equality check is unchanged. This is an integrity observation over native
+failed-operation outcomes, not a failed relationship-key comparison or an
+additional compatibility claim. The complete results are retained with the
+subsequent relationship-index acceptance artifacts; broader native failed-write
+preservation and the validation contract remain tracked in issue #369.
