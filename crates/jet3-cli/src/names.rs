@@ -28,3 +28,20 @@ impl<'de> Deserialize<'de> for Name {
         Ok(Self { text, bytes })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Name;
+
+    #[test]
+    fn json_names_encode_exactly_or_fail_without_replacement()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let name: Name = serde_json::from_str("\"Café €\"")?;
+        assert_eq!(name.bytes(), b"Caf\xe9 \x80");
+        assert_eq!(name.to_string(), "Café €");
+        for input in ["\"漢\"", "\"\\u0081\""] {
+            assert!(serde_json::from_str::<Name>(input).is_err());
+        }
+        Ok(())
+    }
+}

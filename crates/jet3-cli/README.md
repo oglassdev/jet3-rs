@@ -19,9 +19,10 @@ jet3-cli inspect example.mdb --page 0 --hex
 `inspect` reads pages through the library's file reader, with a 256 MiB input
 limit. Its existing `pages`, `catalog`, `tables` and raw diagnostic fields remain
 available. Table entries include their catalog names. `--table` selects an exact
-ASCII table name for definition and row inspection; the page/catalog inventory
-still describes the file. Text values use the selected code page (1252 by default,
-or 1251). Non-ASCII metadata names retain their raw hexadecimal representation.
+Unicode table name for definition and row inspection; the page/catalog inventory
+still describes the file. Text values and metadata names use the selected code
+page (1252 by default, or 1251). Names containing undefined bytes retain their
+raw hexadecimal representation.
 `--page` cannot be combined with `--table` or `--rows`.
 
 A complete requested inspection returns `ok: true` and exit 0. If a table,
@@ -184,7 +185,8 @@ transitions and Boolean values, supply every column in schema order:
 Page/slot locators come from the public row reader; column ordinals come from
 its table definition. They describe the unchanged source, not a primary key or
 row position. The CLI resolves the exact supplied table and locator with that
-reader before an update/replace/delete. Names are ASCII, and values use the same typed
+reader before an update/replace/delete. Names must be losslessly representable
+in CP1252, and values use the same typed
 JSON cells as creation. There is no batch, implicit retry or schema conversion. Each accepted request invokes its public mutation API once
 with the default library resource budget.
 

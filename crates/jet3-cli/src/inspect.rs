@@ -457,3 +457,32 @@ fn value_json(kind: &ValueKind<'_>, raw: Option<&[u8]>) -> Value {
         }),
     }
 }
+
+#[cfg(test)]
+mod name_tests {
+    use super::{TextCodePage, decoded_name, json, name_json};
+
+    #[test]
+    fn metadata_names_use_the_selected_code_page_and_retain_undefined_bytes() {
+        assert_eq!(
+            name_json(b"Caf\xe9", TextCodePage::Windows1252),
+            json!("Café")
+        );
+        assert_eq!(
+            name_json(b"\xc0\xff", TextCodePage::Windows1251),
+            json!("Ая")
+        );
+        assert_eq!(
+            decoded_name(b"\xc0\xff", TextCodePage::Windows1251).as_deref(),
+            Some("Ая")
+        );
+        assert_ne!(
+            decoded_name(b"\xc0\xff", TextCodePage::Windows1252).as_deref(),
+            Some("Ая")
+        );
+        assert_eq!(
+            name_json(b"A\x81", TextCodePage::Windows1252),
+            json!({"raw_hex": "4181"})
+        );
+    }
+}
