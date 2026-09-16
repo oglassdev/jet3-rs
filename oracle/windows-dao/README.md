@@ -155,13 +155,15 @@ rejects a tampered one.
 
 ## Experiment discipline
 
-Preregister each experiment as one SHA-256-pinned plan before acquiring data.
-For `bootstrap-layout`, the local client verifies every pinned input before
-staging, the guest rechecks the plan and staged producer inputs before probing
-DAO, and the host analyzer writes the canonical report after publication.
-Record the validated outcome once as an additive `EXP-` entry. A failure after
-the first DAO mutation is a scientific result and must not be retried without
-a human decision.
+Group related schemas, boundaries, mutations and controls into reproducible
+suites. Record inputs, source revision, provider environment and complete
+comparisons. Preregistration, separate plan PRs and per-run approval are not
+required. Fix harness or implementation failures and rerun as needed, retaining
+every failed outcome. Add accepted observations to `docs/PROVENANCE.md` without
+rewriting history.
+
+The historical acquisitions below used immutable preregistered contracts. Their
+retained inputs and outcomes keep those original identities.
 
 The issue #151 `definition-continuation` SHA-256-pinned local job used one fresh
 empty base per replica and exact 69-, 70-, and 140-field first-create arms to
@@ -295,3 +297,39 @@ python3 -B oracle/windows-dao/scripts/required_column_acceptance.py \
 The first run exposed an incorrect GUID input adapter and missing explicit
 disabled empty-value properties; it is retained as failed evidence. GUID inputs
 use display-order bytes, and FixedText inputs retain the exact-width contract.
+
+
+## Larger relationship graphs
+
+`larger_graph_creation_matrix.json` covers ten graph layouts in two replicas.
+The creation producer compares complete native and Rust-created databases.
+`larger_graph_prepare.py` and `larger_graph_combine.py` prepare reproducible
+mutation checkpoints from either origin. The lifecycle producer applies each
+native operation independently of the Rust implementation and captures both
+results. The negative matrix records per-table index-capacity refusals and
+retains the resulting native bookkeeping defects as failed integrity outcomes.
+
+Replay commands take a retained private bundle; MDB files stay outside git:
+
+```sh
+python3 -B oracle/windows-dao/scripts/larger_graph_creation.py --help
+python3 -B oracle/windows-dao/scripts/larger_graph_lifecycle.py --help
+python3 -B oracle/windows-dao/scripts/larger_graph_negative.py --help
+```
+
+Creation and lifecycle replay require `--evidence-root` pointing to the retained
+review directory containing `source-pins.json` and preparation receipts. Input
+ZIPs and outboxes are explicit arguments. The evaluators verify hashes,
+complete DAO snapshots, physical keys and locators, reciprocal relationships,
+allocation ownership and refusal preservation. See EXP-0281/0282 for the exact
+accepted scope and bundle identities.
+
+The larger-graph lifecycle evaluator also requires `--getter-run` pointing to
+a closed supplementary run with `inbox/` and `outbox/` directories.
+`larger_graph_property_getters.ps1` consumes the retained
+`replication-property-inputs-r3.zip` and calls the actual DAO property-collection
+getters for ConflictTable and ReplicaFilter on every initial and output image.
+The evaluator checks all 170 image links and every observed property against
+the optimized snapshots. A direct TableDef getter is a different accessor and
+cannot supply this comparison. Full lifecycle acceptance remains pending until
+this supplement passes; earlier failed or provisional reports stay retained.
