@@ -360,3 +360,6 @@ mod index_selection;
 
 #[path = "larger_relationship_graph_tests.rs"]
 mod larger_graphs;
+
+#[path = "descending_parent_tests.rs"]
+mod descending_parents;

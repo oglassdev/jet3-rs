@@ -1,10 +1,10 @@
-//! EXP-0059 prefixes, EXP-0230 ordinary counters, and EXP-0268 foreign-key edits.
+//! EXP-0059 prefixes, EXP-0230 ordinary counters, and EXP-0268/0286 relationship-key edits.
 use crate::{PageImage, PageOffset, ResourceBudget, UpdateError};
 
 #[derive(Clone, Copy)]
 pub(crate) enum Change {
     Increment,
-    RemoveForeignEntry,
+    RemoveRelationshipEntry,
 }
 
 pub(crate) fn change(
@@ -28,11 +28,11 @@ pub(crate) fn change(
                 .checked_add(1)
                 .ok_or(UpdateError::Unsupported("index counter overflow"))?
         }
-        Change::RemoveForeignEntry if first > 0 => {
+        Change::RemoveRelationshipEntry if first > 0 => {
             first -= 1;
             second = second.min(first);
         }
-        Change::RemoveForeignEntry => {}
+        Change::RemoveRelationshipEntry => {}
     }
     let mut next = [0; 8];
     next[..4].copy_from_slice(&first.to_le_bytes());

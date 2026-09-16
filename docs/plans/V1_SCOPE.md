@@ -72,9 +72,11 @@ are bounded by map-reference capacity and the caller's resource budget.
 The plural relationship APIs admit enforced, non-cascading Long constraints,
 including multiple parents or children, chains, cycles, self-references,
 shared foreign physical indexes and unrelated tables in any order. Parent keys
-may be Long or AutoIncrement and require an ascending unique index. The first
-eligible logical name selects the parent tree, including nonprimary and nullable
-unique indexes. Child keys must be Long. Existing ordinary ascending FK indexes
+may be Long or AutoIncrement and require a unique index. The first eligible
+ascending logical name selects the parent tree, including nonprimary and nullable
+unique indexes. Descending-only parents generate a shared ascending tree with
+the same null policy; EXP-0286 records the native observations, with complete
+Rust acceptance pending. Child keys must be Long. Existing ordinary ascending FK indexes
 are reused while retaining declared aliases; other child index forms need a
 separate foreign tree. Both endpoint aliases count toward the 32-logical-index
 limit; a self-reference consumes two slots. Relationship rows and all three

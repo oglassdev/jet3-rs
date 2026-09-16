@@ -105,10 +105,18 @@ pub(crate) fn load(
                 return Err(UpdateError::Mismatch("overlapping index page ownership"));
             }
         }
-        budget.charge_work_units(table.indexes().len() as u64)?;
-        let foreign = table.relationships().any(|relation| {
-            relation.side() == crate::RelationshipSide::ForeignTable
-                && relation.physical_index() == ordinal
+        budget.charge_work_units((table.indexes().len() as u64) * 2)?;
+        let declared = table.indexes().iter().any(|index| {
+            index.physical_index() == ordinal
+                && matches!(
+                    index.kind(),
+                    crate::IndexDefinitionKind::Ordinary | crate::IndexDefinitionKind::Primary
+                )
+        });
+        // EXP-0286: generated hidden parent trees share foreign assignment/removal counters.
+        let relationship_counter = table.relationships().any(|relation| {
+            relation.physical_index() == ordinal
+                && (relation.side() == crate::RelationshipSide::ForeignTable || !declared)
         });
         result.indexes.push(MutableIndex {
             ordinal,
@@ -118,7 +126,7 @@ pub(crate) fn load(
             entries: Vec::new(),
             mapped,
             changed: false,
-            foreign,
+            relationship_counter,
             counter: None,
         });
     }

@@ -304,6 +304,25 @@ pub(crate) fn plan_table_schema_with_logical_names(
     extra_names: &[&[u8]],
     budget: &mut crate::ResourceBudget,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
+    plan_table_schema_with_generated_indexes(
+        spec,
+        first_page,
+        first_create,
+        extra_names,
+        spec.indexes.len(),
+        budget,
+    )
+}
+
+/// EXP-0286 permits internal hidden names only on generated physical indexes.
+pub(crate) fn plan_table_schema_with_generated_indexes(
+    spec: &TableSpec<'_>,
+    first_page: u64,
+    first_create: bool,
+    extra_names: &[&[u8]],
+    declared_indexes: usize,
+    budget: &mut crate::ResourceBudget,
+) -> Result<TableSchemaPlan, TableSchemaPlanError> {
     budget
         .charge_work_units(
             (spec.columns.len().min(255) as u64)
@@ -362,7 +381,7 @@ pub(crate) fn plan_table_schema_with_logical_names(
     let length = measure_definition(spec, extra_names)?;
     let index_fields = resolve_index_fields(spec)?;
     let plan = assign_pages(spec, first_page, first_create, length, index_fields)?;
-    validate_indexes(spec, &plan, budget)?;
+    validate_indexes(spec, &plan, declared_indexes, budget)?;
     Ok(plan)
 }
 
@@ -589,6 +608,7 @@ fn assign_pages(
 fn validate_indexes(
     spec: &TableSpec<'_>,
     plan: &TableSchemaPlan,
+    declared_indexes: usize,
     budget: &mut crate::ResourceBudget,
 ) -> Result<(), TableSchemaPlanError> {
     let mut primary: Option<usize> = None;
@@ -596,7 +616,11 @@ fn validate_indexes(
         let ordinal = position as u16;
         // EXP-0249: native 64-byte index names fail Seek; 63 passed.
         validate_name_length("logical index", planned.name, 63)?;
-        validate_name_bytes("logical index", position, planned.name)?;
+        if position < declared_indexes
+            || !super::relationship_name::HiddenName::matches(planned.name)
+        {
+            validate_name_bytes("logical index", position, planned.name)?;
+        }
         validate_distinct_name(
             "logical index",
             position,

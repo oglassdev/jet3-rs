@@ -43,6 +43,7 @@ pub(super) struct PlannedCreate<'a> {
     initial_indexes: Vec<InitialLongIndex>,
     initial_autoincrement: Option<InitialAutoIncrement>,
     relationships: Vec<LogicalIndexSpec<'a>>,
+    declared_indexes: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -59,7 +60,14 @@ impl<'a> PlannedCreate<'a> {
         first_create: bool,
         budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
-        Self::new_with_relationships(spec, first_page, first_create, &[], budget)
+        Self::new_with_relationships(
+            spec,
+            first_page,
+            first_create,
+            &[],
+            spec.indexes.len(),
+            budget,
+        )
     }
 
     pub(super) fn new_with_relationship(
@@ -74,6 +82,7 @@ impl<'a> PlannedCreate<'a> {
             first_page,
             first_create,
             relationship.as_slice(),
+            spec.indexes.len(),
             budget,
         )
     }
@@ -83,6 +92,7 @@ impl<'a> PlannedCreate<'a> {
         first_page: u64,
         first_create: bool,
         relations: &[LogicalIndexSpec<'a>],
+        declared_indexes: usize,
         budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
         let mut replaced = [false; crate::creation::schema_plan::MAX_OBSERVED_INDEXES];
@@ -95,40 +105,36 @@ impl<'a> PlannedCreate<'a> {
                     detail: "relationship physical index missing",
                 },
             )?;
-            let append = match index.kind {
-                LogicalIndexKindSpec::Relationship {
-                    side: crate::RelationshipSide::PrimaryTable,
-                    ..
-                } => true,
-                LogicalIndexKindSpec::Relationship {
-                    side: crate::RelationshipSide::ForeignTable,
-                    ..
-                } => {
-                    let slot = replaced.get_mut(usize::from(index.physical_index)).ok_or(
-                        ComposeError::UnsupportedRelationship {
-                            detail: "foreign physical index missing",
-                        },
-                    )?;
-                    // EXP-0279: declared aliases remain; generated foreign names are replaced.
-                    let append = *slot || index.name != physical.name;
-                    *slot = true;
-                    append
-                }
-                _ => {
-                    return Err(ComposeError::UnsupportedRelationship {
-                        detail: "expected relationship record",
-                    });
-                }
-            };
+            if !matches!(index.kind, LogicalIndexKindSpec::Relationship { .. }) {
+                return Err(ComposeError::UnsupportedRelationship {
+                    detail: "expected relationship record",
+                });
+            }
+            let slot = replaced.get_mut(usize::from(index.physical_index)).ok_or(
+                ComposeError::UnsupportedRelationship {
+                    detail: "relationship physical index missing",
+                },
+            )?;
+            let generated = usize::from(index.physical_index) >= declared_indexes
+                || (matches!(
+                    index.kind,
+                    LogicalIndexKindSpec::Relationship {
+                        side: crate::RelationshipSide::ForeignTable,
+                        ..
+                    }
+                ) && index.name == physical.name);
+            let append = *slot || !generated;
+            *slot = true;
             if append {
                 names.push(index.name);
             }
         }
-        let plan = crate::creation::schema_plan::plan_table_schema_with_logical_names(
+        let plan = crate::creation::schema_plan::plan_table_schema_with_generated_indexes(
             spec,
             first_page,
             first_create,
             &names,
+            declared_indexes,
             budget,
         )?;
         if spec.columns.iter().any(|column| {
@@ -151,6 +157,7 @@ impl<'a> PlannedCreate<'a> {
             initial_indexes: Vec::new(),
             initial_autoincrement: None,
             relationships,
+            declared_indexes,
         })
     }
 
@@ -551,11 +558,13 @@ impl<'a> PlannedCreate<'a> {
                     detail: "relationship physical index missing",
                 },
             )?;
-            let generated = spec
-                .indexes
-                .get(usize::from(index.physical_index))
-                .is_some_and(|physical| physical.name == index.name);
-            if foreign && !*flag && generated {
+            let generated = usize::from(index.physical_index) >= self.declared_indexes
+                || (foreign
+                    && spec
+                        .indexes
+                        .get(usize::from(index.physical_index))
+                        .is_some_and(|physical| physical.name == index.name));
+            if !*flag && generated {
                 let slot = logical
                     .iter_mut()
                     .find(|existing| existing.physical_index == index.physical_index)

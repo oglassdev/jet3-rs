@@ -1,7 +1,7 @@
 //! EXP-0273/0279 reciprocal records and relationship index selection.
 use super::*;
 use crate::RelationshipSide;
-use crate::creation::relationship_indexes::select_existing;
+use crate::creation::relationship_indexes::{select_descending_parent, select_existing};
 use crate::creation::relationship_name::HiddenName;
 use crate::{
     ColumnRef, IndexColumnSpec, IndexKind, IndexSpec, RelationshipSpec, TableRef, TableRows,
@@ -15,6 +15,7 @@ pub(super) struct GraphRelation<'a> {
     pub child_column: u16,
     pub physical: u16,
     pub parent_physical: u16,
+    pub parent_kind: IndexKind,
     parent_id: u32,
     child_id: u32,
     hidden: HiddenName,
@@ -130,8 +131,20 @@ pub(super) fn resolve<'a>(
             parent_column,
             RelationshipSide::PrimaryTable,
             budget,
-        )?
-        .ok_or(invalid("parent requires an ascending unique Long index"))?;
+        )?;
+        let descending_parent = if parent_physical.is_none() {
+            select_descending_parent(parent_table, parent_column, budget)?
+        } else {
+            None
+        };
+        let source_parent = parent_physical
+            .or(descending_parent)
+            .ok_or(invalid("parent requires a unique Long index"))?;
+        let parent_kind = IndexKind::Unique.with_null_policy(
+            parent_table.indexes[usize::from(source_parent)]
+                .kind
+                .null_policy(),
+        );
         if child_table
             .indexes
             .iter()
@@ -157,6 +170,19 @@ pub(super) fn resolve<'a>(
         } else {
             let ordinal = physical_counts[child];
             physical_counts[child] += 1;
+            ordinal
+        };
+        // EXP-0286: self-references allocate the child tree before the parent tree.
+        let parent_physical = if let Some(ordinal) = parent_physical {
+            ordinal
+        } else if let Some(prior) = result
+            .iter()
+            .find(|edge| edge.parent == parent && edge.parent_column == parent_column)
+        {
+            prior.parent_physical
+        } else {
+            let ordinal = physical_counts[parent];
+            physical_counts[parent] += 1;
             ordinal
         };
         // A self-reference adds its foreign record before its primary-side record.
@@ -188,6 +214,7 @@ pub(super) fn resolve<'a>(
                 child_column,
                 physical,
                 parent_physical,
+                parent_kind,
                 parent_id,
                 child_id,
                 hidden,
@@ -199,9 +226,13 @@ pub(super) fn resolve<'a>(
 }
 
 impl GraphRelation<'_> {
-    pub fn field(&self) -> [IndexColumnSpec<'static>; 1] {
+    pub fn field(&self, parent: bool) -> [IndexColumnSpec<'static>; 1] {
         [IndexColumnSpec {
-            column: ColumnRef::Ordinal(self.child_column),
+            column: ColumnRef::Ordinal(if parent {
+                self.parent_column
+            } else {
+                self.child_column
+            }),
             direction: IndexDirection::Ascending,
         }]
     }
@@ -210,6 +241,13 @@ impl GraphRelation<'_> {
             name: self.name,
             fields,
             kind: IndexKind::Ordinary,
+        }
+    }
+    pub fn parent_index<'a>(&'a self, fields: &'a [IndexColumnSpec<'a>]) -> IndexSpec<'a> {
+        IndexSpec {
+            name: self.hidden.bytes(),
+            fields,
+            kind: self.parent_kind,
         }
     }
     pub fn logical(&self, parent: bool) -> LogicalIndexSpec<'_> {

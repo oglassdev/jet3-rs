@@ -7,8 +7,10 @@ use crate::{CatalogObjectKind, RelationshipSpec, TableRef, TextCodePage};
 ///
 /// Table order is independent of relationship direction. Multiple endpoints,
 /// chains, self-references and parents sharing a child FK column are admitted.
-/// Each parent needs an ascending unique Long/AutoIncrement index. The composer
-/// selects the first eligible index in logical name order. An ordinary ascending
+/// Each parent needs a unique Long/AutoIncrement index. The composer selects
+/// an ascending index first, in logical name order. If only a descending index
+/// qualifies, it generates an ascending tree with the same null policy, shared
+/// by relationships on that parent column (EXP-0286). An ordinary ascending
 /// child index on the FK column is reused, retaining its declared name; otherwise
 /// the composer adds a foreign index. Relationships on the same child column
 /// share its physical index. Each reciprocal relationship record consumes one

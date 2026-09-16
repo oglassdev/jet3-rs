@@ -1,6 +1,6 @@
 //! Compare every declared and implicit graph index with the creation request.
 use super::*;
-use crate::creation::relationship_indexes::select_existing;
+use crate::creation::relationship_indexes::{select_descending_parent, select_existing};
 use crate::creation::relationship_name::HiddenName;
 use crate::{ColumnRef, IndexDefinitionKind, IndexDirection, RelationshipSide, TableDefinition};
 
@@ -69,8 +69,8 @@ pub(super) fn check(
             return Err(mismatch("graph declared logical index schema"));
         }
     }
-    let mut foreign_columns = [None; crate::creation::schema_plan::MAX_OBSERVED_INDEXES];
-    let mut foreign_count = 0;
+    let mut generated = [None; crate::creation::schema_plan::MAX_OBSERVED_INDEXES];
+    let mut generated_count = 0;
     let mut logical_ordinal = request.indexes.len();
     for spec in relationships {
         budget
@@ -93,18 +93,18 @@ pub(super) fn check(
                 .map_err(CandidateCheckError::RowEncoding)?;
             let physical = if let Some(physical) = existing {
                 usize::from(physical)
-            } else if let Some(slot) = foreign_columns[..foreign_count]
+            } else if let Some(slot) = generated[..generated_count]
                 .iter()
-                .position(|&c| c == Some(column))
+                .position(|&c| c == Some((RelationshipSide::ForeignTable, column)))
             {
                 request.indexes.len() + slot
             } else {
-                let target = foreign_columns
-                    .get_mut(foreign_count)
+                let target = generated
+                    .get_mut(generated_count)
                     .ok_or(mismatch("graph schema relationship bound"))?;
-                *target = Some(column);
-                foreign_count += 1;
-                request.indexes.len() + foreign_count - 1
+                *target = Some((RelationshipSide::ForeignTable, column));
+                generated_count += 1;
+                request.indexes.len() + generated_count - 1
             };
             let index = definition
                 .physical_indexes()
@@ -133,15 +133,48 @@ pub(super) fn check(
                 .column
                 .resolve(request.columns)
                 .ok_or(mismatch("graph schema parent column"))?;
-            let physical = select_existing(request, column, RelationshipSide::PrimaryTable, budget)
-                .map_err(CandidateCheckError::RowEncoding)?
-                .ok_or(mismatch("graph parent physical index"))?;
+            let existing = select_existing(request, column, RelationshipSide::PrimaryTable, budget)
+                .map_err(CandidateCheckError::RowEncoding)?;
+            let physical = if let Some(physical) = existing {
+                usize::from(physical)
+            } else {
+                let source = select_descending_parent(request, column, budget)
+                    .map_err(CandidateCheckError::RowEncoding)?
+                    .ok_or(mismatch("graph descending parent source"))?;
+                let slot = if let Some(slot) = generated[..generated_count]
+                    .iter()
+                    .position(|&entry| entry == Some((RelationshipSide::PrimaryTable, column)))
+                {
+                    slot
+                } else {
+                    let slot = generated_count;
+                    *generated
+                        .get_mut(slot)
+                        .ok_or(mismatch("graph generated index bound"))? =
+                        Some((RelationshipSide::PrimaryTable, column));
+                    generated_count += 1;
+                    slot
+                };
+                let physical = request.indexes.len() + slot;
+                let index = definition
+                    .physical_indexes()
+                    .get(physical)
+                    .ok_or(mismatch("graph generated parent index"))?;
+                if index.raw_flags() != request.indexes[usize::from(source)].kind.flags().raw()
+                    || index.fields().len() != 1
+                    || index.fields()[0].column().get() != column
+                    || index.fields()[0].direction() != IndexDirection::Ascending
+                {
+                    return Err(mismatch("graph generated parent index schema"));
+                }
+                physical
+            };
             let name = HiddenName::for_selector(logical_ordinal as u32)
                 .ok_or(mismatch("graph hidden name ordinal"))?;
             check_relation(
                 definition,
                 name.bytes(),
-                usize::from(physical),
+                physical,
                 tables[child].0,
                 RelationshipSide::PrimaryTable,
                 logical_ordinal,
@@ -149,7 +182,7 @@ pub(super) fn check(
             logical_ordinal += 1;
         }
     }
-    if definition.physical_indexes().len() != request.indexes.len() + foreign_count
+    if definition.physical_indexes().len() != request.indexes.len() + generated_count
         || definition.indexes().len() != logical_ordinal
     {
         return Err(mismatch("graph exact index inventory"));

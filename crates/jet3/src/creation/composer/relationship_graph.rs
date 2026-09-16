@@ -18,9 +18,9 @@ pub(crate) fn compose_relationship_graph(
 ) -> Result<GraphImage, ComposeError> {
     let mut creates = reserve_creates(requests.len(), budget)?;
     let edges = planning::resolve(requests, relationships, budget)?;
-    let mut fields: Vec<[IndexColumnSpec<'_>; 1]> = Vec::new();
+    let mut fields: Vec<[[IndexColumnSpec<'_>; 1]; 2]> = Vec::new();
     for edge in &edges {
-        push(&mut fields, edge.field(), budget)?;
+        push(&mut fields, [edge.field(false), edge.field(true)], budget)?;
     }
     let mut indexes: Vec<Vec<IndexSpec<'_>>> = Vec::new();
     let mut overlays: Vec<Vec<LogicalIndexSpec<'_>>> = Vec::new();
@@ -33,11 +33,14 @@ pub(crate) fn compose_relationship_graph(
         for (edge, fields) in edges.iter().zip(&fields) {
             if edge.child == table {
                 if usize::from(edge.physical) == physical.len() {
-                    push(&mut physical, edge.foreign_index(fields), budget)?;
+                    push(&mut physical, edge.foreign_index(&fields[0]), budget)?;
                 }
                 push(&mut logical, edge.logical(false), budget)?;
             }
             if edge.parent == table {
+                if usize::from(edge.parent_physical) == physical.len() {
+                    push(&mut physical, edge.parent_index(&fields[1]), budget)?;
+                }
                 push(&mut logical, edge.logical(true), budget)?;
             }
         }
@@ -61,9 +64,15 @@ pub(crate) fn compose_relationship_graph(
     for (position, ((spec, request), logical)) in
         specs.iter().zip(requests).zip(&overlays).enumerate()
     {
-        let create =
-            PlannedCreate::new_with_relationships(spec, next_page, position == 0, logical, budget)?
-                .with_rows(request.rows, budget)?;
+        let create = PlannedCreate::new_with_relationships(
+            spec,
+            next_page,
+            position == 0,
+            logical,
+            request.table.indexes.len(),
+            budget,
+        )?
+        .with_rows(request.rows, budget)?;
         let root = create.schema().definition_root();
         push(
             &mut tables,

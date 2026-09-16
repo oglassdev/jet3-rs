@@ -18923,3 +18923,44 @@ are retained in the separate immutable supplement
 local VM root. Its manifest covers 1,520 files (69,062,371 bytes), SHA-256
 `36c787a41531549cf97511bf83d84624266db6ce0f7e2afee85efe948a74fead`.
 The accepted acquisition archive above remains unchanged.
+
+## EXP-0286 — Descending unique relationship parents
+
+Native run `20260916T085741Z-desc-parent-rel-index-r1` compares eight schemas
+in two replicas with the EXP-0285 DAO 3.6 x86 provider. All 16 complete captures
+pass; creation report SHA-256 is
+`dfb003ec083075fab5954d50dfdf60d822dd98467866b07e683d38fa5820adac`,
+matrix `b89dcdc97cd305a7eea9cc69b4126073d8eb54c423ff031b2d2eb7958c165665`,
+producer `720179a4edcff9ad27c845b8c9c269ed4be60baf2c86f6569f097529b965f4e9`.
+The private acquisition root is `/tmp/jet3-desc-relationship-index-discovery`.
+
+When only a descending single-Long unique/primary parent index qualifies, DAO
+retains that declared index and creates a separate ascending physical index
+for the hidden primary-side relationship alias. The new index retains flags
+9 (unique/required) or 1 (nullable unique). Nullable parents include duplicate
+null rows; null child keys remain exempt. An eligible declared ascending unique
+index is reused instead. Two children referencing the same descending parent
+column share the generated parent tree, with distinct hidden logical aliases.
+
+Self-relationship creation appends the ascending foreign physical index before
+the ascending parent physical index. With two declared indexes these are physical
+2 and 3; logical selectors 2 and 3 cross-reference each other at the same root.
+An orphan child input refuses native relation creation with 3201 and adds no
+relationship logical or physical index records.
+
+In these rows-before-relation inputs a newly generated tree's first prefix word
+is the indexed row count; its second word counts distinct keys. Declared parent
+indexes retain zero in their first word. This does not change the existing
+candidate creation history, whose relationship indexes precede initial-row
+insertion and start with zero first words. Empty-origin/lifecycle observation
+and Rust differential acceptance remain pending for this batch.
+
+The populated-source lifecycle observes generated parent words `(2,2)` becoming
+`(2,3)` after inserting a new parent, `(1,1)` after assigning an unreferenced
+parent key, and `(0,0)` after deleting another unreferenced parent. Declared
+primary/descending indexes retain first word zero and second word three through
+these assignments/deletions. A subsequent deletion at first word zero leaves
+both generated words unchanged. This applies the EXP-0268 decrement-and-clamp
+rule to hidden parent trees without an ordinary/primary alias, as well as the
+previously observed foreign trees. Complete replicated lifecycle evaluation
+is pending; this is a native observation supporting the candidate implementation.

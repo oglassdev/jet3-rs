@@ -38,15 +38,13 @@ def validate_counters(raw,graph,role):
             entries=[bytes.fromhex(value) for value in physical['entries_hex']]
             req(physical['second_word']==len({entry[:-4] for entry in entries}),f'{graph["id"]}/{role}/{table_name}/{physical["index"]} distinct counter')
             if role=='candidate':req(physical['first_word']==0,f'{graph["id"]} candidate first word')
-            elif physical['first_word']!=0:
-                req(table_name in {relation['child'] for relation in graph['relations']} and physical['first_word']==len(spec['rows']),f'{graph["id"]} native first word')
-    if role=='native':
-        for relation in graph['relations']:
-            child=raw['tables'][relation['child']];record=next(logical_relation(item['raw_hex']) for item in child['logical_indexes'] if item['class']==2 and item['name']==relation['name'])
-            selected=child['physical_indexes'][record['physical_index']]
-            declared=next(table for table in graph['tables'] if table['name']==relation['child'])['indexes']
-            reusable=any(index['field']==relation['child_field'] and index['direction']=='asc' and not any(index[key] for key in ('primary','unique','required','ignore_nulls')) for index in declared)
-            req(selected['first_word']==(0 if reusable else len(next(table for table in graph['tables'] if table['name']==relation['child'])['rows'])),f'{graph["id"]} native selected prefix history')
+            else:
+                # EXP-0286: rows-before-relation history seeds both generated endpoint trees.
+                ordinal=physical['index']
+                declared=any(item['class']!=2 and int.from_bytes(bytes.fromhex(item['raw_hex'])[4:8],'little')==ordinal for item in table['logical_indexes'])
+                related=any(item['class']==2 and logical_relation(item['raw_hex'])['physical_index']==ordinal for item in table['logical_indexes'])
+                expected=len(spec['rows']) if related and not declared else 0
+                req(physical['first_word']==expected,f'{graph["id"]}/{table_name}/{ordinal} native selected prefix history')
 def inbox_for(outbox):
     retained=outbox.parent/'inbox'
     return retained if retained.is_dir() else outbox.parent.parent/'inbox'/outbox.name
