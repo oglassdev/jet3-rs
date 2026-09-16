@@ -53,20 +53,20 @@ impl<'a> RelationshipPlan<'a> {
             TableRef::Ordinal(position) => (position < tables.len()).then_some(position),
             TableRef::Name(name) => tables.iter().position(|table| table.name == name),
         };
-        if resolve_table(spec.parent.table) != Some(0) || resolve_table(spec.child.table) != Some(1)
-        {
+        if resolve_table(spec.parent) != Some(0) || resolve_table(spec.child) != Some(1) {
             return Err(invalid(
                 "parent must reference first table and child second table",
             ));
         }
-        let parent_column = spec
+        let [field] = spec.fields else {
+            return Err(invalid("singular relationship requires one field"));
+        };
+        let parent_column = field
             .parent
-            .column
             .resolve(tables[0].columns)
             .ok_or(invalid("parent column reference"))?;
-        let child_column = spec
+        let child_column = field
             .child
-            .column
             .resolve(tables[1].columns)
             .ok_or(invalid("child column reference"))?;
         if tables[0].columns[usize::from(parent_column)].column_type() != ColumnType::Long

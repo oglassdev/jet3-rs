@@ -19362,3 +19362,351 @@ lineage. Independent review of the assignment guard found no blockers.
 `just ready` again passed 1,638 test executions, zero failures and ten ignored;
 its retained log SHA-256 is
 `e642fd9b748b168c6be10750b4321e8f13ca4b1206f6bad4f0ba2efb3adf4766`.
+
+## EXP-0290 — Native composite relationship creation
+
+Run `20260916T114154Z-composite-rel-create-r1` records eight schemas twice
+with DAO.DBEngine.36, version 3.6, 32-bit DLL 03.60.9765.0, Windows
+10.0.20348, en-US/ANSI 1252. The DLL SHA-256 remains
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+The private acquisition root is `/tmp/jet3-composite-relationship-discovery-r1`.
+The independently replayed report is 199,865 bytes, SHA-256
+`908ee6f0bd365870af597b76c3bd6a18b70cc8115ac7216b82d59fe57fa2058e`.
+Its evaluator SHA-256 is
+`4da682a04b8790a2645be48facebd588525cd27227e5308b7c6cc9f54cd032c4`.
+The matrix and producer SHA-256 values are respectively
+`1ffabe1d7a3f89da31032a060a5b884c1947dc5c419171ad302630c282004fe6` and
+`04366bcbe006e8a8940b01eb50de3f734ee5168d9eaf15a240201f11cab9853c`.
+
+DAO accepts Long pairs, Long/Text pairs, a mixed-direction parent unique
+index, an existing matching child ordinary index, differing Text/Binary
+widths, and a ten-component key containing Byte, Integer, Long, Currency,
+Single, Double, Date, Text, Binary and GUID. Ordered relation components must
+match the ordered parent unique-index columns. Both permutations of that
+alignment refuse DAO 3609 / HRESULT -2146824679 in both replicas.
+
+Each accepted relation contributes one MSysRelationships row per component:
+`grbit=0`, `ccolumn=N`, and `icolumn=0..N-1` in declared order. It contributes
+one relationship object, two ACEs and one reciprocal logical record per
+endpoint. Physical relationship fields follow the same order, ascending.
+An existing ascending unique parent or ascending ordinary child tree is
+reused. A mixed-direction unique parent retains its declared tree and gains
+a separate ascending unique tree for the reciprocal record. Generated parent
+and child first prefix words equal their initial row counts; reused declared
+trees retain zero. All observed second prefix words are zero at creation.
+All three relationship catalog indexes have flags 2, first prefix zero,
+distinct counter one, and N leaf records.
+
+Complete getters, requested rows and scalar values, ordered fields, public
+index traversal and full-arity Seek results, raw key bytes and row locators,
+reciprocal records, catalogs, system indexes and exact receipt/artifact
+inventories were checked. Partial and all-null tuples are present in the
+accepted two-component sources; their mutation behavior is not established
+by this creation result. The four failed permutation copies retain the
+ordinary tables and rows with no relationship catalog rows, objects, ACEs,
+logical records or generated physical trees. These are native observations,
+not Rust differential acceptance.
+
+The strengthened creation evaluator also checks public ordinals and exact
+index-read field vectors; its final SHA-256 is
+`4e3f3a33ad08e8e1cfe568e650015c5d33e6d2f64f5d65224efac8916b80973e`.
+The accepted creation report is unchanged.
+
+Run `20260916T115528Z-composite-rel-null-r1` records 28 isolated native
+operations on the two Long-pair replicas. Its report SHA-256 is
+`4cbe5a6f7adcfe6432737258c7612b191582f144f045effbf050292a5d283240`;
+evaluator SHA-256 is
+`a2a0871eab87946e5144a797dfead93114432e7b0e73a2c0752d07694e473150`.
+A partially null child tuple still requires an exactly matching parent:
+`(999,null)` and `(null,999)` orphan insertion, and change to `(999,null)`,
+all refuse 3201. Referenced partial-null and all-null parents cannot be
+removed or changed (3200); unreferenced partial-null parents can. Duplicate
+partial-null parent insertion succeeds. Explicit assignment of a referenced
+parent component to its existing value, including null, and a full replacement
+that repeats the referenced key both refuse 3200. All 3200 copies remain
+byte-identical. Refused child edits change only the established page-zero
+byte and foreign first-prefix decrement; refused child inserts change only
+the page-zero byte and primary distinct-counter increment. Complete rows,
+getters, traversal/Seek, physical key bytes, maps and relationship metadata
+remain checked. All-null child eligibility without an all-null parent remains
+outside this observation.
+
+The final null-probe evaluator additionally checks complete system schema/map
+preservation; its SHA-256 is
+`85f8db28472c5d28a77dbe088c34d16d97be151dd9b9822494ae68e83095206b`.
+The null-probe report is unchanged.
+
+Run `20260916T120558Z-composite-rel-null-followup-r1` verifies sixteen further
+operations with exact predecessor and continuation identities. Report SHA-256 is
+`7e5f305d15155219e019ef0876313533686afc3f71f9713e5801488935354a06`;
+evaluator SHA-256 is
+`8d06c02b20b0de118cebe59151ef327a394bf6fa50d2f1fabb0038cadbbae3e8`.
+After deleting the all-null child and then its all-null parent, both insertion
+and assignment of an all-null child succeed without a matching parent.
+Thus exemption requires every component to be null. After inserting a duplicate
+partial-null parent, deleting the original referenced parent still refuses
+3200, byte-identically, even though the matching duplicate remains. Unreferenced
+partial-null parent changes and payload-only assignment on a referenced parent
+succeed. All fourteen successes and two refusals agree across replicas, with
+complete raw state, actual getters, traversal/Seek, counters and maps checked.
+
+Scalar controls in `20260916T122108Z-scalar-equal-parent-r1` also refuse 3200
+when explicitly assigning an existing referenced Long or Text(8) key to itself,
+or replacing the parent row while retaining that key. All four failed copies
+are byte-identical to their sources. The retained run inventory SHA-256 is
+`5571151a4a3aad04d7350b4530cc24bb5d56cadd97de8eadd7eddc72b063e3fe`.
+These controls extend the assigned-parent guard to scalar constraints as well.
+
+
+The grouped native lifecycle run `20260916T122007Z-composite-life-r1` adds
+220 exact operations across twelve lineages (the six admitted schemas, twice):
+120 successes, 88 expected relationship refusals (3200/3201), and twelve
+expected duplicate-key refusals (3022). It covers inserts, growth/shrinkage,
+nulls, deletion, parent and child key assignments, equal parent assignments,
+complete replacement, and payload-only field edits. Full property collections,
+rows, Seek/traversal, raw keys and locators, both counter words, allocation maps,
+Memo ownership and unrelated system storage were compared at every checkpoint.
+A payload-only field edit on a referenced parent succeeds because it does not
+assign the key; a complete replacement retaining that key still refuses.
+
+The mixed-direction-parent schema has a bounded failed-write observation:
+its four referenced-parent refusals in each replica retain rows and keys but
+increment page zero's transaction byte from 16 to 17 and decrement the generated
+ascending parent's first physical counter and DistinctCount from five to four.
+The other five schemas preserve the whole file for these 3200 operations.
+These native residues are asserted exactly; they do not relax Rust's guarantee
+that a refused mutation preserves its complete input.
+
+The portable native evaluator report has SHA-256
+`daf1e8f2f4578418b3960a632bd325e80a8ef38c5dc587a6b3bbf416cb006f1c`.
+Its 304-file durable archive is retained outside Git at
+`checks/20260916-composite-relationship-lifecycle-discovery`, with manifest
+SHA-256 `eb340b1e3b2addf1f965aacdcd7df12fdff02fd27108d506819e6626faee5fdb`.
+Root independently reproduced the report byte-for-byte and verified every
+manifest entry and the exact file inventory. Failed evaluator attempts remain
+retained. These are native observations; candidate acceptance is recorded separately.
+
+## EXP-0291 — Composite relationship candidate comparisons
+
+Frozen source `7e9740ea6a628857f46da2b8fef7fcb169c62b15` passes 276 complete
+DAO comparisons: twelve creations, 142 successful same-input mutations, and
+122 refused mutations. The six schemas, each replicated twice, cover ordered
+Long and Long/Text pairs, mixed-direction parent indexes, reused child indexes,
+compatible Text/Binary widths and ten-component scalar keys. The mutation
+inventory combines the 220-operation lifecycle and 44 null-focused operations
+from EXP-0290. Variable and payload field assignments use `update_field`,
+including edits on referenced parents; they do not become full replacements.
+
+Run `20260916T131050Z-composite-candidate-readback-r2` captures all 276 Rust
+outputs through the same DAO 3.6 provider recorded in EXP-0290. Comparisons
+include complete property getters, relationship metadata, rows, full-arity
+traversal and Seek, raw key/locator records, both physical counter words,
+allocation maps, payload reachability and system storage. Independent creations
+compare complete semantic snapshots after removing only generated creation and
+update dates, with each physical image checked independently. They do not claim
+identical page layout between independently created files.
+
+Successful same-input mutations compare exact DAO snapshots and decoded raw
+storage. The only field-level allowances are uninterpreted bytes in explicitly
+assigned-null fixed slots and selected Memo/OLE descriptor placement on full-row
+replacement; complete values, payload bytes and ownership remain checked.
+The observer reports the provider transaction byte separately from structural
+state. All 122 Rust refusals preserve their exact input and its complete DAO
+snapshot. Native refusal side effects remain recorded and checked by the native
+discovery evaluators; they are not imposed on the Rust refusal guarantee.
+
+The candidate CLI, creation helper and source archive SHA-256 values are:
+
+- `300c9868b0ec9e0dd495f6ab4786a334daeaa08e0c8b10d6916d80f3b761e707`
+- `c03fc0b71f4ffa967618e2b1bdcb943a79b00f827ffd7cc3a4c9df20f4f7d74f`
+- `ab7dcfbb8b488c8d3e604e88555f21b1c34a9d9fe132f935eb62da9a333d692c`
+
+The accepted report SHA-256 is
+`69a65d4d3487962c95dd6c0665e1c69476d6cd3674d61252da87f3cb2e0963cf`.
+The readback producer and input ZIP SHA-256 values are respectively
+`2eeff2ba93dc317a2ebf499e8c790911669eed642977d83638cf89bdeda3500b` and
+`824a29c3b2a72db4cf3bddb09208b4102f1aac7c462746e9c6f8e90bce6a57e5`.
+The durable private archive is
+`checks/20260916-composite-relationship-acceptance`: 2,275 files including
+`MANIFEST.json`, whose SHA-256 is
+`604f76e11ad6a2436ad3e5e79be8a3ab43a4dd57af9b50fad48c5bdf1df84563`.
+Its `replay.sh` uses the sibling lifecycle-discovery archive from EXP-0290.
+Root independently reproduced the report byte-for-byte and verified all 2,274
+manifest entries, their sizes/hashes and the exact archive inventory. Earlier
+preparation and transport failures remain retained.
+
+This result is finite: composite self/shared-index graphs are a separate
+supplement, and cascades and existing-schema relationship edits remain open.
+In particular, the later graph probe found that this candidate accepts a
+same-field self-relationship which DAO refuses with 3206; the accepted cases
+above do not exercise that schema. That creation mismatch remains a blocker
+for the composite deliverable until fixed and compared separately.
+
+
+## EXP-0292 — Composite self-relationship creation boundary
+
+The graph discovery run `20260916T133631Z-composite-graph-native-r3` uses the
+same DAO 3.6 provider as EXP-0290. Its producer SHA-256 is
+`cdc71babee33e2cda48e6a63429cdee1452069fc14753020ff317f793f769145` and its
+input ZIP SHA-256 is
+`25ca967152877cdb85f903743fdc16ac125a7f497da5472580cdb74df2e08a3e`.
+Closed initial observations reject a scalar Long relationship from a field to
+itself, and a Long/FixedText relationship mapping both fields to themselves,
+with DAO 3206 / HRESULT -2146825082. A composite Long-pair self-relationship
+mapping only its first component to itself and its second to a separate field
+is accepted. A Long/FixedText self-relationship with separate foreign fields
+is also accepted. Therefore rejecting every individually identical component
+would be too broad. The remaining graph observations and differential outcomes
+will be recorded additively when their comparisons close.
+
+The preceding run `20260916T141100Z-composite-graph-native-r2` already observed
+the two identical-vector refusals for Long/FixedText. Both Boolean/shared-index
+lineages stopped at a harness-generated missing Seek whose artificial trailing
+null could not be converted to Boolean. The failed run is retained; the corrected
+producer uses real trailing key values, or typed values for an empty index.
+Source `7e9740ea6a628857f46da2b8fef7fcb169c62b15` nevertheless created that
+refused same-field schema. The failed candidate and its exact request remain
+under the private graph supplement's `candidate-probes-r1` directory.
+
+
+The complete r3 run closes fourteen lineages and sixteen relation append
+attempts: twelve accepted appends and four 3206 refusals. Ten accepted database
+creations include both partial-overlap replicas and both separate-FK FixedText
+replicas. Of 58 planned mutations, 28 succeed, twenty refuse, and ten are
+skipped after the terminal identical-key creation refusals. Its observation
+report SHA-256 is
+`e82a92b75b3e9368b3e41397b31b7a24ab110ac565916b637004be8b5f9bfdcd`,
+and evaluator SHA-256 is
+`2bbf59df5589e44bea029a394758390978bd996dc811f94270bad8544e1d11c7`.
+Root independently replayed that report byte-for-byte.
+
+All four failed creations retain file length and change exactly six bytes:
+absolute offsets 1538, 4108, 4143, 4151, 6156 and 6191. Page zero's byte changes
+3 to 5, and system catalog declared counts/counters advance despite absent
+relationship rows. The strict reader reports MSysObjects declared count ten
+with nine actual rows. These terminal native failure copies remain separate
+from valid mutation inputs, as with EXP-0279/0281/0288.
+
+The creation guard now refuses a self-relationship whose entire ordered parent
+and child field vectors are identical, while retaining partial overlap. The
+focused regression reproduces acceptance before the fix, then checks scalar
+and composite refusals plus successful partial-overlap creation. An older
+same-field scalar self fixture in the descending-parent tests is corrected to
+use a distinct foreign column, retaining its allocation, count, direction and
+null-policy assertions. All 81 focused relationship tests pass; independent
+GPT-5.6 Sol high review finds no correctness issues. The graph candidate DAO
+comparisons and reversed-mapping control remain pending.
+
+
+Followup `20260916T134900Z-composite-equal-self-r1` confirms that reversed
+mappings `[K1,K2] -> [K2,K1]` are accepted in both replicas when symmetric
+initial tuples satisfy the constraint. Thus identical ordered vectors, not
+identical unordered field sets, define the observed creation refusal. Producer
+SHA-256 is `4a8240955964e5b903a181518efe387bc9efe79b0c29da5dc354633f86259277`;
+input ZIP SHA-256 is
+`d1901667048501271ca1bfc0bd910e78d695693bf5c7f1f619b22f8ba7d3e514`.
+
+On the valid ascending-parent self-reference with separate FK columns, both
+replicas refuse an explicit equal assignment of K1 with DAO 3200, but accept a
+complete row replacement retaining both parent and child tuples. The selected
+child row is excluded from its own parent-assignment guard for complete
+replacement; explicit field assignment still checks it. The original candidate
+incorrectly applied the field-assignment guard to both operations. External
+child and nullable controls are retained in a separate followup.
+
+
+Run `20260916T140000Z-composite-self-exemption-r1` confirms both replicas of
+the external-child and all-null controls. Another row referencing the selected
+parent tuple keeps equal full-row replacement refused (3200). A sole self row
+with an all-null parent and foreign tuple admits equal full replacement.
+Producer SHA-256 is
+`89f851b1ff9c99d91243d8c5fe3a8964a070b0c98b9266001f28f46e0000745c`;
+input ZIP SHA-256 is
+`4068fce143dc21ffa446e65621e35b770a31a55bbb6bb58fbd26926f5d358cab`.
+
+The exemption is limited by physical index order. Run
+`20260916T141000Z-composite-descending-equal-r1` uses the descending-only parent
+whose generated ascending parent tree follows the foreign tree. Both replicas
+refuse equal parent-field assignment with 3200 and equal full replacement with
+3201. Producer SHA-256 is
+`7625e750a16ff865a820a8b5f7688903298828cd0edc7ed04004141c9969238f`;
+input ZIP SHA-256 is
+`07dd323ed5463ff154ce44e27f412c37e3253b17742c4ef0471764aed56a9f87`.
+Root inspected all three followups' closed receipts and outcomes. The code
+excludes the selected replacement child only when the parent physical tree
+precedes the foreign tree, then restores it for final key matching. Existing
+EXP-0286 foreign-before-parent checks remain intact, including the null-parent
+replacement refusal. All 82 focused relationship tests pass and independent
+GPT-5.6 Sol high review finds no correctness issues. These are native controls
+and focused implementation checks; graph differential acceptance follows
+separately.
+
+## EXP-0293 — Composite graph candidate acceptance
+
+Final production source `56f2aa5c13037f46928629c7c014c61f22228f42` passes all
+72 graph comparisons: twelve creations, 32 successful same-input mutations and
+28 refusals. The inputs are the valid self/shared-index graphs and followups in
+EXP-0292, including partial-overlap and reversed endpoint mappings, Boolean
+foreign keys shared by two parents, FixedText, ascending and generated parent
+indexes, external child references and null tuples. Four identical-vector
+creation refusals additionally match DAO 3206 and publish no Rust file; their
+terminal native catalog residue remains recorded separately.
+
+Run `20260916T142000Z-composite-graph-readback-r2` uses DAO.DBEngine.36,
+32-bit DAO 3.6, DLL version 03.60.9765.0, English-US and CP1252. The provider DLL
+SHA-256 is `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+The readback producer and input ZIP SHA-256 values are respectively
+`991a3810e5fd07f80ce18b7652fc030010aa91f40851ce75e75e79b49bd647ee` and
+`051c8368335d308ccdaf9e7b549dd7315f6538d21ae01f01153b6aa24e40f435`.
+All 72 images have complete read-only identities, getters, relation metadata,
+rows, index traversal and full-arity Seek inventories. Raw comparisons check
+keys, locators, logical/physical records and counters, allocation ownership,
+payload reachability, relationship catalogs and system storage. Independent
+creations compare semantics and independently checked physical storage; their
+page counts/layout need not be equal. Synthetic missing-key Seek controls use
+typed trailing components, whose incidental values are projected only for
+confirmed no-match results. Embedded index-read errors fail evaluation.
+
+Successful mutations compare exact DAO snapshots and complete decoded storage,
+with only the established assigned-null fixed-slot padding and selected
+full-replacement payload descriptor placement allowances. The provider transaction
+byte is observed separately. All 28 Rust refusals preserve their complete input
+and DAO snapshot. Native refusal images retain the exact finite page-zero and
+physical-index counter changes; those byte transitions are checked before
+comparison of the remaining unchanged state. No native failure image becomes a
+continuation source.
+
+The candidate CLI, creation helper and source archive SHA-256 values are:
+
+- `7a649b343cf96aba0c68ff46bc7277a82cd586122d1bb80baa446a3afe24f3e7`
+- `0d0297042c6e5658973cc1e2eb771eafb9f68c4f18be768949f66877cd5fcc1c`
+- `f45793a938887ee4a4c5372e0e84f87310362cb4f7d773122cb29ab042a36a06`
+
+The final source also reproduces every previously accepted EXP-0291 output
+byte-for-byte: twelve creations and 264 mutations. The reproduction record
+`IDENTICAL_PRIOR_OUTPUTS.json` has SHA-256
+`04a5b859c3da1df94f12549721de19eaf0a2a02860b20e3bd38807f7655e0922`.
+Together these suites establish 348 finite comparisons: 24 creations and
+324 mutations, comprising 174 successes and 150 refusals. The final production
+candidate passes `just ready` with 1,660 test executions, zero failures and ten
+ignored; independent GPT-5.6 Sol high review clears both graph corrections.
+
+The graph accepted report SHA-256 is
+`a05dacdfaeb282e5a1b2858d638fb90f5e7009c05ed0a962044a5b40f8683fcd`;
+evaluator SHA-256 is
+`cd75ccbd3c79a3300e5bf3f77f02f115ccbacaec189a28793350c82a1980bbbe`.
+The durable private archive is `checks/20260916-composite-graph-acceptance`,
+containing 2,444 files including `MANIFEST.json`, whose SHA-256 is
+`6b895ac964b6ee638036518267ee1e1ed62914ddedb6128984d5e8217263fa2b`.
+Root independently reproduced its report byte-for-byte using the archive-local
+`replay.sh`, and verified all 2,443 listed sizes/hashes and the exact inventory
+(535,475,925 bytes excluding the manifest). It retains discovery/followup inputs,
+source/binaries, preparation requests/results, reproduction records, complete
+observer dependencies and failed candidates/captures.
+
+Readback r1 is a retained harness failure: artificial trailing Null in Boolean
+Seek produced COM -2146825126 and incomplete Seek inventories, without changing
+the candidate images. The corrected producer reran all 72 images. This result
+resolves the graph blockers recorded in EXP-0291/0292 for the tested schemas;
+it does not establish cascades, arbitrary untested graphs, or relationship edits
+on existing schemas.

@@ -1,7 +1,7 @@
 //! Reproduce the private rich relationship creation matrix through public APIs.
 use jet3::{
     ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
-    RelationshipColumn, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef,
+    RelationshipField, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef,
     TableRows, TableSpec, create_database_with_relationship_rows,
 };
 use serde_json::Value;
@@ -164,14 +164,12 @@ fn create(arm: &Value, output: &Path, replicas: u64) -> Result<()> {
     ];
     let relation = RelationshipSpec {
         name: b"ParentChild",
-        parent: RelationshipColumn {
-            table: TableRef::Ordinal(0),
-            column: ColumnRef::Ordinal(0),
-        },
-        child: RelationshipColumn {
-            table: TableRef::Ordinal(1),
-            column: ColumnRef::Ordinal(1),
-        },
+        parent: TableRef::Ordinal(0),
+        child: TableRef::Ordinal(1),
+        fields: &[RelationshipField {
+            parent: ColumnRef::Ordinal(0),
+            child: ColumnRef::Ordinal(1),
+        }],
     };
     for replica in 1..=replicas {
         let path = output.join(format!(

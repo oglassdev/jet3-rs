@@ -154,9 +154,7 @@ fn bad_requests_and_resource_failures_preserve_original() -> TestResult {
             RowLocator::new(crate::PageNumber::new(1), 0),
             RowValue::Long(2),
         ),
-        request(row, RowValue::Null),
         request(row, RowValue::Byte(2)),
-        request(fixture.locator(1)?, RowValue::Long(2)),
     ];
     for invalid in invalid {
         assert!(update_field(fixture.path(), invalid, &mut budget()).is_err());
@@ -522,6 +520,9 @@ mod indexed;
 
 #[path = "update_key_tests.rs"]
 mod keys;
+
+#[path = "field_update_tests.rs"]
+mod field_rewrites;
 
 #[path = "relationship_mutation_tests.rs"]
 mod relationship_mutations;

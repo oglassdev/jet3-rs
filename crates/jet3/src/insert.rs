@@ -14,9 +14,9 @@ use std::path::Path;
 /// fields admit primary, unique, nonunique, descending and nullable keys. Each
 /// complete tree and row/key correspondence must validate. Changed trees retain
 /// their roots, reuse reserved index pages and append nodes as needed. Other
-/// key types are refused. Enforced non-cascading single-column scalar relationships admit
-/// null foreign keys and require a matching parent for non-null keys. Memo/OLE payloads
-/// use independent column maps; raw caller-supplied headers are refused.
+/// key types are refused. Enforced non-cascading relationships with one to ten
+/// ordered scalar fields admit all-null foreign keys and require a matching
+/// parent for every other tuple. Memo/OLE payloads use independent column maps; raw caller-supplied headers are refused.
 /// If no populated page fits, a released global-free page belonging to this table
 /// is reused, or one EOF page is appended. Inline maps convert to indirect storage
 /// and missing bitmap slots are allocated within the existing reference row.
@@ -47,11 +47,11 @@ use std::path::Path;
 /// Callers must exclude external writers throughout this operation on Unix or Windows.
 /// A pre-publication failure preserves the original; publication errors identify
 /// their stage. One resource budget covers planning, copying and full verification.
-/// Every affected enforced, non-cascading scalar relationship is checked, including
-/// multiple relationships and self-references. Every resulting non-null child
-/// key must occur in its parent table. A self-reference whose foreign physical
+/// Every affected enforced, non-cascading relationship is checked, including
+/// multiple relationships and self-references. Every child key with a non-null
+/// component must occur in its parent table. A self-reference whose foreign physical
 /// index precedes its parent index requires that key before insertion (EXP-0286).
-/// Composite relationship keys and cascades are refused.
+/// Cascades are refused.
 pub fn insert_row(
     path: impl AsRef<Path>,
     table: &[u8],

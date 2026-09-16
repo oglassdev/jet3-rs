@@ -56,14 +56,12 @@ fn renamed(two: bool) -> ([TableSpec<'static>; 2], RelationshipSpec<'static>) {
             } else {
                 b"Account7Events9"
             },
-            parent: RelationshipColumn {
-                table: TableRef::Name(parent_name),
-                column: ColumnRef::Name(b"Key1"),
-            },
-            child: RelationshipColumn {
-                table: TableRef::Name(child_name),
-                column: ColumnRef::Name(b"Account4"),
-            },
+            parent: TableRef::Name(parent_name),
+            child: TableRef::Name(child_name),
+            fields: &[RelationshipField {
+                parent: ColumnRef::Name(b"Key1"),
+                child: ColumnRef::Name(b"Account4"),
+            }],
         },
     )
 }
@@ -114,20 +112,26 @@ fn caller_names_columns_and_both_selector_cases_reopen() -> TestResult {
 fn missing_references_wrong_types_and_unsupported_indexes_are_refused() {
     let (tables, spec) = renamed(false);
     let mut wrong = spec;
-    wrong.parent.table = TableRef::Ordinal(9);
+    wrong.parent = TableRef::Ordinal(9);
     assert!(matches!(
         compose_relationship(&tables, &wrong, &mut budget()),
         Err(ComposeError::UnsupportedRelationship { .. })
     ));
     wrong = spec;
-    wrong.child.column = ColumnRef::Name(b"Missing");
+    wrong.fields = &[RelationshipField {
+        parent: ColumnRef::Name(b"Key1"),
+        child: ColumnRef::Name(b"Missing"),
+    }];
     assert!(matches!(
         compose_relationship(&tables, &wrong, &mut budget()),
         Err(ComposeError::UnsupportedRelationship {
             detail: "child column reference"
         })
     ));
-    wrong.child.column = ColumnRef::Ordinal(0);
+    wrong.fields = &[RelationshipField {
+        parent: ColumnRef::Name(b"Key1"),
+        child: ColumnRef::Ordinal(0),
+    }];
     assert!(matches!(
         compose_relationship(&tables, &wrong, &mut budget()),
         Err(ComposeError::UnsupportedRelationship {
@@ -135,7 +139,10 @@ fn missing_references_wrong_types_and_unsupported_indexes_are_refused() {
         })
     ));
     wrong = spec;
-    wrong.parent.column = ColumnRef::Ordinal(0);
+    wrong.fields = &[RelationshipField {
+        parent: ColumnRef::Ordinal(0),
+        child: ColumnRef::Name(b"Account4"),
+    }];
     assert!(matches!(
         compose_relationship(&tables, &wrong, &mut budget()),
         Err(ComposeError::UnsupportedRelationship { .. })
@@ -172,8 +179,8 @@ fn name_collisions_and_unsupported_name_bytes_are_refused() {
     ));
     spec.name = b"Link";
     tables[1].name = b"ACCOUNTS7";
-    spec.parent.table = TableRef::Ordinal(0);
-    spec.child.table = TableRef::Ordinal(1);
+    spec.parent = TableRef::Ordinal(0);
+    spec.child = TableRef::Ordinal(1);
     assert!(matches!(
         compose_relationship(&tables, &spec, &mut budget()),
         Err(ComposeError::DuplicateTableName { .. })

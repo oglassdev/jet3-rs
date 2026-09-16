@@ -487,7 +487,7 @@ fn duplicate_catalog_bindings_cannot_hide_a_different_target_record() -> Result 
     assert!(matches!(
         field(&fixture, 0, 3, 2, RowValue::Long(8)),
         Err(UpdateError::Mismatch(
-            "unresolved target relationship record"
+            "relationship catalog component count"
         ))
     ));
     assert_eq!(fs::read(fixture.path())?, before);

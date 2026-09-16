@@ -22,7 +22,7 @@ pub struct FieldUpdate<'a> {
     pub row: RowLocator,
     /// Column ordinal from that table's definition.
     pub column: ColumnOrdinal,
-    /// Replacement value matching the present fixed-width column.
+    /// Replacement value matching the column, including null or raw Memo/OLE payloads.
     pub value: RowValue<'a>,
 }
 
@@ -47,7 +47,7 @@ pub enum UpdateError {
         /// Child value requiring a matching parent.
         value: i32,
     },
-    /// A non-Long scalar child key would have no matching parent after the change.
+    /// A non-Long scalar or composite child key would have no matching parent after the change.
     ScalarRelationshipConstraint {
         /// Definition page of the referenced parent table.
         parent: crate::PageNumber,
@@ -147,39 +147,31 @@ conversion!(crate::LongValueError, LongValue);
 conversion!(crate::PublishError, Publish);
 conversion!(crate::IndexTreeError, Index);
 
-/// Replaces one present fixed field in a user table.
+/// Replaces one field in a user table while retaining its logical row locator.
 ///
-/// Indexed tables are supported when the column is absent from every physical
-/// index. Key updates support up to 32 indexes with one to ten admitted
-/// scalar fields, including composite and nonunique keys. Changed trees retain
-/// their roots and reserved pages, appending nodes and growing allocation maps as needed.
-/// Row counts and ordinary index counters remain unchanged. An explicitly assigned
-/// foreign key updates its two-word retained index state (EXP-0268).
+/// Supports scalar values, null transitions, Boolean, Text/Binary and raw Memo/OLE
+/// payloads. AutoIncrement assignments and selected multi-hop overflow chains are
+/// refused. Present fixed fields are patched in place; other edits may compact or
+/// relocate the row using EXP-0262 storage transitions. Unassigned fields and their
+/// long-value descriptors are retained; only the selected payload is released or reused.
 ///
-/// Supports Byte, Integer, Long, Currency, Single, Double, DateTime, GUID and
-/// exact-width fixed Text. Null transitions, Boolean presence bits, AutoIncrement,
-/// and variable fields remain unsupported. A logical overflow locator resolves to
-/// its uniquely owned hidden row; its index entries retain the logical locator.
-/// Selected multi-hop chains are refused. A missing or
-/// unreadable relationship catalog and unresolved non-ASCII relationship endpoint
-/// names are also refused.
-/// Enforced non-cascading relationships with one ascending scalar key are checked
-/// against both endpoint tables and their reciprocal metadata. Orphan keys and
-/// referenced-parent changes return [`UpdateError::RelationshipConstraint`] for Long
-/// keys or [`UpdateError::ScalarRelationshipConstraint`] for other scalars.
-/// Changing or removing a null parent while null child keys remain returns
-/// [`UpdateError::NullRelationshipConstraint`] (EXP-0286).
-/// Only the requested field, index nodes/counters and necessary index allocation bits
-/// change. Opaque pages and vacated index entry space remain unchanged.
-/// Locators remain valid only while the source is unchanged: callers must exclude
-/// external writers for this entire operation, as required by [`crate::atomic_update`].
-/// Publication supports Unix and Windows. A pre-publication failure preserves the original;
-/// a post-publication sync failure is distinguished by the publication error stage.
-/// The same budget covers planning, copying, patching and streaming verification.
-/// Structural verification is not a DAO compatibility claim.
-/// Every affected enforced, non-cascading scalar relationship is checked, including
-/// multiple relationships and self-references. Every resulting non-null child
-/// key must occur in its parent table. Composite relationship keys and cascades are refused.
+/// Up to 32 indexes with one to ten supported scalar fields admit key changes.
+/// Changed trees retain their roots and reserved pages, growing allocation maps
+/// as needed. Row counts and ordinary index counters remain unchanged. Explicit
+/// foreign-key assignments update their two-word retained index state (EXP-0268).
+///
+/// Enforced non-cascading relationships with one to ten ordered scalar fields
+/// are checked against both endpoints and reciprocal metadata, including multiple
+/// relationships and self-references. Only all-null child keys are exempt from
+/// matching a parent. Assigning a referenced parent key is refused even when its
+/// value is unchanged (EXP-0289/0290). Cascades, an unreadable relationship catalog
+/// and unresolved non-ASCII endpoint names are refused.
+///
+/// Callers must exclude external writers throughout this operation on Unix or Windows.
+/// One budget covers planning, copying, patching and complete private verification.
+/// A pre-publication failure preserves the original; a post-publication sync failure
+/// is distinguished by the publication error stage. Structural verification is not
+/// a DAO compatibility claim.
 pub fn update_field(
     path: impl AsRef<Path>,
     request: FieldUpdate<'_>,
@@ -198,9 +190,6 @@ where
     H: FnMut(PublishStage) -> Result<(), HE>,
     HE: StdError + Send + Sync + 'static,
 {
-    if matches!(request.value, RowValue::Null) {
-        return Err(UpdateError::Unsupported("null replacement"));
-    }
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = guarded_table(&mut database, request.table, true, budget)?;
     let graph = crate::row_mutation_graph::RowGraph::load(
@@ -219,8 +208,29 @@ where
         .columns()
         .get(usize::from(request.column.get()))
         .ok_or(UpdateError::NotFound("column"))?;
-    if column.auto_increment() || column.physical_type() == ColumnPhysicalType::Boolean {
-        return Err(UpdateError::Unsupported("AutoIncrement or Boolean column"));
+    if column.auto_increment() {
+        return Err(UpdateError::Unsupported("AutoIncrement column"));
+    }
+    let rewrite = if matches!(request.value, RowValue::Null)
+        || column.physical_type() == ColumnPhysicalType::Boolean
+        || matches!(column.storage(), crate::ColumnStorageClass::Variable { .. })
+    {
+        true
+    } else {
+        let mut rows = database.rows(&definition, budget)?;
+        let mut rewrite = false;
+        while let Some(row) = rows.next_row()? {
+            if row.locator() == request.row {
+                rewrite = row.present_fixed_field_range(request.column).is_none();
+                break;
+            }
+        }
+        rewrite
+    };
+    if rewrite {
+        return crate::field_update::replace(
+            path, database, definition, graph, request, budget, hook,
+        );
     }
     let mut replacement = [0; u8::MAX as usize];
     let width = crate::row_writer::encode_present_fixed_field(

@@ -3,10 +3,10 @@ use super::*;
 use crate::creation::composer::{GraphImage, compose_relationship_graph};
 use crate::{CatalogObjectKind, RelationshipSpec, TableRef, TextCodePage};
 
-/// Creates empty tables with enforced, non-cascading single-column scalar relationships.
+/// Creates empty tables with enforced, non-cascading relationships with one to ten scalar fields.
 ///
 /// Table order is independent of relationship direction. Multiple endpoints,
-/// chains, self-references and parents sharing a child FK column are admitted.
+/// chains, self-references and parents sharing ordered child FK fields are admitted.
 /// Endpoints admit Boolean, Byte, Integer, Long, Currency, Single, Double,
 /// DateTime, Binary, fixed/variable Text and GUID; parents also admit AutoIncrement.
 /// Both endpoints must have the same scalar type, except that Text/Binary widths
@@ -15,11 +15,13 @@ use crate::{CatalogObjectKind, RelationshipSpec, TableRef, TextCodePage};
 /// The composer selects
 /// an ascending index first, in logical name order. If only a descending index
 /// qualifies, it generates an ascending tree with the same null policy, shared
-/// by relationships on that parent column (EXP-0286). An ordinary ascending
-/// child index on the FK column is reused, retaining its declared name; otherwise
-/// the composer adds a foreign index. Relationships on the same child column
+/// by relationships on that parent fields (EXP-0286/0290). An ordinary ascending
+/// child index on the ordered FK fields is reused, retaining its declared name; otherwise
+/// the composer adds a foreign index. Relationships on the same ordered child fields
 /// share its physical index. Each reciprocal relationship record consumes one
 /// of the table's 32 logical index slots; a self-reference consumes two.
+/// A self-reference must have different complete parent and foreign field vectors;
+/// individual components may coincide (EXP-0292).
 /// Other columns retain the normal
 /// creation planner's bounds.
 ///
@@ -42,10 +44,10 @@ pub fn create_database_with_relationships(
     create_database_with_relationships_and_rows(path, &requests, relationships, budget)
 }
 
-/// Creates tables, their initial rows and single-column scalar relationships.
+/// Creates tables, their initial rows and relationships with one to ten scalar fields.
 ///
 /// The schema restrictions of [`create_database_with_relationships`] apply.
-/// Each non-null foreign key must occur in its parent's initial rows, including
+/// Each foreign key with any non-null component must occur in its parent's initial rows, including
 /// self-references and keys shared by multiple parents. Complete rows, Memo/OLE
 /// payloads, indexes, reciprocal metadata and allocation ownership are checked
 /// before atomic publication. An empty relationship slice creates ordinary tables.
@@ -154,8 +156,8 @@ fn check_graph(
         let expected = relationships
             .iter()
             .map(|r| {
-                usize::from(resolve(r.parent.table) == Some(position))
-                    + usize::from(resolve(r.child.table) == Some(position))
+                usize::from(resolve(r.parent) == Some(position))
+                    + usize::from(resolve(r.child) == Some(position))
             })
             .sum::<usize>();
         if definition.relationships().count() != expected {
@@ -165,7 +167,14 @@ fn check_graph(
     let report = database
         .validate(TextCodePage::Windows1252, budget)
         .map_err(|error| CandidateCheckError::Validation(Box::new(error)))?;
-    if report.relationship_catalog_rows != relationships.len() as u64
+    let expected_rows = relationships
+        .iter()
+        .try_fold(0_u64, |count, relationship| {
+            count
+                .checked_add(relationship.fields.len() as u64)
+                .ok_or(mismatch("relationship catalog row count"))
+        })?;
+    if report.relationship_catalog_rows != expected_rows
         || report.relationships_with_verified_keys != relationships.len() as u64
         || report.uninterpreted_relationship_rows != 0
         || !report.relationship_inventory_checked

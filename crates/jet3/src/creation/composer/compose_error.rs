@@ -14,7 +14,7 @@ pub enum ComposeError {
         /// Unmatched Long key.
         value: i32,
     },
-    /// A non-Long scalar child key has no matching initial parent row.
+    /// A non-Long scalar or composite child key has no matching initial parent row.
     OrphanInitialScalarRelationshipKey {
         /// Zero-based child input row.
         row: usize,
@@ -24,7 +24,7 @@ pub enum ComposeError {
         /// Unsupported relationship constraint.
         detail: &'static str,
     },
-    /// Initial indexes require one or two supported numeric columns and bounded index counts.
+    /// Initial indexes require one to ten supported scalar columns and bounded index counts.
     UnsupportedInitialIndexSchema,
     /// A scalar key value needs an unsupported encoding (including negative zero).
     UnsupportedInitialIndexValue {

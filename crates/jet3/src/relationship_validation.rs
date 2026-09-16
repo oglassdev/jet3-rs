@@ -1,6 +1,6 @@
 //! Read-only checks of EXP-0268/0273/0279 relationship metadata and scalar keys.
 use super::*;
-use crate::relationship_key::{self, Key};
+use crate::relationship_key::{self, Key, key_values};
 
 #[derive(Default)]
 pub(crate) struct Summary {
@@ -25,56 +25,56 @@ pub(crate) fn validate<S: ReadAt>(
         ..Summary::default()
     };
     let mut endpoints = Vec::new();
-    for record in &records {
-        let names = [
-            &record.name,
-            &record.parent,
-            &record.child,
-            &record.parent_column,
-            &record.child_column,
-        ];
-        if record.metadata != [0, 1, 0]
-            || record.name.len() > 63
-            || names
+    for group in groups(&records, budget)? {
+        let record = group
+            .first()
+            .ok_or(UpdateError::Mismatch("empty relationship"))?;
+        budget.charge_work_units(group.len() as u64 * 5 * 255)?;
+        let supported = group.iter().any(|record| {
+            record.metadata[0] == 0
+                && (1..=crate::numeric_index_entry::MAX_FIELDS as i32).contains(&record.metadata[1])
+                && record.name.len() <= 63
+                && [
+                    &record.name,
+                    &record.parent,
+                    &record.child,
+                    &record.parent_column,
+                    &record.child_column,
+                ]
                 .iter()
-                .any(|name| validate_catalog_name(name).is_err())
-        {
-            report.uninterpreted += 1;
+                .all(|name| validate_catalog_name(name).is_ok())
+        });
+        if !supported {
+            report.uninterpreted += group.len() as u64;
             continue;
         }
-        budget.charge_work_units((records.len() as u64).saturating_mul(512))?;
-        if records
-            .iter()
-            .filter(|other| catalog_names_equal(&other.name, &record.name))
-            .count()
-            != 1
-        {
-            return Err(UpdateError::Mismatch("duplicate relationship catalog name"));
-        }
+        let ordered = ordered(&group, budget)?;
         let parent = table(database, &record.parent, budget)?;
         let child = table(database, &record.child, budget)?;
         budget.charge_work_units(
-            ((parent.columns().len() + child.columns().len()) as u64).saturating_mul(512),
+            ((parent.columns().len() + child.columns().len()) as u64)
+                .saturating_mul(512 * ordered.len() as u64),
         )?;
         let mut supported = true;
-        for (table, name) in [
-            (&parent, &record.parent_column),
-            (&child, &record.child_column),
-        ] {
-            match key_column(table, name) {
-                Ok(_) => {}
-                Err(UpdateError::Unsupported("relationship scalar column schema")) => {
-                    supported = false
+        for record in &ordered {
+            for (table, name) in [
+                (&parent, &record.parent_column),
+                (&child, &record.child_column),
+            ] {
+                match key_column(table, name) {
+                    Ok(_) => {}
+                    Err(UpdateError::Unsupported("relationship scalar column schema")) => {
+                        supported = false
+                    }
+                    Err(error) => return Err(error),
                 }
-                Err(error) => return Err(error),
             }
         }
         if !supported {
-            report.uninterpreted += 1;
+            report.uninterpreted += group.len() as u64;
             continue;
         }
-        // Once both scalar endpoints are known, every reciprocal/index mismatch is an error.
-        let constraint = resolve_tables(record, parent, child, budget)?;
+        let constraint = resolve_tables(&ordered, parent, child, budget)?;
         check_keys(database, &constraint, budget)?;
         reserve(&mut endpoints, 2, budget)?;
         endpoints.push(Endpoint {
@@ -101,8 +101,13 @@ fn check_keys<S: ReadAt>(
     {
         let mut rows = database.rows(&constraint.parent, budget)?;
         while let Some(mut row) = rows.next_row()? {
-            let value = crate::numeric_row_values::read_column(&mut row, constraint.parent_column)?;
-            let Some(key) = Key::encode(constraint.parent_kind, value, row.budget_mut())? else {
+            let values = key_values(&mut row, &constraint.parent_columns)?;
+            let Some(key) = Key::encode(
+                &constraint.parent_kinds,
+                &values[..constraint.parent_columns.len()],
+                row.budget_mut(),
+            )?
+            else {
                 continue;
             };
             reserve(&mut parent_keys, 1, rows.owned.budget_mut())?;
@@ -115,8 +120,13 @@ fn check_keys<S: ReadAt>(
     }
     let mut rows = database.rows(&constraint.child, budget)?;
     while let Some(mut row) = rows.next_row()? {
-        let value = crate::numeric_row_values::read_column(&mut row, constraint.child_column)?;
-        let Some(key) = Key::encode(constraint.child_kind, value, row.budget_mut())? else {
+        let values = key_values(&mut row, &constraint.child_columns)?;
+        let Some(key) = Key::encode(
+            &constraint.child_kinds,
+            &values[..constraint.child_columns.len()],
+            row.budget_mut(),
+        )?
+        else {
             continue;
         };
         if !relationship_key::contains(&parent_keys, &key, row.budget_mut())? {

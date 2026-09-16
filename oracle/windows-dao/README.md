@@ -389,3 +389,45 @@ same comparisons; their report evaluator hashes differ from the historical
 filenames. `prepare_scalar_relationship_creation.py` and
 `prepare_scalar_relationship_lifecycle.py` replay the retained recipes through a
 new Rust candidate. Preparation alone does not establish DAO acceptance.
+
+
+## Composite relationship acceptance
+
+EXP-0290/0291 cover ordered two- and ten-component keys, compatible widths,
+mixed-direction parents, reused foreign indexes and null boundaries. The main
+suite accepts twelve creations and 264 same-input mutations (142 successes and
+122 refusals). EXP-0292/0293 add self-references, partial/swapped endpoint mappings,
+shared Boolean foreign keys and physical index ordering: twelve creations and
+sixty same-input mutations (32 successes and 28 refusals). The final source
+reproduces every main-suite output byte-for-byte.
+
+Place the durable `20260916-composite-relationship-acceptance` and
+`20260916-composite-relationship-lifecycle-discovery` archives beside each other,
+then replay the complete candidate comparisons without accessing Windows:
+
+```sh
+bash /path/to/20260916-composite-relationship-acceptance/replay.sh \
+  /tmp/composite-relationship-report.json
+```
+
+The report reproduces SHA-256
+`69a65d4d3487962c95dd6c0665e1c69476d6cd3674d61252da87f3cb2e0963cf`.
+Set `ANALYSIS` to the lifecycle-discovery directory if it is elsewhere. Archives
+retain exact inputs, outputs, producers, preparation scripts, source/binary pins,
+failed attempts and complete observer dependencies. Successful field updates
+preserve unassigned fields and payload descriptors; only explicitly assigned-null
+fixed padding and full-replacement payload placement have bounded allowances.
+Native refusals retain their observed side effects, while Rust refusals must
+preserve the complete input.
+
+The graph archive contains its own complete observer dependencies:
+
+```sh
+bash /path/to/20260916-composite-graph-acceptance/replay.sh \
+  /tmp/composite-graph-report.json
+```
+
+Its report reproduces SHA-256
+`a05dacdfaeb282e5a1b2858d638fb90f5e7009c05ed0a962044a5b40f8683fcd`.
+The failed Boolean Seek capture remains archived alongside the corrected complete
+readback. These finite comparisons do not establish cascade compatibility.

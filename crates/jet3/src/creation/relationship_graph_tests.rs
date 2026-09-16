@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    ColumnRef, ColumnSpec, IndexColumnSpec, IndexDirection, IndexSpec, RelationshipColumn,
+    ColumnRef, ColumnSpec, IndexColumnSpec, IndexDirection, IndexSpec, RelationshipField,
     ResourceLimits,
 };
 use std::fs;
@@ -70,13 +70,18 @@ fn relation(
 ) -> RelationshipSpec<'static> {
     RelationshipSpec {
         name,
-        parent: RelationshipColumn {
-            table: TableRef::Ordinal(parent),
-            column: ColumnRef::Ordinal(0),
-        },
-        child: RelationshipColumn {
-            table: TableRef::Ordinal(child),
-            column: ColumnRef::Ordinal(column),
+        parent: TableRef::Ordinal(parent),
+        child: TableRef::Ordinal(child),
+        fields: match column {
+            1 => &[RelationshipField {
+                parent: ColumnRef::Ordinal(0),
+                child: ColumnRef::Ordinal(1),
+            }],
+            2 => &[RelationshipField {
+                parent: ColumnRef::Ordinal(0),
+                child: ColumnRef::Ordinal(2),
+            }],
+            _ => &[],
         },
     }
 }
@@ -366,3 +371,6 @@ mod descending_parents;
 
 #[path = "scalar_relationship_tests.rs"]
 mod scalar_keys;
+
+#[path = "composite_relationship_tests.rs"]
+mod composite_keys;

@@ -29,6 +29,8 @@ pub(super) struct RelationshipRow<'a> {
     pub child_column: &'a [u8],
     pub parent_table: &'a [u8],
     pub parent_column: &'a [u8],
+    pub field_count: u16,
+    pub field_ordinal: u16,
 }
 
 impl RelationshipRow<'_> {
@@ -46,8 +48,8 @@ impl RelationshipRow<'_> {
         let values = [
             RowValue::Text(self.name),
             RowValue::Long(0),
-            RowValue::Long(1),
-            RowValue::Long(0),
+            RowValue::Long(i32::from(self.field_count)),
+            RowValue::Long(i32::from(self.field_ordinal)),
             RowValue::Text(self.child_table),
             RowValue::Text(self.child_column),
             RowValue::Text(self.parent_table),

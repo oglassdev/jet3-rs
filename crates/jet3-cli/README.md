@@ -57,7 +57,7 @@ includes the table and available field/index/row context. Invalid arguments exit
 Counts include both user and system tables. Validation checks row counts and values,
 unique row/payload reachability,
 index live-row membership, supported scalar keys and branch bounds, and catalogued
-allocation ownership. Enforced single ascending scalar relationships check reciprocal
+allocation ownership. Enforced ordered scalar/composite relationships check reciprocal
 metadata, parent uniqueness and non-null child-key inclusion. The JSON report
 counts unsupported index schemas and relationship catalog rows separately; complete
 relationship inventory is checked only when all central rows are interpreted.
@@ -163,10 +163,12 @@ index layouts; otherwise it uses the initial-row API. This interface
 adds no relationship, index, schema or payload support beyond the linked
 `jet3` library. It makes no compatibility claim beyond the underlying library and its recorded evidence.
 
-For multiple or self-referencing relationships, use `"relationships": [...]`
+For composite, multiple or self-referencing relationships, use `"relationships": [...]`
 with an array of the same objects. The array admits enforced, non-cascading
-single-column scalar constraints within each table's logical-index capacity, along with
-any supported unrelated tables. Parent keys need a unique scalar index;
+constraints with one to ten ordered scalar columns within each table's logical-index capacity,
+along with any supported unrelated tables. For a composite endpoint, replace
+`"column": "Id"` with `"columns": ["First", "Second"]` on both endpoints.
+The lists must have the same length and order as the parent unique index;
 AutoIncrement parents also qualify. An eligible ascending index is selected in logical name order;
 a descending-only parent gets a separate ascending tree with the same null policy,
 shared by its relationships. Endpoints must have matching scalar types; Text/Binary
@@ -219,18 +221,19 @@ blindly retry a failed mutation. Exclude concurrent writers for the entire
 operation. Publication is available on Unix and Windows; Windows has no separate
 directory-sync guarantee.
 
-Field updates support present fixed values. Complete row replacement supports
-scalar values and independent Memo/OLE payloads while keeping the row on its
-current page. Insertion can reuse released pages or append within inline maps.
-Deletion compacts retained pages or releases a page containing its last live row.
-Up to three numeric indexes support one/two components, multiple levels, mixed
-directions, duplicates and null policies. Memo/OLE mutation accepts nonempty
-typed payloads or null, and reuses released payload storage.
+Field updates support scalar values, null transitions and independent Memo/OLE
+payloads. They assign only the selected column; complete row replacement assigns
+all columns. Assigning a referenced parent key can be refused even when the value
+is unchanged. Growing rows may move into hidden storage while retaining their
+logical locator; selected multi-hop overflow chains remain unsupported.
+Insertion reuses released pages or appends pages. Deletion compacts retained pages
+or releases a page containing its last live row. Up to 32 indexes support one to
+ten scalar components, multiple levels, mixed directions, duplicates and null
+policies. Memo/OLE mutation reuses released payload storage.
 
 An AutoNumber insertion accepts `"auto_increment"` or an explicit `{"long": 42}`.
 For replacement, supply `"auto_increment"` to keep the existing ID, or its
 unchanged Long value. Deletion retains the generation state. Rejected requests
 preserve the whole file, including that state; DAO can consume a number on a
-failed insert. Relationships, other index key types, indirect maps and cross-page
-row replacement remain restricted. The recorded finite DAO comparisons are in
+failed insert. Cascades and relationship schema edits remain restricted. The recorded finite DAO comparisons are in
 `docs/PROVENANCE.md`; CLI tests do not expand that coverage.

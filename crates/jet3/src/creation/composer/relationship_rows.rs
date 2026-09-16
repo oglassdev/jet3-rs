@@ -81,8 +81,8 @@ pub(super) fn compose_with_rows(
             Some(RowValue::Long(value))
                 if parent.contains_initial_key(
                     0,
-                    crate::numeric_index_key::NumericKeyType::Long,
-                    RowValue::Long(*value),
+                    &[crate::numeric_index_key::NumericKeyType::Long],
+                    &[RowValue::Long(*value)],
                     budget,
                 )? => {}
             Some(RowValue::Long(value)) => {

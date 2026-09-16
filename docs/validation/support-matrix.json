@@ -49,7 +49,8 @@
         "crates/jet3/src/relationship_key.rs",
         "crates/jet3/src/creation/scalar_relationship_tests.rs",
         "oracle/windows-dao/scripts/scalar_relationship_creation_acceptance.py",
-        "oracle/windows-dao/scripts/scalar_relationship_lifecycle_acceptance.py"
+        "oracle/windows-dao/scripts/scalar_relationship_lifecycle_acceptance.py",
+        "crates/jet3/src/creation/composite_relationship_tests.rs"
       ]
     },
     {
@@ -351,7 +352,11 @@
         "crates/jet3/src/relationship_key.rs",
         "crates/jet3/src/creation/scalar_relationship_tests.rs",
         "oracle/windows-dao/scripts/scalar_relationship_creation_acceptance.py",
-        "oracle/windows-dao/scripts/scalar_relationship_lifecycle_acceptance.py"
+        "oracle/windows-dao/scripts/scalar_relationship_lifecycle_acceptance.py",
+        "crates/jet3/src/creation/composite_relationship_tests.rs",
+        "crates/jet3/src/field_update.rs",
+        "crates/jet3/src/field_update_tests.rs",
+        "crates/jet3/src/long_value_field_tests.rs"
       ]
     },
     {
@@ -427,7 +432,8 @@
         "crates/jet3/src/relationship_key.rs",
         "crates/jet3/src/creation/scalar_relationship_tests.rs",
         "oracle/windows-dao/scripts/scalar_relationship_creation_acceptance.py",
-        "oracle/windows-dao/scripts/scalar_relationship_lifecycle_acceptance.py"
+        "oracle/windows-dao/scripts/scalar_relationship_lifecycle_acceptance.py",
+        "crates/jet3/src/creation/composite_relationship_tests.rs"
       ]
     },
     {
@@ -480,7 +486,8 @@
         "crates/jet3/src/relationship_key.rs",
         "crates/jet3/src/creation/scalar_relationship_tests.rs",
         "oracle/windows-dao/scripts/scalar_relationship_creation_acceptance.py",
-        "oracle/windows-dao/scripts/scalar_relationship_lifecycle_acceptance.py"
+        "oracle/windows-dao/scripts/scalar_relationship_lifecycle_acceptance.py",
+        "crates/jet3/src/creation/composite_relationship_tests.rs"
       ]
     },
     {
