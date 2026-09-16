@@ -1,0 +1,1767 @@
+{
+  "accepted": [
+    {
+      "id": "ordering",
+      "relations": [],
+      "tables": [
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Id",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": false,
+              "name": "Fz",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": false,
+              "name": "Fa",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": false,
+              "name": "Fá",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": false,
+              "name": "Fæ",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": false,
+              "name": "Fb",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "café",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "mémø",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Id",
+              "name": "ById",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "Fz",
+              "name": "Z",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Fa",
+              "name": "a",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Fá",
+              "name": "Á",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Fæ",
+              "name": "æ",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Fb",
+              "name": "B",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "Tâble Æ",
+          "rows": [
+            {
+              "Fa": "a1",
+              "Fb": "b1",
+              "Fz": "z1",
+              "Fá": "á1",
+              "Fæ": "æ1",
+              "Id": 1,
+              "café": "é",
+              "mémø": "memo one"
+            },
+            {
+              "Fa": "a2",
+              "Fb": "b2",
+              "Fz": "z2",
+              "Fá": "á2",
+              "Fæ": "æ2",
+              "Id": 2,
+              "café": "",
+              "mémø": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "boundaries",
+      "relations": [],
+      "tables": [
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Id",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": false,
+              "name": "Féxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "size": 32,
+              "type": 10
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Id",
+              "name": "Iéxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "Téxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "rows": [
+            {
+              "Féxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "value",
+              "Id": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "relation",
+      "relations": [
+        {
+          "child": "Chîld",
+          "child_field": "Parenté",
+          "name": "Rélation Æ",
+          "parent": "Pärent",
+          "parent_field": "Identité"
+        }
+      ],
+      "tables": [
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Läbel",
+              "size": 32,
+              "type": 10
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "PKeyé",
+              "primary": true,
+              "unique": true
+            }
+          ],
+          "name": "Pärent",
+          "rows": [
+            {
+              "Identité": 1,
+              "Läbel": "p"
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": false,
+              "name": "Parenté",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Nötés",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "CKeyß",
+              "primary": true,
+              "unique": true
+            }
+          ],
+          "name": "Chîld",
+          "rows": [
+            {
+              "Identité": 10,
+              "Nötés": "child",
+              "Parenté": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seeded-catalog",
+      "relations": [],
+      "tables": [
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "VÖÖÂê§§ÝèÖŠÖûÆÅ",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MÖÀ×ëãŠÙµÿæþ§ëñ",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "VÖÖÂê§§ÝèÖŠÖûÆÅ",
+              "name": "á§ð¡ÉÅ½Âðáï",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T00_¼ÿÀíµ÷Éá",
+          "rows": [
+            {
+              "Identité": 1,
+              "MÖÀ×ëãŠÙµÿæþ§ëñ": "memo € 0",
+              "VÖÖÂê§§ÝèÖŠÖûÆÅ": "café Æ"
+            },
+            {
+              "Identité": 2,
+              "MÖÀ×ëãŠÙµÿæþ§ëñ": "",
+              "VÖÖÂê§§ÝèÖŠÖûÆÅ": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "VõµþÿñÑ€®ÿñáãÑš",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MæŠ¾ôÂ¼ÇñŒŒŽÑðè",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "VõµþÿñÑ€®ÿñáãÑš",
+              "name": "áÅäŒ±í€ü÷áŒ",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T01_æÖØƒçƒŠ§þ©ÝŒŒáÇ€ð™¼ŒÖßãÖõ™šƒüßï",
+          "rows": [
+            {
+              "Identité": 11,
+              "MæŠ¾ôÂ¼ÇñŒŒŽÑðè": "memo € 1",
+              "VõµþÿñÑ€®ÿñáãÑš": "café Æ"
+            },
+            {
+              "Identité": 12,
+              "MæŠ¾ôÂ¼ÇñŒŒŽÑðè": "",
+              "VõµþÿñÑ€®ÿñáãÑš": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "V±ÑÉ¶í€íµÀšÀ¿À×",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MÝêšßçòü½áÆëšüð",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "V±ÑÉ¶í€íµÀšÀ¿À×",
+              "name": "áÌêú™òž¼×Æã",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T02_æ®©½®ïæØÅ¿ûßƒæèîæêõÙ§ƒØßØ¡ïãÆµÆíèßµ™Øƒ¿ÑÂïð™è€æñíÙÖíúôäã×žž¡",
+          "rows": [
+            {
+              "Identité": 21,
+              "MÝêšßçòü½áÆëšüð": "memo € 2",
+              "V±ÑÉ¶í€íµÀšÀ¿À×": "café Æ"
+            },
+            {
+              "Identité": 22,
+              "MÝêšßçòü½áÆëšüð": "",
+              "V±ÑÉ¶í€íµÀšÀ¿À×": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "V¶Öž¼Ùæ¡±µüÙÖß™",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MÓ¿ãÝÅÅíôŠ¡™ÿŒû",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "V¶Öž¼Ùæ¡±µüÙÖß™",
+              "name": "áÆçµãÝÆçèíŠ",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T03_ÓÀÓúÀ¾çñ",
+          "rows": [
+            {
+              "Identité": 31,
+              "MÓ¿ãÝÅÅíôŠ¡™ÿŒû": "memo € 3",
+              "V¶Öž¼Ùæ¡±µüÙÖß™": "café Æ"
+            },
+            {
+              "Identité": 32,
+              "MÓ¿ãÝÅÅíôŠ¡™ÿŒû": "",
+              "V¶Öž¼Ùæ¡±µüÙÖß™": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Vè€ŽÂŒÖãÖµ½æ©úÖ",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "M§Âž¶ïãšžþÓÅÆíë",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "Vè€ŽÂŒÖãÖµ½æ©úÖ",
+              "name": "áïÝÖß¿®ûÅúä",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T04_ïÖÇÅñ÷ú§ðÀ¾®§ïŒÉ¶ÉæÝçûášûï™™êÙò",
+          "rows": [
+            {
+              "Identité": 41,
+              "M§Âž¶ïãšžþÓÅÆíë": "memo € 4",
+              "Vè€ŽÂŒÖãÖµ½æ©úÖ": "café Æ"
+            },
+            {
+              "Identité": 42,
+              "M§Âž¶ïãšžþÓÅÆíë": "",
+              "Vè€ŽÂŒÖãÖµ½æ©úÖ": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Vðû¼Œúïµ¿ïÇ±÷¡ð",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Mû¶ûòäôÀ×êØäêÅí",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "Vðû¼Œúïµ¿ïÇ±÷¡ð",
+              "name": "á¶À÷ûíÌ¾ëî×",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T05_èÉÅžŒáëññ±úš®¼÷ÿãž®úæ™±ñÇšŒŠñõõäÝúá½€ã®÷¿Â¾¼¼µµÉœß¾™Âü¶ÌÀÌ®è",
+          "rows": [
+            {
+              "Identité": 51,
+              "Mû¶ûòäôÀ×êØäêÅí": "memo € 5",
+              "Vðû¼Œúïµ¿ïÇ±÷¡ð": "café Æ"
+            },
+            {
+              "Identité": 52,
+              "Mû¶ûòäôÀ×êØäêÅí": "",
+              "Vðû¼Œúïµ¿ïÇ±÷¡ð": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "VÉò¼žûãêßŠŠþ®ÌÂ",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MÖüæë¿è½÷µÂ§Š¿ç",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "VÉò¼žûãêßŠŠþ®ÌÂ",
+              "name": "á¶ãÇŒ¾¾ïÝðí",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T06_Ñÿ¿¶¶®™á",
+          "rows": [
+            {
+              "Identité": 61,
+              "MÖüæë¿è½÷µÂ§Š¿ç": "memo € 6",
+              "VÉò¼žûãêßŠŠþ®ÌÂ": "café Æ"
+            },
+            {
+              "Identité": 62,
+              "MÖüæë¿è½÷µÂ§Š¿ç": "",
+              "VÉò¼žûãêßŠŠþ®ÌÂ": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "VÆêáÿññ§Éè™ÖÂ±Ç",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Mðçœð€ƒèòÓŒÌþêò",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "VÆêáÿññ§Éè™ÖÂ±Ç",
+              "name": "áÇ÷ë¾îµáÑ¼ë",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T07_šêÖáÉèäØôèØÂ™œçžñþ¶ØëñïèŽçîµš×ÿ",
+          "rows": [
+            {
+              "Identité": 71,
+              "Mðçœð€ƒèòÓŒÌþêò": "memo € 7",
+              "VÆêáÿññ§Éè™ÖÂ±Ç": "café Æ"
+            },
+            {
+              "Identité": 72,
+              "Mðçœð€ƒèòÓŒÌþêò": "",
+              "VÆêáÿññ§Éè™ÖÂ±Ç": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Vþôò¶÷®ç×ãçŒõš÷",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "M¡þõÂÓñèæÉ±šžû½",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "Vþôò¶÷®ç×ãçŒõš÷",
+              "name": "áÀ¿ÆÑüšçõƒ®",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T08_€¿ÑüÖûÓ®Ó©þüßçÿŠ§ü±¼ú¡üæŽòêûÀãÿèáÇ±ÿ€Óêí®™§ÿ¡îÓþÙ×ÑëÝžÌ÷÷Š¾Ì",
+          "rows": [
+            {
+              "Identité": 81,
+              "M¡þõÂÓñèæÉ±šžû½": "memo € 8",
+              "Vþôò¶÷®ç×ãçŒõš÷": "café Æ"
+            },
+            {
+              "Identité": 82,
+              "M¡þõÂÓñèæÉ±šžû½": "",
+              "Vþôò¶÷®ç×ãçŒõš÷": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Vèûæÿú€½ÓÑð±ò¡©",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MÂœôí§á™ÑíÑôß¼Ì",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "Vèûæÿú€½ÓÑð±ò¡©",
+              "name": "áòïÌŠüÓ€ßÆŠ",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T09_À×À§Âµœð",
+          "rows": [
+            {
+              "Identité": 91,
+              "MÂœôí§á™ÑíÑôß¼Ì": "memo € 9",
+              "Vèûæÿú€½ÓÑð±ò¡©": "café Æ"
+            },
+            {
+              "Identité": 92,
+              "MÂœôí§á™ÑíÑôß¼Ì": "",
+              "Vèûæÿú€½ÓÑð±ò¡©": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "VãžœÌüæÆÀØ¶ðÅ¡Å",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MêïÌŠ€üÅÖƒžÀ¶±À",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "VãžœÌüæÆÀØ¶ðÅ¡Å",
+              "name": "á±õŽç¶í¶Öî±",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T10_ÌüÉ×ŽÅ¾ÆîÓÅëƒš±þ¼íÌÇÿÌ¾ÌúèÑ®¾úÅ",
+          "rows": [
+            {
+              "Identité": 101,
+              "MêïÌŠ€üÅÖƒžÀ¶±À": "memo € 10",
+              "VãžœÌüæÆÀØ¶ðÅ¡Å": "café Æ"
+            },
+            {
+              "Identité": 102,
+              "MêïÌŠ€üÅÖƒžÀ¶±À": "",
+              "VãžœÌüæÆÀØ¶ðÅ¡Å": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "VÓ€Âƒ™ÅñÿñŽèµáô",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MŽî¿®±ŽáƒúÙÇê¶Â",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "VÓ€Âƒ™ÅñÿñŽèµáô",
+              "name": "áÂŠž®ŽÑƒí×Œ",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T11_ŒõÇðñÆÇ¾þêœ½ƒÝä€Š€§×šûáêÓüð¼ÿ€±ç§çÌ÷þ¡ãúÉ×™ôÀ±§Æ¡ûûœŒÑãÑƒ€ü©",
+          "rows": [
+            {
+              "Identité": 111,
+              "MŽî¿®±ŽáƒúÙÇê¶Â": "memo € 11",
+              "VÓ€Âƒ™ÅñÿñŽèµáô": "café Æ"
+            },
+            {
+              "Identité": 112,
+              "MŽî¿®±ŽáƒúÙÇê¶Â": "",
+              "VÓ€Âƒ™ÅñÿñŽèµáô": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "V½÷ãŒõžÿØžêÇÀ¶®",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MðíêÖÆÖ®œžê¡Çüæ",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "V½÷ãŒõžÿØžêÇÀ¶®",
+              "name": "á¶èÅÓçÉžÝü±",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T12_™ÉþŠïšëí",
+          "rows": [
+            {
+              "Identité": 121,
+              "MðíêÖÆÖ®œžê¡Çüæ": "memo € 12",
+              "V½÷ãŒõžÿØžêÇÀ¶®": "café Æ"
+            },
+            {
+              "Identité": 122,
+              "MðíêÖÆÖ®œžê¡Çüæ": "",
+              "V½÷ãŒõžÿØžêÇÀ¶®": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "VÙ¡¿ïœúõ¼ÝÓôÌûŒ",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MÌ±É¾ëÙô¾ÌèØÿ¶™",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "VÙ¡¿ïœúõ¼ÝÓôÌûŒ",
+              "name": "áäŽ½¶Šÿäï¾¼",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T13_ŠÓƒñ¡¶¿Éç÷Ùðð§€©©§¾©¡¼ÂžƒÓòôô¾Ž",
+          "rows": [
+            {
+              "Identité": 131,
+              "MÌ±É¾ëÙô¾ÌèØÿ¶™": "memo € 13",
+              "VÙ¡¿ïœúõ¼ÝÓôÌûŒ": "café Æ"
+            },
+            {
+              "Identité": 132,
+              "MÌ±É¾ëÙô¾ÌèØÿ¶™": "",
+              "VÙ¡¿ïœúõ¼ÝÓôÌûŒ": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "V®Å½èß¶û€÷Âôòîä",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MÅêÀëÆòÖŽÆÅß¾®õ",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "V®Å½èß¶û€÷Âôòîä",
+              "name": "áüúÇþ™ÝîÂÌò",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T14_ã¿òÇØÿõ½™úž©šžœÖíÌŠð™üÌáÀŽ¾õúÑƒ¾÷¶½Ž¶€ÀûíñÑñïïÂê§¶ØŽòŽßŠƒõ§Ý",
+          "rows": [
+            {
+              "Identité": 141,
+              "MÅêÀëÆòÖŽÆÅß¾®õ": "memo € 14",
+              "V®Å½èß¶û€÷Âôòîä": "café Æ"
+            },
+            {
+              "Identité": 142,
+              "MÅêÀëÆòÖŽÆÅß¾®õ": "",
+              "V®Å½èß¶û€÷Âôòîä": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "VÖµ®çíÑúœžœòüÆß",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Mµþô€œ®ÖÅÂšßŠ®ô",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "VÖµ®çíÑúœžœòüÆß",
+              "name": "áÿïçÖ¡õá€úŽ",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T15_ç¡ñçíï¼÷",
+          "rows": [
+            {
+              "Identité": 151,
+              "Mµþô€œ®ÖÅÂšßŠ®ô": "memo € 15",
+              "VÖµ®çíÑúœžœòüÆß": "café Æ"
+            },
+            {
+              "Identité": 152,
+              "Mµþô€œ®ÖÅÂšßŠ®ô": "",
+              "VÖµ®çíÑúœžœòüÆß": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "VÌï±ë½Öþ÷½èßûÀÿ",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "M½™ñí®Æ×è€ÇÖÖðÂ",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "VÌï±ë½Öþ÷½èßûÀÿ",
+              "name": "áŠÆŠ÷ÿž½Ö×¶",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T16_Æ½Çƒµ§õµþûÝþèØëÙœäžŠŒµžû¿¶î©×í¿",
+          "rows": [
+            {
+              "Identité": 161,
+              "M½™ñí®Æ×è€ÇÖÖðÂ": "memo € 16",
+              "VÌï±ë½Öþ÷½èßûÀÿ": "café Æ"
+            },
+            {
+              "Identité": 162,
+              "M½™ñí®Æ×è€ÇÖÖðÂ": "",
+              "VÌï±ë½Öþ÷½èßûÀÿ": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "VƒŒÀÉßîÉÉÝÝê€šô",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "M±ŒòðüïûŒßü™ðÇþ",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "VƒŒÀÉßîÉÉÝÝê€šô",
+              "name": "á©ÿðƒ½ÙŒžûÿ",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T17_€ûßþüãÉŽäãòíþçÂžÙ™©úñÂŒ©©è±Žƒæ½®ûÖþÇïŒ©¼žÝëèØæ÷½œÆ×±ïÝŒü¾Œžò",
+          "rows": [
+            {
+              "Identité": 171,
+              "M±ŒòðüïûŒßü™ðÇþ": "memo € 17",
+              "VƒŒÀÉßîÉÉÝÝê€šô": "café Æ"
+            },
+            {
+              "Identité": 172,
+              "M±ŒòðüïûŒßü™ðÇþ": "",
+              "VƒŒÀÉßîÉÉÝÝê€šô": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "VþŽ§ãÇûžêÖ±§ãôô",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MßÌÆðþáæÇ¼ô½ƒÂð",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "VþŽ§ãÇûžêÖ±§ãôô",
+              "name": "á©ú®ô®úÖÖãæ",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T18_¶ÀÂŠäÀüÇ",
+          "rows": [
+            {
+              "Identité": 181,
+              "MßÌÆðþáæÇ¼ô½ƒÂð": "memo € 18",
+              "VþŽ§ãÇûžêÖ±§ãôô": "café Æ"
+            },
+            {
+              "Identité": 182,
+              "MßÌÆðþáæÇ¼ô½ƒÂð": "",
+              "VþŽ§ãÇûžêÖ±§ãôô": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Vƒ¡Æ§íŒ®š™¶ð¿ÝŠ",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MÝÆòÅúØ™§ÅæÝƒÝê",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "Vƒ¡Æ§íŒ®š™¶ð¿ÝŠ",
+              "name": "áŽÇØîúüÿðÅæ",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T19_Ìñêüç™÷áÖüüŒüÓ÷îÅÙæ¾û®ò¼ôçŠÓ¿ç×",
+          "rows": [
+            {
+              "Identité": 191,
+              "MÝÆòÅúØ™§ÅæÝƒÝê": "memo € 19",
+              "Vƒ¡Æ§íŒ®š™¶ð¿ÝŠ": "café Æ"
+            },
+            {
+              "Identité": 192,
+              "MÝÆòÅúØ™§ÅæÝƒÝê": "",
+              "Vƒ¡Æ§íŒ®š™¶ð¿ÝŠ": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "VÓãîäú¼ÑžþãÖœœš",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MíîŽÇÖÝäúÌœôïÿ¾",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "VÓãîäú¼ÑžþãÖœœš",
+              "name": "á±çîí÷šÝÇ™É",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T20_ß©íÓèÆÿñû€äÇœ¡œãÑœôèðƒÇ€½îáµµäÿÝòš¿õ¡ãŽžµ€ÙŽ×õîä×õÌž¶ëûÿ¼ëðë",
+          "rows": [
+            {
+              "Identité": 201,
+              "MíîŽÇÖÝäúÌœôïÿ¾": "memo € 20",
+              "VÓãîäú¼ÑžþãÖœœš": "café Æ"
+            },
+            {
+              "Identité": 202,
+              "MíîŽÇÖÝäúÌœôïÿ¾": "",
+              "VÓãîäú¼ÑžþãÖœœš": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Vµ¿êÖãØá½þþÀèëü",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Míçí¾ë©èêœ×¿üòÖ",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "Vµ¿êÖãØá½þþÀèëü",
+              "name": "áÇ©½ôƒŠïÇòÿ",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T21_©Æ®¿ïØžŒ",
+          "rows": [
+            {
+              "Identité": 211,
+              "Míçí¾ë©èêœ×¿üòÖ": "memo € 21",
+              "Vµ¿êÖãØá½þþÀèëü": "café Æ"
+            },
+            {
+              "Identité": 212,
+              "Míçí¾ë©èêœ×¿üòÖ": "",
+              "Vµ¿êÖãØá½þþÀèëü": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "VŽžñÌïðë§ëŒšÆúŒ",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "M½×¼×ò¶íñþµÆ¡®õ",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "VŽžñÌïðë§ëŒšÆúŒ",
+              "name": "áÑÌïîüÙŒòæ¶",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T22_Ù½ÀäÅïÓþÀ™ä÷§€¾ÙœÿÿÅþ¼©ñôÿ½™µÓ¾",
+          "rows": [
+            {
+              "Identité": 221,
+              "M½×¼×ò¶íñþµÆ¡®õ": "memo € 22",
+              "VŽžñÌïðë§ëŒšÆúŒ": "café Æ"
+            },
+            {
+              "Identité": 222,
+              "M½×¼×ò¶íñþµÆ¡®õ": "",
+              "VŽžñÌïðë§ëŒšÆúŒ": ""
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Vòœä½èœèþòÑÆíõ¡",
+              "size": 32,
+              "type": 10
+            },
+            {
+              "allow_zero_length": true,
+              "name": "MÓò™Ž¼©ž¡÷ÅƒÇ±©",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Cléß",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "Vòœä½èœèþòÑÆíõ¡",
+              "name": "áµÑ©ÌþÀðšüï",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "T23_½¼®¿ŠŽòŠõ¶±½Ñúò¿µèë€§ñ±¾ÇãÓîœŽÆ¶ß¾¿èŽÓ¡¿ØÙÂœë¿ßë§ØœïšÇ¶òòÑêÌ",
+          "rows": [
+            {
+              "Identité": 231,
+              "MÓò™Ž¼©ž¡÷ÅƒÇ±©": "memo € 23",
+              "Vòœä½èœèþòÑÆíõ¡": "café Æ"
+            },
+            {
+              "Identité": 232,
+              "MÓò™Ž¼©ž¡÷ÅƒÇ±©": "",
+              "Vòœä½èœèþòÑÆíõ¡": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "expansion-whitespace",
+      "relations": [],
+      "tables": [
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Nötés",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+              "name": "ŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒŒ",
+              "primary": true,
+              "unique": true
+            }
+          ],
+          "name": "ÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆÆ",
+          "rows": [
+            {
+              "Nötés": "",
+              "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé": 1
+            },
+            {
+              "Nötés": "retained",
+              "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé": 2
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Colümn ",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Nötés",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Colümn ",
+              "name": "Indéx ",
+              "primary": true,
+              "unique": true
+            }
+          ],
+          "name": "Träiling ",
+          "rows": [
+            {
+              "Colümn ": 1,
+              "Nötés": ""
+            },
+            {
+              "Colümn ": 2,
+              "Nötés": "retained"
+            }
+          ]
+        },
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "F X",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Nötés",
+              "size": 0,
+              "type": 12
+            }
+          ],
+          "indexes": [
+            {
+              "field": "F X",
+              "name": "K X",
+              "primary": true,
+              "unique": true
+            }
+          ],
+          "name": "Späce Name",
+          "rows": [
+            {
+              "F X": 1,
+              "Nötés": ""
+            },
+            {
+              "F X": 2,
+              "Nötés": "retained"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "index-inventory",
+      "relations": [],
+      "tables": [
+        {
+          "fields": [
+            {
+              "allow_zero_length": false,
+              "name": "Identité",
+              "size": 4,
+              "type": 4
+            },
+            {
+              "allow_zero_length": true,
+              "name": "Café",
+              "size": 32,
+              "type": 10
+            }
+          ],
+          "indexes": [
+            {
+              "field": "Identité",
+              "name": "Primaryé",
+              "primary": true,
+              "unique": true
+            },
+            {
+              "field": "Identité",
+              "name": "Z",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "a",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "Á",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "æ",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "B",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "Œ",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "o",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "ó",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "ß",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "s",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "Š",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "X",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "µ",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "ð",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "þ",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "Ø",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "€",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "™",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "½",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "¾",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "@",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "{",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "_",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "+",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "1",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "²",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "Ù",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "Ý",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "ÿ",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "Ñ",
+              "primary": false,
+              "unique": false
+            },
+            {
+              "field": "Identité",
+              "name": "ñn",
+              "primary": false,
+              "unique": false
+            }
+          ],
+          "name": "Índex Inventory",
+          "rows": [
+            {
+              "Café": "x",
+              "Identité": 7
+            },
+            {
+              "Café": "",
+              "Identité": 2
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "document_type": "cp1252_schema_name_acceptance_matrix",
+  "probes": [],
+  "replicas": 2,
+  "seed": 202609160277
+}

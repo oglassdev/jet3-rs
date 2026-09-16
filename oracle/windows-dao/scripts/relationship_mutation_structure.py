@@ -63,7 +63,7 @@ def payload(data,field,owned,reached):
         page,slot=int.from_bytes(fragment[1:4],'little'),fragment[0]
     req(len(out)==length,'complete payload');return bytes(out),descriptor
 
-def rows(data,table):
+def rows(data,table,primary_column='Id'):
     cols=table['definition']['columns'];owned={g['column']:set(catalog._locator_pages(data,g['owned'],'lval owned')) for g in table['definition']['long_value_maps']};reached={o:set() for o in owned}
     result=[];physical=set();storage=set()
     for page_no in table['data_pages']:
@@ -94,8 +94,8 @@ def rows(data,table):
                 else: active.add((p,e['row']))
         req(active==reached[ordinal],'all active payload slots reached')
     req(len(result)==table['definition']['row_count'],'complete physical table row count')
-    req(len({r['values']['Id'] for r in result})==len(result),'distinct primary Id values')
-    return sorted(result,key=lambda r:r['values']['Id'])
+    req(len({r['values'][primary_column] for r in result})==len(result),'distinct primary values')
+    return sorted(result,key=lambda r:r['values'][primary_column])
 
 def long_key(v,locator):
     suffix=locator['page'].to_bytes(3,'big')+bytes([locator['row']])

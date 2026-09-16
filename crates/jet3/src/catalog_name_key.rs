@@ -1,4 +1,4 @@
-//! `MSysObjects` ParentId/Name keys from EXP-0087/0101/0248/0277.
+//! `MSysObjects` ParentId/Name keys from EXP-0087/0101/0248/0277/0278.
 //!
 //! The Name field uses the English-US/CP1252 Text transform, including primary
 //! expansions and accent nibbles. EXP-0101 records catalog keys for every
