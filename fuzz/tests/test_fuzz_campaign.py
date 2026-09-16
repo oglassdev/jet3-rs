@@ -137,6 +137,7 @@ class FuzzCampaignValidationTests(unittest.TestCase):
         }
         executable = {"path": executable_path, "sha256": "c" * 64}
         build_environment = {
+            "ASAN_OPTIONS": fuzz_build_identity.ASAN_OPTIONS,
             "CARGO": "/usr/bin/cargo",
             "CARGO_HOME": "/tmp/cargo-home",
             "CARGO_INCREMENTAL": "0",
@@ -327,8 +328,9 @@ class FuzzCampaignValidationTests(unittest.TestCase):
                 environment_root / "build-target",
                 environment_root,
             )
-        for name in ambient:
+        for name in ambient.keys() - {"ASAN_OPTIONS"}:
             self.assertNotIn(name, environment)
+        self.assertEqual(environment["ASAN_OPTIONS"], fuzz_build_identity.ASAN_OPTIONS)
         self.assertEqual(
             environment["PATH"],
             "/usr/bin:/bin:/usr/sbin:/sbin",

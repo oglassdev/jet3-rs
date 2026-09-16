@@ -16,8 +16,9 @@ from fuzz_evidence import EvidenceError, exact_process_environment, sha256, writ
 
 OBJECT_RE = re.compile(r"^[0-9a-f]{40,64}$")
 CHECKSUM_RE = re.compile(r"^[0-9a-f]{64}$")
+ASAN_OPTIONS = "quarantine_size_mb=64:detect_leaks=1"
 BASE_ENVIRONMENT_KEYS = {
-    "CARGO", "CARGO_HOME", "CARGO_INCREMENTAL", "CARGO_TARGET_DIR",
+    "ASAN_OPTIONS", "CARGO", "CARGO_HOME", "CARGO_INCREMENTAL", "CARGO_TARGET_DIR",
     "CARGO_TERM_COLOR", "LANG", "LC_ALL", "PATH", "RUSTC", "TMPDIR",
 }
 WINDOWS_ENVIRONMENT_KEYS = {"COMSPEC", "PATHEXT", "SYSTEMROOT", "TEMP", "TMP"}
@@ -102,6 +103,7 @@ def canonical_build_environment(
         tool_directories.extend(["/usr/bin", "/bin", "/usr/sbin", "/sbin"])
     path = os.pathsep.join(dict.fromkeys(tool_directories))
     environment = {
+        "ASAN_OPTIONS": ASAN_OPTIONS,
         "CARGO": str(Path(cargo_path).resolve()),
         "CARGO_HOME": str(cargo_home.resolve()),
         "CARGO_INCREMENTAL": "0",
@@ -604,7 +606,8 @@ def validate_build_manifest(
     if any(not isinstance(value, str) or not value for value in environment.values()):
         raise EvidenceError("build manifest environment values must be non-empty text")
     if (
-        environment["CARGO_INCREMENTAL"] != "0"
+        environment["ASAN_OPTIONS"] != ASAN_OPTIONS
+        or environment["CARGO_INCREMENTAL"] != "0"
         or environment["CARGO_TERM_COLOR"] != "never"
         or environment["LANG"] != "C"
         or environment["LC_ALL"] != "C"

@@ -19340,3 +19340,25 @@ This establishes that checking only the resulting key set misses an assigned
 parent constraint: explicit key assignments are checked even when the encoded
 key remains equal. The Rust guard now checks the assigned parent row against
 remaining children. Candidate replay and additional acceptance are recorded below.
+
+
+The equal-assignment supplement is now accepted for source
+`f98d37ad0e0dd194e5f0813bd41308e9c35a98ab`. All four Rust refusals preserve the
+complete native predecessor and match complete DAO readbacks. The independent
+replay report SHA-256 is
+`5deaa12085c5ca8ad7e510522f5d347b38b2802f7d334d53c9d6afebc94b061c`.
+The additive bundle is retained outside Git at
+`checks/20260916-scalar-equal-parent-guard`; its 104-file exact inventory has
+manifest SHA-256
+`1208d20614c9c240f9bbd84bacbfa57cab1d099b1a86efb70677f934454bd1b1`.
+The first failed capture and corrected capture remain together. Production source,
+CLI, creation binary and exact requests are pinned in the bundle. Re-execution
+under this source reproduces all prior 532 accepted output files byte-for-byte;
+`IDENTICAL_PRIOR_OUTPUTS.json` SHA-256 is
+`1bf1890b2859fb4cf8b679f1a37d35f2f61800b5831b8007f61158abe423d859`.
+The aggregate tested scope is 38 creations and 498 mutations (350 successes,
+148 refusals), with the four new operations limited to one Long and one Text(8)
+lineage. Independent review of the assignment guard found no blockers.
+`just ready` again passed 1,638 test executions, zero failures and ten ignored;
+its retained log SHA-256 is
+`e642fd9b748b168c6be10750b4321e8f13ca4b1206f6bad4f0ba2efb3adf4766`.
