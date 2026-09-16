@@ -19899,3 +19899,38 @@ bytes excluding the manifest. Independent GPT-5.6 Sol high code review found no
 concrete correctness issue. Internal `just ready` passed 1,674 test executions,
 zero failures and ten ignored, including the atomic journal boundary test.
 Later API documentation and test additions do not change production behavior.
+
+### Final API marker guard and accepted-output reproduction
+
+A final API check found that the cascade planner lowered an AutoIncrement marker
+to the prior value even for an ordinary relationship key. That could incorrectly
+accept an invalid field or full-row request. Source
+`9f9abc69f536ef6150c9a95b8cc5908e3ef343d8` permits this lowering only for a
+full-row replacement of an actual AutoNumber column, preserving the existing
+EXP-0237/API policy. Invalid markers return Unsupported before staging and leave
+the input unchanged. The regression test failed before the guard, passes after
+it, and retains the valid AutoNumber replacement control. Independent GPT-5.6
+Sol high review found no further caller-value overwrite in planning/publication.
+
+The corrected source regenerated all 166 accepted images byte-for-byte and
+matched both creation refusals against the frozen final report above. Root then
+repeated generation from the durable supplement and reproduced the comparison
+report exactly. Thus the same DAO readbacks apply to the identical final images;
+the recorded DAO scenario inventory is unchanged. Reproduction report SHA-256 is
+`f146a48e5add98dbe18c764a52f0be7c893f6385526173069925e420ad919bd7`.
+Final source archive SHA-256 is
+`0a1cceb950c8fa6226d4d5bada36ced773a1768a0160a2f4a981667574335d09`;
+CLI SHA-256 is
+`391f2027b8578d615b41dde49f99f008e580f04c34ecf0fd74d05f17bc167d08`;
+creation helper SHA-256 is
+`176dd56ef6d6331c78a46f545c07afcf52fdd7889c23c9cb9cd04e269338996f`.
+
+The durable `checks/20260916-cascade-marker-guard` supplement retains source,
+binaries, all regenerated requests/images, regression evidence, preparation
+failures and a replay script using the sibling acceptance archive. Its manifest
+SHA-256 is
+`42e078a0dbe4786e7f58111efea9ee4239b8627c00ae8aea15867f0a29103e4e`.
+Root verified all 979 listed files and the exact 980-file inventory, totaling
+100,051,817 bytes excluding the manifest. Final `just ready` passed 1,676 test
+executions, zero failures and ten ignored; log SHA-256 is
+`90078ef0d4e6b62b951ac62d82768256489cbc68ccb228d4a1758c67537e26a8`.

@@ -106,7 +106,10 @@ eighteen creation pairs and 148 mutation pairs (104 successes, 44 refusals),
 plus two matching creation refusals. Complete actual property collections,
 rows, indexes, counters, maps, payloads and unrelated system/catalog bytes are
 compared. The final report independently replays from its complete archived
-inputs. Existing-database relationship changes/drop remain open.
+inputs. The final AutoIncrement marker guard reproduces all 166 accepted images
+byte-for-byte and both creation refusals; its regression and source identities
+are retained in the EXP-0296 supplement. Existing-database relationship changes/drop
+remain open.
 
 Schema names use defined Windows-1252 bytes and the observed English-US
 collation for ordering and duplicate detection. Stored names retain their exact
