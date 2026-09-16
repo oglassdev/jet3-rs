@@ -363,3 +363,6 @@ mod larger_graphs;
 
 #[path = "descending_parent_tests.rs"]
 mod descending_parents;
+
+#[path = "scalar_relationship_tests.rs"]
+mod scalar_keys;

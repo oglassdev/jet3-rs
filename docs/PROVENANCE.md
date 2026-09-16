@@ -19142,3 +19142,50 @@ Its 813 listed evidence files total 137,898,013 bytes; the manifest SHA-256 is
 Root independently verifies every listed size/hash and the complete inventory,
 including the three nested capture manifests. All MDB/provider/VM bytes remain
 outside the repository.
+
+## EXP-0288 — Native scalar relationship eligibility
+
+On 2026-09-16, local x86 `DAO.DBEngine.36` 3.6, DLL 03.60.9765.0
+(SHA-256 `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`),
+Windows 10.0.20348, en-US/CP1252, closed a 22-schema, two-replica matrix.
+Run `20260916T103125Z-scalar-rel-create-r2` is retained privately under
+`/tmp/jet3-scalar-relationship-discovery-r1`, with recipes, four worker receipts,
+actual property getters, complete rows, traversal/full-key Seek and closed MDBs.
+The producer context revision is `9a59db02d53e363ae715fcbbeb602ec6848549ae`;
+this native discovery makes no claim about Rust output compatibility.
+
+All twelve exact-schema cases accept an enforced non-cascading single-column
+relationship: Long, Byte, Integer, Currency, Single, Double, Date, Text(8),
+FixedText(8), Binary(8), GUID and Boolean. Parent keys have a declared ascending
+nonprimary unique index; child tables have a separate Long primary index and a
+Memo column. Text(8) to Text(16), variable Text(8) to fixed Text(8), and Binary(8)
+to Binary(16) also accept empty relationship creation. Byte to Integer, Integer
+to Long, Single to Double, Currency to Double, Date to Double, GUID to Binary(16),
+and Boolean to Byte each refuse error 3368, HRESULT -2146824920. Both replicas
+agree. There are 30 accepted and 14 rejected captures, with no capture, property,
+traversal or Seek errors in this corrected run.
+
+Populated non-Boolean cases have two distinct present parent values plus null,
+and four child rows with repeated/null keys. Their parent index has flags 1,
+first retained word 0 and distinct word 3; the generated foreign index has flags
+0, first word 4, distinct word 3 and four exact row locators. Boolean parents
+contain False/True; a child null assignment stores False. The parent distinct
+word is 2; the foreign tree has three locators, first word 3 and distinct word 1.
+Empty accepted width controls retain both words at zero. Complete reciprocal
+records, central catalog rows/objects/ACEs, scalar/system index keys, row locators,
+and allocation ownership are checked. Child and parent logical records retain
+the established selector/ordinal pairing and zero context.
+
+Matrix SHA-256 is
+`faaf5b024733f94cdd565450a27eba81242ac1c95d8295d6a1478743f4ca1e93`;
+producer SHA-256 is
+`c3338e886dbd170159718b03467ad2e13492e4c8010902df78a32c7a61e23de4`;
+evaluator SHA-256 is
+`7f6ac6eab25f7666957f9378579616852b607bb7582ed57523fdb1b157503deb`.
+`CREATION_REPORT.json` is 8,007,703 bytes, SHA-256
+`af9299c0f39c7dd6cc77ac32348ae4f03afff0f6112bfe2175030b34c856502d`.
+The first run, `20260916T102704Z-scalar-rel-create-r1`, remains retained with its
+Text/Boolean missing-Seek helper errors. The corrected producer uses a scalar
+missing-key record and omits impossible Boolean missing queries when both values
+exist. Lifecycle/equality observations and Rust differential acceptance are
+separate from this creation-eligibility result.

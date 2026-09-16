@@ -220,7 +220,7 @@ pub fn create_database(
 /// omits all-null keys, or requires every component; primary indexes require
 /// every component. Supported components are Boolean, Byte, Integer, Long,
 /// Currency, Single, Double, DateTime, Binary, fixed/variable Text and GUID. Nonfinite
-/// floating values and Boolean nulls are refused. Empty Binary
+/// floating values are refused. Boolean nulls store False, including indexed fields. Empty Binary
 /// saves as null. Text keys use the English-US/CP1252 collation from EXP-0248;
 /// case, ligature expansion and trailing ASCII spaces affect key equality without
 /// changing stored row bytes. EXP-0243/0245 establish Date fractions, floating

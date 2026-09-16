@@ -14,6 +14,11 @@ pub enum ComposeError {
         /// Unmatched Long key.
         value: i32,
     },
+    /// A non-Long scalar child key has no matching initial parent row.
+    OrphanInitialScalarRelationshipKey {
+        /// Zero-based child input row.
+        row: usize,
+    },
     /// The relationship request exceeds the supported schema or references.
     UnsupportedRelationship {
         /// Unsupported relationship constraint.
@@ -147,6 +152,7 @@ impl std::error::Error for ComposeError {
             | Self::UnsupportedMemoOption
             | Self::InitialAutoIncrement { .. }
             | Self::OrphanInitialRelationshipKey { .. }
+            | Self::OrphanInitialScalarRelationshipKey { .. }
             | Self::UnsupportedInitialIndexSchema
             | Self::UnsupportedInitialIndexValue { .. }
             | Self::DuplicateInitialScalarIndexKey

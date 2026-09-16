@@ -1,8 +1,11 @@
-//! Referential integrity over the catalog's checked single-Long relationships.
+//! Referential integrity over the catalog's checked scalar relationships.
 use crate::{
     ColumnOrdinal, DatabaseReader, FileSource, ResourceBudget, RowLocator, RowValue,
-    TableDefinition, TextCodePage, UpdateError, ValueKind, page_edits::reserve,
+    TableDefinition, UpdateError, page_edits::reserve,
 };
+
+use crate::numeric_index_key::NumericKeyType;
+use crate::relationship_key::{self, Key};
 
 #[derive(Clone, Copy)]
 pub(crate) enum Change<'a> {
@@ -12,27 +15,16 @@ pub(crate) enum Change<'a> {
     Delete(RowLocator),
 }
 
-fn value(value: RowValue<'_>) -> Result<Option<i32>, UpdateError> {
-    match value {
-        RowValue::Long(value) => Ok(Some(value)),
-        RowValue::Null => Ok(None),
-        _ => Err(UpdateError::Unsupported(
-            "relationship key value must be Long or null",
-        )),
-    }
-}
-
-fn column_value(
-    values: &[RowValue<'_>],
+fn column_value<'a>(
+    values: &[RowValue<'a>],
     column: ColumnOrdinal,
-) -> Result<Option<i32>, UpdateError> {
-    value(
-        *values
-            .get(usize::from(column.get()))
-            .ok_or(UpdateError::Mismatch(
-                "relationship key absent from replacement",
-            ))?,
-    )
+) -> Result<RowValue<'a>, UpdateError> {
+    values
+        .get(usize::from(column.get()))
+        .copied()
+        .ok_or(UpdateError::Mismatch(
+            "relationship key absent from replacement",
+        ))
 }
 
 impl Change<'_> {
@@ -40,30 +32,31 @@ impl Change<'_> {
         self,
         row: RowLocator,
         column: ColumnOrdinal,
-        before: Option<i32>,
-    ) -> Result<Option<Option<i32>>, UpdateError> {
-        Ok(match self {
-            Self::Delete(selected) if selected == row => None,
-            Self::Replace(selected, values) if selected == row => {
-                Some(column_value(values, column)?)
-            }
+        before: RowValue<'_>,
+        kind: NumericKeyType,
+        budget: &mut ResourceBudget,
+    ) -> Result<Option<Option<Key>>, UpdateError> {
+        let value = match self {
+            Self::Delete(selected) if selected == row => return Ok(None),
+            Self::Replace(selected, values) if selected == row => column_value(values, column)?,
             Self::Field(selected, changed, replacement) if selected == row && changed == column => {
-                Some(value(replacement)?)
+                replacement
             }
-            _ => Some(before),
-        })
+            _ => before,
+        };
+        Ok(Some(Key::encode(kind, value, budget)?))
     }
 }
 
 struct Keys {
-    before: Vec<i32>,
-    after: Vec<i32>,
+    before: Vec<Key>,
+    after: Vec<Key>,
     has_null_after: bool,
     removed_null: bool,
 }
 fn push(
-    keys: &mut Vec<i32>,
-    value: Option<i32>,
+    keys: &mut Vec<Key>,
+    value: Option<Key>,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
     if let Some(value) = value {
@@ -77,6 +70,7 @@ fn keys(
     database: &mut DatabaseReader<FileSource>,
     table: &TableDefinition,
     column: ColumnOrdinal,
+    kind: NumericKeyType,
     change: Option<Change<'_>>,
     budget: &mut ResourceBudget,
 ) -> Result<Keys, UpdateError> {
@@ -93,21 +87,14 @@ fn keys(
             "relationship table row count overflow",
         ))?;
         let locator = row.locator();
-        let before = match row
-            .value(column, TextCodePage::Windows1252)?
-            .ok_or(UpdateError::Mismatch("relationship key absent"))?
-            .kind()
-        {
-            ValueKind::Null => None,
-            ValueKind::Long(value) => Some(*value),
-            _ => return Err(UpdateError::Mismatch("relationship stored key type")),
-        };
+        let value = crate::numeric_row_values::read_column(&mut row, column)?;
+        let before = Key::encode(kind, value, row.budget_mut())?;
         let after = match change {
-            Some(change) => change.existing(locator, column, before)?,
-            None => Some(before),
+            Some(change) => change.existing(locator, column, value, kind, row.budget_mut())?,
+            None => Some(Key::encode(kind, value, row.budget_mut())?),
         };
-        result.has_null_after |= after == Some(None);
-        result.removed_null |= before.is_none() && after != Some(None);
+        result.has_null_after |= matches!(after, Some(None));
+        result.removed_null |= before.is_none() && !matches!(after, Some(None));
         push(&mut result.before, before, rows.owned.budget_mut())?;
         if let Some(after) = after {
             push(&mut result.after, after, rows.owned.budget_mut())?;
@@ -117,33 +104,11 @@ fn keys(
         return Err(UpdateError::Mismatch("relationship table row count"));
     }
     if let Some(Change::Insert(values)) = change {
-        let inserted = column_value(values, column)?;
+        let inserted = Key::encode(kind, column_value(values, column)?, rows.owned.budget_mut())?;
         result.has_null_after |= inserted.is_none();
         push(&mut result.after, inserted, rows.owned.budget_mut())?;
     }
     Ok(result)
-}
-
-fn sort(keys: &mut [i32], budget: &mut ResourceBudget) -> Result<(), UpdateError> {
-    budget.charge_work_units(
-        (keys.len() as u64).saturating_mul((keys.len().max(1).ilog2() + 1) as u64),
-    )?;
-    keys.sort_unstable();
-    Ok(())
-}
-
-fn missing(
-    parent: &[i32],
-    child: &[i32],
-    budget: &mut ResourceBudget,
-) -> Result<Option<i32>, UpdateError> {
-    for &value in child {
-        budget.charge_work_units((parent.len().max(1).ilog2() + 1) as u64)?;
-        if parent.binary_search(&value).is_err() {
-            return Ok(Some(value));
-        }
-    }
-    Ok(None)
 }
 
 pub(crate) fn check(
@@ -162,6 +127,7 @@ pub(crate) fn check(
             database,
             &constraint.parent,
             constraint.parent_column,
+            constraint.parent_kind,
             (constraint.parent.root() == target.root()).then_some(change),
             budget,
         )?;
@@ -169,16 +135,16 @@ pub(crate) fn check(
             database,
             &constraint.child,
             constraint.child_column,
+            constraint.child_kind,
             (constraint.child.root() == target.root()).then_some(change),
             budget,
         )?;
-        sort(&mut parent.before, budget)?;
-        sort(&mut parent.after, budget)?;
-        budget.charge_work_units(parent.before.len() as u64)?;
-        if parent.before.windows(2).any(|pair| pair[0] == pair[1]) {
+        relationship_key::sort(&mut parent.before, budget)?;
+        relationship_key::sort(&mut parent.after, budget)?;
+        if !relationship_key::unique(&parent.before, budget)? {
             return Err(UpdateError::Mismatch("duplicate relationship parent key"));
         }
-        if missing(&parent.before, &child.before, budget)?.is_some() {
+        if relationship_key::missing(&parent.before, &child.before, budget)?.is_some() {
             return Err(UpdateError::Mismatch("orphan relationship key"));
         }
         // EXP-0286: a null child blocks changing/removing a null parent, even
@@ -189,20 +155,16 @@ pub(crate) fn check(
                 child: constraint.child.root(),
             });
         }
-        let missing_after = missing(&parent.after, &child.after, budget)?;
+        let missing_after = relationship_key::missing(&parent.after, &child.after, budget)?;
         // EXP-0286: a foreign tree preceding its parent tree cannot reference
         // a self key established by the same insertion/replacement.
         let missing_before = if constraint.self_reference_requires_existing_parent {
-            missing(&parent.before, &child.after, budget)?
+            relationship_key::missing(&parent.before, &child.after, budget)?
         } else {
             None
         };
         if let Some(value) = missing_after.or(missing_before) {
-            return Err(UpdateError::RelationshipConstraint {
-                parent: constraint.parent.root(),
-                child: constraint.child.root(),
-                value,
-            });
+            return Err(value.violation(constraint.parent.root(), constraint.child.root()));
         }
     }
     Ok(())

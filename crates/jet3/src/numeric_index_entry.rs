@@ -177,9 +177,7 @@ impl NumericIndexEntry {
             let value = values.get(field.column).ok_or(EntryError::MissingColumn {
                 column: field.column,
             })?;
-            let null = matches!(value, RowValue::Null)
-                || (matches!(field.kind, NumericKeyType::Binary { .. })
-                    && matches!(value, RowValue::Binary([])));
+            let null = field.kind.is_null(*value);
             has_null |= null;
             all_null &= null;
             let mut component = [0; MAX_COMPONENT_BYTES];

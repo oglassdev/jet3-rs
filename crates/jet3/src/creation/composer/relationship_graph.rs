@@ -89,19 +89,23 @@ pub(crate) fn compose_relationship_graph(
     for edge in &edges {
         budget.charge_items(requests[edge.child].rows.len() as u64)?;
         for (row, values) in requests[edge.child].rows.iter().enumerate() {
-            match values.get(usize::from(edge.child_column)) {
-                Some(RowValue::Null) => {}
-                Some(RowValue::Long(value))
-                    if creates[edge.parent].contains_initial_long(
-                        edge.parent_physical,
-                        *value,
-                        budget,
-                    )? => {}
-                Some(RowValue::Long(value)) => {
-                    return Err(ComposeError::OrphanInitialRelationshipKey { row, value: *value });
-                }
-                _ => return Err(planning::invalid("foreign key value must be Long or null")),
+            let value = *values
+                .get(usize::from(edge.child_column))
+                .ok_or(planning::invalid("foreign key column absent"))?;
+            if edge.child_kind.is_null(value)
+                || creates[edge.parent].contains_initial_key(
+                    edge.parent_physical,
+                    edge.child_kind,
+                    value,
+                    budget,
+                )?
+            {
+                continue;
             }
+            return Err(match value {
+                RowValue::Long(value) => ComposeError::OrphanInitialRelationshipKey { row, value },
+                _ => ComposeError::OrphanInitialScalarRelationshipKey { row },
+            });
         }
     }
     let image = if edges.is_empty() {

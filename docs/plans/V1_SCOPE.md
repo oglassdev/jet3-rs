@@ -69,17 +69,19 @@ Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
 columns themselves cannot be indexed. Each payload column has separate ownership
 and availability maps. Definitions and map rows can span multiple pages; files
 are bounded by map-reference capacity and the caller's resource budget.
-The plural relationship APIs admit enforced, non-cascading Long constraints,
+The plural relationship APIs admit enforced, non-cascading scalar constraints,
 including multiple parents or children, chains, cycles, self-references,
 shared foreign physical indexes and unrelated tables in any order. Parent keys
-may be Long or AutoIncrement and require a unique index. The first eligible
+admit every supported scalar index type, including AutoIncrement parents, and
+require a unique index. The first eligible
 ascending logical name selects the parent tree, including nonprimary and nullable
 unique indexes. Descending-only parents generate a shared ascending tree with
 the same null policy; EXP-0286/0287 record native observations and 18 creation
 plus 84 lifecycle comparisons. Mutations reject changing or removing a null parent
 while null child keys remain, and permit deleting the sole null self-reference.
-Null child insertion remains exempt from requiring a matching parent. Child
-keys must be Long. Existing ordinary ascending FK indexes
+Null child insertion remains exempt from requiring a matching parent. Endpoint
+types must agree, with differing Text/Binary widths and mixed fixed/variable Text
+admitted. Boolean null assignments store False, including indexed keys. Existing ordinary ascending FK indexes
 are reused while retaining declared aliases; other child index forms need a
 separate foreign tree. Both endpoint aliases count toward the 32-logical-index
 limit; a self-reference consumes two slots. Relationship rows and all three
@@ -87,8 +89,9 @@ system indexes can span multiple pages, with graph size bounded by per-table
 index capacity and the caller's resource budget. Nullable keys and a separate
 child primary are admitted. Other columns retain generated IDs, Text/Memo
 options, independent Memo/OLE maps and definition/property chains. The singular
-APIs retain their two-ordered-table bounds. Other key types and cascades remain
-outside creation scope.
+APIs retain their two-ordered-table Long bounds. Composite keys and cascades
+remain outside relationship creation scope. EXP-0288 records scalar eligibility;
+complete scalar differential acceptance remains pending.
 
 Schema names use defined Windows-1252 bytes and the observed English-US
 collation for ordering and duplicate detection. Stored names retain their exact
@@ -213,7 +216,7 @@ IDs and allocation state. The CLI exposes full-row replacement. Publication
 supports Unix and Windows; Windows flushes the file before publication without
 a separate directory-sync guarantee.
 
-Tables participating in enforced, non-cascading, single ascending Long
+Tables participating in enforced, non-cascading, single ascending scalar
 relationships support these row mutations, including multiple constraints,
 self-references, nullable foreign keys and Memo/OLE payloads. All reciprocal
 records and the relationship catalog must agree; existing orphan keys and
@@ -226,8 +229,8 @@ replacements check the resulting rows. When the foreign physical index precedes
 the parent index, the child key must also exist before the operation (EXP-0286).
 This follows physical update order for both declared and generated indexes.
 Self-deletion checks the remaining rows. Shared foreign
-physical indexes are updated once. Composite, cascading and other-key
-relationships remain outside this mutation scope.
+physical indexes are updated once. Composite and cascading relationships remain
+outside this mutation scope.
 
 EXP-0212 covers seventeen hosted update recipes. EXP-0221 adds local DAO
 comparisons for indexed insertion/deletion, boundary insertion, native
@@ -301,7 +304,7 @@ Availability maps must be subsets of their own ownership maps; every traversed
 index page must belong to its physical index. Overflow storage and live
 Memo/OLE fragments must be uniquely reachable through the proper table or
 column, including rejection of hidden orphan rows and unreferenced payloads.
-Enforced, non-cascading single ascending Long relationships check reciprocal
+Enforced, non-cascading single ascending scalar relationships check reciprocal
 metadata, parent uniqueness and every non-null child key. Self-references and
 multiple constraints are checked separately, including shared foreign indexes.
 Unsupported relationship catalog rows are counted explicitly; complete endpoint

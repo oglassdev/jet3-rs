@@ -51,17 +51,19 @@ index names admit 63. Linked table definitions support
 first and later tables, initial rows, and indexes with independent map pages.
 It supports initial rows, explicit/generated AutoIncrement IDs, independent
 Memo/OLE columns, up to 32 scalar indexes (including Date, Binary, fixed/variable
-Text and GUID), and enforced Long relationship graphs within each table's
+Text and GUID), and enforced scalar relationship graphs within each table's
 32-logical-index capacity. Creation handles
 multiple parents or children, chains, self-references and shared foreign indexes,
-with nullable child keys, Long/AutoIncrement parents, column options and payloads. Existing-file mutations include row insertion/deletion,
+with nullable child keys, scalar/AutoIncrement parents, column options and payloads. Existing-file mutations include row insertion/deletion,
 row replacement with stable locators across overflow growth and collapse,
 Memo/OLE payload allocation and reuse, generated IDs, and
 index maintenance for those key types with one to ten components per index. The accepted payload
 lifecycles include native DAO continuations and Rust mutation of native files.
 Related tables admit inserts, field/full-row updates and deletion for enforced,
-non-cascading Long relationships, including multiple constraints and self-references.
-Nullable foreign keys and shared foreign indexes are supported. Atomic
+non-cascading single-column scalar relationships, including multiple constraints and self-references.
+Endpoint types must agree; Text/Binary widths may differ and fixed/variable Text
+may mix. Boolean null assignments store False. Nullable foreign keys and shared
+foreign indexes are supported. Atomic
 self-reference changes follow physical index order: if the foreign index precedes
 the parent index, the child key must exist before the edit.
 Related-row payloads retain the normal Memo/OLE mutation bounds. Orphan writes
@@ -79,7 +81,7 @@ key completeness, null rules, uniqueness and branch bounds, and reports indexes
 whose key schemas remain uninterpreted.
 It also checks catalogued allocation ownership, availability-map membership,
 and unique reachability of rows and live Memo/OLE fragments, including catalog
-property payloads. Enforced Long
+property payloads. Enforced scalar
 relationships get reciprocal-metadata and parent/child key checks; unsupported
 forms are counted separately. Saved-query
 definitions and their system storage survive the recorded native-input row

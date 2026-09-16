@@ -2,7 +2,7 @@
 //!
 //! Non-Long nullable/composite construction is a candidate generalization of
 //! EXP-0148. Nonfinite floating values remain unsupported.
-use crate::{ColumnType, IndexDirection, RowValue};
+use crate::{ColumnDefinition, ColumnPhysicalType, ColumnType, IndexDirection, RowValue};
 
 pub(crate) const MAX_COMPONENT_BYTES: usize = crate::text_index_key::MAX_TEXT_COMPONENT;
 
@@ -27,6 +27,40 @@ pub(crate) enum NumericKeyType {
 }
 
 impl NumericKeyType {
+    pub(crate) fn is_null(self, value: RowValue<'_>) -> bool {
+        (matches!(value, RowValue::Null) && self != Self::Boolean)
+            || (matches!(self, Self::Binary { .. }) && matches!(value, RowValue::Binary([])))
+    }
+
+    pub(crate) fn from_definition(column: &ColumnDefinition) -> Option<Self> {
+        Some(match column.physical_type() {
+            ColumnPhysicalType::Boolean => Self::Boolean,
+            ColumnPhysicalType::Byte => Self::Byte,
+            ColumnPhysicalType::Integer => Self::Integer,
+            ColumnPhysicalType::Long => Self::Long,
+            ColumnPhysicalType::Currency => Self::Currency,
+            ColumnPhysicalType::Single => Self::Single,
+            ColumnPhysicalType::Double => Self::Double,
+            ColumnPhysicalType::DateTime => Self::DateTime,
+            ColumnPhysicalType::Guid => Self::Guid,
+            ColumnPhysicalType::Binary | ColumnPhysicalType::Text => {
+                let max_len @ 1..=255 = u8::try_from(column.size()).ok()? else {
+                    return None;
+                };
+                if column.physical_type() == ColumnPhysicalType::Binary {
+                    Self::Binary { max_len }
+                // EXP-0264: fixed and variable Text use the same recorded collation.
+                } else if column.raw_encoding_context() == &crate::text_index_key::ENCODING_CONTEXT
+                {
+                    Self::Text { max_len }
+                } else {
+                    return None;
+                }
+            }
+            _ => return None,
+        })
+    }
+
     pub(crate) const fn maximum_length(self) -> usize {
         match self {
             Self::Boolean | Self::Byte => 2,
@@ -114,7 +148,11 @@ impl NumericKeyType {
         output.fill(0);
         output[0] = 0x7f;
         let length = match (self, value) {
-            (Self::Boolean, RowValue::Null) => return None,
+            // EXP-0283/0288: a Boolean null assignment stores False, including indexed keys.
+            (Self::Boolean, RowValue::Null) => {
+                output[1] = 0xff;
+                2
+            }
             (_, RowValue::Null) => {
                 output[0] = 0;
                 1

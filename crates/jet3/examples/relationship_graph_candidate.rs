@@ -26,6 +26,13 @@ fn bytes(value: &Value) -> Result<Option<Vec<u8>>> {
     if let Some(value) = value.as_str() {
         return Ok(Some(value.as_bytes().to_vec()));
     }
+    if let Some(values) = value.as_array() {
+        return values
+            .iter()
+            .map(|value| Ok(u8::try_from(value.as_u64().ok_or("byte")?)?))
+            .collect::<Result<Vec<_>>>()
+            .map(Some);
+    }
     let length = value["length"].as_u64().ok_or("payload length")? as usize;
     Ok(Some(match text(value, "kind")? {
         "repeat" => vec![u8::try_from(value["byte"].as_u64().ok_or("payload byte")?)?; length],
@@ -38,6 +45,10 @@ fn bytes(value: &Value) -> Result<Option<Vec<u8>>> {
         _ => return Err("payload kind".into()),
     }))
 }
+fn width(field: &Value) -> Result<NonZeroU8> {
+    NonZeroU8::new(u8::try_from(field["size"].as_u64().ok_or("size")?)?)
+        .ok_or_else(|| "field width".into())
+}
 fn create(case: &Value, output: &Path, replicas: u64) -> Result<()> {
     let tables = array(case, "tables")?;
     let columns = tables
@@ -47,16 +58,27 @@ fn create(case: &Value, output: &Path, replicas: u64) -> Result<()> {
                 .iter()
                 .map(|field| {
                     let kind = match field["type"].as_u64().ok_or("type")? {
+                        1 => ColumnType::Boolean,
+                        2 => ColumnType::Byte,
+                        3 => ColumnType::Integer,
                         4 if field["attributes"].as_u64() == Some(16) => ColumnType::AutoIncrement,
                         4 => ColumnType::Long,
+                        5 => ColumnType::Currency,
+                        6 => ColumnType::Single,
+                        7 => ColumnType::Double,
+                        8 => ColumnType::DateTime,
+                        9 => ColumnType::Binary {
+                            max_len: width(field)?,
+                        },
+                        10 if field["attributes"].as_u64() == Some(1) => {
+                            ColumnType::FixedText { len: width(field)? }
+                        }
                         10 => ColumnType::Text {
-                            max_len: NonZeroU8::new(u8::try_from(
-                                field["size"].as_u64().ok_or("size")?,
-                            )?)
-                            .ok_or("text width")?,
+                            max_len: width(field)?,
                         },
                         11 => ColumnType::LongBinary,
                         12 => ColumnType::Memo,
+                        15 => ColumnType::Guid,
                         _ => return Err("unsupported matrix field".into()),
                     };
                     let column = ColumnSpec::new(text(field, "name")?.as_bytes(), kind);
@@ -66,8 +88,12 @@ fn create(case: &Value, output: &Path, replicas: u64) -> Result<()> {
                         column
                     };
                     Ok(
-                        if matches!(kind, ColumnType::Text { .. } | ColumnType::Memo)
-                            && field["allow_zero_length"].as_bool().unwrap_or(true)
+                        if matches!(
+                            kind,
+                            ColumnType::Text { .. }
+                                | ColumnType::FixedText { .. }
+                                | ColumnType::Memo
+                        ) && field["allow_zero_length"].as_bool().unwrap_or(true)
                         {
                             column.with_allow_zero_length()
                         } else {
@@ -87,10 +113,10 @@ fn create(case: &Value, output: &Path, replicas: u64) -> Result<()> {
                     array(table, "fields")?
                         .iter()
                         .map(|field| {
-                            if field["type"].as_u64() == Some(4) {
-                                Ok(None)
-                            } else {
+                            if matches!(field["type"].as_u64(), Some(9..=12 | 15)) {
                                 bytes(&row[text(field, "name")?])
+                            } else {
+                                Ok(None)
                             }
                         })
                         .collect::<Result<Vec<_>>>()
@@ -116,20 +142,46 @@ fn create(case: &Value, output: &Path, replicas: u64) -> Result<()> {
                                 ColumnType::AutoIncrement if value.is_null() => {
                                     RowValue::AutoIncrement
                                 }
-                                ColumnType::Long if value.is_null() => RowValue::Null,
+                                _ if value.is_null() => RowValue::Null,
+                                ColumnType::Boolean => {
+                                    RowValue::Boolean(value.as_bool().ok_or("Boolean")?)
+                                }
+                                ColumnType::Byte => {
+                                    RowValue::Byte(u8::try_from(value.as_u64().ok_or("Byte")?)?)
+                                }
+                                ColumnType::Integer => RowValue::Integer(i16::try_from(
+                                    value.as_i64().ok_or("Integer")?,
+                                )?),
                                 ColumnType::AutoIncrement | ColumnType::Long => {
                                     RowValue::Long(i32::try_from(value.as_i64().ok_or("Long")?)?)
                                 }
-                                ColumnType::Text { .. } => {
+                                ColumnType::Currency => RowValue::Currency {
+                                    scaled: value.as_i64().ok_or("scaled Currency")?,
+                                },
+                                ColumnType::Single => {
+                                    RowValue::Single(value.as_f64().ok_or("Single")? as f32)
+                                }
+                                ColumnType::Double => {
+                                    RowValue::Double(value.as_f64().ok_or("Double")?)
+                                }
+                                ColumnType::DateTime => RowValue::DateTime {
+                                    days: value.as_f64().ok_or("Date")?,
+                                },
+                                ColumnType::Text { .. } | ColumnType::FixedText { .. } => {
                                     payload.as_deref().map_or(RowValue::Null, RowValue::Text)
                                 }
+                                ColumnType::Binary { .. } => {
+                                    payload.as_deref().map_or(RowValue::Null, RowValue::Binary)
+                                }
+                                ColumnType::Guid => RowValue::Guid(
+                                    payload.as_deref().ok_or("GUID bytes")?.try_into()?,
+                                ),
                                 ColumnType::Memo => {
                                     payload.as_deref().map_or(RowValue::Null, RowValue::Memo)
                                 }
                                 ColumnType::LongBinary => payload
                                     .as_deref()
                                     .map_or(RowValue::Null, RowValue::LongBinary),
-                                _ => return Err("row field".into()),
                             })
                         })
                         .collect::<Result<Vec<_>>>()

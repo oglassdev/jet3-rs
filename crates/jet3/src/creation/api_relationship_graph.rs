@@ -3,11 +3,16 @@ use super::*;
 use crate::creation::composer::{GraphImage, compose_relationship_graph};
 use crate::{CatalogObjectKind, RelationshipSpec, TableRef, TextCodePage};
 
-/// Creates empty tables with enforced, non-cascading Long relationships.
+/// Creates empty tables with enforced, non-cascading single-column scalar relationships.
 ///
 /// Table order is independent of relationship direction. Multiple endpoints,
 /// chains, self-references and parents sharing a child FK column are admitted.
-/// Each parent needs a unique Long/AutoIncrement index. The composer selects
+/// Endpoints admit Boolean, Byte, Integer, Long, Currency, Single, Double,
+/// DateTime, Binary, fixed/variable Text and GUID; parents also admit AutoIncrement.
+/// Both endpoints must have the same scalar type, except that Text/Binary widths
+/// may differ and fixed/variable Text may mix (EXP-0288). Boolean null inputs
+/// store False; empty Binary stores null. Each parent needs a unique index.
+/// The composer selects
 /// an ascending index first, in logical name order. If only a descending index
 /// qualifies, it generates an ascending tree with the same null policy, shared
 /// by relationships on that parent column (EXP-0286). An ordinary ascending
@@ -37,7 +42,7 @@ pub fn create_database_with_relationships(
     create_database_with_relationships_and_rows(path, &requests, relationships, budget)
 }
 
-/// Creates tables, their initial rows and Long relationships.
+/// Creates tables, their initial rows and single-column scalar relationships.
 ///
 /// The schema restrictions of [`create_database_with_relationships`] apply.
 /// Each non-null foreign key must occur in its parent's initial rows, including

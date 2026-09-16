@@ -232,18 +232,31 @@ impl InitialLongIndex {
             .image(&self.entries, owner, root, first_extra, ordinal, budget)
     }
 
-    pub(super) fn contains_single_long(
+    pub(super) fn contains_single_key(
         &self,
-        value: i32,
+        kind: NumericKeyType,
+        value: RowValue<'_>,
         budget: &mut ResourceBudget,
     ) -> Result<bool, ComposeError> {
+        if self.field_count != 1 {
+            return Err(ComposeError::UnsupportedInitialIndexSchema);
+        }
+        let field = self.fields[0];
+        if !crate::relationship_key::compatible(field.kind, kind) {
+            return Err(ComposeError::UnsupportedInitialIndexSchema);
+        }
+        budget.charge_work_units(kind.maximum_length() as u64 * 9)?;
+        let mut key = [0; crate::numeric_index_key::MAX_COMPONENT_BYTES];
+        let length = kind
+            .encode(value, field.direction, &mut key)
+            .ok_or(ComposeError::UnsupportedInitialIndexSchema)?;
+        let length = crate::binary_index_key::shorten(&mut key[..length]);
         budget.charge_work_units(
-            u64::from((self.entries.len().max(1) as u64).ilog2() + 2) * COMPONENT_BYTES as u64,
+            u64::from((self.entries.len().max(1) as u64).ilog2() + 2) * length as u64,
         )?;
-        let key = crate::long_index_key::encode(value, IndexDirection::Ascending);
         Ok(self
             .entries
-            .binary_search_by(|entry| entry.key().cmp(&key))
+            .binary_search_by(|entry| entry.key().cmp(&key[..length]))
             .is_ok())
     }
 
@@ -294,12 +307,20 @@ mod lookup_tests {
         }
         index.sort(&mut budget)?;
         let mut insufficient =
-            ResourceBudget::new(crate::ResourceLimits::default().with_max_total_work_units(14));
-        assert!(index.contains_single_long(1, &mut insufficient).is_err());
+            ResourceBudget::new(crate::ResourceLimits::default().with_max_total_work_units(59));
+        assert!(
+            index
+                .contains_single_key(NumericKeyType::Long, RowValue::Long(1), &mut insufficient)
+                .is_err()
+        );
         let mut sufficient =
-            ResourceBudget::new(crate::ResourceLimits::default().with_max_total_work_units(15));
-        assert!(index.contains_single_long(1, &mut sufficient)?);
-        assert_eq!(sufficient.total_work_units(), 15);
+            ResourceBudget::new(crate::ResourceLimits::default().with_max_total_work_units(60));
+        assert!(index.contains_single_key(
+            NumericKeyType::Long,
+            RowValue::Long(1),
+            &mut sufficient
+        )?);
+        assert_eq!(sufficient.total_work_units(), 60);
         Ok(())
     }
 }
