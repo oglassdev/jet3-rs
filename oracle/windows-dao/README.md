@@ -251,3 +251,47 @@ rejects repeat attempts. This implementation alone supplies no DAO result or
 support-state promotion. Insert/delete, indexed or related targets, null and
 variable-width transitions, and hosted stored-query preservation remain outside
 this first inventory.
+
+## Required column discovery
+
+`required_columns.ps1` and `required_column_matrix.json` reproduce the native
+Required/AllowZeroLength observations in EXP-0283. Run the producer with the
+matrix staged as `matrix.json`. The retained bundle includes each run's inbox,
+outbox, closed images and original evaluator.
+
+Replay all 504 checkpoints with:
+
+```sh
+python3 -B oracle/windows-dao/scripts/required_column_discovery.py \
+  --evidence-root /path/to/required-column-discovery \
+  --output /path/to/replayed-report.json
+```
+
+The portable raw-row helper represents Boolean false as `false`; the original
+report used null in that internal raw field. Complete DAO values and all other
+reported observations are unchanged. The original report remains retained.
+`required_column_prepare.py --help` describes creation and independent mutation
+input preparation; native discovery alone does not establish writer compatibility.
+
+`required_column_acceptance.ps1` consumes the preparation ZIP staged as
+`required-inputs.zip`: 72 creation pairs and 204 independent mutation pairs.
+Each receipt retains complete schema/property arrays, rows, primary traversal
+and Seek results, the provider, and closed file identities. The evaluator checks
+raw values, named properties, keys/locators/counters, allocation ownership,
+unchanged system pages and whole-file refusal preservation. Same-source raw
+rows must agree except assigned-null fixed padding (EXP-0283) and assigned
+long-value descriptor placement; complete payload bytes remain compared.
+Independent creation layouts may differ. Default scalar-only properties may
+be absent, but text policies must be explicit (EXP-0284).
+
+With the exact source pins and run inbox/outbox retained under the evidence root:
+
+```sh
+python3 -B oracle/windows-dao/scripts/required_column_acceptance.py \
+  --evidence-root /path/to/required-column-acceptance \
+  --run-id RUN_ID --report /path/to/replayed-acceptance.json
+```
+
+The first run exposed an incorrect GUID input adapter and missing explicit
+disabled empty-value properties; it is retained as failed evidence. GUID inputs
+use display-order bytes, and FixedText inputs retain the exact-width contract.

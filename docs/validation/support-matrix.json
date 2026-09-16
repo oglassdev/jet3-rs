@@ -42,7 +42,10 @@
         "crates/jet3/src/validation_storage_tests.rs",
         "crates/jet3/src/relationship_validation.rs",
         "crates/jet3/src/creation/composer/relationship_graph_validation_tests.rs",
-        "crates/jet3/src/table_definition_pages.rs"
+        "crates/jet3/src/table_definition_pages.rs",
+        "crates/jet3/src/column_property_reader.rs",
+        "crates/jet3/src/column_property_values.rs",
+        "crates/jet3/src/column_property_error.rs"
       ]
     },
     {
@@ -135,7 +138,15 @@
         "crates/jet3/src/creation/schema_name_tests.rs",
         "oracle/windows-dao/acquisition/schema-names.matrix.json",
         "oracle/windows-dao/scripts/schema_names_prepare.py",
-        "oracle/windows-dao/scripts/schema_names_creation.py"
+        "oracle/windows-dao/scripts/schema_names_creation.py",
+        "crates/jet3/src/column_properties.rs",
+        "crates/jet3/src/creation/required_column_tests.rs",
+        "oracle/windows-dao/scripts/required_column_discovery.py",
+        "oracle/windows-dao/scripts/required_columns.ps1",
+        "oracle/windows-dao/scripts/required_column_matrix.json",
+        "oracle/windows-dao/scripts/required_column_prepare.py",
+        "oracle/windows-dao/scripts/required_column_acceptance.py",
+        "oracle/windows-dao/scripts/required_column_acceptance.ps1"
       ]
     },
     {
@@ -309,7 +320,10 @@
         "oracle/windows-dao/scripts/relationship_index_creation.py",
         "oracle/windows-dao/scripts/relationship_index_lifecycle.py",
         "oracle/windows-dao/scripts/relationship_index_checks.py",
-        "oracle/windows-dao/scripts/relationship_system_indexes.py"
+        "oracle/windows-dao/scripts/relationship_system_indexes.py",
+        "crates/jet3/src/column_value_policy.rs",
+        "crates/jet3/src/column_property_values.rs",
+        "oracle/windows-dao/scripts/column_property_checks.py"
       ]
     },
     {
