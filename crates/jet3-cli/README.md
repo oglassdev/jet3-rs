@@ -164,9 +164,9 @@ adds no relationship, index, schema or payload support beyond the linked
 `jet3` library. It makes no compatibility claim beyond the underlying library and its recorded evidence.
 
 For multiple or self-referencing relationships, use `"relationships": [...]`
-with an array of the same objects. The array currently admits at most two
-enforced, non-cascading single-Long constraints and any supported unrelated
-tables. Parent keys may be Long or AutoIncrement and need an ascending unique
+with an array of the same objects. The array admits enforced, non-cascading
+single-Long constraints within each table's logical-index capacity, along with
+any supported unrelated tables. Parent keys may be Long or AutoIncrement and need an ascending unique
 index; the first eligible index in logical name order is selected. Foreign
 columns must be Long. Existing ordinary ascending FK indexes are reused, and
 each relationship alias consumes a slot within the 32-logical-index limit.

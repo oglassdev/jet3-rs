@@ -2,7 +2,7 @@
 use super::*;
 use crate::creation::relationship_indexes::select_existing;
 use crate::creation::relationship_name::HiddenName;
-use crate::{ColumnRef, IndexDefinitionKind, IndexDirection, TableDefinition};
+use crate::{ColumnRef, IndexDefinitionKind, IndexDirection, RelationshipSide, TableDefinition};
 
 pub(super) fn check(
     definition: &TableDefinition,
@@ -69,7 +69,7 @@ pub(super) fn check(
             return Err(mismatch("graph declared logical index schema"));
         }
     }
-    let mut foreign_columns = [None; 2];
+    let mut foreign_columns = [None; crate::creation::schema_plan::MAX_OBSERVED_INDEXES];
     let mut foreign_count = 0;
     let mut logical_ordinal = request.indexes.len();
     for spec in relationships {

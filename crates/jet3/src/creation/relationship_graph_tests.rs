@@ -150,8 +150,7 @@ fn graph_creation_handles_multiple_shared_chain_and_self_endpoints() -> TestResu
 }
 
 #[test]
-fn graph_creation_rejects_orphans_duplicate_names_and_excess_relations_before_publication()
--> TestResult {
+fn graph_creation_rejects_orphans_and_duplicate_names_before_publication() -> TestResult {
     let directory = Directory::new()?;
     let rows: &[&[RowValue<'_>]] = &[&[
         RowValue::Long(1),
@@ -174,26 +173,17 @@ fn graph_creation_rejects_orphans_duplicate_names_and_excess_relations_before_pu
             ComposeError::OrphanInitialRelationshipKey { row: 0, value: 2 }
         ))
     ));
-    for relationships in [
-        vec![relation(b"Same", 0, 1, 1), relation(b"same", 0, 1, 2)],
-        vec![
-            relation(b"A", 0, 1, 1),
-            relation(b"B", 0, 2, 1),
-            relation(b"C", 0, 0, 1),
-        ],
-    ] {
-        assert!(matches!(
-            create_database_with_relationships(
-                directory.target(),
-                &TABLES,
-                &relationships,
-                &mut budget()
-            ),
-            Err(CreateDatabaseError::Compose(
-                ComposeError::UnsupportedRelationship { .. }
-            ))
-        ));
-    }
+    assert!(matches!(
+        create_database_with_relationships(
+            directory.target(),
+            &TABLES,
+            &[relation(b"Same", 0, 1, 1), relation(b"same", 0, 1, 2)],
+            &mut budget()
+        ),
+        Err(CreateDatabaseError::Compose(
+            ComposeError::UnsupportedRelationship { .. }
+        ))
+    ));
     let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(0));
     assert!(
         create_database_with_relationships(
@@ -367,3 +357,6 @@ fn graph_creation_resolves_generated_parent_keys_before_foreign_checks() -> Test
 
 #[path = "relationship_index_tests.rs"]
 mod index_selection;
+
+#[path = "larger_relationship_graph_tests.rs"]
+mod larger_graphs;

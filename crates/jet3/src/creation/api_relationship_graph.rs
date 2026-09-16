@@ -1,12 +1,12 @@
-//! Atomic creation of the bounded EXP-0273 relationship graphs.
+//! Atomic relationship graph creation using EXP-0273/0279 endpoint records.
 use super::*;
 use crate::creation::composer::{GraphImage, compose_relationship_graph};
-use crate::{CatalogObjectKind, RelationshipSide, RelationshipSpec, TableRef, TextCodePage};
+use crate::{CatalogObjectKind, RelationshipSpec, TableRef, TextCodePage};
 
-/// Creates empty tables with up to two enforced, non-cascading Long relationships.
+/// Creates empty tables with enforced, non-cascading Long relationships.
 ///
 /// Table order is independent of relationship direction. Multiple endpoints,
-/// chains, self-references and two parents sharing a child FK column are admitted.
+/// chains, self-references and parents sharing a child FK column are admitted.
 /// Each parent needs an ascending unique Long/AutoIncrement index. The composer
 /// selects the first eligible index in logical name order. An ordinary ascending
 /// child index on the FK column is reused, retaining its declared name; otherwise
@@ -34,11 +34,11 @@ pub fn create_database_with_relationships(
     create_database_with_relationships_and_rows(path, &requests, relationships, budget)
 }
 
-/// Creates tables, their initial rows and up to two Long relationships.
+/// Creates tables, their initial rows and Long relationships.
 ///
 /// The schema restrictions of [`create_database_with_relationships`] apply.
 /// Each non-null foreign key must occur in its parent's initial rows, including
-/// self-references and keys shared by two parents. Complete rows, Memo/OLE
+/// self-references and keys shared by multiple parents. Complete rows, Memo/OLE
 /// payloads, indexes, reciprocal metadata and allocation ownership are checked
 /// before atomic publication. An empty relationship slice creates ordinary tables.
 pub fn create_database_with_relationships_and_rows(
@@ -136,6 +136,13 @@ fn check_graph(
             position,
             budget,
         )?;
+        budget
+            .charge_work_units(
+                (relationships.len() as u64)
+                    .saturating_mul(requests.len() as u64)
+                    .saturating_mul(2 * 64),
+            )
+            .map_err(CandidateCheckError::Read)?;
         let expected = relationships
             .iter()
             .map(|r| {
@@ -145,69 +152,6 @@ fn check_graph(
             .sum::<usize>();
         if definition.relationships().count() != expected {
             return Err(mismatch("relationship graph endpoint count"));
-        }
-        // Loading checks exact central/reciprocal coverage, including incoming records.
-        crate::relationship_catalog::load(&mut database, &definition, request.table.name, budget)
-            .map_err(CandidateCheckError::Relationships)?;
-        for spec in relationships
-            .iter()
-            .filter(|r| resolve(r.child.table) == Some(position))
-        {
-            let parent = resolve(spec.parent.table).ok_or(mismatch("relationship graph parent"))?;
-            let parent_definition = database
-                .table_definition(tables[parent].0, budget)
-                .map_err(CandidateCheckError::Definition)?;
-            budget
-                .charge_work_units(
-                    (parent_definition.indexes().len() as u64)
-                        .saturating_mul(definition.indexes().len() as u64 * 64),
-                )
-                .map_err(CandidateCheckError::Read)?;
-            let mut parent_relations = parent_definition.relationships().filter(|relation| {
-                relation.side() == RelationshipSide::PrimaryTable
-                    && relation.related_table() == root
-                    && definition.relationships().any(|foreign| {
-                        foreign.side() == RelationshipSide::ForeignTable
-                            && foreign.name().raw_bytes() == spec.name
-                            && foreign.raw_selector() == relation.raw_relation_ordinal()
-                            && foreign.raw_relation_ordinal() == relation.raw_selector()
-                    })
-            });
-            let primary = parent_relations
-                .next()
-                .ok_or(mismatch("graph parent relationship"))?;
-            if parent_relations.next().is_some() {
-                return Err(mismatch("graph ambiguous parent relationship"));
-            }
-            let parent_key = parent_definition
-                .physical_indexes()
-                .get(usize::from(primary.physical_index()))
-                .ok_or(mismatch("relationship graph parent index"))?;
-            if parent_key.fields().len() != 1
-                || Some(parent_key.fields()[0].column().get())
-                    != spec.parent.column.resolve(requests[parent].table.columns)
-            {
-                return Err(mismatch("relationship graph parent column"));
-            }
-            let mut matching = definition.relationships().filter(|r| {
-                r.side() == RelationshipSide::ForeignTable && r.name().raw_bytes() == spec.name
-            });
-            let relation = matching
-                .next()
-                .ok_or(mismatch("relationship graph foreign record"))?;
-            if matching.next().is_some() || relation.related_table() != tables[parent].0 {
-                return Err(mismatch("relationship graph target"));
-            }
-            let index = definition
-                .physical_indexes()
-                .get(usize::from(relation.physical_index()))
-                .ok_or(mismatch("relationship graph physical index"))?;
-            if index.fields().len() != 1
-                || Some(index.fields()[0].column().get())
-                    != spec.child.column.resolve(request.table.columns)
-            {
-                return Err(mismatch("relationship graph child column"));
-            }
         }
     }
     database

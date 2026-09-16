@@ -39,10 +39,6 @@ pub(super) fn resolve<'a>(
     relationships: &'a [RelationshipSpec<'_>],
     budget: &mut ResourceBudget,
 ) -> Result<Vec<GraphRelation<'a>>, ComposeError> {
-    // Initial graph creation is bounded to the two-relation observation inventory.
-    if relationships.len() > 2 {
-        return Err(invalid("graph creation admits at most two relationships"));
-    }
     budget.charge_work_units(requests.len() as u64)?;
     if requests
         .iter()
@@ -86,6 +82,7 @@ pub(super) fn resolve<'a>(
     }
     let mut result: Vec<GraphRelation<'a>> = Vec::new();
     for (position, relationship) in relationships.iter().enumerate() {
+        budget.charge_work_units((position as u64).saturating_mul(513))?;
         budget.charge_work_units(
             (requests.len() as u64).saturating_mul(128) + 2 * 255 * 64 + 32 * 512 + 1024,
         )?;
