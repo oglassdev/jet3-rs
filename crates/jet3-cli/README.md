@@ -47,18 +47,20 @@ by default; Windows-1251 is also accepted. The input limit defaults to 256 MiB;
 the other library limits remain in effect alongside the optional work limit.
 Exclude concurrent writers while validation runs.
 
-Success returns `ok: true`, `scope: "catalogued_user_tables"`, checked counts,
+Success returns `ok: true`, `scope: "catalogued_allocations_and_user_tables"`, checked counts,
 coverage limits and resource usage on stdout with exit 0. Long-value bytes count
 raw payload bytes per reference, before text decoding. The first failure returns
 `validation_failed` JSON on stderr with exit 1 and no success report; its message
 includes the table and available field/index/row context. Invalid arguments exit 2.
 
-This is a bounded structural check, not whole-file validity. System objects are
-checked only as catalog records; their contents and other object kinds are skipped.
-Unreferenced pages, allocation slack and relationship constraints are not checked.
-Index traversal checks node framing, links and page/slot references, but does not
-prove key ordering/semantics, index-to-row key equality, completeness or live-row
-membership. Unsupported key encodings are counted as uninterpreted entries.
+Validation checks user row counts and values, unique row/payload reachability,
+index live-row membership, supported scalar keys and branch bounds, and catalogued
+allocation ownership. Enforced single ascending Long relationships check reciprocal
+metadata, parent uniqueness and non-null child-key inclusion. The JSON report
+counts unsupported index schemas and relationship catalog rows separately; complete
+relationship inventory is checked only when all central rows are interpreted.
+System row values and index keys outside the relationship catalog, other object
+contents, unreferenced pages and allocation slack remain outside these checks.
 Success does not establish Access/DAO compatibility.
 
 The `create` output path must not exist. Creation uses the library's atomic publication,
@@ -122,7 +124,10 @@ byte arrays; the CLI does not silently encode UTF-8 into the database. All
 byte array elements must be integers from 0 through 255. The CLI exposes no
 raw Memo/OLE reference headers; the library allocates payload references.
 
-An optional top-level `relationship` selects a relationship creation API:
+Text and Memo columns accept `"allow_zero_length": true` to permit present-empty
+values. The default is false; other column types reject that option when true.
+
+An optional top-level `relationship` selects the two-table relationship API:
 
 ```json
 {
@@ -139,6 +144,13 @@ empty, the CLI uses the schema-only API, including its additional supported
 index layouts; otherwise it uses the initial-row API. This interface
 adds no relationship, index, schema or payload support beyond the linked
 `jet3` library. It makes no compatibility claim beyond the underlying library and its recorded evidence.
+
+For multiple or self-referencing relationships, use `"relationships": [...]`
+with an array of the same objects. The array currently admits at most two
+enforced, non-cascading single-Long constraints and any supported unrelated
+tables. Parent primary keys may be Long or AutoIncrement; foreign columns must
+be Long. The parent primary index must be first. Supply only one of
+`relationship` and `relationships`. An empty array creates ordinary tables.
 
 `mutate` applies one public row operation to an existing database:
 

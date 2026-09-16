@@ -10,7 +10,8 @@ validate: check reachable user-table data without modifying the file
 
 Checks catalog records, user definitions, row counts, values, Memo/OLE chains,
 index row membership, supported scalar keys and branch bounds, unique row/payload
-storage, and catalogued allocation ownership. Skips system row values/index keys
+storage, catalogued allocation ownership, and supported Long relationship constraints.
+Reports unsupported relationship forms separately. Skips other system row values/index keys
 and non-table object contents. Success is not whole-file validity or a compatibility claim.
 ";
 
@@ -93,16 +94,20 @@ pub fn run(command: &ValidateCommand) -> Result<String, String> {
             "indexes": report.indexes,
             "index_entries": report.index_entries,
             "indexes_with_verified_keys": report.indexes_with_verified_keys,
+            "relationship_catalog_rows": report.relationship_catalog_rows,
+            "relationships_with_verified_keys": report.relationships_with_verified_keys,
+            "relationship_inventory_checked": report.relationship_inventory_checked,
             "long_values": report.long_values,
             "long_value_bytes": report.long_value_bytes,
         },
         "coverage_limits": {
             "skipped_system_objects": report.skipped_system_objects,
             "skipped_other_objects": report.skipped_other_objects,
+            "uninterpreted_relationship_rows": report.uninterpreted_relationship_rows,
             "uninterpreted_indexes": report.uninterpreted_indexes,
             "uninterpreted_index_entries": report.uninterpreted_index_entries,
             "not_checked": ["system_row_values_and_index_keys", "non_table_object_contents",
-                "unreferenced_pages_and_allocation_slack", "relationship_constraints",
+                "unreferenced_pages_and_allocation_slack", "unsupported_relationship_forms",
                 "unsupported_index_key_schemas", "application_compatibility"],
         },
         "resources": {

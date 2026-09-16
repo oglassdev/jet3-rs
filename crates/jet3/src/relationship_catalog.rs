@@ -1,7 +1,7 @@
 //! EXP-0073/0114 endpoints and EXP-0059/0062/0268 reciprocal relationship metadata.
 use crate::{
     CatalogObjectClass, CatalogObjectKind, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
-    DatabaseReader, FileSource, IndexDirection, PageNumber, Relationship, RelationshipSide,
+    DatabaseReader, IndexDirection, PageNumber, ReadAt, Relationship, RelationshipSide,
     ResourceBudget, TableDefinition, TableDefinitionKind, UpdateError, page_edits::reserve,
 };
 
@@ -20,10 +20,11 @@ struct Record {
     child: Vec<u8>,
     parent_column: Vec<u8>,
     child_column: Vec<u8>,
+    metadata: [i32; 3],
 }
 
-pub(crate) fn load(
-    database: &mut DatabaseReader<FileSource>,
+pub(crate) fn load<S: ReadAt>(
+    database: &mut DatabaseReader<S>,
     target: &TableDefinition,
     name: &[u8],
     budget: &mut ResourceBudget,
@@ -32,49 +33,66 @@ pub(crate) fn load(
     let mut result = Vec::new();
     reserve(&mut result, records.len(), budget)?;
     for record in &records {
-        let parent = table(database, &record.parent, budget)?;
-        let child = table(database, &record.child, budget)?;
-        budget.charge_work_units(
-            (parent.columns().len()
-                + child.columns().len()
-                + parent.indexes().len()
-                + child.indexes().len()) as u64
-                * 255,
-        )?;
-        let parent_column = key_column(&parent, &record.parent_column)?;
-        let child_column = key_column(&child, &record.child_column)?;
-        let mut foreign = child.relationships().filter(|relation| {
-            relation
-                .name()
-                .raw_bytes()
-                .eq_ignore_ascii_case(&record.name)
-                && relation.side() == RelationshipSide::ForeignTable
-                && relation.related_table() == parent.root()
-        });
-        let foreign = unique(&mut foreign)?;
-        index(&child, foreign, child_column, false)?;
-        let mut primary = parent.relationships().filter(|relation| {
-            relation.side() == RelationshipSide::PrimaryTable
-                && relation.related_table() == child.root()
-                && relation.raw_selector() == foreign.raw_relation_ordinal()
-                && relation.raw_relation_ordinal() == foreign.raw_selector()
-        });
-        let primary = unique(&mut primary)?;
-        index(&parent, primary, parent_column, true)?;
-        let parent_record = *primary.raw_record();
-        let child_record = *foreign.raw_record();
-        result.push(Constraint {
-            parent,
-            child,
-            parent_column,
-            child_column,
-            parent_record,
-            child_record,
-        });
+        result.push(resolve(database, record, budget)?);
     }
     check_target(target, &result, budget)?;
     incoming(database, target.root(), &result, budget)?;
     Ok(result)
+}
+
+fn resolve<S: ReadAt>(
+    database: &mut DatabaseReader<S>,
+    record: &Record,
+    budget: &mut ResourceBudget,
+) -> Result<Constraint, UpdateError> {
+    let parent = table(database, &record.parent, budget)?;
+    let child = table(database, &record.child, budget)?;
+    resolve_tables(record, parent, child, budget)
+}
+
+fn resolve_tables(
+    record: &Record,
+    parent: TableDefinition,
+    child: TableDefinition,
+    budget: &mut ResourceBudget,
+) -> Result<Constraint, UpdateError> {
+    budget.charge_work_units(
+        (parent.columns().len()
+            + child.columns().len()
+            + parent.indexes().len()
+            + child.indexes().len()) as u64
+            * 255,
+    )?;
+    let parent_column = key_column(&parent, &record.parent_column)?;
+    let child_column = key_column(&child, &record.child_column)?;
+    let mut foreign = child.relationships().filter(|relation| {
+        relation
+            .name()
+            .raw_bytes()
+            .eq_ignore_ascii_case(&record.name)
+            && relation.side() == RelationshipSide::ForeignTable
+            && relation.related_table() == parent.root()
+    });
+    let foreign = unique(&mut foreign)?;
+    index(&child, foreign, child_column, false)?;
+    let mut primary = parent.relationships().filter(|relation| {
+        relation.side() == RelationshipSide::PrimaryTable
+            && relation.related_table() == child.root()
+            && relation.raw_selector() == foreign.raw_relation_ordinal()
+            && relation.raw_relation_ordinal() == foreign.raw_selector()
+    });
+    let primary = unique(&mut primary)?;
+    index(&parent, primary, parent_column, true)?;
+    let parent_record = *primary.raw_record();
+    let child_record = *foreign.raw_record();
+    Ok(Constraint {
+        parent,
+        child,
+        parent_column,
+        child_column,
+        parent_record,
+        child_record,
+    })
 }
 
 fn record_matches(root: PageNumber, record: &[u8; 20], constraint: &Constraint) -> bool {
@@ -120,8 +138,8 @@ fn check_target(
     Ok(())
 }
 
-fn incoming(
-    database: &mut DatabaseReader<FileSource>,
+fn incoming<S: ReadAt>(
+    database: &mut DatabaseReader<S>,
     target: PageNumber,
     constraints: &[Constraint],
     budget: &mut ResourceBudget,
@@ -227,8 +245,10 @@ fn key_column(table: &TableDefinition, name: &[u8]) -> Result<ColumnOrdinal, Upd
     let column = columns
         .next()
         .ok_or(UpdateError::Mismatch("relationship column absent"))?;
-    if columns.next().is_some()
-        || column.physical_type() != ColumnPhysicalType::Long
+    if columns.next().is_some() {
+        return Err(UpdateError::Mismatch("ambiguous relationship column"));
+    }
+    if column.physical_type() != ColumnPhysicalType::Long
         || column.size() != 4
         || !matches!(column.storage(), ColumnStorageClass::Fixed { .. })
     {
@@ -237,8 +257,8 @@ fn key_column(table: &TableDefinition, name: &[u8]) -> Result<ColumnOrdinal, Upd
     Ok(column.ordinal())
 }
 
-fn table(
-    database: &mut DatabaseReader<FileSource>,
+fn table<S: ReadAt>(
+    database: &mut DatabaseReader<S>,
     name: &[u8],
     budget: &mut ResourceBudget,
 ) -> Result<TableDefinition, UpdateError> {
@@ -267,8 +287,8 @@ fn table(
     Ok(table)
 }
 
-fn catalog_root(
-    database: &mut DatabaseReader<FileSource>,
+fn catalog_root<S: ReadAt>(
+    database: &mut DatabaseReader<S>,
     budget: &mut ResourceBudget,
 ) -> Result<PageNumber, UpdateError> {
     let mut catalog = database.catalog(budget)?;
@@ -293,9 +313,17 @@ fn copy_name(name: &[u8], budget: &mut ResourceBudget) -> Result<Vec<u8>, Update
     Ok(result)
 }
 
-fn records(
-    database: &mut DatabaseReader<FileSource>,
+fn records<S: ReadAt>(
+    database: &mut DatabaseReader<S>,
     target: &[u8],
+    budget: &mut ResourceBudget,
+) -> Result<Vec<Record>, UpdateError> {
+    read_records(database, Some(target), budget)
+}
+
+fn read_records<S: ReadAt>(
+    database: &mut DatabaseReader<S>,
+    target: Option<&[u8]>,
     budget: &mut ResourceBudget,
 ) -> Result<Vec<Record>, UpdateError> {
     let root = catalog_root(database, budget)?;
@@ -336,10 +364,21 @@ fn records(
     let mut result = Vec::new();
     let mut rows = database.rows(&definition, budget)?;
     let mut count = 0_u32;
-    while let Some(row) = rows.next_row()? {
+    while let Some(mut row) = rows.next_row()? {
         count = count
             .checked_add(1)
             .ok_or(UpdateError::Mismatch("relationship row count overflow"))?;
+        let mut metadata = [0; 3];
+        for (value, column) in metadata.iter_mut().zip(&columns[1..4]) {
+            *value = match row
+                .value(*column, crate::TextCodePage::Windows1252)?
+                .ok_or(UpdateError::Mismatch("relationship metadata absent"))?
+                .kind()
+            {
+                crate::ValueKind::Long(value) => *value,
+                _ => return Err(UpdateError::Mismatch("relationship metadata type")),
+            };
+        }
         let field = |position: usize| {
             row.field(columns[position])
                 .and_then(|field| field.raw_bytes())
@@ -347,33 +386,30 @@ fn records(
         };
         let child = field(4)?;
         let parent = field(6)?;
-        if !target.is_ascii()
-            || [child, parent]
-                .iter()
-                .any(|name| name.is_empty() || !name.is_ascii())
-        {
-            return Err(UpdateError::Unsupported(
-                "unresolved relationship endpoint name",
-            ));
-        }
-        if !child.eq_ignore_ascii_case(target) && !parent.eq_ignore_ascii_case(target) {
-            continue;
-        }
-        if [field(1)?, field(2)?, field(3)?]
-            != [
-                &0_i32.to_le_bytes(),
-                &1_i32.to_le_bytes(),
-                &0_i32.to_le_bytes(),
-            ]
-        {
-            return Err(UpdateError::Unsupported(
-                "relationship requires one enforced non-cascading key",
-            ));
+        if let Some(target) = target {
+            if !target.is_ascii()
+                || [child, parent]
+                    .iter()
+                    .any(|name| name.is_empty() || !name.is_ascii())
+            {
+                return Err(UpdateError::Unsupported(
+                    "unresolved relationship endpoint name",
+                ));
+            }
+            if !child.eq_ignore_ascii_case(target) && !parent.eq_ignore_ascii_case(target) {
+                continue;
+            }
+            if metadata != [0, 1, 0] {
+                return Err(UpdateError::Unsupported(
+                    "relationship requires one enforced non-cascading key",
+                ));
+            }
         }
         let sources = [field(0)?, parent, child, field(7)?, field(5)?];
-        if sources
-            .iter()
-            .any(|name| name.is_empty() || !name.is_ascii())
+        if target.is_some()
+            && sources
+                .iter()
+                .any(|name| name.is_empty() || !name.is_ascii())
         {
             return Err(UpdateError::Unsupported("unresolved relationship name"));
         }
@@ -396,6 +432,7 @@ fn records(
             child: name(2)?,
             parent_column: name(3)?,
             child_column: name(4)?,
+            metadata,
         });
     }
     if count != definition.row_count() {
@@ -403,3 +440,7 @@ fn records(
     }
     Ok(result)
 }
+
+#[path = "relationship_validation.rs"]
+mod validation;
+pub(crate) use validation::validate;

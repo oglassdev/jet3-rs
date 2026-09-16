@@ -38,6 +38,7 @@ pub(super) fn compose_with_rows(
         EMPTY_DATABASE_PAGE_COUNT,
         true,
         Some(relation.logical(true, PageNumber::new(0))),
+        budget,
     )?
     .with_rows(rows[0], budget)?;
     let fields = [IndexColumnSpec {
@@ -67,6 +68,7 @@ pub(super) fn compose_with_rows(
         parent.page_count(),
         false,
         Some(relation.logical(false, parent.schema().definition_root())),
+        budget,
     )?
     .with_rows(rows[1], budget)?;
     parent.set_relationship_target(child.schema().definition_root())?;

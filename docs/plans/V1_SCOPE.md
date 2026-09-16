@@ -69,12 +69,15 @@ Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
 columns themselves cannot be indexed. Each payload column has separate ownership
 and availability maps. Definitions and map rows can span multiple pages; files
 are bounded by map-reference capacity and the caller's resource budget.
-Relationships support two ordered tables and one enforced, non-cascading Long
-relationship, including nullable foreign keys and a separate child primary.
-Other columns retain generated IDs, Text/Memo options, independent Memo/OLE maps
-and definition/property chains. Populated parents require one primary index;
-empty parents may retain the earlier additional unique Long index. Other
-relationship forms and more than two tables remain restricted.
+The plural relationship APIs admit up to two enforced, non-cascading Long
+constraints, including multiple parents or children, chains, self-references,
+shared foreign physical indexes and unrelated tables in any order. Parent keys
+may be Long or AutoIncrement and require the first declared index to be an
+ascending primary. Child keys must be Long; nullable keys and a separate child
+primary are admitted. Other columns retain generated IDs, Text/Memo options,
+independent Memo/OLE maps and definition/property chains. The singular APIs
+retain their two-ordered-table bounds. Other key types, cascades and larger
+relationship graphs remain outside creation scope.
 
 Schema/name combinations, index key types and relationship forms remain
 restricted. Empty OLE payloads store null. Text/Memo columns can independently
@@ -231,9 +234,14 @@ Availability maps must be subsets of their own ownership maps; every traversed
 index page must belong to its physical index. User overflow storage and live
 Memo/OLE fragments must be uniquely reachable through the proper table or
 column, including rejection of hidden orphan rows and unreferenced payloads.
-System row values and index keys, non-table contents, unreferenced file pages,
-relationship constraints, and unsupported index key schemas remain outside
-these checks. Catalog
+Enforced, non-cascading single ascending Long relationships check reciprocal
+metadata, parent uniqueness and every non-null child key. Self-references and
+multiple constraints are checked separately, including shared foreign indexes.
+Unsupported relationship catalog rows are counted explicitly; complete endpoint
+inventory is checked only when every central row is interpreted. Known endpoints
+must still occur exactly once when other forms are present.
+Other system row values and index keys, non-table contents, unreferenced file
+pages and unsupported index key schemas remain outside these checks. Catalog
 reading follows native overflow records using the shared row-locator grammar
 (EXP-0228). Validation success does not establish DAO compatibility.
 
@@ -334,6 +342,15 @@ two simultaneous constraints on an endpoint; relationship creation/drop and
 composite/cascading relationships remain separate work.
 
 ### Remaining work
+
+EXP-0275 accepts 30 initial relationship-graph creation pairs and 168 native
+lifecycle stage captures, with 136 expected refusals and 564 successful native
+requests. Multiple-parent/child, shared-index, self-reference, AutoNumber and
+27-table catalog-boundary cases retain complete values, schema, properties,
+keys, allocation and the recorded counter behavior. Referenced chain-middle
+rows use native FK/Memo field edits: DAO rejects a full-row edit that reassigns
+their unchanged primary key. The plural creation APIs and CLI `relationships`
+array retain the two-constraint bounds above.
 
 - Extend creation to remaining schema/index-key combinations and relationship forms.
 - Extend updates to remaining index key types/collations, relationship forms,

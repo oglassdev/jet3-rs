@@ -527,3 +527,6 @@ fn shared_foreign_index_still_requires_the_key_in_both_parent_tables() -> Result
     field(&fixture, 1, 2, 1, RowValue::Long(2))?;
     check(&fixture)
 }
+
+#[path = "relationship_graph_validation_tests.rs"]
+mod validation_checks;

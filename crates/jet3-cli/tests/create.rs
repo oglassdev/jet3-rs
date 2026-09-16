@@ -39,6 +39,8 @@ fn create_rejects_unknown_fields_types_and_arguments() -> Result {
         r#"{"tables":[{"name":"T","columns":[{"name":"Id","type":"long"}],"rows":[[{"long":2147483648}]]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"Id","type":"long","size":4}]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"Text","type":"text","size":0}]}]}"#,
+        r#"{"tables":[{"name":"T","columns":[{"name":"Text","type":"fixed_text","size":8,"allow_zero_length":true}]}]}"#,
+        r#"{"tables":[{"name":"T","columns":[{"name":"Id","type":"long","allow_zero_length":true}]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"Text","type":"text","size":10}],"rows":[[{"text":"é"}]]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"B","type":"binary","size":2}],"rows":[[{"binary":[256]}]]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"F","type":"single"}],"rows":[[{"single":1e300}]]}]}"#,
@@ -168,5 +170,75 @@ fn create_stdin_relationship_and_empty_database_use_public_api() -> Result {
         "{}",
         String::from_utf8_lossy(&result.stderr)
     );
+    Ok(())
+}
+
+#[test]
+#[cfg(any(unix, windows))]
+fn create_relationship_array_resolves_generated_parents_and_column_options() -> Result {
+    let directory = tempfile::tempdir()?;
+    let mut request = json!({"tables":[
+        {"name":"Parent","columns":[{"name":"Id","type":"auto_increment"},{"name":"Label","type":"text","size":8,"allow_zero_length":true}],"indexes":[{"name":"ById","kind":"primary","fields":[{"column":"Id"}]}],"rows":[["auto_increment",{"text":""}]]},
+        {"name":"ChildA","columns":[{"name":"Id","type":"long"},{"name":"ParentId","type":"long"}],"rows":[[{"long":10},{"long":1}]]},
+        {"name":"ChildB","columns":[{"name":"Id","type":"long"},{"name":"ParentId","type":"long"}],"rows":[[{"long":20},null]]}
+    ],"relationships":[
+        {"name":"ParentA","parent":{"table":"Parent","column":"Id"},"child":{"table":"ChildA","column":"ParentId"}},
+        {"name":"ParentB","parent":{"table":"Parent","column":"Id"},"child":{"table":"ChildB","column":"ParentId"}}
+    ]});
+    for empty in [false, true] {
+        let output = directory.path().join(format!("graph-{empty}.mdb"));
+        if empty {
+            for table in request["tables"].as_array_mut().ok_or("tables absent")? {
+                table["rows"] = json!([]);
+            }
+        }
+        let result = run(&output, &request.to_string())?;
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let snapshot = Command::new(env!("CARGO_BIN_EXE_jet3-cli"))
+            .arg("inspect")
+            .arg(&output)
+            .arg("--rows")
+            .output()?;
+        assert!(snapshot.status.success());
+        let document: Value = serde_json::from_slice(&snapshot.stdout)?;
+        let tables = document["tables"].as_array().ok_or("tables absent")?;
+        let parent = tables
+            .iter()
+            .find(|table| {
+                table["kind"] == "User"
+                    && table["columns"].as_array().is_some_and(|columns| {
+                        columns.iter().any(|column| column["name"] == "Label")
+                    })
+            })
+            .ok_or("parent absent")?;
+        assert_eq!(
+            parent["rows"],
+            if empty {
+                json!([])
+            } else {
+                json!([{"Id":1,"Label":""}])
+            }
+        );
+        for name in ["ParentA", "ParentB"] {
+            assert!(tables.iter().any(|table| {
+                table["indexes"]
+                    .as_array()
+                    .is_some_and(|indexes| indexes.iter().any(|index| index["name"] == name))
+            }));
+        }
+    }
+    request["relationship"] = request["relationships"][0].clone();
+    let invalid = directory.path().join("ambiguous.mdb");
+    let result = run(&invalid, &request.to_string())?;
+    assert!(!result.status.success());
+    assert!(
+        String::from_utf8_lossy(&result.stderr)
+            .contains("specify either relationship or relationships")
+    );
+    assert!(!invalid.exists());
     Ok(())
 }

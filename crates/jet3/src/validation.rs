@@ -3,7 +3,7 @@
 //!
 //! Success covers catalogued allocation roles and user table contents. System
 //! table row values and index keys, and non-table object contents, are skipped.
-//! Unreferenced file pages, allocation slack, relationship constraints,
+//! Unreferenced file pages, allocation slack, unsupported relationship forms,
 //! and application compatibility are outside this check. Index references must
 //! name distinct live logical rows. Supported scalar schemas additionally check
 //! key values, null policies, uniqueness, complete row coverage and branch bounds.
@@ -12,7 +12,10 @@
 //! with the live row count: `EXP-0219` permits retained counts after deletion.
 //! Catalogued allocation roles must be disjoint from incompatible owners and
 //! globally free pages. User row storage and every live payload fragment must
-//! be uniquely reachable through the owning table or column.
+//! be uniquely reachable through the owning table or column. Enforced, non-cascading
+//! single ascending Long relationships check reciprocal records and non-null child
+//! keys against their parent. Other forms are counted as uninterpreted. Complete
+//! endpoint inventory is checked only when every central record is interpreted.
 
 use std::fmt;
 
@@ -52,6 +55,14 @@ pub struct ValidationReport {
     pub uninterpreted_indexes: u64,
     /// Entries in indexes whose key schema remains uninterpreted.
     pub uninterpreted_index_entries: u64,
+    /// Central relationship catalog rows decoded, including uninterpreted forms.
+    pub relationship_catalog_rows: u64,
+    /// Enforced single-Long relationships whose metadata and key inclusion agree.
+    pub relationships_with_verified_keys: u64,
+    /// Central rows whose relationship form or key schema is not interpreted.
+    pub uninterpreted_relationship_rows: u64,
+    /// Every logical endpoint exactly matches the interpreted central catalog.
+    pub relationship_inventory_checked: bool,
     /// Non-null inline and external Memo/OLE values checked.
     pub long_values: u64,
     /// Raw payload bytes reached through those values, before text decoding.
@@ -75,6 +86,8 @@ pub enum ValidationError {
     },
     /// Catalogued allocation maps or shared page ownership are inconsistent.
     Storage(StorageValidationError),
+    /// Relationship metadata, endpoint resolution or key inclusion failed.
+    Relationships(RelationshipValidationError),
     /// Resource policy rejected validation bookkeeping.
     Resource(Error),
 }
@@ -159,6 +172,7 @@ impl fmt::Display for ValidationError {
                 write!(f, " (id {}): {source}", table.id().get())
             }
             Self::Storage(source) => write!(f, "validation allocations: {source}"),
+            Self::Relationships(source) => write!(f, "validation relationships: {source}"),
             Self::Resource(source) => write!(f, "validation resources: {source}"),
         }
     }
@@ -170,6 +184,7 @@ impl std::error::Error for ValidationError {
             Self::Catalog(source) => source,
             Self::Table { source, .. } => source,
             Self::Storage(source) => source,
+            Self::Relationships(source) => source,
             Self::Resource(source) => source,
         })
     }
@@ -203,8 +218,8 @@ impl<S: ReadAt> DatabaseReader<S> {
     ///
     /// Pass the same budget used to open the reader to bound the entire
     /// operation. All readers, pending records and traversal scratch share it.
-    /// Values are streamed; one table definition and one physical index tree
-    /// are retained at a time. Exclude concurrent writes to the source.
+    /// Values are streamed; relationship checks retain both endpoint definitions
+    /// and sorted parent keys. Exclude concurrent writes to the source.
     ///
     /// `code_page` controls text decoding, not index collation. See the
     /// [module coverage limits](crate::validation) before interpreting success.
@@ -269,6 +284,12 @@ impl<S: ReadAt> DatabaseReader<S> {
                 .table(self, &definition, budget)
                 .map_err(ValidationError::Storage)?;
         }
+        let relationships = crate::relationship_catalog::validate(self, budget)
+            .map_err(|source| ValidationError::Relationships(source.into()))?;
+        report.relationship_catalog_rows = relationships.catalog_rows;
+        report.relationships_with_verified_keys = relationships.verified;
+        report.uninterpreted_relationship_rows = relationships.uninterpreted;
+        report.relationship_inventory_checked = relationships.inventory_checked;
         Ok(report)
     }
 }
@@ -434,3 +455,7 @@ mod index;
 #[path = "validation_storage.rs"]
 mod storage;
 pub use storage::StorageValidationError;
+
+#[path = "validation_relationship_error.rs"]
+mod relationship_error;
+pub use relationship_error::RelationshipValidationError;

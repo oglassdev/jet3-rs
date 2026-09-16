@@ -1,0 +1,214 @@
+//! Reproduce private relationship graphs through the public creation API.
+use jet3::{
+    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
+    RelationshipColumn, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef,
+    TableRows, TableSpec, create_database_with_relationships_and_rows,
+};
+use serde_json::Value;
+use std::{error::Error, fs, num::NonZeroU8, path::Path};
+type Result<T> = std::result::Result<T, Box<dyn Error>>;
+
+fn text<'a>(value: &'a Value, field: &str) -> Result<&'a str> {
+    value[field]
+        .as_str()
+        .ok_or_else(|| format!("missing text {field}").into())
+}
+fn array<'a>(value: &'a Value, field: &str) -> Result<&'a [Value]> {
+    value[field]
+        .as_array()
+        .map(Vec::as_slice)
+        .ok_or_else(|| format!("missing array {field}").into())
+}
+fn bytes(value: &Value) -> Result<Option<Vec<u8>>> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    if let Some(value) = value.as_str() {
+        return Ok(Some(value.as_bytes().to_vec()));
+    }
+    let length = value["length"].as_u64().ok_or("payload length")? as usize;
+    Ok(Some(match text(value, "kind")? {
+        "repeat" => vec![u8::try_from(value["byte"].as_u64().ok_or("payload byte")?)?; length],
+        "pattern" => {
+            let seed = value["seed"].as_u64().ok_or("payload seed")? as usize;
+            (0..length)
+                .map(|i| ((i * 37 + seed * 13 + 11) % 256) as u8)
+                .collect()
+        }
+        _ => return Err("payload kind".into()),
+    }))
+}
+fn create(case: &Value, output: &Path, replicas: u64) -> Result<()> {
+    let tables = array(case, "tables")?;
+    let columns = tables
+        .iter()
+        .map(|table| {
+            array(table, "fields")?
+                .iter()
+                .map(|field| {
+                    let kind = match field["type"].as_u64().ok_or("type")? {
+                        4 if field["attributes"].as_u64() == Some(16) => ColumnType::AutoIncrement,
+                        4 => ColumnType::Long,
+                        10 => ColumnType::Text {
+                            max_len: NonZeroU8::new(u8::try_from(
+                                field["size"].as_u64().ok_or("size")?,
+                            )?)
+                            .ok_or("text width")?,
+                        },
+                        11 => ColumnType::LongBinary,
+                        12 => ColumnType::Memo,
+                        _ => return Err("unsupported matrix field".into()),
+                    };
+                    let column = ColumnSpec::new(text(field, "name")?.as_bytes(), kind);
+                    Ok(
+                        if matches!(kind, ColumnType::Text { .. } | ColumnType::Memo)
+                            && field["allow_zero_length"].as_bool().unwrap_or(true)
+                        {
+                            column.with_allow_zero_length()
+                        } else {
+                            column
+                        },
+                    )
+                })
+                .collect::<Result<Vec<_>>>()
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let payloads = tables
+        .iter()
+        .map(|table| {
+            array(table, "rows")?
+                .iter()
+                .map(|row| {
+                    array(table, "fields")?
+                        .iter()
+                        .map(|field| {
+                            if field["type"].as_u64() == Some(4) {
+                                Ok(None)
+                            } else {
+                                bytes(&row[text(field, "name")?])
+                            }
+                        })
+                        .collect::<Result<Vec<_>>>()
+                })
+                .collect::<Result<Vec<_>>>()
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let rows = tables
+        .iter()
+        .zip(&columns)
+        .zip(&payloads)
+        .map(|((table, columns), payloads)| {
+            array(table, "rows")?
+                .iter()
+                .zip(payloads)
+                .map(|(row, payloads)| {
+                    columns
+                        .iter()
+                        .zip(payloads)
+                        .map(|(column, payload)| {
+                            let value = &row[std::str::from_utf8(column.name())?];
+                            Ok(match column.column_type() {
+                                ColumnType::AutoIncrement if value.is_null() => {
+                                    RowValue::AutoIncrement
+                                }
+                                ColumnType::Long if value.is_null() => RowValue::Null,
+                                ColumnType::AutoIncrement | ColumnType::Long => {
+                                    RowValue::Long(i32::try_from(value.as_i64().ok_or("Long")?)?)
+                                }
+                                ColumnType::Text { .. } => {
+                                    payload.as_deref().map_or(RowValue::Null, RowValue::Text)
+                                }
+                                ColumnType::Memo => {
+                                    payload.as_deref().map_or(RowValue::Null, RowValue::Memo)
+                                }
+                                ColumnType::LongBinary => payload
+                                    .as_deref()
+                                    .map_or(RowValue::Null, RowValue::LongBinary),
+                                _ => return Err("row field".into()),
+                            })
+                        })
+                        .collect::<Result<Vec<_>>>()
+                })
+                .collect::<Result<Vec<_>>>()
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let slices = rows
+        .iter()
+        .map(|rows| rows.iter().map(Vec::as_slice).collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    let names = tables
+        .iter()
+        .map(|t| Ok(format!("By{}", text(t, "name")?)))
+        .collect::<Result<Vec<_>>>()?;
+    let primary = [IndexColumnSpec {
+        column: ColumnRef::Name(b"Id"),
+        direction: IndexDirection::Ascending,
+    }];
+    let indexes = names
+        .iter()
+        .map(|name| {
+            [IndexSpec {
+                name: name.as_bytes(),
+                fields: &primary,
+                kind: IndexKind::Primary,
+            }]
+        })
+        .collect::<Vec<_>>();
+    let requests = tables
+        .iter()
+        .zip(&columns)
+        .zip(&indexes)
+        .zip(&slices)
+        .map(|(((table, columns), indexes), rows)| {
+            Ok(TableRows {
+                table: TableSpec {
+                    name: text(table, "name")?.as_bytes(),
+                    columns,
+                    indexes,
+                },
+                rows,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let relationships = array(case, "relations")?
+        .iter()
+        .map(|relation| {
+            Ok(RelationshipSpec {
+                name: text(relation, "name")?.as_bytes(),
+                parent: RelationshipColumn {
+                    table: TableRef::Name(text(relation, "table")?.as_bytes()),
+                    column: ColumnRef::Name(text(relation, "field")?.as_bytes()),
+                },
+                child: RelationshipColumn {
+                    table: TableRef::Name(text(relation, "foreign_table")?.as_bytes()),
+                    column: ColumnRef::Name(text(relation, "foreign_field")?.as_bytes()),
+                },
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    for replica in 1..=replicas {
+        create_database_with_relationships_and_rows(
+            output.join(format!("{}-r{replica}.mdb", text(case, "name")?)),
+            &requests,
+            &relationships,
+            &mut ResourceBudget::new(ResourceLimits::default()),
+        )?;
+    }
+    Ok(())
+}
+fn main() -> Result<()> {
+    let args = std::env::args_os().skip(1).collect::<Vec<_>>();
+    if args.len() != 2 {
+        return Err("usage: relationship_graph_candidate MATRIX NEW_DIRECTORY".into());
+    }
+    let matrix: Value = serde_json::from_slice(&fs::read(&args[0])?)?;
+    fs::create_dir(&args[1])?;
+    for case in array(&matrix, "graphs")? {
+        create(
+            case,
+            Path::new(&args[1]),
+            matrix["replicas"].as_u64().unwrap_or(2),
+        )?;
+    }
+    Ok(())
+}

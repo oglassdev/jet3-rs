@@ -39,6 +39,8 @@
         "crates/jet3/src/creation/fixed_text_index_tests.rs",
         "crates/jet3/src/validation_storage.rs",
         "crates/jet3/src/validation_storage_tests.rs",
+        "crates/jet3/src/relationship_validation.rs",
+        "crates/jet3/src/creation/composer/relationship_graph_validation_tests.rs",
         "crates/jet3/src/table_definition_pages.rs"
       ]
     },
@@ -381,6 +383,13 @@
         "crates/jet3/src/creation/relationship_tests.rs",
         "crates/jet3/src/creation/relationship_rows_tests.rs",
         "crates/jet3/src/creation/rich_relationship_tests.rs",
+        "crates/jet3/src/creation/api_relationship_graph.rs",
+        "crates/jet3/src/creation/composer/relationship_graph.rs",
+        "crates/jet3/src/creation/relationship_graph_tests.rs",
+        "crates/jet3/examples/relationship_graph_candidate.rs",
+        "oracle/windows-dao/scripts/relationship_graph_prepare.py",
+        "oracle/windows-dao/scripts/relationship_graph_creation.py",
+        "oracle/windows-dao/scripts/relationship_graph_lifecycle.py",
         "crates/jet3/examples/rich_relationship_candidate.rs",
         "oracle/windows-dao/scripts/rich_relationship_lifecycle.py",
         "oracle/windows-dao/scripts/rich_relationship_lifecycle.ps1",

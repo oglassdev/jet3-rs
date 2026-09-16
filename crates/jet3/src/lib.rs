@@ -174,6 +174,7 @@ pub use creation::{
     CreateDatabaseError, IndexColumnSpec, IndexKind, IndexNullPolicy, IndexSpec,
     RelationshipColumn, RelationshipSpec, TableRef, TableRows, TableSchemaPlanError, TableSpec,
     create_database, create_database_with_relationship, create_database_with_relationship_rows,
+    create_database_with_relationships, create_database_with_relationships_and_rows,
     create_database_with_rows, create_database_with_table_rows,
 };
 
@@ -230,7 +231,8 @@ pub use usage_map_writer::{
     encode_indirect_references, indirect_record_len,
 };
 pub use validation::{
-    StorageValidationError, TableValidationError, ValidationError, ValidationReport,
+    RelationshipValidationError, StorageValidationError, TableValidationError, ValidationError,
+    ValidationReport,
 };
 pub use value::{CurrencyValue, DateTimeValue, DecodedValue, GuidValue, ValueError, ValueKind};
 pub use whole_file_plan::WholeFilePlanError;
