@@ -379,3 +379,149 @@ fn generated_parent_assignments_and_deletes_clamp_only_its_retained_counters() -
     );
     Ok(())
 }
+
+#[test]
+fn descending_parent_source_uses_logical_name_order_before_primary_or_physical_order() -> TestResult
+{
+    let nullable = IndexSpec {
+        name: b"ANullableDesc",
+        fields: DESC,
+        kind: IndexKind::Unique,
+    };
+    let required = IndexSpec {
+        name: b"ZRequiredPrimary",
+        fields: DESC,
+        kind: IndexKind::Primary,
+    };
+    for indexes in [[nullable, required], [required, nullable]] {
+        let tables = [
+            TableSpec {
+                name: b"Parent",
+                columns: PAIR_COLUMNS,
+                indexes: &indexes,
+            },
+            TableSpec {
+                name: b"Child",
+                columns: PAIR_COLUMNS,
+                indexes: &[],
+            },
+        ];
+        let directory = Directory::new()?;
+        create_database_with_relationships(directory.target(), &tables, &[edge(1)], &mut budget())?;
+        let d = definition(&directory.target(), b"Parent")?;
+        assert_eq!(d.physical_indexes().len(), 3);
+        assert_eq!(d.physical_indexes()[2].raw_flags(), 1);
+        assert_eq!(
+            d.physical_indexes()[2].fields()[0].direction(),
+            IndexDirection::Ascending
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn null_parent_mutations_require_no_remaining_null_children() -> TestResult {
+    for direction in [ASC, DESC] {
+        for null_child in [false, true] {
+            for delete in [false, true] {
+                let indexes = [
+                    IndexSpec {
+                        name: b"ById",
+                        fields: ID,
+                        kind: IndexKind::Primary,
+                    },
+                    IndexSpec {
+                        name: b"Key",
+                        fields: direction,
+                        kind: IndexKind::Unique,
+                    },
+                ];
+                let tables = [
+                    TableSpec {
+                        name: b"Parent",
+                        columns: PAIR_COLUMNS,
+                        indexes: &indexes,
+                    },
+                    TableSpec {
+                        name: b"Child",
+                        columns: PAIR_COLUMNS,
+                        indexes: &indexes[..1],
+                    },
+                ];
+                let parents: &[&[RowValue<'_>]] = &[
+                    &[RowValue::Long(1), RowValue::Long(1)],
+                    &[RowValue::Long(2), RowValue::Null],
+                    &[RowValue::Long(3), RowValue::Null],
+                ];
+                let children: &[&[RowValue<'_>]] = &[
+                    &[RowValue::Long(10), RowValue::Long(1)],
+                    &[RowValue::Long(11), RowValue::Null],
+                ];
+                let directory = Directory::new()?;
+                create_database_with_relationships_and_rows(
+                    directory.target(),
+                    &[
+                        TableRows {
+                            table: tables[0],
+                            rows: parents,
+                        },
+                        TableRows {
+                            table: tables[1],
+                            rows: &children[..if null_child { 2 } else { 1 }],
+                        },
+                    ],
+                    &[edge(1)],
+                    &mut budget(),
+                )?;
+                let d = definition(&directory.target(), b"Parent")?;
+                let locator = {
+                    let mut work = budget();
+                    let mut db = DatabaseReader::open(directory.target(), &mut work)?;
+                    let mut rows = db.rows(&d, &mut work)?;
+                    rows.next_row()?.ok_or("first parent")?;
+                    rows.next_row()?.ok_or("null parent")?.locator()
+                };
+                let before = fs::read(directory.target())?;
+                let result = if delete {
+                    crate::delete_row(
+                        directory.target(),
+                        crate::RowDelete {
+                            table: b"Parent",
+                            row: locator,
+                        },
+                        &mut budget(),
+                    )
+                } else {
+                    crate::update_row(
+                        directory.target(),
+                        crate::RowUpdate {
+                            table: b"Parent",
+                            row: locator,
+                            values: &[RowValue::Long(2), RowValue::Long(22)],
+                        },
+                        &mut budget(),
+                    )
+                };
+                if null_child {
+                    assert!(matches!(
+                        result,
+                        Err(crate::UpdateError::NullRelationshipConstraint { .. })
+                    ));
+                    assert_eq!(fs::read(directory.target())?, before);
+                } else {
+                    result?;
+                    let mut db = DatabaseReader::open(directory.target(), &mut budget())?;
+                    assert_eq!(
+                        db.validate(TextCodePage::Windows1252, &mut budget())?
+                            .relationships_with_verified_keys,
+                        1
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[path = "self_reference_order_tests.rs"]
+mod self_reference_order;

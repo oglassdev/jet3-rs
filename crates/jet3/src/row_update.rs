@@ -20,9 +20,12 @@ pub struct RowUpdate<'a> {
 ///
 /// Supports scalar/null/Boolean/Text/Binary values and independent Memo/OLE
 /// columns. Enforced non-cascading single-Long relationships require matching
-/// parents and reject changes to referenced parent keys. Each assigned foreign
-/// key updates its two-word retained index state (EXP-0268), even when
-/// its value is unchanged. Up to 32 indexes with one to ten
+/// parents and reject changes to referenced parent keys, including null parents
+/// while null child keys remain. Foreign keys and parent keys backed only by
+/// hidden relationship indexes update their two-word retained state on assignment
+/// (EXP-0268/0286), even when the value is unchanged. A self-reference whose foreign
+/// physical index precedes its parent requires the key to exist before replacement.
+/// Up to 32 indexes with one to ten
 /// supported scalar fields admit key and null changes, with uniqueness enforced
 /// for fully present keys. Every hidden storage slot must belong to exactly one
 /// logical row. Mutation of a selected multi-hop overflow chain is refused.

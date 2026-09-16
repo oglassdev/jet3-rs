@@ -115,6 +115,7 @@ impl<'a> PlannedCreate<'a> {
                     detail: "relationship physical index missing",
                 },
             )?;
+            // EXP-0279/0286: generated trees replace their placeholder logical alias.
             let generated = usize::from(index.physical_index) >= declared_indexes
                 || (matches!(
                     index.kind,

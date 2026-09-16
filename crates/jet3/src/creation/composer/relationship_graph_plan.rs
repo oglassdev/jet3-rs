@@ -1,4 +1,4 @@
-//! EXP-0273/0279 reciprocal records and relationship index selection.
+//! EXP-0273/0279/0286 reciprocal records and relationship index selection.
 use super::*;
 use crate::RelationshipSide;
 use crate::creation::relationship_indexes::{select_descending_parent, select_existing};

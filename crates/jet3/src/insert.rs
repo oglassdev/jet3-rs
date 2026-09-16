@@ -49,7 +49,9 @@ use std::path::Path;
 /// their stage. One resource budget covers planning, copying and full verification.
 /// Every affected enforced, non-cascading Long relationship is checked, including
 /// multiple relationships and self-references. Every resulting non-null child
-/// key must occur in its parent table. Other key types and cascades are refused.
+/// key must occur in its parent table. A self-reference whose foreign physical
+/// index precedes its parent index requires that key before insertion (EXP-0286).
+/// Other key types and cascades are refused.
 pub fn insert_row(
     path: impl AsRef<Path>,
     table: &[u8],

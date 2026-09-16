@@ -11,6 +11,7 @@ pub(crate) struct Constraint {
     pub child: TableDefinition,
     pub parent_column: ColumnOrdinal,
     pub child_column: ColumnOrdinal,
+    pub self_reference_requires_existing_parent: bool,
     parent_record: [u8; 20],
     child_record: [u8; 20],
 }
@@ -81,6 +82,9 @@ fn resolve_tables(
     });
     let primary = unique(&mut primary)?;
     index(&parent, primary, parent_column, true)?;
+    // EXP-0286: self-key checks see the parent tree in physical update order.
+    let self_reference_requires_existing_parent =
+        parent.root() == child.root() && primary.physical_index() >= foreign.physical_index();
     let parent_record = *primary.raw_record();
     let child_record = *foreign.raw_record();
     Ok(Constraint {
@@ -88,6 +92,7 @@ fn resolve_tables(
         child,
         parent_column,
         child_column,
+        self_reference_requires_existing_parent,
         parent_record,
         child_record,
     })

@@ -76,7 +76,10 @@ may be Long or AutoIncrement and require a unique index. The first eligible
 ascending logical name selects the parent tree, including nonprimary and nullable
 unique indexes. Descending-only parents generate a shared ascending tree with
 the same null policy; EXP-0286 records the native observations, with complete
-Rust acceptance pending. Child keys must be Long. Existing ordinary ascending FK indexes
+Rust acceptance pending. Mutations reject changing or removing a null parent
+while null child keys remain, and permit deleting the sole null self-reference.
+Null child insertion remains exempt from requiring a matching parent. Child
+keys must be Long. Existing ordinary ascending FK indexes
 are reused while retaining declared aliases; other child index forms need a
 separate foreign tree. Both endpoint aliases count toward the 32-logical-index
 limit; a self-reference consumes two slots. Relationship rows and all three
@@ -207,10 +210,14 @@ relationships support these row mutations, including multiple constraints,
 self-references, nullable foreign keys and Memo/OLE payloads. All reciprocal
 records and the relationship catalog must agree; existing orphan keys and
 damaged indexes are refused. Nullable unique parent keys may contain multiple
-nulls; only non-null keys participate in the constraint. Ordinary logical aliases
-may share one physical tree, which is maintained once. Every resulting non-null child key must occur
-in its parent. Atomic self-linked insert, full-row replacement and deletion
-are admitted when the resulting rows satisfy every constraint. Shared foreign
+nulls, but a null child blocks changing or removing a null parent unless that
+child reference is removed in the same operation. Ordinary logical aliases
+may share one physical tree, which is maintained once. Every resulting non-null
+child key must occur in its parent. Self-linked insertions and full-row
+replacements check the resulting rows. When the foreign physical index precedes
+the parent index, the child key must also exist before the operation (EXP-0286).
+This follows physical update order for both declared and generated indexes.
+Self-deletion checks the remaining rows. Shared foreign
 physical indexes are updated once. Composite, cascading and other-key
 relationships remain outside this mutation scope.
 
