@@ -106,6 +106,7 @@ fn check_keys<S: ReadAt>(
                 .ok_or(UpdateError::Mismatch("relationship parent key absent"))?
                 .kind()
             {
+                ValueKind::Null => continue,
                 ValueKind::Long(value) => *value,
                 _ => return Err(UpdateError::Mismatch("relationship parent key type")),
             };

@@ -1,8 +1,8 @@
 //! Reproduce private relationship graphs through the public creation API.
 use jet3::{
-    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
-    RelationshipColumn, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef,
-    TableRows, TableSpec, create_database_with_relationships_and_rows,
+    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexNullPolicy,
+    IndexSpec, RelationshipColumn, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue,
+    TableRef, TableRows, TableSpec, create_database_with_relationships_and_rows,
 };
 use serde_json::Value;
 use std::{error::Error, fs, num::NonZeroU8, path::Path};
@@ -140,20 +140,69 @@ fn create(case: &Value, output: &Path, replicas: u64) -> Result<()> {
         .iter()
         .map(|t| Ok(format!("By{}", text(t, "name")?)))
         .collect::<Result<Vec<_>>>()?;
-    let primary = [IndexColumnSpec {
-        column: ColumnRef::Name(b"Id"),
-        direction: IndexDirection::Ascending,
-    }];
-    let indexes = names
+    let index_fields = tables
         .iter()
-        .map(|name| {
-            [IndexSpec {
-                name: name.as_bytes(),
-                fields: &primary,
-                kind: IndexKind::Primary,
-            }]
+        .map(|table| {
+            if let Some(indexes) = table["indexes"].as_array() {
+                indexes
+                    .iter()
+                    .map(|index| {
+                        Ok([IndexColumnSpec {
+                            column: ColumnRef::Name(text(index, "field")?.as_bytes()),
+                            direction: if index["direction"].as_str() == Some("desc") {
+                                IndexDirection::Descending
+                            } else {
+                                IndexDirection::Ascending
+                            },
+                        }])
+                    })
+                    .collect::<Result<Vec<_>>>()
+            } else {
+                Ok(vec![[IndexColumnSpec {
+                    column: ColumnRef::Name(b"Id"),
+                    direction: IndexDirection::Ascending,
+                }]])
+            }
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>>>()?;
+    let indexes = tables
+        .iter()
+        .zip(&index_fields)
+        .zip(&names)
+        .map(|((table, fields), name)| {
+            if let Some(indexes) = table["indexes"].as_array() {
+                indexes
+                    .iter()
+                    .zip(fields)
+                    .map(|(index, fields)| {
+                        let mut kind = if index["primary"].as_bool() == Some(true) {
+                            IndexKind::Primary
+                        } else if index["unique"].as_bool() == Some(true) {
+                            IndexKind::Unique
+                        } else {
+                            IndexKind::Ordinary
+                        };
+                        if index["ignore_nulls"].as_bool() == Some(true) {
+                            kind = kind.with_null_policy(IndexNullPolicy::IgnoreAllNull);
+                        } else if index["required"].as_bool() == Some(true) {
+                            kind = kind.with_null_policy(IndexNullPolicy::Required);
+                        }
+                        Ok(IndexSpec {
+                            name: text(index, "name")?.as_bytes(),
+                            fields,
+                            kind,
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()
+            } else {
+                Ok(vec![IndexSpec {
+                    name: name.as_bytes(),
+                    fields: &fields[0],
+                    kind: IndexKind::Primary,
+                }])
+            }
+        })
+        .collect::<Result<Vec<_>>>()?;
     let requests = tables
         .iter()
         .zip(&columns)

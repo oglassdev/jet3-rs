@@ -364,3 +364,6 @@ fn graph_creation_resolves_generated_parent_keys_before_foreign_checks() -> Test
     assert!(!missing.exists());
     Ok(())
 }
+
+#[path = "relationship_index_tests.rs"]
+mod index_selection;

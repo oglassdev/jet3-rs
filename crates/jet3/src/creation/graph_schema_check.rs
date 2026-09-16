@@ -1,6 +1,8 @@
 //! Compare every declared and implicit graph index with the creation request.
 use super::*;
-use crate::{IndexDefinitionKind, IndexDirection, TableDefinition};
+use crate::creation::relationship_indexes::select_existing;
+use crate::creation::relationship_name::HiddenName;
+use crate::{ColumnRef, IndexDefinitionKind, IndexDirection, TableDefinition};
 
 pub(super) fn check(
     definition: &TableDefinition,
@@ -20,6 +22,15 @@ pub(super) fn check(
         .charge_work_units((definition.indexes().len() as u64).saturating_mul(
             (request.indexes.len() as u64 + relationships.len() as u64 * 2 + 1) * 255,
         ))
+        .map_err(CandidateCheckError::Read)?;
+    let named_fields = request
+        .indexes
+        .iter()
+        .flat_map(|index| index.fields)
+        .filter(|field| matches!(field.column, ColumnRef::Name(_)))
+        .count();
+    budget
+        .charge_work_units((named_fields as u64) * (request.columns.len() as u64) * 64)
         .map_err(CandidateCheckError::Read)?;
     for (ordinal, expected) in request.indexes.iter().enumerate() {
         let actual = definition
@@ -62,28 +73,39 @@ pub(super) fn check(
     let mut foreign_count = 0;
     let mut logical_ordinal = request.indexes.len();
     for spec in relationships {
+        budget
+            .charge_work_units((requests.len() as u64) * 128)
+            .map_err(CandidateCheckError::Read)?;
         let parent = resolve(spec.parent.table).ok_or(mismatch("graph schema parent reference"))?;
         let child = resolve(spec.child.table).ok_or(mismatch("graph schema child reference"))?;
+        if child == position || parent == position {
+            budget
+                .charge_work_units((request.columns.len() as u64) * 128)
+                .map_err(CandidateCheckError::Read)?;
+        }
         if child == position {
             let column = spec
                 .child
                 .column
                 .resolve(request.columns)
                 .ok_or(mismatch("graph schema child column"))?;
-            let slot = if let Some(slot) = foreign_columns[..foreign_count]
+            let existing = select_existing(request, column, RelationshipSide::ForeignTable, budget)
+                .map_err(CandidateCheckError::RowEncoding)?;
+            let physical = if let Some(physical) = existing {
+                usize::from(physical)
+            } else if let Some(slot) = foreign_columns[..foreign_count]
                 .iter()
                 .position(|&c| c == Some(column))
             {
-                slot
+                request.indexes.len() + slot
             } else {
                 let target = foreign_columns
                     .get_mut(foreign_count)
                     .ok_or(mismatch("graph schema relationship bound"))?;
                 *target = Some(column);
                 foreign_count += 1;
-                foreign_count - 1
+                request.indexes.len() + foreign_count - 1
             };
-            let physical = request.indexes.len() + slot;
             let index = definition
                 .physical_indexes()
                 .get(physical)
@@ -106,15 +128,20 @@ pub(super) fn check(
             logical_ordinal += 1;
         }
         if parent == position {
-            let suffix = u8::try_from(logical_ordinal)
-                .ok()
-                .filter(|&n| n <= 25)
+            let column = spec
+                .parent
+                .column
+                .resolve(request.columns)
+                .ok_or(mismatch("graph schema parent column"))?;
+            let physical = select_existing(request, column, RelationshipSide::PrimaryTable, budget)
+                .map_err(CandidateCheckError::RowEncoding)?
+                .ok_or(mismatch("graph parent physical index"))?;
+            let name = HiddenName::for_selector(logical_ordinal as u32)
                 .ok_or(mismatch("graph hidden name ordinal"))?;
-            let name = [b'.', b'r', b'A' + suffix];
             check_relation(
                 definition,
-                &name,
-                0,
+                name.bytes(),
+                usize::from(physical),
                 tables[child].0,
                 RelationshipSide::PrimaryTable,
                 logical_ordinal,

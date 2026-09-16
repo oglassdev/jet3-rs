@@ -78,7 +78,7 @@ pub(super) fn compose_with_rows(
     for (row, values) in rows[1].iter().enumerate() {
         match values.get(usize::from(relation.child_column)) {
             Some(RowValue::Null) => {}
-            Some(RowValue::Long(value)) if parent.contains_initial_long(*value, budget)? => {}
+            Some(RowValue::Long(value)) if parent.contains_initial_long(0, *value, budget)? => {}
             Some(RowValue::Long(value)) => {
                 return Err(ComposeError::OrphanInitialRelationshipKey { row, value: *value });
             }

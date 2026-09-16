@@ -47,7 +47,7 @@ use crate::page_image::PAGE_BYTES;
 use crate::table_definition_layout::{definition_len, validate_column_layout, validate_name};
 use crate::{IndexFieldSpec, PageNumber, TableDefinitionKind, TableDefinitionWriteError};
 
-/// EXP-0252: native creation accepts 32 indexes and rejects a 33rd.
+/// EXP-0252/0279: at most 32 logical indexes, including relationship aliases.
 pub(crate) const MAX_OBSERVED_INDEXES: usize = 32;
 /// EXP-0252: fifteen 133-byte maps plus two-byte slots fit after the page header.
 pub(crate) const MAP_ROWS_PER_PAGE: usize = 15;
@@ -111,9 +111,9 @@ pub enum TableSchemaPlanError {
         /// The unestablished byte.
         byte: u8,
     },
-    /// The index count exceeds the EXP-0252 native limit.
+    /// The index count exceeds the EXP-0252/0279 native limit.
     UnobservedIndexCount {
-        /// Declared index count.
+        /// Declared and additional logical index count.
         count: usize,
         /// Largest observed index count.
         observed: usize,
@@ -337,25 +337,17 @@ pub(crate) fn plan_table_schema_with_logical_names(
     }
     validate_column_layout(spec.columns, TableDefinitionKind::User, &[])
         .map_err(TableSchemaPlanError::Definition)?;
-    if spec.indexes.len() > MAX_OBSERVED_INDEXES {
+    let count = spec.indexes.len().saturating_add(extra_names.len());
+    if count > MAX_OBSERVED_INDEXES {
         return Err(TableSchemaPlanError::UnobservedIndexCount {
-            count: spec.indexes.len(),
+            count,
             observed: MAX_OBSERVED_INDEXES,
         });
-    }
-    let count = spec.indexes.len().saturating_add(extra_names.len());
-    if count > usize::from(u16::MAX) {
-        return Err(TableSchemaPlanError::Definition(
-            TableDefinitionWriteError::TooManyIndexes {
-                role: "logical",
-                count,
-            },
-        ));
     }
     for (position, &name) in extra_names.iter().enumerate() {
         let ordinal = spec.indexes.len() + position;
         validate_name_length("logical index", name, 63)?;
-        if !matches!(name, [b'.', b'r', b'A'..=b'Z']) {
+        if !super::relationship_name::HiddenName::matches(name) {
             validate_name_bytes("logical index", ordinal, name)?;
         }
         let prior = spec

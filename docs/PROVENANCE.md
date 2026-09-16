@@ -18278,3 +18278,68 @@ more complex graph inventories, other providers or whole-v1 compatibility.
   non-cascading Long relationship inventory. Other name encodings, undefined
   bytes, longer index/relationship names, broader relationship forms and
   whole-v1 compatibility are not established by these finite comparisons.
+
+## EXP-0279 — Native relationship index selection, reuse and logical limits
+
+- **Inputs/provider:** four local suites, each with two replicas, using x86
+  DAO 3.6 on Windows Server 2022 (10.0.20348, en-US/CP1252). DLL 03.60.9765.0
+  SHA-256 `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  Source contexts are `c85c116f50e9cb0625a27f6cf9b2e9b647186277` and
+  `226fc39a6a9d97f99e34f93306dad7d6019ef74e`; discovery uses native-created
+  databases, not Rust candidates. Runs are
+  `20260916T024836Z-relationship-index-r1`,
+  `20260916T030504Z-relationship-index-supp-r1`,
+  `20260916T031054Z-relationship-index-life-r1` and
+  `20260916T031841Z-relationship-index-bound-r1`.
+- **Parent selection:** an ascending single-Long primary need not be physical
+  index zero. A nonprimary unique index may be nullable (flags 1) or required
+  (flags 9). Parent keys `{1, Null, Null}` and child keys `{1, Null}` are accepted;
+  all parent row locators remain indexed, with distinct counter 2. When eligible
+  `AUnique` and `ZPrimary` indexes are declared in either order, DAO chooses
+  `AUnique`, consistent with logical name order rather than primary priority.
+- **Child reuse:** an ordinary ascending single-column FK index (flags 0) is
+  reused before or after a primary, retaining its ordinary logical alias.
+  Two native ordinary aliases and the relationship share one physical tree.
+  Unique, primary, Required, IgnoreNulls and descending ordinary child indexes
+  are retained while DAO adds an ascending ordinary foreign tree. A declared
+  child index with the relationship name refuses DAO 3284.
+- **Logical capacity:** 31 declared child indexes admit a relationship, reaching
+  32 logical records and either 31 reused or 32 newly allocated physical trees.
+  With 32 declared indexes, both child variants and the parent variant refuse
+  DAO 3626. Each reciprocal alias consumes a logical slot even when reusing a
+  physical tree. Parent selectors/names are 1 `.rB`, 2 `.rC`, 15 `.rP`,
+  16 `.rAB`, 24 `.rIB`, 25 `.rJB`, 26 `.rKB`, 31 `.rPB`. These boundary
+  observations support low-nibble-first hexadecimal digits mapped to `A..P`;
+  intermediate selectors follow that rule but were not all acquired separately.
+  Reciprocal selectors, relation ordinals, roots, sides and zero context retain
+  the EXP-0273 grammar. Two separate child FKs reuse independent trees.
+- **Lifecycle:** 24 captures across four lineages preserve complete rows,
+  Memo-4096 edits, keys/locators, reciprocal/catalog records and allocation.
+  There are 24 successful operations and eight expected refusals (3201 orphan
+  FK, 3200 referenced-parent deletion). The generated foreign prefix follows
+  `(2,2)` initially, `(2,3)` after insertion, `(1,1)` after FK assignment and
+  `(0,0)` after deleting the duplicate-key child. A reused tree's first word
+  begins at zero and retains the prior zero-saturation rules. Alias trees are
+  maintained once. Failed writes retain the established finite prefix/page-zero
+  bookkeeping without row, key, root or map changes.
+- **Verification/history:** 46 main, 18 supplement, four boundary and 24 lifecycle
+  captures are checked for exact output inventory, full DAO schema/properties/
+  rows, every traversal and Seek, physical keys/locators, relationship system
+  rows and allocation separation. The original main parent-count arms had an
+  orphan seed and refused 3201; they establish no capacity facts. Corrected
+  supplements establish the counts above. Wrapper/evaluator failures remain
+  retained alongside successful reruns. These are native observations, not
+  a Rust compatibility claim.
+- **Artifacts:** `shared/checks/20260916-relationship-index-discovery`, 231-file
+  manifest SHA-256
+  `c259a537024de00246061635459cbad41224e5b1c71e623d23902215b69564e6`;
+  final report `c6576c95b4ffa693e54ca210d33af948c7288f5cf6c0e7fb5a2318ce52362ece`;
+  findings `b89304e6c7c331729868f082777acfa1d42c652ff8d505deba4b231b4e252b75`.
+  Inputs, producers, clean-room evaluators, complete outputs and report replay
+  are retained; root verifies every durable manifest entry.
+- **Limits:** enforced non-cascading single-Long keys, at most two relations,
+  the stated flag/direction combinations and selected capacity boundaries.
+  DAO additionally creates a separate ascending required-unique parent tree
+  when only a descending unique index qualifies; this construction remains
+  deferred. Composite/cascading/cross-type forms and whole-v1 compatibility
+  are not established.

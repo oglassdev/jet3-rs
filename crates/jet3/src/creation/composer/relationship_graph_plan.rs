@@ -1,5 +1,8 @@
-//! EXP-0273 reciprocal records and shared foreign physical indexes.
+//! EXP-0273/0279 reciprocal records and relationship index selection.
 use super::*;
+use crate::RelationshipSide;
+use crate::creation::relationship_indexes::select_existing;
+use crate::creation::relationship_name::HiddenName;
 use crate::{
     ColumnRef, IndexColumnSpec, IndexKind, IndexSpec, RelationshipSpec, TableRef, TableRows,
 };
@@ -11,9 +14,10 @@ pub(super) struct GraphRelation<'a> {
     pub parent_column: u16,
     pub child_column: u16,
     pub physical: u16,
+    pub parent_physical: u16,
     parent_id: u32,
     child_id: u32,
-    hidden: [u8; 3],
+    hidden: HiddenName,
 }
 
 pub(super) fn invalid(detail: &'static str) -> ComposeError {
@@ -39,6 +43,7 @@ pub(super) fn resolve<'a>(
     if relationships.len() > 2 {
         return Err(invalid("graph creation admits at most two relationships"));
     }
+    budget.charge_work_units(requests.len() as u64)?;
     if requests
         .iter()
         .any(|r| r.table.columns.len() > 255 || r.table.indexes.len() > 32)
@@ -48,6 +53,16 @@ pub(super) fn resolve<'a>(
     let mut logical_counts = Vec::new();
     let mut physical_counts = Vec::new();
     for (position, request) in requests.iter().enumerate() {
+        budget.charge_work_units(request.table.columns.len() as u64)?;
+        if request.table.name.len() > 64
+            || request
+                .table
+                .columns
+                .iter()
+                .any(|column| column.name().len() > 64)
+        {
+            return Err(invalid("graph table or column name exceeds 64 bytes"));
+        }
         budget.charge_work_units((position as u64).saturating_mul(512))?;
         if let Some(first) = requests[..position]
             .iter()
@@ -71,7 +86,9 @@ pub(super) fn resolve<'a>(
     }
     let mut result: Vec<GraphRelation<'a>> = Vec::new();
     for (position, relationship) in relationships.iter().enumerate() {
-        budget.charge_work_units((requests.len() as u64 + 4) * 255)?;
+        budget.charge_work_units(
+            (requests.len() as u64).saturating_mul(128) + 2 * 255 * 64 + 32 * 512 + 1024,
+        )?;
         let mut key = [0; CATALOG_KEY_CAPACITY];
         encode_catalog_name_key(RELATIONSHIPS_ID, relationship.name, &mut key)?;
         if relationship.name.len() > 63
@@ -111,29 +128,35 @@ pub(super) fn resolve<'a>(
                 "relationship requires a Long/AutoIncrement parent and Long child",
             ));
         }
-        if parent_table.indexes.first().is_none_or(|index| {
-            index.kind != IndexKind::Primary
-                || index.fields.len() != 1
-                || index.fields[0].direction != IndexDirection::Ascending
-                || index.fields[0].column.resolve(parent_table.columns) != Some(parent_column)
-        }) {
+        let parent_physical = select_existing(
+            parent_table,
+            parent_column,
+            RelationshipSide::PrimaryTable,
+            budget,
+        )?
+        .ok_or(invalid("parent requires an ascending unique Long index"))?;
+        if child_table
+            .indexes
+            .iter()
+            .any(|index| catalog_names_equal(index.name, relationship.name))
+        {
             return Err(invalid(
-                "parent first index must be an ascending Long primary",
+                "relationship name collides with a declared child index",
             ));
         }
-        if child_table.indexes.iter().any(|index| {
-            index.fields.len() == 1
-                && index.fields[0].column.resolve(child_table.columns) == Some(child_column)
-        }) {
-            return Err(invalid(
-                "pre-existing single-column foreign indexes are not yet composed",
-            ));
-        }
+        let existing_foreign = select_existing(
+            child_table,
+            child_column,
+            RelationshipSide::ForeignTable,
+            budget,
+        )?;
         let physical = if let Some(prior) = result
             .iter()
             .find(|edge| edge.child == child && edge.child_column == child_column)
         {
             prior.physical
+        } else if let Some(ordinal) = existing_foreign {
+            ordinal
         } else {
             let ordinal = physical_counts[child];
             physical_counts[child] += 1;
@@ -141,14 +164,23 @@ pub(super) fn resolve<'a>(
         };
         // A self-reference adds its foreign record before its primary-side record.
         let child_id = logical_counts[child];
+        if child_id as usize >= crate::creation::schema_plan::MAX_OBSERVED_INDEXES {
+            return Err(ComposeError::Schema(
+                crate::creation::schema_plan::TableSchemaPlanError::UnobservedIndexCount {
+                    count: child_id as usize + 1,
+                    observed: crate::creation::schema_plan::MAX_OBSERVED_INDEXES,
+                },
+            ));
+        }
         logical_counts[child] += 1;
         let parent_id = logical_counts[parent];
         logical_counts[parent] += 1;
-        if parent_id > 25 {
-            return Err(invalid(
-                "relationship hidden-name ordinal exceeds the creation policy",
-            ));
-        }
+        let hidden = HiddenName::for_selector(parent_id).ok_or(ComposeError::Schema(
+            crate::creation::schema_plan::TableSchemaPlanError::UnobservedIndexCount {
+                count: parent_id as usize + 1,
+                observed: crate::creation::schema_plan::MAX_OBSERVED_INDEXES,
+            },
+        ))?;
         push(
             &mut result,
             GraphRelation {
@@ -158,9 +190,10 @@ pub(super) fn resolve<'a>(
                 parent_column,
                 child_column,
                 physical,
+                parent_physical,
                 parent_id,
                 child_id,
-                hidden: [b'.', b'r', b'A' + parent_id as u8],
+                hidden,
             },
             budget,
         )?;
@@ -184,8 +217,16 @@ impl GraphRelation<'_> {
     }
     pub fn logical(&self, parent: bool) -> LogicalIndexSpec<'_> {
         LogicalIndexSpec {
-            name: if parent { &self.hidden } else { self.name },
-            physical_index: if parent { 0 } else { self.physical },
+            name: if parent {
+                self.hidden.bytes()
+            } else {
+                self.name
+            },
+            physical_index: if parent {
+                self.parent_physical
+            } else {
+                self.physical
+            },
             kind: LogicalIndexKindSpec::Relationship {
                 side: if parent {
                     crate::RelationshipSide::PrimaryTable

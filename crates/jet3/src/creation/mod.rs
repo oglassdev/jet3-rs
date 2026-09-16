@@ -18,6 +18,8 @@ mod api;
 mod columns;
 pub(crate) mod composer;
 mod index_options;
+mod relationship_indexes;
+mod relationship_name;
 mod schema;
 pub(crate) mod schema_plan;
 
