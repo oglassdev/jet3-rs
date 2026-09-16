@@ -47,7 +47,7 @@ by default; Windows-1251 is also accepted. The input limit defaults to 256 MiB;
 the other library limits remain in effect alongside the optional work limit.
 Exclude concurrent writers while validation runs.
 
-Success returns `ok: true`, `scope: "catalogued_user_tables"`, checked counts,
+Success returns `ok: true`, `scope: "catalogued_allocations_and_user_tables"`, checked counts,
 coverage limits and resource usage on stdout with exit 0. Long-value bytes count
 raw payload bytes per reference, before text decoding. The first failure returns
 `validation_failed` JSON on stderr with exit 1 and no success report; its message
