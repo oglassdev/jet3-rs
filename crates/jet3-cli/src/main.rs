@@ -16,6 +16,7 @@ use std::process::ExitCode;
 mod create;
 mod inspect;
 mod mutate;
+mod names;
 mod snapshot;
 mod validate;
 mod values;

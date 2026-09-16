@@ -1,4 +1,4 @@
-//! Explicit single-byte text decoding from `SRC-0025` and `EXP-0061`.
+//! Explicit single-byte text conversion from `SRC-0025` and `EXP-0061`.
 
 use std::fmt;
 
@@ -23,6 +23,65 @@ impl TextCodePage {
             Self::Windows1251 => 1251,
             Self::Windows1252 => 1252,
         }
+    }
+
+    /// Decodes bytes with this explicit code page, retaining the original bytes.
+    /// Undefined bytes and exhausted resource limits return structured errors.
+    pub fn decode<'raw>(
+        self,
+        raw: &'raw [u8],
+        budget: &mut ResourceBudget,
+    ) -> Result<DecodedText<'raw>, TextError> {
+        decode_text(raw, self, budget)
+    }
+
+    /// Encodes Unicode text without replacing or normalizing characters.
+    ///
+    /// The inverse SRC-0025 mapping also applies to database-encoded names.
+    /// Encoding a name does not establish whether a schema permits that name.
+    pub fn encode(self, text: &str, budget: &mut ResourceBudget) -> Result<Vec<u8>, TextError> {
+        let bytes = ByteCount::from_usize(text.len()).map_err(TextError::Resource)?;
+        let work = bytes
+            .get()
+            .checked_mul(129)
+            .ok_or(TextError::Resource(Error::Arithmetic {
+                operation: "count text encoding work",
+            }))?;
+        budget
+            .charge_work_units(work)
+            .map_err(TextError::Resource)?;
+        let length = text.chars().count();
+        budget
+            .charge_allocation(ByteCount::from_usize(length).map_err(TextError::Resource)?)
+            .map_err(TextError::Resource)?;
+        let mut output = Vec::new();
+        output.try_reserve_exact(length).map_err(|_| {
+            TextError::Resource(Error::Io {
+                operation: "reserve encoded text",
+                kind: std::io::ErrorKind::OutOfMemory,
+            })
+        })?;
+        let mapping = match self {
+            Self::Windows1251 => &CP1251,
+            Self::Windows1252 => &CP1252,
+        };
+        for (index, character) in text.char_indices() {
+            let byte = if character.is_ascii() {
+                character as u8
+            } else {
+                mapping
+                    .iter()
+                    .position(|&scalar| scalar == u32::from(character))
+                    .map(|position| 0x80 + position as u8)
+                    .ok_or(TextError::UnrepresentableCharacter {
+                        code_page: self,
+                        index,
+                        character,
+                    })?
+            };
+            output.push(byte);
+        }
+        Ok(output)
     }
 }
 
@@ -58,6 +117,15 @@ impl<'raw> DecodedText<'raw> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TextError {
+    /// Unicode text contains a character absent from the selected code page.
+    UnrepresentableCharacter {
+        /// Code page selected by the caller.
+        code_page: TextCodePage,
+        /// UTF-8 byte offset of the character in the input string.
+        index: usize,
+        /// Character that cannot be represented without replacement.
+        character: char,
+    },
     /// The selected code page does not assign a character to one byte.
     UndefinedByte {
         /// Code page selected by the caller.
@@ -73,7 +141,7 @@ pub enum TextError {
 
 impl fmt::Display for TextError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "text decoding failed: {self:?}")
+        write!(formatter, "text conversion failed: {self:?}")
     }
 }
 
