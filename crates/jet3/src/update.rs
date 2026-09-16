@@ -160,12 +160,14 @@ conversion!(crate::IndexTreeError, Index);
 /// as needed. Row counts and ordinary index counters remain unchanged. Explicit
 /// foreign-key assignments update their two-word retained index state (EXP-0268).
 ///
-/// Enforced non-cascading relationships with one to ten ordered scalar fields
+/// Enforced relationships with one to ten ordered scalar fields
 /// are checked against both endpoints and reciprocal metadata, including multiple
 /// relationships and self-references. Only all-null child keys are exempt from
-/// matching a parent. Assigning a referenced parent key is refused even when its
-/// value is unchanged (EXP-0289/0290). Cascades, an unreadable relationship catalog
-/// and unresolved non-ASCII endpoint names are refused.
+/// matching a parent. Assigning a referenced parent key cascades to matching child
+/// tuples when enabled, including equal assignments and null tuples (EXP-0294/0295).
+/// Without cascade updates, referencing children block even equal assignments.
+/// The entire connected result is checked before all affected rows publish together.
+/// An unreadable relationship catalog and unresolved endpoint names are refused.
 ///
 /// Callers must exclude external writers throughout this operation on Unix or Windows.
 /// One budget covers planning, copying, patching and complete private verification.

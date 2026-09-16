@@ -69,8 +69,8 @@ Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
 columns themselves cannot be indexed. Each payload column has separate ownership
 and availability maps. Definitions and map rows can span multiple pages; files
 are bounded by map-reference capacity and the caller's resource budget.
-The plural relationship APIs admit enforced, non-cascading constraints with one
-to ten ordered scalar components,
+The plural relationship APIs admit enforced constraints with one to ten ordered
+scalar components and independently enabled cascade updates/deletes,
 including multiple parents or children, chains, cycles, self-references,
 shared foreign physical indexes and unrelated tables in any order. Parent keys
 admit every supported scalar index type, including AutoIncrement parents, and
@@ -78,8 +78,9 @@ require a unique index with exactly matching column order. The first eligible
 ascending logical name selects the parent tree, including nonprimary and nullable
 unique indexes. Descending-only parents generate a shared ascending tree with
 the same null policy; EXP-0286/0287 record native observations and 18 creation
-plus 84 lifecycle comparisons. Mutations reject changing or removing a null parent
-while null child keys remain, and permit deleting the sole null self-reference.
+plus 84 lifecycle comparisons. Without the corresponding cascade option, mutations
+reject changing or removing a null parent while null child keys remain, and permit
+deleting the sole null self-reference.
 Only all-null child insertion is exempt from requiring a matching parent;
 partial-null tuples require exact matches. Endpoint
 types must agree, with differing Text/Binary widths and mixed fixed/variable Text
@@ -91,8 +92,7 @@ system indexes can span multiple pages, with graph size bounded by per-table
 index capacity and the caller's resource budget. Nullable keys and a separate
 child primary are admitted. Other columns retain generated IDs, Text/Memo
 options, independent Memo/OLE maps and definition/property chains. The singular
-APIs retain their two-ordered-table Long bounds. Cascades remain outside relationship
-creation scope. EXP-0288/0289 record scalar eligibility and 38 creation plus
+APIs retain their non-cascading two-ordered-table Long bounds. EXP-0288/0289 record scalar eligibility and 38 creation plus
 498 mutation comparisons. EXP-0290/0291 record ordered composite observations
 and 276 accepted comparisons: twelve creations, 142 successful mutations and
 122 refusals. EXP-0292 adds the native self-reference creation boundary:
@@ -188,7 +188,7 @@ pairs cover shared keys, cycles, capacity boundaries and payload changes: 60
 successes and 20 expected refusals. Actual property-collection getters were
 compared across all 170 initial/output images, alongside complete values,
 indexes, counters, allocation and unrelated storage. This is finite evidence;
-other key types, cascades and existing-schema relationship edits remain open.
+these runs do not cover other key types, cascades or existing-schema relationship edits.
 
 EXP-0286/0287 add descending-only parent indexes, nullable parent mutation
 boundaries and physical-order self-reference checks. Eighteen creation pairs
@@ -205,7 +205,7 @@ creation pairs and 494 mutation pairs (350 successes, 144 refusals) compare full
 DAO getters, rows, traversal/Seek, raw keys, counters, maps and system storage.
 FixedText inputs use explicit width padding. Rust refusals preserve their entire
 inputs; native refusal effects are checked separately. Composite keys, cascades
-and relationship schema edits remain open.
+and relationship schema edits are outside those runs.
 
 ### Updates
 
@@ -237,25 +237,33 @@ The CLI exposes both field updates and full-row replacement. Publication
 supports Unix and Windows; Windows flushes the file before publication without
 a separate directory-sync guarantee.
 
-Tables participating in enforced, non-cascading, ordered scalar/composite
+Tables participating in enforced, ordered scalar/composite
 relationships support these row mutations, including multiple constraints,
 self-references, nullable foreign keys and Memo/OLE payloads. All reciprocal
 records and the relationship catalog must agree; existing orphan keys and
 damaged indexes are refused. Nullable unique parent keys may contain multiple
 nulls, but a null child blocks changing or removing a null parent unless that
-child reference is removed in the same operation. Ordinary logical aliases
+child reference is updated or removed in the same operation. Ordinary logical aliases
 may share one physical tree, which is maintained once. Every child key with at
 least one non-null component must occur in its parent. Explicitly assigning a
-referenced parent field is refused even when its value is unchanged. A full-row
+referenced parent field is refused even when its value is unchanged unless cascade
+updates are enabled. A full-row
 self replacement excludes its own child reference from this assignment guard
 when the parent physical tree precedes the foreign tree; other referencing rows
-still block it (EXP-0292). Self-linked insertions and full-row replacements check
+still block it without cascade updates (EXP-0292). Self-linked insertions and full-row replacements check
 the resulting rows. When the foreign physical index precedes
 the parent index, the child key must also exist before the operation (EXP-0286).
 This follows physical update order for both declared and generated indexes.
 Self-deletion checks the remaining rows. Shared foreign
-physical indexes are updated once. Cascading relationships remain outside this
-mutation scope.
+physical indexes are updated once. Cascade updates assign matching child tuples;
+cascade deletes remove matching children recursively. Selection uses original
+complete tuples, including partial-null and all-null keys. Explicit root foreign-key
+assignments take precedence during full-row self replacement. The complete
+connected result must satisfy every enforced relationship, including shared-key
+constraints. All affected rows, indexes, payloads and allocation maps publish in
+one atomic file replacement; a pre-publication failure preserves the entire source.
+EXP-0294/0295 record the native option flags, chain/shared-key behavior, null-tuple
+selection, explicit self-replacement precedence and retained index counters.
 
 EXP-0212 covers seventeen hosted update recipes. EXP-0221 adds local DAO
 comparisons for indexed insertion/deletion, boundary insertion, native
@@ -329,8 +337,8 @@ Availability maps must be subsets of their own ownership maps; every traversed
 index page must belong to its physical index. Overflow storage and live
 Memo/OLE fragments must be uniquely reachable through the proper table or
 column, including rejection of hidden orphan rows and unreferenced payloads.
-Enforced, non-cascading ordered scalar/composite relationships check reciprocal
-metadata, parent uniqueness and every child key with a non-null component.
+Enforced ordered scalar/composite relationships check reciprocal
+metadata and cascade options, parent uniqueness and every child key with a non-null component.
 Each composite relation has a complete, uniquely numbered central row per component. Self-references and
 multiple constraints are checked separately, including shared foreign indexes.
 Unsupported relationship catalog rows are counted explicitly; complete endpoint

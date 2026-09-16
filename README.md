@@ -59,20 +59,24 @@ row replacement with stable locators across overflow growth and collapse,
 Memo/OLE payload allocation and reuse, generated IDs, and
 index maintenance for those key types with one to ten components per index. The accepted payload
 lifecycles include native DAO continuations and Rust mutation of native files.
-Related tables admit inserts, field/full-row updates and deletion for enforced,
-non-cascading relationships with one to ten ordered scalar fields, including multiple constraints and self-references.
+Related tables admit inserts, field/full-row updates and deletion for enforced
+relationships with one to ten ordered scalar fields, including multiple constraints
+and self-references. Cascade updates and deletes can be enabled independently.
 Endpoint types must agree; Text/Binary widths may differ and fixed/variable Text
 may mix. Only all-null child keys are exempt from parent matching. Explicit
-field assignments of referenced parent keys are refused even when unchanged.
-Full-row self replacements can retain their own reference when the parent tree
-precedes the foreign tree; other referencing rows still block them. One-field
+field assignments of referenced parent keys cascade to matching children when
+enabled; otherwise they are refused even when unchanged. Cascades include exact
+partial-null and all-null tuples, follow chains, and publish all affected rows
+together. Full-row self replacements retain explicit foreign-key assignments.
+Without cascades, other referencing rows block replacement; a self-reference
+can retain its own reference when the parent tree precedes the foreign tree. One-field
 updates support nullable/variable values and retain unassigned Memo/OLE descriptors.
 Boolean null assignments store False. Nullable foreign keys and shared
 foreign indexes are supported. Atomic
 self-reference changes follow physical index order: if the foreign index precedes
 the parent index, the child key must exist before the edit.
 Related-row payloads retain the normal Memo/OLE mutation bounds. Orphan writes
-and changes to parent keys referenced by other rows are refused before publication.
+and conflicts with other enforced relationships are refused before publication.
 
 Creation and updates remain partial: schema combinations, index key types,
 allocation, and relationship mutation are restricted. Publication supports Unix

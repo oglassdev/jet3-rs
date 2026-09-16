@@ -535,3 +535,94 @@ fn cascade_composite_null_tuples_match_exactly_and_update_each_row_once() -> Tes
     );
     validate_file(&path)
 }
+
+#[test]
+fn cascade_journal_merges_successive_and_appended_pages_and_rejects_stale_plans() -> TestResult {
+    use crate::page_edits::PageEdits;
+    use crate::update_pages::PageChange;
+    let directory = Directory::new()?;
+    let original_path = directory.path().join("original.mdb");
+    let private_path = directory.path().join("private.mdb");
+    create_database(&original_path, &[], &mut budget())?;
+    fs::copy(&original_path, &private_path)?;
+    let original_bytes = fs::read(&original_path)?;
+    let mut file = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&private_path)?;
+    let mut work = budget();
+    let mut db = DatabaseReader::open(&private_path, &mut work)?;
+    let pages = db.geometry().page_count();
+    let page = PageNumber::new(1);
+    let mut before = [0; PAGE_BYTES];
+    db.read_raw_page(page, &mut before, &mut work)?;
+    let mut first = before;
+    first[100] ^= 1;
+    let mut combined = PageEdits::new(pages);
+    let mut plan = PageEdits::new(pages);
+    plan.replace(
+        PageChange {
+            page,
+            before: &before,
+            after: &first,
+        },
+        &mut work,
+    )?;
+    let appended = plan.append(PageImage::from_bytes([0; PAGE_BYTES]), &mut work)?;
+    plan.apply_private(&mut db, &mut file, &mut combined, &mut work)?;
+    let mut db = DatabaseReader::open(&private_path, &mut work)?;
+    let mut second = first;
+    second[101] ^= 2;
+    let mut appended_after = [0; PAGE_BYTES];
+    appended_after[100] = 17;
+    let mut plan = PageEdits::new(pages + 1);
+    plan.replace(
+        PageChange {
+            page,
+            before: &first,
+            after: &second,
+        },
+        &mut work,
+    )?;
+    plan.replace(
+        PageChange {
+            page: appended,
+            before: &[0; PAGE_BYTES],
+            after: &appended_after,
+        },
+        &mut work,
+    )?;
+    plan.apply_private(&mut db, &mut file, &mut combined, &mut work)?;
+    let mut original = FileSource::open(&original_path, work.read_budget())?;
+    let mut candidate = FileSource::open(&private_path, work.read_budget())?;
+    combined.verify_private(&mut original, &mut candidate, &mut work)?;
+    let expected = fs::read(&private_path)?;
+    for (page, stale) in [(page, before), (appended, [0; PAGE_BYTES])] {
+        let mut db = DatabaseReader::open(&private_path, &mut work)?;
+        let mut plan = PageEdits::new(pages + 1);
+        plan.replace(
+            PageChange {
+                page,
+                before: &stale,
+                after: &stale,
+            },
+            &mut work,
+        )?;
+        assert!(matches!(
+            plan.apply_private(&mut db, &mut file, &mut combined, &mut work),
+            Err(UpdateError::Mismatch(_))
+        ));
+        assert_eq!(fs::read(&private_path)?, expected);
+    }
+    let mut tampered = expected;
+    tampered[PAGE_BYTES * 2 + 100] ^= 1;
+    fs::write(&private_path, tampered)?;
+    let mut candidate = FileSource::open(&private_path, work.read_budget())?;
+    assert!(
+        combined
+            .verify_private(&mut original, &mut candidate, &mut work)
+            .is_err()
+    );
+    assert_eq!(fs::read(&original_path)?, original_bytes);
+    Ok(())
+}

@@ -15,8 +15,9 @@ pub struct RowDelete<'a> {
 
 /// Deletes one logical row and its hidden storage, compacting or releasing pages.
 ///
-/// Retains any AutoNumber state. Enforced non-cascading relationships with one
-/// to ten ordered scalar fields require deletion of referencing children before their parent. Memo/OLE fragments
+/// Retains any AutoNumber state. Enforced relationships with one to ten ordered
+/// scalar fields delete matching children when cascade deletion is enabled;
+/// otherwise referencing children block deletion. Memo/OLE fragments
 /// are removed from their independent column storage after complete reference
 /// and ownership validation; emptied payload pages become globally free.
 /// Up to 32 indexes with one to ten supported scalar fields admit deletion,
@@ -46,9 +47,11 @@ pub struct RowDelete<'a> {
 /// The same resource budget covers planning, private copying and full-file
 /// verification. Any pre-publication failure preserves the original; publication
 /// errors identify their stage, including post-publication sync failures.
-/// Every affected enforced, non-cascading relationship is checked, including
+/// Every affected enforced relationship is checked, including
 /// multiple relationships and self-references. Every child key with a non-null
-/// component must occur in its parent table. Cascades are refused.
+/// component must occur in its parent table. Cascade selection includes exact
+/// partial-null and all-null tuples. All recursively affected rows, indexes and
+/// payload storage publish together; failure preserves the complete original.
 pub fn delete_row(
     path: impl AsRef<Path>,
     request: RowDelete<'_>,

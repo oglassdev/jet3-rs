@@ -356,7 +356,12 @@
         "crates/jet3/src/creation/composite_relationship_tests.rs",
         "crates/jet3/src/field_update.rs",
         "crates/jet3/src/field_update_tests.rs",
-        "crates/jet3/src/long_value_field_tests.rs"
+        "crates/jet3/src/long_value_field_tests.rs",
+        "crates/jet3/src/cascade.rs",
+        "crates/jet3/src/cascade_rows.rs",
+        "crates/jet3/src/cascade_publish.rs",
+        "crates/jet3/src/cascade_tests.rs",
+        "crates/jet3/src/relationship_component.rs"
       ]
     },
     {
@@ -433,7 +438,8 @@
         "crates/jet3/src/creation/scalar_relationship_tests.rs",
         "oracle/windows-dao/scripts/scalar_relationship_creation_acceptance.py",
         "oracle/windows-dao/scripts/scalar_relationship_lifecycle_acceptance.py",
-        "crates/jet3/src/creation/composite_relationship_tests.rs"
+        "crates/jet3/src/creation/composite_relationship_tests.rs",
+        "crates/jet3/src/cascade_tests.rs"
       ]
     },
     {
@@ -487,7 +493,9 @@
         "crates/jet3/src/creation/scalar_relationship_tests.rs",
         "oracle/windows-dao/scripts/scalar_relationship_creation_acceptance.py",
         "oracle/windows-dao/scripts/scalar_relationship_lifecycle_acceptance.py",
-        "crates/jet3/src/creation/composite_relationship_tests.rs"
+        "crates/jet3/src/creation/composite_relationship_tests.rs",
+        "crates/jet3/src/relationship_flags.rs",
+        "crates/jet3/src/cascade_tests.rs"
       ]
     },
     {
@@ -497,7 +505,10 @@
       "evidence": [
         "crates/jet3/src/atomic.rs",
         "crates/jet3/src/atomic_tests.rs",
-        "crates/jet3/tests/atomic_publication.rs"
+        "crates/jet3/tests/atomic_publication.rs",
+        "crates/jet3/src/page_edits_sequence.rs",
+        "crates/jet3/src/cascade_publish.rs",
+        "crates/jet3/src/cascade_tests.rs"
       ]
     },
     {
