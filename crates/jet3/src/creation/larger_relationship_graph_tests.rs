@@ -2,6 +2,67 @@ use super::*;
 use std::collections::BTreeSet;
 
 #[test]
+fn graph_candidate_rejects_uninterpreted_generated_relationship_metadata() -> TestResult {
+    let directory = Directory::new()?;
+    let relationships = [relation(b"Link", 0, 1, 1)];
+    let requests = TABLES.map(|table| TableRows { table, rows: &[] });
+    create_database_with_relationships(directory.target(), &TABLES, &relationships, &mut budget())?;
+    let GraphImage { image, tables } =
+        compose_relationship_graph(&requests, &relationships, &mut budget())?;
+    let mut pages = image.into_pages();
+    let mut work = budget();
+    let mut db = DatabaseReader::open(directory.target(), &mut work)?;
+    let central = db.table_definition(PageNumber::new(5), &mut work)?;
+    let (locator, field_offset) = {
+        let mut rows = db.rows(&central, &mut work)?;
+        let row = rows.next_row()?.ok_or("relationship row")?;
+        (
+            row.storage_locator(),
+            row.present_fixed_field_range(crate::ColumnOrdinal::new(1))
+                .ok_or("relationship flags")?
+                .start,
+        )
+    };
+    let mut bytes = [0; crate::PAGE_BYTES];
+    db.read_raw_page(locator.page(), &mut bytes, &mut work)?;
+    drop(db);
+    let directory_view = crate::row_directory::RowDirectory::validate(
+        locator.page(),
+        central.root(),
+        &bytes,
+        &mut work,
+    )?;
+    let offset = directory_view.entry(&bytes, locator.slot())?.range().start + field_offset;
+    bytes[offset..offset + 4].copy_from_slice(&0x4000_i32.to_le_bytes());
+    pages
+        .iter_mut()
+        .find(|page| page.number() == locator.page())
+        .ok_or("planned relationship page")?
+        .replace_image(crate::PageImage::from_bytes(bytes));
+    let mut output = fs::File::create(directory.target())?;
+    write_pages(&mut output, &pages)?;
+    drop(output);
+    let mut db = DatabaseReader::open(directory.target(), &mut budget())?;
+    let report = db.validate(TextCodePage::Windows1252, &mut budget())?;
+    assert_eq!(report.uninterpreted_relationship_rows, 1);
+    assert!(!report.relationship_inventory_checked);
+    assert!(matches!(
+        check_graph(
+            &directory.target(),
+            &requests,
+            &relationships,
+            &tables,
+            &pages,
+            &mut budget()
+        ),
+        Err(CandidateCheckError::Mismatch {
+            detail: "relationship graph complete validation"
+        })
+    ));
+    Ok(())
+}
+
+#[test]
 fn relationship_catalog_spans_pages_and_index_branches_with_complete_locators() -> TestResult {
     let directory = Directory::new()?;
     let names = (0..33).map(|n| format!("T{n:02}")).collect::<Vec<_>>();

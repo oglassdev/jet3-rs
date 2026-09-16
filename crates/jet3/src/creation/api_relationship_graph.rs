@@ -12,7 +12,8 @@ use crate::{CatalogObjectKind, RelationshipSpec, TableRef, TextCodePage};
 /// child index on the FK column is reused, retaining its declared name; otherwise
 /// the composer adds a foreign index. Relationships on the same child column
 /// share its physical index. Each reciprocal relationship record consumes one
-/// of the table's 32 logical index slots. Other columns retain the normal
+/// of the table's 32 logical index slots; a self-reference consumes two.
+/// Other columns retain the normal
 /// creation planner's bounds.
 ///
 /// This uses the EXP-0273/0279 reciprocal grammar and existing creation primitives.
@@ -154,9 +155,16 @@ fn check_graph(
             return Err(mismatch("relationship graph endpoint count"));
         }
     }
-    database
+    let report = database
         .validate(TextCodePage::Windows1252, budget)
         .map_err(|error| CandidateCheckError::Validation(Box::new(error)))?;
+    if report.relationship_catalog_rows != relationships.len() as u64
+        || report.relationships_with_verified_keys != relationships.len() as u64
+        || report.uninterpreted_relationship_rows != 0
+        || !report.relationship_inventory_checked
+    {
+        return Err(mismatch("relationship graph complete validation"));
+    }
     Ok(())
 }
 
