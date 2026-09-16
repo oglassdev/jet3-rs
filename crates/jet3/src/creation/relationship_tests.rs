@@ -79,6 +79,8 @@ fn schema(two: bool) -> ([TableSpec<'static>; 2], RelationshipSpec<'static>) {
             },
         ],
         RelationshipSpec {
+            cascade_updates: false,
+            cascade_deletes: false,
             name: b"Account7Events9",
             parent: TableRef::Name(b"Accounts7"),
             child: TableRef::Ordinal(1),

@@ -33,7 +33,7 @@ pub(super) fn ordered<'a>(
     let first = group
         .first()
         .ok_or(UpdateError::Mismatch("empty relationship catalog group"))?;
-    if first.metadata[0] != 0
+    if crate::relationship_flags::RelationshipFlags::decode(first.metadata[0]).is_none()
         || !(1..=crate::numeric_index_entry::MAX_FIELDS as i32).contains(&first.metadata[1])
     {
         return Err(UpdateError::Unsupported(

@@ -47,6 +47,8 @@ fn fixture() -> Result<Fixture, Box<dyn StdError>> {
             },
         ],
         &RelationshipSpec {
+            cascade_updates: false,
+            cascade_deletes: false,
             name: b"ParentChild",
             parent: TableRef::Ordinal(0),
             child: TableRef::Ordinal(1),

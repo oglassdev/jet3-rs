@@ -12,6 +12,8 @@ const PRIMARY: &[IndexSpec<'static>] = &[IndexSpec {
     kind: IndexKind::Primary,
 }];
 const RELATION: crate::RelationshipSpec<'static> = crate::RelationshipSpec {
+    cascade_updates: false,
+    cascade_deletes: false,
     name: b"ParentChild",
     parent: TableRef::Ordinal(0),
     child: TableRef::Ordinal(1),
@@ -320,6 +322,8 @@ fn relationship_names_cannot_replace_declared_primary_indexes() -> TestResult {
             },
         ];
         let relation = crate::RelationshipSpec {
+            cascade_updates: false,
+            cascade_deletes: false,
             name: if parent_name == b".rB" {
                 b"ParentChild"
             } else {

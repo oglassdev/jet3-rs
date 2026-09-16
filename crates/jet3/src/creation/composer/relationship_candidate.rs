@@ -80,6 +80,8 @@ fn compose_parent_child(budget: &mut ResourceBudget) -> Result<WholeFileImagePla
     compose_relationship(
         &TABLES,
         &RelationshipSpec {
+            cascade_updates: false,
+            cascade_deletes: false,
             name: RELATION.name,
             parent: TableRef::Ordinal(0),
             child: TableRef::Ordinal(1),

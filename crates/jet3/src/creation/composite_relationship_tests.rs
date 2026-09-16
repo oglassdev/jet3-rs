@@ -40,6 +40,8 @@ fn schema() -> [TableSpec<'static>; 2] {
 }
 fn edge() -> RelationshipSpec<'static> {
     RelationshipSpec {
+        cascade_updates: false,
+        cascade_deletes: false,
         name: b"Pair",
         parent: TableRef::Ordinal(0),
         child: TableRef::Ordinal(1),
@@ -167,6 +169,8 @@ fn self_relationship_creation_refuses_identical_keys_but_admits_partial_overlap(
     }];
     for fields in [&scalar[..], FIELDS] {
         let relation = RelationshipSpec {
+            cascade_updates: false,
+            cascade_deletes: false,
             name: b"SelfRelation",
             parent: TableRef::Name(b"Alpha"),
             child: TableRef::Ordinal(0),
@@ -208,6 +212,8 @@ fn self_relationship_creation_refuses_identical_keys_but_admits_partial_overlap(
             directory.target(),
             &tables[..1],
             &[RelationshipSpec {
+                cascade_updates: false,
+                cascade_deletes: false,
                 name: b"PartialSelf",
                 parent: TableRef::Ordinal(0),
                 child: TableRef::Name(b"Alpha"),
@@ -527,6 +533,8 @@ fn full_self_replacement_excludes_only_its_own_child_from_parent_guards() -> Tes
                         rows: &rows[..if external_child { 2 } else { 1 }],
                     }],
                     &[RelationshipSpec {
+                        cascade_updates: false,
+                        cascade_deletes: false,
                         name: b"SelfRelation",
                         parent: TableRef::Ordinal(0),
                         child: TableRef::Ordinal(0),

@@ -25,6 +25,7 @@ impl<'a> RelationshipMaps<'a> {
 #[derive(Clone, Copy)]
 pub(super) struct RelationshipRow<'a> {
     pub name: &'a [u8],
+    pub flags: crate::relationship_flags::RelationshipFlags,
     pub child_table: &'a [u8],
     pub child_column: &'a [u8],
     pub parent_table: &'a [u8],
@@ -47,7 +48,7 @@ impl RelationshipRow<'_> {
         ];
         let values = [
             RowValue::Text(self.name),
-            RowValue::Long(0),
+            RowValue::Long(self.flags.raw()),
             RowValue::Long(i32::from(self.field_count)),
             RowValue::Long(i32::from(self.field_ordinal)),
             RowValue::Text(self.child_table),

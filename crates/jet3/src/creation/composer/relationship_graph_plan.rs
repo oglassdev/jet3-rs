@@ -10,6 +10,7 @@ use crate::{
 
 pub(super) struct GraphRelation<'a> {
     pub name: &'a [u8],
+    pub flags: crate::relationship_flags::RelationshipFlags,
     pub parent: usize,
     pub child: usize,
     pub parent_columns: Vec<u16>,
@@ -228,6 +229,7 @@ pub(super) fn resolve<'a>(
             &mut result,
             GraphRelation {
                 name: relationship.name,
+                flags: relationship.flags(),
                 parent,
                 child,
                 parent_columns,
@@ -313,8 +315,8 @@ impl GraphRelation<'_> {
                 } else {
                     self.parent_id
                 },
-                cascade_updates: false,
-                cascade_deletes: false,
+                cascade_updates: self.flags.updates,
+                cascade_deletes: self.flags.deletes,
             },
         }
     }

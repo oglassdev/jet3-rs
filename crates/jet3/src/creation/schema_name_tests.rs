@@ -148,6 +148,8 @@ fn accented_relationship_endpoints_validate_and_enforce_mutations() -> TestResul
         indexes: &indexes,
     });
     let relation = crate::RelationshipSpec {
+        cascade_updates: false,
+        cascade_deletes: false,
         name: b"R\xe9lation \xc6",
         parent: crate::TableRef::Name(tables[0].name),
         child: crate::TableRef::Name(tables[1].name),

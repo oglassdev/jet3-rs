@@ -9,6 +9,7 @@ use crate::{
 };
 
 pub(crate) struct Constraint {
+    pub flags: crate::relationship_flags::RelationshipFlags,
     pub parent: TableDefinition,
     pub child: TableDefinition,
     pub parent_columns: Vec<ColumnOrdinal>,
@@ -105,7 +106,9 @@ fn resolve_tables(
             && relation.related_table() == parent.root()
     });
     let foreign = unique(&mut foreign)?;
-    index(&child, foreign, &child_columns, false)?;
+    let flags = crate::relationship_flags::RelationshipFlags::decode(record.metadata[0])
+        .ok_or(UpdateError::Unsupported("relationship catalog flags"))?;
+    index(&child, foreign, &child_columns, false, flags)?;
     let mut primary = parent.relationships().filter(|relation| {
         relation.side() == RelationshipSide::PrimaryTable
             && relation.related_table() == child.root()
@@ -113,13 +116,14 @@ fn resolve_tables(
             && relation.raw_relation_ordinal() == foreign.raw_selector()
     });
     let primary = unique(&mut primary)?;
-    index(&parent, primary, &parent_columns, true)?;
+    index(&parent, primary, &parent_columns, true, flags)?;
     // EXP-0286: self-key checks see the parent tree in physical update order.
     let self_reference_requires_existing_parent =
         parent.root() == child.root() && primary.physical_index() >= foreign.physical_index();
     let parent_record = *primary.raw_record();
     let child_record = *foreign.raw_record();
     Ok(Constraint {
+        flags,
         parent,
         child,
         parent_columns,
@@ -246,10 +250,10 @@ fn index(
     relation: Relationship<'_>,
     columns: &[ColumnOrdinal],
     parent: bool,
+    flags: crate::relationship_flags::RelationshipFlags,
 ) -> Result<(), UpdateError> {
-    if relation.raw_context() != [0, 0] || relation.cascade_updates() || relation.cascade_deletes()
-    {
-        return Err(UpdateError::Unsupported("cascading relationship mutation"));
+    if relation.raw_context() != flags.context() {
+        return Err(UpdateError::Mismatch("relationship cascade flags differ"));
     }
     let index = table
         .physical_indexes()
@@ -455,11 +459,11 @@ fn read_records<S: ReadAt>(
             if !catalog_names_equal(child, target) && !catalog_names_equal(parent, target) {
                 continue;
             }
-            if metadata[0] != 0
+            if crate::relationship_flags::RelationshipFlags::decode(metadata[0]).is_none()
                 || !(1..=crate::numeric_index_entry::MAX_FIELDS as i32).contains(&metadata[1])
             {
                 return Err(UpdateError::Unsupported(
-                    "relationship requires enforced non-cascading scalar keys",
+                    "relationship requires enforced scalar keys",
                 ));
             }
         }
@@ -507,6 +511,10 @@ fn read_records<S: ReadAt>(
 #[path = "relationship_groups.rs"]
 mod grouping;
 use grouping::{groups, ordered};
+
+#[path = "relationship_component.rs"]
+mod connected;
+pub(crate) use connected::component;
 
 #[path = "relationship_validation.rs"]
 mod validation;

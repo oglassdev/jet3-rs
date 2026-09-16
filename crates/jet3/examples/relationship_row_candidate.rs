@@ -39,6 +39,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         indexes: &[],
     };
     let relationship = RelationshipSpec {
+        cascade_updates: false,
+        cascade_deletes: false,
         name: b"Account7Events9",
         parent: TableRef::Name(b"Accounts7"),
         child: TableRef::Name(b"Events9"),

@@ -19710,3 +19710,227 @@ the candidate images. The corrected producer reran all 72 images. This result
 resolves the graph blockers recorded in EXP-0291/0292 for the tested schemas;
 it does not establish cascades, arbitrary untested graphs, or relationship edits
 on existing schemas.
+
+## EXP-0294 — Native cascading relationship lifecycle observations
+
+Run `20260916T135500Z-cascade-native-r2` uses the EXP-0293 local DAO 3.6
+provider and retains sixteen lineages across eight schemas, each replicated
+twice. Producer SHA-256 is
+`a6f4b78755a43702ecb68cff108b613fb0a5826a01ba0d90e25943fb434a8b33`;
+input ZIP SHA-256 is
+`b1a110d31120656b39bd82c6960c94d862524319a81a068a4254c0ab6a10f03b`;
+closed worker receipt SHA-256 is
+`c190529a8f018f68092ee550e8d1bed88e3e486e85d2d96bd0d83acfd0840afb`.
+Inputs, native images and complete getter/traversal/Seek receipts are retained
+under the private `cascading-relationships/native-discovery/runs` directory.
+This entry records native observations; Rust candidate acceptance is separate.
+
+Central relationship attributes independently encode cascade updates as 256 and
+cascade deletes as 4096, with both as 4352. Both reciprocal logical records
+carry update/delete context bytes `[1,0]`, `[0,1]` or `[1,1]`; the zero-attribute
+control retains `[0,0]`. Relation and field getters retain the requested values.
+Equal parent-key assignments and full replacements succeed when cascade updates
+are enabled. Changed parent keys update matching children; deletion cascades
+only with the delete option. Without the respective option the referenced parent
+operation refuses with DAO 3200. A two-edge Root/Middle/Leaf chain propagates
+updates, full replacements and deletions through both edges. Self-reference
+updates change both the parent key and matching self/other-child foreign keys.
+A shared foreign key constrained by another parent refuses a cascade with DAO
+3397 when the replacement key is absent from that other parent, and accepts it
+when present. Ordinary child orphan assignments continue to refuse with 3201.
+
+The actual mutation inventory is 68 successes and 36 refusals. The composite
+Long/Text fixture's relation append refuses with 3201 in both replicas, and its
+sixteen planned events are explicitly skipped with no after image. They are not
+cascade mutation evidence. An additive followup corrects the nullable unique
+parent fixture and records null-tuple and self-assignment controls separately.
+Raw storage/counter analysis and Rust differential results will be appended
+when complete; no general nullable/composite cascade rule follows from this run.
+
+The completed initial native evaluator verifies all 140 captures, including
+complete provider/receipt identities, rows and recursive cascade effects,
+physical key/locator entries and counters, maps/allocation/payload reachability,
+relationship/system metadata, continuation links, and exact refusal residues.
+Its final report SHA-256 is
+`58b168262be787a1ff53b9d5be4488ef0963bf0d58b7b18da19fce8fc847a110`;
+evaluator SHA-256 is
+`c012ed3a40ac337f3f833bff7836d3d57cb972cc454003397f5540991d3e497a`.
+The durable `checks/20260916-cascade-relationship-discovery` archive has 220
+files including manifest SHA-256
+`5502dd75e752f47783806ea15264716cd75a4a87f1477676557a97f523dc843d`.
+Root independently replayed the report byte-for-byte and verified all 219 listed
+file identities and exact inventory, totaling 50,820,634 bytes without manifest.
+
+Update cascades assign each matching child row, even on equal parent assignment.
+Foreign retained counters therefore undergo EXP-0268's saturating removal
+transition once per assigned child row: first word decreases if positive, and
+DistinctCount is capped at the decreased first word. Once the first word is zero,
+these assignments retain the second word. The initial two-child Long equal
+assignment changes foreign first/count 4/3 to 2/2; the self case changes 3/2 to
+1/1; both levels of the chain change accordingly. Subsequent retaining full
+replacements can exhaust the first word. Actual key changes update all selected
+keys/locators, and delete cascades remove entries while retaining the observed
+stale counters. Most native refusal images are byte-exact; orphan insert failures
+advance page zero and the child primary counter. The failed composite relation
+creation retains six changed bytes and MSysObjects declared eleven/live ten.
+
+## EXP-0295 — Composite null cascades and explicit self assignments
+
+Additive run `20260916T143000Z-cascade-composite-followup-r1` corrects the
+composite fixture by using a nullable unique parent tuple index and a separate
+Id primary index, with exact initial parents for both partial-null shapes and
+all-null children. It retains the original eight-operation history and adds
+eleven isolated null-tuple controls. Three isolated self-replacement controls
+resolve caller assignment precedence. Four relations are accepted; all 44 actual
+mutations complete as 36 successes and eight refusals, without skips. Both
+replicas agree in complete captured semantics and raw transitions.
+
+Producer SHA-256 is
+`862dcfee3ebbd45354f46373330b2220ca356b0ed7e81d0d5ebeee756d1c576b`;
+input ZIP SHA-256 is
+`aeb591f439b02cc140fef9c16bdf8b084f93010466f86273feaef293e41486a0`.
+The accepted native report SHA-256 is
+`f1b239bd8f93652555a75eee094d79a049f0dc7ba4b07a27770644cc4081c7b1`.
+
+Cascade selection matches the complete old parent tuple, including null
+components. Changing (10,null) to (11,null) or filling its second component
+updates the exact matching child; the mirrored (null,Alpha) cases do likewise.
+Changing an all-null parent to (40,null) or (40,Zulu) updates its all-null child,
+and deleting that parent deletes that child. Equal and changed assignments use
+the same per-row foreign-counter transition, with each affected physical tree
+updated once for a composite assignment. An all-null child remains exempt from
+requiring a parent during ordinary constraint validation; this exemption does
+not remove it from cascade selection.
+
+A full self-row replacement retains explicitly assigned foreign-key values.
+For Key10/Fk10, replacing Key with11 while explicitly retaining Fk10 refuses
+with DAO3201; setting Fk30 to another existing parent succeeds and cascades the
+other child rows to11; setting Fk99 refuses3201. Thus cascade assignment must
+not overwrite the selected row's explicit caller FK. A parent-only field edit
+can cascade its unassigned self FK. These probes retain exact refused native
+counter effects: foreign first/count 3/2 becomes1/1 in both self refusals and the
+successful replacement. Rust refusals are still required to preserve the input.
+
+The durable `checks/20260916-cascade-composite-followup` archive contains 106
+files including manifest SHA-256
+`2a6871a44237d1d1ac548c622bb2230f03635cb6adf1a58363bc466156c4e3c3`.
+Root independently reproduced the report byte-for-byte and verified all 105
+listed hashes/sizes and the exact inventory (10,584,390 bytes excluding manifest).
+The initial refused composite creation and skipped events remain retained. These
+are native format/behavior observations; candidate acceptance remains separate.
+## EXP-0296 — Cascade creation and mutation differential acceptance
+
+Production candidate `352325f2e145e63d82cfad72c811d051f1f2f3cd` accepts
+independent cascade update/delete options in enforced relationship graphs and
+publishes each connected mutation in one atomic replacement. The complete
+candidate comparison against EXP-0294/0295 covers 166 pairs: eighteen creations,
+104 successful same-input mutations and 44 refusals. Two additional composite
+creation requests match the native 3201 refusals and publish no Rust file.
+The sixteen events skipped after the original failed native creations remain
+excluded. The suite uses two replicas and the same DAO 3.6 environment as
+EXP-0294/0295; it is finite evidence, not whole-format compatibility.
+
+Final readback `20260916T154500Z-cascade-candidate-acceptance-r4` closes all
+166 images with six successful worker receipts and exit zero. Complete actual
+property collections include table, column, index, relationship and relationship
+field getters. Comparisons cover complete rows, logical traversal, full-arity
+Seek, raw keys/locators, physical flags and retained counters, reciprocal and
+central metadata, system rows/indexes, allocation, and payload contents,
+ownership and reachability. Successful same-input operations preserve raw
+schemas, relationship catalog records, system/catalog page bytes and every
+unassigned Memo/OLE descriptor. Rust refusals preserve every input byte; native
+refusal changes match the exact recorded counter/header residues separately.
+
+Independent creations retain their own valid physical allocation and historical
+index prefixes while matching the complete logical/raw semantics. On existing
+files, payload placement differences are limited to explicitly assigned payload
+columns and payloads of rows proven deleted by the native result. Seventy-two
+operations are eligible for that comparison; only ten, five per replica, have
+actual descriptor or final allocation differences. Those are the chain's root
+payload edit, both root replacements, leaf insertion and middle payload edit.
+The other sixty-two have equal descriptors and final allocation. Every selected
+map's framing/header, page and active-slot counts, payload bytes and reachability
+remain checked. Free-page or EOF differences must belong to the selected payload
+page history; all unselected maps and descriptors remain exact. Key-only
+cascades receive no descriptor or map placement allowance.
+
+For example, root replacement with a new key keeps both files at 172,032 bytes.
+Rust owns Body pages 25–27 and 31–33 and Blob pages 28–29, 34–36 and 77;
+DAO owns Body pages 27–29 and 31–33 and Blob pages 34–36 and 77–79.
+The corresponding free-page exchange is Rust 78–79 versus DAO 25–26.
+The retaining-key full replacement uses four fewer final Rust pages, bounded
+entirely to the selected payload history. Cascade deletion is a separate raw-byte
+difference: final size, free pages, payload ownership/maps and surviving
+references agree, but Rust clears freed payload pages that DAO leaves stale.
+Both replicas identify exactly pages 25–29, 44–46, 57–61, 63–67 and 77–80.
+Complete per-operation differences are retained in
+`PAYLOAD_PLACEMENT_FINDINGS.json` and the final report.
+
+The first capture attempt failed on an input ZIP basename mismatch. The second
+lacked OLE type 11 observation, and the third captured all images but omitted
+relationship property collections. A corrected one-image preflight matched the
+native snapshot before the complete fourth run. All failed attempts and their
+outputs remain retained; they are not accepted evidence. Final observation
+helpers match the native producer, and the strict evaluator retains complete
+property comparison.
+
+Final report SHA-256 is
+`415cc0eba97ac78b764620cc37fdb18b8bc8d7a395e7a287ecccc0890394f338`;
+evaluator SHA-256 is
+`adbb341c2a8b88e1450019a4d33798205d7247b19135b213a3bc1b4fd6e585ec`;
+readback producer SHA-256 is
+`877d1e6dc0806ce393af38f9ebf104a230337876972f84cebd4c340a5b29db29`;
+input ZIP SHA-256 is
+`212bb6f93c297f23eb5dad2f6164dafbddca689dec5a1b2a1c3f80aaa019c02f`.
+Frozen source archive SHA-256 is
+`703424ffd3387af5ead672c10c6d174e6b65c290f413d1a301b3d0ba9b787aba`;
+CLI SHA-256 is
+`c03fed912ffd2fd756e0e73031208c63a82275e65dc383f048b0d1f4097722da`;
+creation helper SHA-256 is
+`c7abf1176cf3437fed7b6b52a54770f027b62f1b8a1598dfb4f5d586586f32a7`.
+
+The durable `checks/20260916-cascade-relationship-acceptance` archive includes
+source/binaries, requests, all native and candidate images, receipts, dependencies,
+failed runs and a self-contained `replay.sh OUTPUT_REPORT`. Its manifest SHA-256 is
+`585a2c719a8dc4148a09d6ebc52c10c7dd5a85e4cd6e5898b7d9b41fffd02a61`.
+Root independently replayed the final report byte-for-byte and verified all
+1,756 listed hashes/sizes and the exact 1,757-file inventory, totaling 242,549,866
+bytes excluding the manifest. Independent GPT-5.6 Sol high code review found no
+concrete correctness issue. Internal `just ready` passed 1,674 test executions,
+zero failures and ten ignored, including the atomic journal boundary test.
+Later API documentation and test additions do not change production behavior.
+
+### Final API marker guard and accepted-output reproduction
+
+A final API check found that the cascade planner lowered an AutoIncrement marker
+to the prior value even for an ordinary relationship key. That could incorrectly
+accept an invalid field or full-row request. Source
+`9f9abc69f536ef6150c9a95b8cc5908e3ef343d8` permits this lowering only for a
+full-row replacement of an actual AutoNumber column, preserving the existing
+EXP-0237/API policy. Invalid markers return Unsupported before staging and leave
+the input unchanged. The regression test failed before the guard, passes after
+it, and retains the valid AutoNumber replacement control. Independent GPT-5.6
+Sol high review found no further caller-value overwrite in planning/publication.
+
+The corrected source regenerated all 166 accepted images byte-for-byte and
+matched both creation refusals against the frozen final report above. Root then
+repeated generation from the durable supplement and reproduced the comparison
+report exactly. Thus the same DAO readbacks apply to the identical final images;
+the recorded DAO scenario inventory is unchanged. Reproduction report SHA-256 is
+`f146a48e5add98dbe18c764a52f0be7c893f6385526173069925e420ad919bd7`.
+Final source archive SHA-256 is
+`0a1cceb950c8fa6226d4d5bada36ced773a1768a0160a2f4a981667574335d09`;
+CLI SHA-256 is
+`391f2027b8578d615b41dde49f99f008e580f04c34ecf0fd74d05f17bc167d08`;
+creation helper SHA-256 is
+`176dd56ef6d6331c78a46f545c07afcf52fdd7889c23c9cb9cd04e269338996f`.
+
+The durable `checks/20260916-cascade-marker-guard` supplement retains source,
+binaries, all regenerated requests/images, regression evidence, preparation
+failures and a replay script using the sibling acceptance archive. Its manifest
+SHA-256 is
+`42e078a0dbe4786e7f58111efea9ee4239b8627c00ae8aea15867f0a29103e4e`.
+Root verified all 979 listed files and the exact 980-file inventory, totaling
+100,051,817 bytes excluding the manifest. Final `just ready` passed 1,676 test
+executions, zero failures and ten ignored; log SHA-256 is
+`90078ef0d4e6b62b951ac62d82768256489cbc68ccb228d4a1758c67537e26a8`.

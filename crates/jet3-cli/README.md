@@ -164,8 +164,8 @@ adds no relationship, index, schema or payload support beyond the linked
 `jet3` library. It makes no compatibility claim beyond the underlying library and its recorded evidence.
 
 For composite, multiple or self-referencing relationships, use `"relationships": [...]`
-with an array of the same objects. The array admits enforced, non-cascading
-constraints with one to ten ordered scalar columns within each table's logical-index capacity,
+with an array of the same objects. The array admits enforced constraints with one
+to ten ordered scalar columns within each table's logical-index capacity,
 along with any supported unrelated tables. For a composite endpoint, replace
 `"column": "Id"` with `"columns": ["First", "Second"]` on both endpoints.
 The lists must have the same length and order as the parent unique index;
@@ -175,7 +175,23 @@ shared by its relationships. Endpoints must have matching scalar types; Text/Bin
 widths may differ and fixed/variable Text may mix. Existing ordinary ascending FK indexes are reused, and
 each relationship alias consumes a slot within the 32-logical-index limit.
 Supply only one of `relationship` and `relationships`. An empty array creates
-ordinary tables.
+ordinary tables. Each array entry can set `"cascade_updates": true` and/or
+`"cascade_deletes": true`; both default to false. For example:
+
+```json
+{
+  "relationships": [{
+    "name": "ParentChild",
+    "parent": {"table": "Parent", "column": "Id"},
+    "child": {"table": "Child", "column": "ParentId"},
+    "cascade_updates": true,
+    "cascade_deletes": true
+  }]
+}
+```
+
+Place this array alongside the `tables` request. The singular `relationship`
+interface retains its non-cascading two-table bounds.
 
 `mutate` applies one public row operation to an existing database:
 
@@ -222,9 +238,14 @@ operation. Publication is available on Unix and Windows; Windows has no separate
 directory-sync guarantee.
 
 Field updates support scalar values, null transitions and independent Memo/OLE
-payloads. They assign only the selected column; complete row replacement assigns
-all columns. Assigning a referenced parent key can be refused even when the value
-is unchanged. Growing rows may move into hidden storage while retaining their
+payloads. They explicitly assign only the selected column; complete row replacement
+assigns all columns. When enabled, cascade updates assign matching child tuples,
+including equal assignments and exact null tuples; cascade deletes remove matching
+children recursively. Conflicts with another enforced relationship refuse the
+whole operation. All affected rows, indexes and payloads publish together.
+Full-row self replacements retain explicit foreign-key values. Without cascade
+updates, assigning a referenced parent key can be refused even when unchanged.
+Growing rows may move into hidden storage while retaining their
 logical locator; selected multi-hop overflow chains remain unsupported.
 Insertion reuses released pages or appends pages. Deletion compacts retained pages
 or releases a page containing its last live row. Up to 32 indexes support one to
@@ -235,5 +256,5 @@ An AutoNumber insertion accepts `"auto_increment"` or an explicit `{"long": 42}`
 For replacement, supply `"auto_increment"` to keep the existing ID, or its
 unchanged Long value. Deletion retains the generation state. Rejected requests
 preserve the whole file, including that state; DAO can consume a number on a
-failed insert. Cascades and relationship schema edits remain restricted. The recorded finite DAO comparisons are in
+failed insert. Relationship schema edits remain restricted. The recorded finite DAO comparisons are in
 `docs/PROVENANCE.md`; CLI tests do not expand that coverage.

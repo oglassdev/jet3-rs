@@ -28,6 +28,9 @@ impl<'a> RelationshipPlan<'a> {
         spec: &'a RelationshipSpec<'a>,
         budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
+        if spec.cascade_updates || spec.cascade_deletes {
+            return Err(invalid("cascades require the relationship graph API"));
+        }
         if tables.len() != 2 {
             return Err(invalid("exactly two tables required"));
         }

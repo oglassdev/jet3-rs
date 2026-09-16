@@ -3,7 +3,7 @@ use super::*;
 use crate::creation::composer::{GraphImage, compose_relationship_graph};
 use crate::{CatalogObjectKind, RelationshipSpec, TableRef, TextCodePage};
 
-/// Creates empty tables with enforced, non-cascading relationships with one to ten scalar fields.
+/// Creates empty tables with enforced relationships with one to ten scalar fields.
 ///
 /// Table order is independent of relationship direction. Multiple endpoints,
 /// chains, self-references and parents sharing ordered child FK fields are admitted.
