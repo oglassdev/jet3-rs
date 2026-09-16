@@ -119,4 +119,15 @@ fn encoding_work_is_bounded_before_scanning_the_mapping() {
         TextCodePage::Windows1252.encode("éé", &mut budget),
         Err(TextError::Resource(_))
     ));
+    let mut budget =
+        ResourceBudget::new(ResourceLimits::default().with_max_encoded_bytes(ByteCount::new(1)));
+    assert!(matches!(
+        TextCodePage::Windows1252.encode("éé", &mut budget),
+        Err(TextError::Resource(_))
+    ));
+    let mut budget = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(0));
+    assert!(matches!(
+        TextCodePage::Windows1252.decode(&[0x81], &mut budget),
+        Err(TextError::Resource(_))
+    ));
 }

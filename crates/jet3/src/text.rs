@@ -32,6 +32,13 @@ impl TextCodePage {
         raw: &'raw [u8],
         budget: &mut ResourceBudget,
     ) -> Result<DecodedText<'raw>, TextError> {
+        budget
+            .charge_work_units(
+                ByteCount::from_usize(raw.len())
+                    .map_err(TextError::Resource)?
+                    .get(),
+            )
+            .map_err(TextError::Resource)?;
         decode_text(raw, self, budget)
     }
 
@@ -51,8 +58,12 @@ impl TextCodePage {
             .charge_work_units(work)
             .map_err(TextError::Resource)?;
         let length = text.chars().count();
+        let encoded = ByteCount::from_usize(length).map_err(TextError::Resource)?;
         budget
-            .charge_allocation(ByteCount::from_usize(length).map_err(TextError::Resource)?)
+            .charge_encoded_bytes(encoded)
+            .map_err(TextError::Resource)?;
+        budget
+            .charge_allocation(encoded)
             .map_err(TextError::Resource)?;
         let mut output = Vec::new();
         output.try_reserve_exact(length).map_err(|_| {
@@ -135,7 +146,7 @@ pub enum TextError {
         /// Unassigned source byte.
         byte: u8,
     },
-    /// Resource policy rejected decoded output or owned storage.
+    /// Resource policy rejected work, output or owned storage.
     Resource(Error),
 }
 
