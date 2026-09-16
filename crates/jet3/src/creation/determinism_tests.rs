@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    RelationshipColumn, RelationshipSpec, RowValue, TableRef, TableRows,
+    RelationshipField, RelationshipSpec, RowValue, TableRef, TableRows,
     create_database_with_relationship, create_database_with_relationship_rows,
     create_database_with_rows, create_database_with_table_rows,
 };
@@ -170,14 +170,12 @@ fn empty_and_populated_relationship_metadata_repeat() -> TestResult {
     ];
     let relationship = RelationshipSpec {
         name: b"ParentChildren",
-        parent: RelationshipColumn {
-            table: TableRef::Name(b"Parents"),
-            column: ColumnRef::Name(b"Id"),
-        },
-        child: RelationshipColumn {
-            table: TableRef::Name(b"Children"),
-            column: ColumnRef::Name(b"ParentId"),
-        },
+        parent: TableRef::Name(b"Parents"),
+        child: TableRef::Name(b"Children"),
+        fields: &[RelationshipField {
+            parent: ColumnRef::Name(b"Id"),
+            child: ColumnRef::Name(b"ParentId"),
+        }],
     };
     repeats(|path, operation| {
         create_database_with_relationship(path, &tables, &relationship, operation)

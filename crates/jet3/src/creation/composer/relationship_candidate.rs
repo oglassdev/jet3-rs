@@ -11,7 +11,7 @@ use crate::{IndexColumnSpec, IndexKind, IndexSpec};
 
 #[path = "relationship_plan.rs"]
 mod planning;
-use crate::{RelationshipColumn, RelationshipSpec, TableRef};
+use crate::{RelationshipField, RelationshipSpec, TableRef};
 use planning::RelationshipPlan;
 
 // EXP-0114 base and first checkpoints.
@@ -81,14 +81,12 @@ fn compose_parent_child(budget: &mut ResourceBudget) -> Result<WholeFileImagePla
         &TABLES,
         &RelationshipSpec {
             name: RELATION.name,
-            parent: RelationshipColumn {
-                table: TableRef::Ordinal(0),
-                column: crate::ColumnRef::Ordinal(0),
-            },
-            child: RelationshipColumn {
-                table: TableRef::Ordinal(1),
-                column: crate::ColumnRef::Ordinal(0),
-            },
+            parent: TableRef::Ordinal(0),
+            child: TableRef::Ordinal(1),
+            fields: &[RelationshipField {
+                parent: crate::ColumnRef::Ordinal(0),
+                child: crate::ColumnRef::Ordinal(0),
+            }],
         },
         budget,
     )

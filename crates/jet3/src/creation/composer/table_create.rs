@@ -383,14 +383,14 @@ impl<'a> PlannedCreate<'a> {
     pub(super) fn contains_initial_key(
         &self,
         physical: u16,
-        kind: crate::numeric_index_key::NumericKeyType,
-        value: RowValue<'_>,
+        kinds: &[crate::numeric_index_key::NumericKeyType],
+        values: &[RowValue<'_>],
         budget: &mut ResourceBudget,
     ) -> Result<bool, ComposeError> {
         self.initial_indexes
             .get(usize::from(physical))
             .ok_or(ComposeError::UnsupportedInitialIndexSchema)?
-            .contains_single_key(kind, value, budget)
+            .contains_key(kinds, values, budget)
     }
 
     /// Returns the catalog row the create adds (`EXP-0087`).

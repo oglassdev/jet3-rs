@@ -1,7 +1,7 @@
 //! Deterministic multi-level Long index candidates for separate DAO validation.
 use jet3::{
     ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
-    RelationshipColumn, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef,
+    RelationshipField, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef,
     TableRows, TableSpec, create_database_with_relationship_rows, create_database_with_table_rows,
 };
 use std::path::Path;
@@ -126,14 +126,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ],
         &RelationshipSpec {
             name: b"ParentChildren",
-            parent: RelationshipColumn {
-                table: TableRef::Ordinal(0),
-                column: ColumnRef::Ordinal(0),
-            },
-            child: RelationshipColumn {
-                table: TableRef::Ordinal(1),
-                column: ColumnRef::Ordinal(0),
-            },
+            parent: TableRef::Ordinal(0),
+            child: TableRef::Ordinal(1),
+            fields: &[RelationshipField {
+                parent: ColumnRef::Ordinal(0),
+                child: ColumnRef::Ordinal(0),
+            }],
         },
         &mut budget(),
     )?;

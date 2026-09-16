@@ -1,4 +1,4 @@
-//! EXP-0288 relationship equality uses the observed scalar index encodings.
+//! EXP-0288/0290 relationship equality uses ordered scalar index encodings.
 use crate::numeric_index_entry::{EntryError, NumericIndexEntry, NumericIndexField};
 use crate::numeric_index_key::NumericKeyType;
 use crate::{
@@ -20,17 +20,27 @@ pub(crate) struct Key {
 
 impl Key {
     pub(crate) fn encode(
-        kind: NumericKeyType,
-        value: RowValue<'_>,
+        kinds: &[NumericKeyType],
+        values: &[RowValue<'_>],
         budget: &mut ResourceBudget,
     ) -> Result<Option<Self>, UpdateError> {
+        if kinds.len() != values.len()
+            || !(1..=crate::numeric_index_entry::MAX_FIELDS).contains(&kinds.len())
+        {
+            return Err(UpdateError::Mismatch("relationship key field count"));
+        }
+        let mut fields = [NumericIndexField {
+            column: 0,
+            direction: IndexDirection::Ascending,
+            kind: NumericKeyType::Long,
+        }; crate::numeric_index_entry::MAX_FIELDS];
+        for (ordinal, (field, &kind)) in fields.iter_mut().zip(kinds).enumerate() {
+            field.column = ordinal;
+            field.kind = kind;
+        }
         let entry = NumericIndexEntry::encode(
-            &[NumericIndexField {
-                column: 0,
-                direction: IndexDirection::Ascending,
-                kind,
-            }],
-            &[value],
+            &fields[..kinds.len()],
+            values,
             IndexNullPolicy::Include,
             RowLocator::new(PageNumber::new(0), 0),
             budget,
@@ -40,13 +50,17 @@ impl Key {
             _ => UpdateError::Mismatch("relationship key value type"),
         })?
         .ok_or(UpdateError::Mismatch("relationship key omitted"))?;
-        if entry.has_null() {
+        if kinds
+            .iter()
+            .zip(values)
+            .all(|(&kind, &value)| kind.is_null(value))
+        {
             return Ok(None);
         }
         Ok(Some(Self {
             entry,
-            long: match value {
-                RowValue::Long(value) => Some(value),
+            long: match values {
+                [RowValue::Long(value)] => Some(*value),
                 _ => None,
             },
         }))
@@ -110,9 +124,23 @@ pub(crate) fn missing<'a>(
 pub(crate) fn unique(keys: &[Key], budget: &mut ResourceBudget) -> Result<bool, UpdateError> {
     for pair in keys.windows(2) {
         budget.charge_work_units(pair[0].bytes().len() as u64)?;
-        if pair[0].bytes() == pair[1].bytes() {
+        if !pair[0].entry.has_null() && pair[0].bytes() == pair[1].bytes() {
             return Ok(false);
         }
     }
     Ok(true)
+}
+
+pub(crate) fn key_values<'row>(
+    row: &mut crate::RowView<'row, '_>,
+    columns: &[crate::ColumnOrdinal],
+) -> Result<[RowValue<'row>; crate::numeric_index_entry::MAX_FIELDS], UpdateError> {
+    let mut values = [RowValue::Null; crate::numeric_index_entry::MAX_FIELDS];
+    if columns.len() > values.len() {
+        return Err(UpdateError::Mismatch("relationship key field count"));
+    }
+    for (&column, value) in columns.iter().zip(&mut values) {
+        *value = crate::numeric_row_values::read_column(row, column)?;
+    }
+    Ok(values)
 }

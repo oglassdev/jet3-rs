@@ -1,4 +1,4 @@
-//! EXP-0073/0114/0279 endpoints, EXP-0059/0062/0268 reciprocals, and EXP-0277 names.
+//! EXP-0073/0114/0279/0290 endpoints, EXP-0059/0062/0268 reciprocals, and EXP-0277 names.
 use crate::ColumnPhysicalType;
 use crate::catalog_name_key::{catalog_names_equal, validate_catalog_name};
 use crate::numeric_index_key::NumericKeyType;
@@ -11,10 +11,10 @@ use crate::{
 pub(crate) struct Constraint {
     pub parent: TableDefinition,
     pub child: TableDefinition,
-    pub parent_column: ColumnOrdinal,
-    pub child_column: ColumnOrdinal,
-    pub parent_kind: NumericKeyType,
-    pub child_kind: NumericKeyType,
+    pub parent_columns: Vec<ColumnOrdinal>,
+    pub child_columns: Vec<ColumnOrdinal>,
+    pub parent_kinds: Vec<NumericKeyType>,
+    pub child_kinds: Vec<NumericKeyType>,
     pub self_reference_requires_existing_parent: bool,
     parent_record: [u8; 20],
     child_record: [u8; 20],
@@ -38,8 +38,9 @@ pub(crate) fn load<S: ReadAt>(
     let records = records(database, name, budget)?;
     let mut result = Vec::new();
     reserve(&mut result, records.len(), budget)?;
-    for record in &records {
-        result.push(resolve(database, record, budget)?);
+    for group in groups(&records, budget)? {
+        let ordered = ordered(&group, budget)?;
+        result.push(resolve(database, &ordered, budget)?);
     }
     check_target(target, &result, budget)?;
     incoming(database, target.root(), &result, budget)?;
@@ -48,31 +49,55 @@ pub(crate) fn load<S: ReadAt>(
 
 fn resolve<S: ReadAt>(
     database: &mut DatabaseReader<S>,
-    record: &Record,
+    records: &[&Record],
     budget: &mut ResourceBudget,
 ) -> Result<Constraint, UpdateError> {
+    let record = records
+        .first()
+        .ok_or(UpdateError::Mismatch("empty relationship"))?;
     let parent = table(database, &record.parent, budget)?;
     let child = table(database, &record.child, budget)?;
-    resolve_tables(record, parent, child, budget)
+    resolve_tables(records, parent, child, budget)
 }
 
 fn resolve_tables(
-    record: &Record,
+    records: &[&Record],
     parent: TableDefinition,
     child: TableDefinition,
     budget: &mut ResourceBudget,
 ) -> Result<Constraint, UpdateError> {
     budget.charge_work_units(
-        (parent.columns().len()
-            + child.columns().len()
+        ((parent.columns().len() + child.columns().len()) * records.len()
             + parent.indexes().len()
             + child.indexes().len()) as u64
             * 512,
     )?;
-    let (parent_column, parent_kind) = key_column(&parent, &record.parent_column)?;
-    let (child_column, child_kind) = key_column(&child, &record.child_column)?;
-    if !crate::relationship_key::compatible(parent_kind, child_kind) {
-        return Err(UpdateError::Mismatch("relationship endpoint types differ"));
+    let record = records
+        .first()
+        .ok_or(UpdateError::Mismatch("empty relationship"))?;
+    let mut parent_columns = Vec::new();
+    let mut child_columns = Vec::new();
+    let mut parent_kinds = Vec::new();
+    let mut child_kinds = Vec::new();
+    for record in records {
+        let (parent_column, parent_kind) = key_column(&parent, &record.parent_column)?;
+        let (child_column, child_kind) = key_column(&child, &record.child_column)?;
+        if !crate::relationship_key::compatible(parent_kind, child_kind) {
+            return Err(UpdateError::Mismatch("relationship endpoint types differ"));
+        }
+        if parent_columns.contains(&parent_column) || child_columns.contains(&child_column) {
+            return Err(UpdateError::Mismatch(
+                "relationship repeats an endpoint column",
+            ));
+        }
+        reserve(&mut parent_columns, 1, budget)?;
+        reserve(&mut child_columns, 1, budget)?;
+        reserve(&mut parent_kinds, 1, budget)?;
+        reserve(&mut child_kinds, 1, budget)?;
+        parent_columns.push(parent_column);
+        child_columns.push(child_column);
+        parent_kinds.push(parent_kind);
+        child_kinds.push(child_kind);
     }
     let mut foreign = child.relationships().filter(|relation| {
         catalog_names_equal(relation.name().raw_bytes(), &record.name)
@@ -80,7 +105,7 @@ fn resolve_tables(
             && relation.related_table() == parent.root()
     });
     let foreign = unique(&mut foreign)?;
-    index(&child, foreign, child_column, false)?;
+    index(&child, foreign, &child_columns, false)?;
     let mut primary = parent.relationships().filter(|relation| {
         relation.side() == RelationshipSide::PrimaryTable
             && relation.related_table() == child.root()
@@ -88,7 +113,7 @@ fn resolve_tables(
             && relation.raw_relation_ordinal() == foreign.raw_selector()
     });
     let primary = unique(&mut primary)?;
-    index(&parent, primary, parent_column, true)?;
+    index(&parent, primary, &parent_columns, true)?;
     // EXP-0286: self-key checks see the parent tree in physical update order.
     let self_reference_requires_existing_parent =
         parent.root() == child.root() && primary.physical_index() >= foreign.physical_index();
@@ -97,10 +122,10 @@ fn resolve_tables(
     Ok(Constraint {
         parent,
         child,
-        parent_column,
-        child_column,
-        parent_kind,
-        child_kind,
+        parent_columns,
+        child_columns,
+        parent_kinds,
+        child_kinds,
         self_reference_requires_existing_parent,
         parent_record,
         child_record,
@@ -219,7 +244,7 @@ fn unique<'a>(
 fn index(
     table: &TableDefinition,
     relation: Relationship<'_>,
-    column: ColumnOrdinal,
+    columns: &[ColumnOrdinal],
     parent: bool,
 ) -> Result<(), UpdateError> {
     if relation.raw_context() != [0, 0] || relation.cascade_updates() || relation.cascade_deletes()
@@ -230,12 +255,13 @@ fn index(
         .physical_indexes()
         .get(usize::from(relation.physical_index()))
         .ok_or(UpdateError::Mismatch("relationship physical index"))?;
-    if index.fields().len() != 1
-        || index.fields()[0].column() != column
-        || index.fields()[0].direction() != IndexDirection::Ascending
+    if index.fields().len() != columns.len()
+        || index.fields().iter().zip(columns).any(|(field, &column)| {
+            field.column() != column || field.direction() != IndexDirection::Ascending
+        })
     {
         return Err(UpdateError::Unsupported(
-            "relationship requires one ascending scalar key",
+            "relationship requires ascending fields in catalog order",
         ));
     }
     let flags = index.raw_flags();
@@ -429,9 +455,11 @@ fn read_records<S: ReadAt>(
             if !catalog_names_equal(child, target) && !catalog_names_equal(parent, target) {
                 continue;
             }
-            if metadata != [0, 1, 0] {
+            if metadata[0] != 0
+                || !(1..=crate::numeric_index_entry::MAX_FIELDS as i32).contains(&metadata[1])
+            {
                 return Err(UpdateError::Unsupported(
-                    "relationship requires one enforced non-cascading key",
+                    "relationship requires enforced non-cascading scalar keys",
                 ));
             }
         }
@@ -475,6 +503,10 @@ fn read_records<S: ReadAt>(
     }
     Ok(result)
 }
+
+#[path = "relationship_groups.rs"]
+mod grouping;
+use grouping::{groups, ordered};
 
 #[path = "relationship_validation.rs"]
 mod validation;

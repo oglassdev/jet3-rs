@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    ColumnRef, IndexColumnSpec, IndexKind, IndexSpec, RelationshipColumn, RelationshipSpec,
+    ColumnRef, IndexColumnSpec, IndexKind, IndexSpec, RelationshipField, RelationshipSpec,
     TableRef, TableRows,
 };
 
@@ -48,14 +48,12 @@ fn fixture() -> Result<Fixture, Box<dyn StdError>> {
         ],
         &RelationshipSpec {
             name: b"ParentChild",
-            parent: RelationshipColumn {
-                table: TableRef::Ordinal(0),
-                column: ColumnRef::Ordinal(0),
-            },
-            child: RelationshipColumn {
-                table: TableRef::Ordinal(1),
-                column: ColumnRef::Ordinal(1),
-            },
+            parent: TableRef::Ordinal(0),
+            child: TableRef::Ordinal(1),
+            fields: &[RelationshipField {
+                parent: ColumnRef::Ordinal(0),
+                child: ColumnRef::Ordinal(1),
+            }],
         },
         &mut budget(),
     )?;
@@ -90,8 +88,8 @@ fn catalog_and_reciprocal_indexes_resolve_both_relationship_sides() -> TestResul
         assert_eq!(constraints.len(), 1);
         assert_eq!(constraints[0].parent.root(), parent.root());
         assert_eq!(constraints[0].child.root(), child.root());
-        assert_eq!(constraints[0].parent_column, ColumnOrdinal::new(0));
-        assert_eq!(constraints[0].child_column, ColumnOrdinal::new(1));
+        assert_eq!(constraints[0].parent_columns, [ColumnOrdinal::new(0)]);
+        assert_eq!(constraints[0].child_columns, [ColumnOrdinal::new(1)]);
     }
     Ok(())
 }

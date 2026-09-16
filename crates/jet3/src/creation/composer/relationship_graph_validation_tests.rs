@@ -131,7 +131,7 @@ fn unsupported_rows_do_not_hide_malformed_known_reciprocals_or_duplicate_names()
     fs::write(duplicate.path(), bytes)?;
     assert_eq!(
         relation_error(&duplicate)?,
-        RelationshipValidationError::Metadata("duplicate relationship catalog name")
+        RelationshipValidationError::Metadata("relationship catalog component count")
     );
     Ok(())
 }

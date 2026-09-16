@@ -68,7 +68,10 @@ fn graph_selects_later_unique_parent_and_preserves_declared_foreign_indexes() ->
                 },
             ];
             let mut edge = relation(b"Relation", 0, 1, 1);
-            edge.parent.column = ColumnRef::Ordinal(1);
+            edge.fields = &[RelationshipField {
+                parent: ColumnRef::Ordinal(1),
+                child: ColumnRef::Ordinal(1),
+            }];
             let directory = Directory::new()?;
             create_database_with_relationships_and_rows(
                 directory.target(),

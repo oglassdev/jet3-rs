@@ -103,13 +103,13 @@ pub enum TableRef<'a> {
     Name(&'a [u8]),
 }
 
-/// A table and column forming one endpoint of a relationship.
+/// One ordered pair of matching relationship key columns.
 #[derive(Debug, Clone, Copy)]
-pub struct RelationshipColumn<'a> {
-    /// Table containing the column.
-    pub table: TableRef<'a>,
-    /// Column name or ordinal within that table.
-    pub column: ColumnRef<'a>,
+pub struct RelationshipField<'a> {
+    /// Column in the referenced table.
+    pub parent: ColumnRef<'a>,
+    /// Matching column in the referencing table.
+    pub child: ColumnRef<'a>,
 }
 
 /// One non-cascading relationship between two tables.
@@ -119,26 +119,26 @@ pub struct RelationshipColumn<'a> {
 /// support and [`crate::create_database_with_relationship`] for singular API limits.
 ///
 /// ```
-/// use jet3::{ColumnRef, RelationshipColumn, RelationshipSpec, TableRef};
+/// use jet3::{ColumnRef, RelationshipField, RelationshipSpec, TableRef};
 ///
 /// let relationship = RelationshipSpec {
 ///     name: b"AccountsEvents",
-///     parent: RelationshipColumn {
-///         table: TableRef::Name(b"Accounts"),
-///         column: ColumnRef::Name(b"Id"),
-///     },
-///     child: RelationshipColumn {
-///         table: TableRef::Name(b"Events"),
-///         column: ColumnRef::Name(b"AccountId"),
-///     },
+///     parent: TableRef::Name(b"Accounts"),
+///     child: TableRef::Name(b"Events"),
+///     fields: &[RelationshipField {
+///         parent: ColumnRef::Name(b"Id"),
+///         child: ColumnRef::Name(b"AccountId"),
+///     }],
 /// };
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct RelationshipSpec<'a> {
     /// Caller-chosen relationship and child foreign-index name.
     pub name: &'a [u8],
-    /// Referenced unique-key column.
-    pub parent: RelationshipColumn<'a>,
-    /// Referencing scalar column.
-    pub child: RelationshipColumn<'a>,
+    /// Referenced table.
+    pub parent: TableRef<'a>,
+    /// Referencing table.
+    pub child: TableRef<'a>,
+    /// Ordered key column pairs, matching the parent unique index's order.
+    pub fields: &'a [RelationshipField<'a>],
 }

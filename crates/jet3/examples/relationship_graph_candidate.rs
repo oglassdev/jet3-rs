@@ -1,7 +1,7 @@
 //! Reproduce private relationship graphs through the public creation API.
 use jet3::{
     ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexNullPolicy,
-    IndexSpec, RelationshipColumn, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue,
+    IndexSpec, RelationshipField, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue,
     TableRef, TableRows, TableSpec, create_database_with_relationships_and_rows,
 };
 use serde_json::Value;
@@ -204,18 +204,34 @@ fn create(case: &Value, output: &Path, replicas: u64) -> Result<()> {
                 indexes
                     .iter()
                     .map(|index| {
-                        Ok([IndexColumnSpec {
-                            column: ColumnRef::Name(text(index, "field")?.as_bytes()),
-                            direction: if index["direction"].as_str() == Some("desc") {
-                                IndexDirection::Descending
-                            } else {
-                                IndexDirection::Ascending
-                            },
-                        }])
+                        if let Some(fields) = index["fields"].as_array() {
+                            fields
+                                .iter()
+                                .map(|field| {
+                                    Ok(IndexColumnSpec {
+                                        column: ColumnRef::Name(text(field, "name")?.as_bytes()),
+                                        direction: if field["direction"].as_str() == Some("desc") {
+                                            IndexDirection::Descending
+                                        } else {
+                                            IndexDirection::Ascending
+                                        },
+                                    })
+                                })
+                                .collect::<Result<Vec<_>>>()
+                        } else {
+                            Ok(vec![IndexColumnSpec {
+                                column: ColumnRef::Name(text(index, "field")?.as_bytes()),
+                                direction: if index["direction"].as_str() == Some("desc") {
+                                    IndexDirection::Descending
+                                } else {
+                                    IndexDirection::Ascending
+                                },
+                            }])
+                        }
                     })
                     .collect::<Result<Vec<_>>>()
             } else {
-                Ok(vec![[IndexColumnSpec {
+                Ok(vec![vec![IndexColumnSpec {
                     column: ColumnRef::Name(b"Id"),
                     direction: IndexDirection::Ascending,
                 }]])
@@ -276,19 +292,37 @@ fn create(case: &Value, output: &Path, replicas: u64) -> Result<()> {
             })
         })
         .collect::<Result<Vec<_>>>()?;
-    let relationships = array(case, "relations")?
+    let relations = array(case, "relations")?;
+    let relationship_fields = relations
         .iter()
         .map(|relation| {
+            let field = |field| -> Result<RelationshipField<'_>> {
+                Ok(RelationshipField {
+                    parent: ColumnRef::Name(text(field, "field")?.as_bytes()),
+                    child: ColumnRef::Name(text(field, "foreign_field")?.as_bytes()),
+                })
+            };
+            if let Some(fields) = relation.get("fields") {
+                fields
+                    .as_array()
+                    .ok_or("relationship fields must be an array")?
+                    .iter()
+                    .map(field)
+                    .collect::<Result<Vec<_>>>()
+            } else {
+                Ok(vec![field(relation)?])
+            }
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let relationships = relations
+        .iter()
+        .zip(&relationship_fields)
+        .map(|(relation, fields)| {
             Ok(RelationshipSpec {
                 name: text(relation, "name")?.as_bytes(),
-                parent: RelationshipColumn {
-                    table: TableRef::Name(text(relation, "table")?.as_bytes()),
-                    column: ColumnRef::Name(text(relation, "field")?.as_bytes()),
-                },
-                child: RelationshipColumn {
-                    table: TableRef::Name(text(relation, "foreign_table")?.as_bytes()),
-                    column: ColumnRef::Name(text(relation, "foreign_field")?.as_bytes()),
-                },
+                parent: TableRef::Name(text(relation, "table")?.as_bytes()),
+                child: TableRef::Name(text(relation, "foreign_table")?.as_bytes()),
+                fields,
             })
         })
         .collect::<Result<Vec<_>>>()?;

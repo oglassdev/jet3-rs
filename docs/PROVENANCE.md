@@ -19362,3 +19362,97 @@ lineage. Independent review of the assignment guard found no blockers.
 `just ready` again passed 1,638 test executions, zero failures and ten ignored;
 its retained log SHA-256 is
 `e642fd9b748b168c6be10750b4321e8f13ca4b1206f6bad4f0ba2efb3adf4766`.
+
+## EXP-0290 — Native composite relationship creation
+
+Run `20260916T114154Z-composite-rel-create-r1` records eight schemas twice
+with DAO.DBEngine.36, version 3.6, 32-bit DLL 03.60.9765.0, Windows
+10.0.20348, en-US/ANSI 1252. The DLL SHA-256 remains
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+The private acquisition root is `/tmp/jet3-composite-relationship-discovery-r1`.
+The independently replayed report is 199,865 bytes, SHA-256
+`908ee6f0bd365870af597b76c3bd6a18b70cc8115ac7216b82d59fe57fa2058e`.
+Its evaluator SHA-256 is
+`4da682a04b8790a2645be48facebd588525cd27227e5308b7c6cc9f54cd032c4`.
+The matrix and producer SHA-256 values are respectively
+`1ffabe1d7a3f89da31032a060a5b884c1947dc5c419171ad302630c282004fe6` and
+`04366bcbe006e8a8940b01eb50de3f734ee5168d9eaf15a240201f11cab9853c`.
+
+DAO accepts Long pairs, Long/Text pairs, a mixed-direction parent unique
+index, an existing matching child ordinary index, differing Text/Binary
+widths, and a ten-component key containing Byte, Integer, Long, Currency,
+Single, Double, Date, Text, Binary and GUID. Ordered relation components must
+match the ordered parent unique-index columns. Both permutations of that
+alignment refuse DAO 3609 / HRESULT -2146824679 in both replicas.
+
+Each accepted relation contributes one MSysRelationships row per component:
+`grbit=0`, `ccolumn=N`, and `icolumn=0..N-1` in declared order. It contributes
+one relationship object, two ACEs and one reciprocal logical record per
+endpoint. Physical relationship fields follow the same order, ascending.
+An existing ascending unique parent or ascending ordinary child tree is
+reused. A mixed-direction unique parent retains its declared tree and gains
+a separate ascending unique tree for the reciprocal record. Generated parent
+and child first prefix words equal their initial row counts; reused declared
+trees retain zero. All observed second prefix words are zero at creation.
+All three relationship catalog indexes have flags 2, first prefix zero,
+distinct counter one, and N leaf records.
+
+Complete getters, requested rows and scalar values, ordered fields, public
+index traversal and full-arity Seek results, raw key bytes and row locators,
+reciprocal records, catalogs, system indexes and exact receipt/artifact
+inventories were checked. Partial and all-null tuples are present in the
+accepted two-component sources; their mutation behavior is not established
+by this creation result. The four failed permutation copies retain the
+ordinary tables and rows with no relationship catalog rows, objects, ACEs,
+logical records or generated physical trees. These are native observations,
+not Rust differential acceptance.
+
+The strengthened creation evaluator also checks public ordinals and exact
+index-read field vectors; its final SHA-256 is
+`4e3f3a33ad08e8e1cfe568e650015c5d33e6d2f64f5d65224efac8916b80973e`.
+The accepted creation report is unchanged.
+
+Run `20260916T115528Z-composite-rel-null-r1` records 28 isolated native
+operations on the two Long-pair replicas. Its report SHA-256 is
+`4cbe5a6f7adcfe6432737258c7612b191582f144f045effbf050292a5d283240`;
+evaluator SHA-256 is
+`a2a0871eab87946e5144a797dfead93114432e7b0e73a2c0752d07694e473150`.
+A partially null child tuple still requires an exactly matching parent:
+`(999,null)` and `(null,999)` orphan insertion, and change to `(999,null)`,
+all refuse 3201. Referenced partial-null and all-null parents cannot be
+removed or changed (3200); unreferenced partial-null parents can. Duplicate
+partial-null parent insertion succeeds. Explicit assignment of a referenced
+parent component to its existing value, including null, and a full replacement
+that repeats the referenced key both refuse 3200. All 3200 copies remain
+byte-identical. Refused child edits change only the established page-zero
+byte and foreign first-prefix decrement; refused child inserts change only
+the page-zero byte and primary distinct-counter increment. Complete rows,
+getters, traversal/Seek, physical key bytes, maps and relationship metadata
+remain checked. All-null child eligibility without an all-null parent remains
+outside this observation.
+
+The final null-probe evaluator additionally checks complete system schema/map
+preservation; its SHA-256 is
+`85f8db28472c5d28a77dbe088c34d16d97be151dd9b9822494ae68e83095206b`.
+The null-probe report is unchanged.
+
+Run `20260916T120558Z-composite-rel-null-followup-r1` verifies sixteen further
+operations with exact predecessor and continuation identities. Report SHA-256 is
+`7e5f305d15155219e019ef0876313533686afc3f71f9713e5801488935354a06`;
+evaluator SHA-256 is
+`8d06c02b20b0de118cebe59151ef327a394bf6fa50d2f1fabb0038cadbbae3e8`.
+After deleting the all-null child and then its all-null parent, both insertion
+and assignment of an all-null child succeed without a matching parent.
+Thus exemption requires every component to be null. After inserting a duplicate
+partial-null parent, deleting the original referenced parent still refuses
+3200, byte-identically, even though the matching duplicate remains. Unreferenced
+partial-null parent changes and payload-only assignment on a referenced parent
+succeed. All fourteen successes and two refusals agree across replicas, with
+complete raw state, actual getters, traversal/Seek, counters and maps checked.
+
+Scalar controls in `20260916T122108Z-scalar-equal-parent-r1` also refuse 3200
+when explicitly assigning an existing referenced Long or Text(8) key to itself,
+or replacing the parent row while retaining that key. All four failed copies
+are byte-identical to their sources. The retained run inventory SHA-256 is
+`5571151a4a3aad04d7350b4530cc24bb5d56cadd97de8eadd7eddc72b063e3fe`.
+These controls extend the assigned-parent guard to scalar constraints as well.

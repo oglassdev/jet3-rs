@@ -232,6 +232,49 @@ impl InitialLongIndex {
             .image(&self.entries, owner, root, first_extra, ordinal, budget)
     }
 
+    pub(super) fn contains_key(
+        &self,
+        kinds: &[NumericKeyType],
+        values: &[RowValue<'_>],
+        budget: &mut ResourceBudget,
+    ) -> Result<bool, ComposeError> {
+        if kinds.len() != self.field_count || values.len() != self.field_count {
+            return Err(ComposeError::UnsupportedInitialIndexSchema);
+        }
+        if let ([kind], [value]) = (kinds, values) {
+            return self.contains_single_key(*kind, *value, budget);
+        }
+        let mut fields = self.fields;
+        for (ordinal, (field, &kind)) in
+            fields[..self.field_count].iter_mut().zip(kinds).enumerate()
+        {
+            if !crate::relationship_key::compatible(field.kind, kind) {
+                return Err(ComposeError::UnsupportedInitialIndexSchema);
+            }
+            field.kind = kind;
+            field.column = ordinal;
+        }
+        let key = Entry::encode(
+            &fields[..self.field_count],
+            values,
+            crate::IndexNullPolicy::Include,
+            RowLocator::new(PageNumber::new(0), 0),
+            budget,
+        )
+        .map_err(|error| match error {
+            EntryError::Encoding(error) => ComposeError::from(error),
+            _ => ComposeError::UnsupportedInitialIndexSchema,
+        })?
+        .ok_or(ComposeError::UnsupportedInitialIndexSchema)?;
+        budget.charge_work_units(
+            u64::from((self.entries.len().max(1) as u64).ilog2() + 2) * key.key().len() as u64,
+        )?;
+        Ok(self
+            .entries
+            .binary_search_by(|entry| entry.key().cmp(key.key()))
+            .is_ok())
+    }
+
     pub(super) fn contains_single_key(
         &self,
         kind: NumericKeyType,

@@ -1,4 +1,4 @@
-//! EXP-0279 chooses an eligible relationship index in logical name order.
+//! EXP-0279/0290 choose an eligible ordered relationship index in logical name order.
 use crate::catalog_name_key::NameKey;
 use crate::{
     ColumnRef, ComposeError, IndexDirection, PhysicalIndexFlagsSpec, RelationshipSide,
@@ -7,33 +7,27 @@ use crate::{
 
 pub(crate) fn select_existing(
     table: &TableSpec<'_>,
-    column: u16,
+    columns: &[u16],
     side: RelationshipSide,
     budget: &mut ResourceBudget,
 ) -> Result<Option<u16>, ComposeError> {
-    select_direction(table, column, side, IndexDirection::Ascending, budget)
+    select_direction(table, columns, side, false, budget)
 }
 
-/// EXP-0286: a descending unique parent supplies the flags of a new ascending tree.
+/// EXP-0286/0290: a parent with descending fields supplies a new ascending tree.
 pub(crate) fn select_descending_parent(
     table: &TableSpec<'_>,
-    column: u16,
+    columns: &[u16],
     budget: &mut ResourceBudget,
 ) -> Result<Option<u16>, ComposeError> {
-    select_direction(
-        table,
-        column,
-        RelationshipSide::PrimaryTable,
-        IndexDirection::Descending,
-        budget,
-    )
+    select_direction(table, columns, RelationshipSide::PrimaryTable, true, budget)
 }
 
 fn select_direction(
     table: &TableSpec<'_>,
-    column: u16,
+    columns: &[u16],
     side: RelationshipSide,
-    direction: IndexDirection,
+    descending: bool,
     budget: &mut ResourceBudget,
 ) -> Result<Option<u16>, ComposeError> {
     budget.charge_work_units(table.indexes.len() as u64)?;
@@ -48,14 +42,28 @@ fn select_direction(
                 index.kind.flags() == PhysicalIndexFlagsSpec::Ordinary
             }
         };
-        if !eligible || index.fields.len() != 1 || index.fields[0].direction != direction {
+        if !eligible || index.fields.len() != columns.len() {
             continue;
         }
-        budget.charge_work_units(match index.fields[0].column {
-            ColumnRef::Ordinal(_) => 1,
-            ColumnRef::Name(_) => (table.columns.len() as u64).saturating_mul(64),
-        })?;
-        if index.fields[0].column.resolve(table.columns) != Some(column) {
+        let has_descending = index
+            .fields
+            .iter()
+            .any(|field| field.direction == IndexDirection::Descending);
+        if has_descending != descending {
+            continue;
+        }
+        let mut matches = true;
+        for (field, &column) in index.fields.iter().zip(columns) {
+            budget.charge_work_units(match field.column {
+                ColumnRef::Ordinal(_) => 1,
+                ColumnRef::Name(_) => (table.columns.len() as u64).saturating_mul(64),
+            })?;
+            if field.column.resolve(table.columns) != Some(column) {
+                matches = false;
+                break;
+            }
+        }
+        if !matches {
             continue;
         }
         budget.charge_work_units(512 + 194)?;

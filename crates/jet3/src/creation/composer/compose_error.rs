@@ -14,7 +14,7 @@ pub enum ComposeError {
         /// Unmatched Long key.
         value: i32,
     },
-    /// A non-Long scalar child key has no matching initial parent row.
+    /// A non-Long scalar or composite child key has no matching initial parent row.
     OrphanInitialScalarRelationshipKey {
         /// Zero-based child input row.
         row: usize,

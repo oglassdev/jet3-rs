@@ -20,7 +20,10 @@ const ID: &[IndexColumnSpec<'static>] = &[IndexColumnSpec {
 }];
 fn edge(child: usize) -> RelationshipSpec<'static> {
     let mut edge = relation(b"Relation", 0, child, 1);
-    edge.parent.column = ColumnRef::Ordinal(1);
+    edge.fields = &[RelationshipField {
+        parent: ColumnRef::Ordinal(1),
+        child: ColumnRef::Ordinal(1),
+    }];
     edge
 }
 fn definition(

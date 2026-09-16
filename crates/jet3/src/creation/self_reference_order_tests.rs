@@ -26,7 +26,10 @@ fn deleting_the_only_null_self_reference_removes_its_child_reference() -> TestRe
         indexes: &indexes,
     };
     let mut relation = edge(0);
-    relation.child.column = ColumnRef::Ordinal(2);
+    relation.fields = &[RelationshipField {
+        parent: ColumnRef::Ordinal(1),
+        child: ColumnRef::Ordinal(2),
+    }];
     let directory = Directory::new()?;
     create_database_with_relationships_and_rows(
         directory.target(),
@@ -97,7 +100,10 @@ fn parent_tree_after_foreign_requires_existing_self_keys() -> TestResult {
         indexes: &indexes,
     };
     let mut relation = edge(0);
-    relation.child.column = ColumnRef::Ordinal(2);
+    relation.fields = &[RelationshipField {
+        parent: ColumnRef::Ordinal(1),
+        child: ColumnRef::Ordinal(2),
+    }];
     let states = [
         None,
         Some([RowValue::Long(1), RowValue::Null, RowValue::Null]),
@@ -243,7 +249,10 @@ fn self_key_checks_follow_physical_order_for_generated_and_declared_parents() ->
         external.name = b"External";
         let mut self_relation = edge(0);
         self_relation.name = b"SelfLink";
-        self_relation.child.column = ColumnRef::Ordinal(2);
+        self_relation.fields = &[RelationshipField {
+            parent: ColumnRef::Ordinal(1),
+            child: ColumnRef::Ordinal(2),
+        }];
         let relations = [external, self_relation];
         for insert in [false, true] {
             let directory = Directory::new()?;

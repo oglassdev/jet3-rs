@@ -29,7 +29,7 @@ pub enum RelationshipValidationError {
         /// Missing parent key.
         value: i32,
     },
-    /// A non-Long scalar child key has no matching parent.
+    /// A non-Long scalar or composite child key has no matching parent.
     ScalarOrphan {
         /// Definition root of the parent table.
         parent: PageNumber,

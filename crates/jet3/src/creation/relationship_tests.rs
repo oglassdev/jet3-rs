@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    ColumnRef, ColumnSpec, IndexColumnSpec, IndexSpec, RelationshipColumn, ResourceLimits, TableRef,
+    ColumnRef, ColumnSpec, IndexColumnSpec, IndexSpec, RelationshipField, ResourceLimits, TableRef,
 };
 use std::fs;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -80,14 +80,12 @@ fn schema(two: bool) -> ([TableSpec<'static>; 2], RelationshipSpec<'static>) {
         ],
         RelationshipSpec {
             name: b"Account7Events9",
-            parent: RelationshipColumn {
-                table: TableRef::Name(b"Accounts7"),
-                column: ColumnRef::Name(b"Key1"),
-            },
-            child: RelationshipColumn {
-                table: TableRef::Ordinal(1),
-                column: ColumnRef::Ordinal(1),
-            },
+            parent: TableRef::Name(b"Accounts7"),
+            child: TableRef::Ordinal(1),
+            fields: &[RelationshipField {
+                parent: ColumnRef::Name(b"Key1"),
+                child: ColumnRef::Ordinal(1),
+            }],
         },
     )
 }
@@ -115,7 +113,7 @@ fn unsupported_references_and_schema_leave_no_destination() -> TestResult {
     let directory = Directory::new()?;
     let (mut tables, mut spec) = schema(false);
     for reference in [TableRef::Ordinal(2), TableRef::Name(b"accounts7")] {
-        spec.parent.table = reference;
+        spec.parent = reference;
         assert!(matches!(
             crate::create_database_with_relationship(
                 directory.target(),
@@ -128,7 +126,7 @@ fn unsupported_references_and_schema_leave_no_destination() -> TestResult {
             ))
         ));
     }
-    spec.parent.table = TableRef::Ordinal(0);
+    spec.parent = TableRef::Ordinal(0);
     tables[1].indexes = tables[0].indexes;
     assert!(
         crate::create_database_with_relationship(directory.target(), &tables, &spec, &mut budget())
@@ -180,7 +178,10 @@ fn corrupted_written_page_and_wrong_endpoint_fail_publication_check() -> TestRes
     let (tables, mut spec) = schema(false);
     let pages = compose_relationship(&tables, &spec, &mut budget())?.into_pages();
     crate::create_database_with_relationship(directory.target(), &tables, &spec, &mut budget())?;
-    spec.child.column = ColumnRef::Ordinal(0);
+    spec.fields = &[RelationshipField {
+        parent: ColumnRef::Ordinal(0),
+        child: ColumnRef::Ordinal(0),
+    }];
     assert!(matches!(
         check_relationship_candidate(&directory.target(), &tables, &spec, &pages, &mut budget()),
         Err(CandidateCheckError::Mismatch {

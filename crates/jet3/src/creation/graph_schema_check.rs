@@ -73,36 +73,43 @@ pub(super) fn check(
     let mut generated_count = 0;
     let mut logical_ordinal = request.indexes.len();
     for spec in relationships {
+        if !(1..=crate::numeric_index_entry::MAX_FIELDS).contains(&spec.fields.len()) {
+            return Err(mismatch("graph relationship field count"));
+        }
         budget
             .charge_work_units((requests.len() as u64) * 128)
             .map_err(CandidateCheckError::Read)?;
-        let parent = resolve(spec.parent.table).ok_or(mismatch("graph schema parent reference"))?;
-        let child = resolve(spec.child.table).ok_or(mismatch("graph schema child reference"))?;
+        let parent = resolve(spec.parent).ok_or(mismatch("graph schema parent reference"))?;
+        let child = resolve(spec.child).ok_or(mismatch("graph schema child reference"))?;
         if child == position || parent == position {
             budget
-                .charge_work_units((request.columns.len() as u64) * 128)
+                .charge_work_units((request.columns.len() as u64) * 128 * spec.fields.len() as u64)
                 .map_err(CandidateCheckError::Read)?;
         }
         if child == position {
-            let column = spec
-                .child
-                .column
-                .resolve(request.columns)
-                .ok_or(mismatch("graph schema child column"))?;
-            let existing = select_existing(request, column, RelationshipSide::ForeignTable, budget)
-                .map_err(CandidateCheckError::RowEncoding)?;
+            let mut resolved = [u16::MAX; crate::numeric_index_entry::MAX_FIELDS];
+            for (field, column) in spec.fields.iter().zip(&mut resolved) {
+                *column = field
+                    .child
+                    .resolve(request.columns)
+                    .ok_or(mismatch("graph schema child column"))?;
+            }
+            let columns = &resolved[..spec.fields.len()];
+            let existing =
+                select_existing(request, columns, RelationshipSide::ForeignTable, budget)
+                    .map_err(CandidateCheckError::RowEncoding)?;
             let physical = if let Some(physical) = existing {
                 usize::from(physical)
             } else if let Some(slot) = generated[..generated_count]
                 .iter()
-                .position(|&c| c == Some((RelationshipSide::ForeignTable, column)))
+                .position(|&c| c == Some((RelationshipSide::ForeignTable, resolved)))
             {
                 request.indexes.len() + slot
             } else {
                 let target = generated
                     .get_mut(generated_count)
                     .ok_or(mismatch("graph schema relationship bound"))?;
-                *target = Some((RelationshipSide::ForeignTable, column));
+                *target = Some((RelationshipSide::ForeignTable, resolved));
                 generated_count += 1;
                 request.indexes.len() + generated_count - 1
             };
@@ -111,9 +118,10 @@ pub(super) fn check(
                 .get(physical)
                 .ok_or(mismatch("graph foreign physical index"))?;
             if index.raw_flags() != 0
-                || index.fields().len() != 1
-                || index.fields()[0].column().get() != column
-                || index.fields()[0].direction() != IndexDirection::Ascending
+                || index.fields().len() != columns.len()
+                || index.fields().iter().zip(columns).any(|(field, &column)| {
+                    field.column().get() != column || field.direction() != IndexDirection::Ascending
+                })
             {
                 return Err(mismatch("graph foreign physical index schema"));
             }
@@ -128,22 +136,26 @@ pub(super) fn check(
             logical_ordinal += 1;
         }
         if parent == position {
-            let column = spec
-                .parent
-                .column
-                .resolve(request.columns)
-                .ok_or(mismatch("graph schema parent column"))?;
-            let existing = select_existing(request, column, RelationshipSide::PrimaryTable, budget)
-                .map_err(CandidateCheckError::RowEncoding)?;
+            let mut resolved = [u16::MAX; crate::numeric_index_entry::MAX_FIELDS];
+            for (field, column) in spec.fields.iter().zip(&mut resolved) {
+                *column = field
+                    .parent
+                    .resolve(request.columns)
+                    .ok_or(mismatch("graph schema parent column"))?;
+            }
+            let columns = &resolved[..spec.fields.len()];
+            let existing =
+                select_existing(request, columns, RelationshipSide::PrimaryTable, budget)
+                    .map_err(CandidateCheckError::RowEncoding)?;
             let physical = if let Some(physical) = existing {
                 usize::from(physical)
             } else {
-                let source = select_descending_parent(request, column, budget)
+                let source = select_descending_parent(request, columns, budget)
                     .map_err(CandidateCheckError::RowEncoding)?
                     .ok_or(mismatch("graph descending parent source"))?;
                 let slot = if let Some(slot) = generated[..generated_count]
                     .iter()
-                    .position(|&entry| entry == Some((RelationshipSide::PrimaryTable, column)))
+                    .position(|&entry| entry == Some((RelationshipSide::PrimaryTable, resolved)))
                 {
                     slot
                 } else {
@@ -151,7 +163,7 @@ pub(super) fn check(
                     *generated
                         .get_mut(slot)
                         .ok_or(mismatch("graph generated index bound"))? =
-                        Some((RelationshipSide::PrimaryTable, column));
+                        Some((RelationshipSide::PrimaryTable, resolved));
                     generated_count += 1;
                     slot
                 };
@@ -161,9 +173,11 @@ pub(super) fn check(
                     .get(physical)
                     .ok_or(mismatch("graph generated parent index"))?;
                 if index.raw_flags() != request.indexes[usize::from(source)].kind.flags().raw()
-                    || index.fields().len() != 1
-                    || index.fields()[0].column().get() != column
-                    || index.fields()[0].direction() != IndexDirection::Ascending
+                    || index.fields().len() != columns.len()
+                    || index.fields().iter().zip(columns).any(|(field, &column)| {
+                        field.column().get() != column
+                            || field.direction() != IndexDirection::Ascending
+                    })
                 {
                     return Err(mismatch("graph generated parent index schema"));
                 }

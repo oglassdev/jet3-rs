@@ -13,14 +13,12 @@ const PRIMARY: &[IndexSpec<'static>] = &[IndexSpec {
 }];
 const RELATION: crate::RelationshipSpec<'static> = crate::RelationshipSpec {
     name: b"ParentChild",
-    parent: RelationshipColumn {
-        table: TableRef::Ordinal(0),
-        column: ColumnRef::Ordinal(0),
-    },
-    child: RelationshipColumn {
-        table: TableRef::Ordinal(1),
-        column: ColumnRef::Ordinal(1),
-    },
+    parent: TableRef::Ordinal(0),
+    child: TableRef::Ordinal(1),
+    fields: &[RelationshipField {
+        parent: ColumnRef::Ordinal(0),
+        child: ColumnRef::Ordinal(1),
+    }],
 };
 
 #[test]

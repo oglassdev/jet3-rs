@@ -149,14 +149,12 @@ fn accented_relationship_endpoints_validate_and_enforce_mutations() -> TestResul
     });
     let relation = crate::RelationshipSpec {
         name: b"R\xe9lation \xc6",
-        parent: crate::RelationshipColumn {
-            table: crate::TableRef::Name(tables[0].name),
-            column: ColumnRef::Name(columns[0].name()),
-        },
-        child: crate::RelationshipColumn {
-            table: crate::TableRef::Name(tables[1].name),
-            column: ColumnRef::Name(columns[1].name()),
-        },
+        parent: crate::TableRef::Name(tables[0].name),
+        child: crate::TableRef::Name(tables[1].name),
+        fields: &[crate::RelationshipField {
+            parent: ColumnRef::Name(columns[0].name()),
+            child: ColumnRef::Name(columns[1].name()),
+        }],
     };
     let row = [RowValue::Long(1), RowValue::Null];
     let requests = [

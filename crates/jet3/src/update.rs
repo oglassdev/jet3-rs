@@ -47,7 +47,7 @@ pub enum UpdateError {
         /// Child value requiring a matching parent.
         value: i32,
     },
-    /// A non-Long scalar child key would have no matching parent after the change.
+    /// A non-Long scalar or composite child key would have no matching parent after the change.
     ScalarRelationshipConstraint {
         /// Definition page of the referenced parent table.
         parent: crate::PageNumber,

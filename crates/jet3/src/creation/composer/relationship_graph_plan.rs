@@ -1,4 +1,4 @@
-//! EXP-0273/0279/0286 reciprocal records and relationship index selection.
+//! EXP-0273/0279/0286/0290 reciprocal records and relationship index selection.
 use super::*;
 use crate::RelationshipSide;
 use crate::creation::relationship_indexes::{select_descending_parent, select_existing};
@@ -12,9 +12,9 @@ pub(super) struct GraphRelation<'a> {
     pub name: &'a [u8],
     pub parent: usize,
     pub child: usize,
-    pub parent_column: u16,
-    pub child_column: u16,
-    pub child_kind: NumericKeyType,
+    pub parent_columns: Vec<u16>,
+    pub child_columns: Vec<u16>,
+    pub child_kinds: Vec<NumericKeyType>,
     pub physical: u16,
     pub parent_physical: u16,
     pub parent_kind: IndexKind,
@@ -104,46 +104,58 @@ pub(super) fn resolve<'a>(
             TableRef::Ordinal(ordinal) => (ordinal < requests.len()).then_some(ordinal),
             TableRef::Name(name) => requests.iter().position(|r| r.table.name == name),
         };
-        let parent = table(relationship.parent.table).ok_or(invalid("parent table reference"))?;
-        let child = table(relationship.child.table).ok_or(invalid("child table reference"))?;
+        let parent = table(relationship.parent).ok_or(invalid("parent table reference"))?;
+        let child = table(relationship.child).ok_or(invalid("child table reference"))?;
         let parent_table = &requests[parent].table;
         let child_table = &requests[child].table;
-        let parent_column = relationship
-            .parent
-            .column
-            .resolve(parent_table.columns)
-            .ok_or(invalid("parent column reference"))?;
-        let child_column = relationship
-            .child
-            .column
-            .resolve(child_table.columns)
-            .ok_or(invalid("child column reference"))?;
-        // EXP-0288: scalar types agree; Text/Binary widths may differ.
-        let parent_type = parent_table.columns[usize::from(parent_column)].column_type();
-        let child_type = child_table.columns[usize::from(child_column)].column_type();
-        let parent_kind = NumericKeyType::from_column(parent_type)
-            .ok_or(invalid("relationship parent key type"))?;
-        let child_kind = NumericKeyType::from_column(child_type)
-            .ok_or(invalid("relationship child key type"))?;
-        if child_type == ColumnType::AutoIncrement
-            || !crate::relationship_key::compatible(parent_kind, child_kind)
-        {
-            return Err(invalid("relationship requires compatible scalar key types"));
+        if !(1..=crate::numeric_index_entry::MAX_FIELDS).contains(&relationship.fields.len()) {
+            return Err(invalid("relationship requires one to ten fields"));
+        }
+        budget.charge_work_units((relationship.fields.len() as u64 - 1) * 2 * 255 * 64)?;
+        let mut parent_columns = Vec::new();
+        let mut child_columns = Vec::new();
+        let mut child_kinds = Vec::new();
+        for field in relationship.fields {
+            let parent_column = field
+                .parent
+                .resolve(parent_table.columns)
+                .ok_or(invalid("parent column reference"))?;
+            let child_column = field
+                .child
+                .resolve(child_table.columns)
+                .ok_or(invalid("child column reference"))?;
+            if parent_columns.contains(&parent_column) || child_columns.contains(&child_column) {
+                return Err(invalid("relationship repeats a column"));
+            }
+            let parent_type = parent_table.columns[usize::from(parent_column)].column_type();
+            let child_type = child_table.columns[usize::from(child_column)].column_type();
+            let parent_kind = NumericKeyType::from_column(parent_type)
+                .ok_or(invalid("relationship parent key type"))?;
+            let child_kind = NumericKeyType::from_column(child_type)
+                .ok_or(invalid("relationship child key type"))?;
+            if child_type == ColumnType::AutoIncrement
+                || !crate::relationship_key::compatible(parent_kind, child_kind)
+            {
+                return Err(invalid("relationship requires compatible scalar key types"));
+            }
+            push(&mut parent_columns, parent_column, budget)?;
+            push(&mut child_columns, child_column, budget)?;
+            push(&mut child_kinds, child_kind, budget)?;
         }
         let parent_physical = select_existing(
             parent_table,
-            parent_column,
+            &parent_columns,
             RelationshipSide::PrimaryTable,
             budget,
         )?;
         let descending_parent = if parent_physical.is_none() {
-            select_descending_parent(parent_table, parent_column, budget)?
+            select_descending_parent(parent_table, &parent_columns, budget)?
         } else {
             None
         };
-        let source_parent = parent_physical
-            .or(descending_parent)
-            .ok_or(invalid("parent requires a unique scalar index"))?;
+        let source_parent = parent_physical.or(descending_parent).ok_or(invalid(
+            "parent requires a unique index in relationship field order",
+        ))?;
         let parent_kind = IndexKind::Unique.with_null_policy(
             parent_table.indexes[usize::from(source_parent)]
                 .kind
@@ -160,13 +172,13 @@ pub(super) fn resolve<'a>(
         }
         let existing_foreign = select_existing(
             child_table,
-            child_column,
+            &child_columns,
             RelationshipSide::ForeignTable,
             budget,
         )?;
         let physical = if let Some(prior) = result
             .iter()
-            .find(|edge| edge.child == child && edge.child_column == child_column)
+            .find(|edge| edge.child == child && edge.child_columns == child_columns)
         {
             prior.physical
         } else if let Some(ordinal) = existing_foreign {
@@ -181,7 +193,7 @@ pub(super) fn resolve<'a>(
             ordinal
         } else if let Some(prior) = result
             .iter()
-            .find(|edge| edge.parent == parent && edge.parent_column == parent_column)
+            .find(|edge| edge.parent == parent && edge.parent_columns == parent_columns)
         {
             prior.parent_physical
         } else {
@@ -214,9 +226,9 @@ pub(super) fn resolve<'a>(
                 name: relationship.name,
                 parent,
                 child,
-                parent_column,
-                child_column,
-                child_kind,
+                parent_columns,
+                child_columns,
+                child_kinds,
                 physical,
                 parent_physical,
                 parent_kind,
@@ -231,15 +243,28 @@ pub(super) fn resolve<'a>(
 }
 
 impl GraphRelation<'_> {
-    pub fn field(&self, parent: bool) -> [IndexColumnSpec<'static>; 1] {
-        [IndexColumnSpec {
-            column: ColumnRef::Ordinal(if parent {
-                self.parent_column
-            } else {
-                self.child_column
-            }),
-            direction: IndexDirection::Ascending,
-        }]
+    pub fn fields(
+        &self,
+        parent: bool,
+        budget: &mut ResourceBudget,
+    ) -> Result<Vec<IndexColumnSpec<'static>>, ComposeError> {
+        let columns = if parent {
+            &self.parent_columns
+        } else {
+            &self.child_columns
+        };
+        let mut fields = Vec::new();
+        for &column in columns {
+            push(
+                &mut fields,
+                IndexColumnSpec {
+                    column: ColumnRef::Ordinal(column),
+                    direction: IndexDirection::Ascending,
+                },
+                budget,
+            )?;
+        }
+        Ok(fields)
     }
     pub fn foreign_index<'a>(&'a self, fields: &'a [IndexColumnSpec<'a>]) -> IndexSpec<'a> {
         IndexSpec {

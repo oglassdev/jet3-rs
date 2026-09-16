@@ -1,6 +1,6 @@
 //! Deterministic relationship candidate with repeated foreign keys across pages.
 use jet3::{
-    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, RelationshipColumn,
+    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, RelationshipField,
     RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef, TableRows, TableSpec,
     create_database_with_relationship_rows,
 };
@@ -40,14 +40,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let relationship = RelationshipSpec {
         name: b"Account7Events9",
-        parent: RelationshipColumn {
-            table: TableRef::Name(b"Accounts7"),
-            column: ColumnRef::Name(b"Key1"),
-        },
-        child: RelationshipColumn {
-            table: TableRef::Name(b"Events9"),
-            column: ColumnRef::Name(b"Account4"),
-        },
+        parent: TableRef::Name(b"Accounts7"),
+        child: TableRef::Name(b"Events9"),
+        fields: &[RelationshipField {
+            parent: ColumnRef::Name(b"Key1"),
+            child: ColumnRef::Name(b"Account4"),
+        }],
     };
     let payloads = (0..20)
         .map(|position| [b'a' + position; 255])

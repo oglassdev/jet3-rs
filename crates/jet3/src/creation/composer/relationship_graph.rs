@@ -18,9 +18,13 @@ pub(crate) fn compose_relationship_graph(
 ) -> Result<GraphImage, ComposeError> {
     let mut creates = reserve_creates(requests.len(), budget)?;
     let edges = planning::resolve(requests, relationships, budget)?;
-    let mut fields: Vec<[[IndexColumnSpec<'_>; 1]; 2]> = Vec::new();
+    let mut fields: Vec<[Vec<IndexColumnSpec<'_>>; 2]> = Vec::new();
     for edge in &edges {
-        push(&mut fields, [edge.field(false), edge.field(true)], budget)?;
+        push(
+            &mut fields,
+            [edge.fields(false, budget)?, edge.fields(true, budget)?],
+            budget,
+        )?;
     }
     let mut indexes: Vec<Vec<IndexSpec<'_>>> = Vec::new();
     let mut overlays: Vec<Vec<LogicalIndexSpec<'_>>> = Vec::new();
@@ -89,21 +93,34 @@ pub(crate) fn compose_relationship_graph(
     for edge in &edges {
         budget.charge_items(requests[edge.child].rows.len() as u64)?;
         for (row, values) in requests[edge.child].rows.iter().enumerate() {
-            let value = *values
-                .get(usize::from(edge.child_column))
-                .ok_or(planning::invalid("foreign key column absent"))?;
-            if edge.child_kind.is_null(value)
+            let mut key_values = [RowValue::Null; crate::numeric_index_entry::MAX_FIELDS];
+            let mut all_null = true;
+            for ((&column, &kind), target) in edge
+                .child_columns
+                .iter()
+                .zip(&edge.child_kinds)
+                .zip(&mut key_values)
+            {
+                *target = *values
+                    .get(usize::from(column))
+                    .ok_or(planning::invalid("foreign key column absent"))?;
+                all_null &= kind.is_null(*target);
+            }
+            let key_values = &key_values[..edge.child_columns.len()];
+            if all_null
                 || creates[edge.parent].contains_initial_key(
                     edge.parent_physical,
-                    edge.child_kind,
-                    value,
+                    &edge.child_kinds,
+                    key_values,
                     budget,
                 )?
             {
                 continue;
             }
-            return Err(match value {
-                RowValue::Long(value) => ComposeError::OrphanInitialRelationshipKey { row, value },
+            return Err(match key_values {
+                [RowValue::Long(value)] => {
+                    ComposeError::OrphanInitialRelationshipKey { row, value: *value }
+                }
                 _ => ComposeError::OrphanInitialScalarRelationshipKey { row },
             });
         }
@@ -143,16 +160,24 @@ fn assemble(
     }
     let catalog = CatalogPages::new_with_extras(creates, &objects, &aces, budget)?;
     let relationship_pages = RelationshipPages::new(
-        edges.iter().map(|edge| {
+        edges.iter().flat_map(|edge| {
             let child = &requests[edge.child].table;
             let parent = &requests[edge.parent].table;
-            relationship_pages::RelationshipRow {
-                name: edge.name,
-                child_table: child.name,
-                child_column: child.columns[usize::from(edge.child_column)].name(),
-                parent_table: parent.name,
-                parent_column: parent.columns[usize::from(edge.parent_column)].name(),
-            }
+            edge.parent_columns
+                .iter()
+                .zip(&edge.child_columns)
+                .enumerate()
+                .map(move |(ordinal, (&parent_column, &child_column))| {
+                    relationship_pages::RelationshipRow {
+                        name: edge.name,
+                        child_table: child.name,
+                        child_column: child.columns[usize::from(child_column)].name(),
+                        parent_table: parent.name,
+                        parent_column: parent.columns[usize::from(parent_column)].name(),
+                        field_count: edge.parent_columns.len() as u16,
+                        field_ordinal: ordinal as u16,
+                    }
+                })
         }),
         catalog.page_count(),
         budget,

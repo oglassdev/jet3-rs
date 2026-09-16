@@ -175,9 +175,9 @@ pub use commit_state::{
 };
 pub use creation::{
     CandidateCheckError, ColumnRef, ColumnSpec, ColumnStorageKind, ColumnType, ComposeError,
-    CreateDatabaseError, IndexColumnSpec, IndexKind, IndexNullPolicy, IndexSpec,
-    RelationshipColumn, RelationshipSpec, TableRef, TableRows, TableSchemaPlanError, TableSpec,
-    create_database, create_database_with_relationship, create_database_with_relationship_rows,
+    CreateDatabaseError, IndexColumnSpec, IndexKind, IndexNullPolicy, IndexSpec, RelationshipField,
+    RelationshipSpec, TableRef, TableRows, TableSchemaPlanError, TableSpec, create_database,
+    create_database_with_relationship, create_database_with_relationship_rows,
     create_database_with_relationships, create_database_with_relationships_and_rows,
     create_database_with_rows, create_database_with_table_rows,
 };

@@ -164,10 +164,13 @@ fn check_relationship_contents(
             .map_err(CandidateCheckError::Definition)?;
         let mut relations = definition.relationships();
         let relation = relations.next().ok_or(mismatch("relationship record"))?;
-        let endpoint = if position == 0 {
-            relationship.parent
+        let [field] = relationship.fields else {
+            return Err(mismatch("singular relationship field count"));
+        };
+        let column = if position == 0 {
+            field.parent
         } else {
-            relationship.child
+            field.child
         };
         let fields = definition
             .physical_indexes()
@@ -186,13 +189,13 @@ fn check_relationship_contents(
             || relation.cascade_deletes()
             || (position == 1 && relation.name().raw_bytes() != relationship.name)
             || fields.len() != 1
-            || endpoint.column.resolve(table.columns) != Some(fields[0].column().get())
+            || column.resolve(table.columns) != Some(fields[0].column().get())
         {
             return Err(mismatch("relationship endpoint"));
         }
         if let Some(requests) = requests {
             let fields = [IndexColumnSpec {
-                column: relationship.child.column,
+                column: field.child,
                 direction: IndexDirection::Ascending,
             }];
             let foreign = IndexSpec {
