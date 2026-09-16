@@ -289,7 +289,7 @@ def refusal_storage(before, after, spec, model, case, label):
     table = operation["table"]
     for index in expected[table]:
         foreign = index["flags"] == 0
-        if spec["name"] == "orphan-insert" and not foreign:
+        if operation["kind"] == "insert" and spec["number"] == 3201 and not foreign:
             value = operation["values"][index["column"]]
             if value not in {row[index["column"]] for row in model[table]}:
                 index["second_word"] += 1
@@ -297,8 +297,8 @@ def refusal_storage(before, after, spec, model, case, label):
             self_delete = operation["kind"] == "delete" and any(
                 relation["table"] == relation["foreign_table"] == table
                 and relation["foreign_field"] == index["column"] for relation in case["relations"])
-            shared_edit = spec["name"] == "shared-key-one-parent-only" and operation.get("column") == index["column"]
-            if (self_delete or shared_edit) and index["first_word"]:
+            foreign_edit = operation["kind"] == "field" and operation.get("column") == index["column"]
+            if (self_delete or foreign_edit) and index["first_word"]:
                 index["first_word"] -= 1
                 index["second_word"] = min(index["second_word"], index["first_word"])
     req(after["physical_indexes"] == expected, label + " refusal physical indexes and prefix effects")
