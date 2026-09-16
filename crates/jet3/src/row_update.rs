@@ -20,8 +20,8 @@ pub struct RowUpdate<'a> {
 ///
 /// Supports scalar/null/Boolean/Text/Binary values and independent Memo/OLE
 /// columns. Enforced non-cascading relationships with one to ten ordered scalar fields require matching
-/// parents and reject changes to referenced parent keys, including null parents
-/// while null child keys remain. Foreign keys and parent keys backed only by
+/// parents and reject changes to parent keys referenced by other rows, including
+/// null parents while null child keys remain. Foreign keys and parent keys backed only by
 /// hidden relationship indexes update their two-word retained state on assignment
 /// (EXP-0268/0286), even when the value is unchanged. A self-reference whose foreign
 /// physical index precedes its parent requires the key to exist before replacement.
@@ -54,8 +54,11 @@ pub struct RowUpdate<'a> {
 /// to retain its value. Changing that field is refused and its counter is retained.
 /// Every affected enforced, non-cascading relationship is checked, including
 /// multiple relationships and self-references. Every child key with at least one
-/// non-null component must occur in its parent table. Assigning a referenced parent
-/// key is refused even when unchanged. Cascades are refused.
+/// non-null component must occur in its parent table. Other rows referencing the
+/// selected parent key block replacement even when that key is unchanged. When
+/// its parent tree precedes its foreign tree, a self-reference excludes the
+/// selected row from this guard and checks its child key against the resulting
+/// parent keys (EXP-0292). Cascades are refused.
 pub fn update_row(
     path: impl AsRef<Path>,
     request: RowUpdate<'_>,

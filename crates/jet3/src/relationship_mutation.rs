@@ -58,7 +58,8 @@ impl Change<'_> {
 struct Keys {
     before: Vec<Key>,
     after: Vec<Key>,
-    has_null_after: bool,
+    has_other_null_after: bool,
+    replaced_after: Option<Key>,
     assigned_null: bool,
     assigned: Vec<Key>,
 }
@@ -80,12 +81,14 @@ fn keys(
     columns: &[ColumnOrdinal],
     kinds: &[NumericKeyType],
     change: Option<Change<'_>>,
+    exclude_replacement: bool,
     budget: &mut ResourceBudget,
 ) -> Result<Keys, UpdateError> {
     let mut result = Keys {
         before: Vec::new(),
         after: Vec::new(),
-        has_null_after: false,
+        has_other_null_after: false,
+        replaced_after: None,
         assigned_null: false,
         assigned: Vec::new(),
     };
@@ -103,7 +106,9 @@ fn keys(
             Some(change) => change.existing(locator, columns, values, kinds, row.budget_mut())?,
             None => Some(Key::encode(kinds, values, row.budget_mut())?),
         };
-        result.has_null_after |= matches!(after, Some(None));
+        let replaced = exclude_replacement
+            && matches!(change, Some(Change::Replace(selected, _)) if selected == locator);
+        result.has_other_null_after |= !replaced && matches!(after, Some(None));
         let assigned = match change {
             Some(Change::Delete(selected) | Change::Replace(selected, _)) => selected == locator,
             Some(Change::Field(selected, column, _)) => {
@@ -121,7 +126,11 @@ fn keys(
         }
         push(&mut result.before, before, rows.owned.budget_mut())?;
         if let Some(after) = after {
-            push(&mut result.after, after, rows.owned.budget_mut())?;
+            if replaced {
+                result.replaced_after = after;
+            } else {
+                push(&mut result.after, after, rows.owned.budget_mut())?;
+            }
         }
     }
     if count != table.row_count() {
@@ -133,7 +142,7 @@ fn keys(
             *value = column_value(values, column)?;
         }
         let inserted = Key::encode(kinds, &key[..columns.len()], rows.owned.budget_mut())?;
-        result.has_null_after |= inserted.is_none();
+        result.has_other_null_after |= inserted.is_none();
         push(&mut result.after, inserted, rows.owned.budget_mut())?;
     }
     Ok(result)
@@ -157,6 +166,7 @@ pub(crate) fn check(
             &constraint.parent_columns,
             &constraint.parent_kinds,
             (constraint.parent.root() == target.root()).then_some(change),
+            false,
             budget,
         )?;
         let mut child = keys(
@@ -165,6 +175,8 @@ pub(crate) fn check(
             &constraint.child_columns,
             &constraint.child_kinds,
             (constraint.child.root() == target.root()).then_some(change),
+            constraint.parent.root() == constraint.child.root()
+                && !constraint.self_reference_requires_existing_parent,
             budget,
         )?;
         relationship_key::sort(&mut parent.before, budget)?;
@@ -177,7 +189,7 @@ pub(crate) fn check(
         }
         // EXP-0286/0289/0290: parent assignments are checked even if the key is
         // unchanged or another nullable parent has the same tuple.
-        if parent.assigned_null && child.has_null_after {
+        if parent.assigned_null && child.has_other_null_after {
             return Err(UpdateError::NullRelationshipConstraint {
                 parent: constraint.parent.root(),
                 child: constraint.child.root(),
@@ -189,6 +201,9 @@ pub(crate) fn check(
                 return Err(key.violation(constraint.parent.root(), constraint.child.root()));
             }
         }
+        // EXP-0286/0292: when the parent tree precedes the foreign tree, full
+        // replacement checks its own child row after the parent assignment guard.
+        push(&mut child.after, child.replaced_after.take(), budget)?;
         let missing_after = relationship_key::missing(&parent.after, &child.after, budget)?;
         // EXP-0286: a foreign tree preceding its parent tree cannot reference
         // a self key established by the same insertion/replacement.

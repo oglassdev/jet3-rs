@@ -192,20 +192,33 @@ fn self_relationship_creation_refuses_identical_keys_but_admits_partial_overlap(
             child: ColumnRef::Name(b"Id"),
         },
     ];
-    create_database_with_relationships(
-        directory.target(),
-        &tables[..1],
-        &[RelationshipSpec {
-            name: b"PartialSelf",
-            parent: TableRef::Ordinal(0),
-            child: TableRef::Name(b"Alpha"),
-            fields: &partial,
-        }],
-        &mut budget(),
-    )?;
-    let mut database = DatabaseReader::open(directory.target(), &mut budget())?;
-    let report = database.validate(TextCodePage::Windows1252, &mut budget())?;
-    assert_eq!(report.relationships_with_verified_keys, 1);
+    let swapped = [
+        RelationshipField {
+            parent: ColumnRef::Ordinal(1),
+            child: ColumnRef::Ordinal(2),
+        },
+        RelationshipField {
+            parent: ColumnRef::Ordinal(2),
+            child: ColumnRef::Ordinal(1),
+        },
+    ];
+    for fields in [&partial[..], &swapped[..]] {
+        let directory = Directory::new()?;
+        create_database_with_relationships(
+            directory.target(),
+            &tables[..1],
+            &[RelationshipSpec {
+                name: b"PartialSelf",
+                parent: TableRef::Ordinal(0),
+                child: TableRef::Name(b"Alpha"),
+                fields,
+            }],
+            &mut budget(),
+        )?;
+        let mut database = DatabaseReader::open(directory.target(), &mut budget())?;
+        let report = database.validate(TextCodePage::Windows1252, &mut budget())?;
+        assert_eq!(report.relationships_with_verified_keys, 1);
+    }
     Ok(())
 }
 
@@ -448,5 +461,146 @@ fn composite_mutations_protect_assigned_parent_rows_and_admit_all_null_children(
     )?;
     let mut db = DatabaseReader::open(&path, &mut budget())?;
     db.validate(TextCodePage::Windows1252, &mut budget())?;
+    Ok(())
+}
+
+#[test]
+fn full_self_replacement_excludes_only_its_own_child_from_parent_guards() -> TestResult {
+    let columns = [
+        ColumnSpec::new(b"Id", ColumnType::Long),
+        ColumnSpec::new(b"K1", ColumnType::Long),
+        ColumnSpec::new(b"K2", ColumnType::Long),
+        ColumnSpec::new(b"F1", ColumnType::Long),
+        ColumnSpec::new(b"F2", ColumnType::Long),
+    ];
+    let fields = [
+        RelationshipField {
+            parent: ColumnRef::Ordinal(1),
+            child: ColumnRef::Ordinal(3),
+        },
+        RelationshipField {
+            parent: ColumnRef::Ordinal(2),
+            child: ColumnRef::Ordinal(4),
+        },
+    ];
+    for arity in [1, 2] {
+        let indexes = [
+            INDEXES[0],
+            IndexSpec {
+                name: b"ParentKey",
+                fields: &PAIR[..arity],
+                kind: IndexKind::Unique,
+            },
+        ];
+        let table = TableSpec {
+            name: b"Alpha",
+            columns: &columns,
+            indexes: &indexes,
+        };
+        for null_key in [false, true] {
+            let first = if null_key {
+                RowValue::Null
+            } else {
+                RowValue::Long(11)
+            };
+            let second = if null_key {
+                RowValue::Null
+            } else {
+                RowValue::Long(111)
+            };
+            let selected = [RowValue::Long(1), first, second, first, second];
+            let external = [
+                RowValue::Long(2),
+                RowValue::Long(22),
+                RowValue::Long(222),
+                first,
+                second,
+            ];
+            let rows = [&selected[..], &external[..]];
+            for external_child in [false, true] {
+                let directory = Directory::new()?;
+                let path = directory.target();
+                create_database_with_relationships_and_rows(
+                    &path,
+                    &[TableRows {
+                        table,
+                        rows: &rows[..if external_child { 2 } else { 1 }],
+                    }],
+                    &[RelationshipSpec {
+                        name: b"SelfRelation",
+                        parent: TableRef::Ordinal(0),
+                        child: TableRef::Ordinal(0),
+                        fields: &fields[..arity],
+                    }],
+                    &mut budget(),
+                )?;
+                let row = locate(&path, b"Alpha", 1)?;
+                let before = fs::read(&path)?;
+                let error = crate::update_field(
+                    &path,
+                    crate::FieldUpdate {
+                        table: b"Alpha",
+                        row,
+                        column: crate::ColumnOrdinal::new(1),
+                        value: first,
+                    },
+                    &mut budget(),
+                )
+                .err()
+                .ok_or("equal parent field assignment accepted")?;
+                assert!(matches!(
+                    error,
+                    crate::UpdateError::RelationshipConstraint { .. }
+                        | crate::UpdateError::ScalarRelationshipConstraint { .. }
+                        | crate::UpdateError::NullRelationshipConstraint { .. }
+                ));
+                assert_eq!(fs::read(&path)?, before);
+                let result = crate::update_row(
+                    &path,
+                    crate::RowUpdate {
+                        table: b"Alpha",
+                        row,
+                        values: &selected,
+                    },
+                    &mut budget(),
+                );
+                if external_child {
+                    assert!(matches!(
+                        result,
+                        Err(crate::UpdateError::RelationshipConstraint { .. }
+                            | crate::UpdateError::ScalarRelationshipConstraint { .. }
+                            | crate::UpdateError::NullRelationshipConstraint { .. })
+                    ));
+                    assert_eq!(fs::read(&path)?, before);
+                } else {
+                    result?;
+                    let mut db = DatabaseReader::open(&path, &mut budget())?;
+                    assert_eq!(
+                        db.validate(TextCodePage::Windows1252, &mut budget())?
+                            .relationships_with_verified_keys,
+                        1
+                    );
+                    drop(db);
+                    let before = fs::read(&path)?;
+                    let mut orphan = selected;
+                    orphan[3] = RowValue::Long(999);
+                    assert!(matches!(
+                        crate::update_row(
+                            &path,
+                            crate::RowUpdate {
+                                table: b"Alpha",
+                                row,
+                                values: &orphan
+                            },
+                            &mut budget(),
+                        ),
+                        Err(crate::UpdateError::RelationshipConstraint { .. }
+                            | crate::UpdateError::ScalarRelationshipConstraint { .. })
+                    ));
+                    assert_eq!(fs::read(&path)?, before);
+                }
+            }
+        }
+    }
     Ok(())
 }

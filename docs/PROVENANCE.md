@@ -19596,3 +19596,47 @@ use a distinct foreign column, retaining its allocation, count, direction and
 null-policy assertions. All 81 focused relationship tests pass; independent
 GPT-5.6 Sol high review finds no correctness issues. The graph candidate DAO
 comparisons and reversed-mapping control remain pending.
+
+
+Followup `20260916T134900Z-composite-equal-self-r1` confirms that reversed
+mappings `[K1,K2] -> [K2,K1]` are accepted in both replicas when symmetric
+initial tuples satisfy the constraint. Thus identical ordered vectors, not
+identical unordered field sets, define the observed creation refusal. Producer
+SHA-256 is `4a8240955964e5b903a181518efe387bc9efe79b0c29da5dc354633f86259277`;
+input ZIP SHA-256 is
+`d1901667048501271ca1bfc0bd910e78d695693bf5c7f1f619b22f8ba7d3e514`.
+
+On the valid ascending-parent self-reference with separate FK columns, both
+replicas refuse an explicit equal assignment of K1 with DAO 3200, but accept a
+complete row replacement retaining both parent and child tuples. The selected
+child row is excluded from its own parent-assignment guard for complete
+replacement; explicit field assignment still checks it. The original candidate
+incorrectly applied the field-assignment guard to both operations. External
+child and nullable controls are retained in a separate followup.
+
+
+Run `20260916T140000Z-composite-self-exemption-r1` confirms both replicas of
+the external-child and all-null controls. Another row referencing the selected
+parent tuple keeps equal full-row replacement refused (3200). A sole self row
+with an all-null parent and foreign tuple admits equal full replacement.
+Producer SHA-256 is
+`89f851b1ff9c99d91243d8c5fe3a8964a070b0c98b9266001f28f46e0000745c`;
+input ZIP SHA-256 is
+`4068fce143dc21ffa446e65621e35b770a31a55bbb6bb58fbd26926f5d358cab`.
+
+The exemption is limited by physical index order. Run
+`20260916T141000Z-composite-descending-equal-r1` uses the descending-only parent
+whose generated ascending parent tree follows the foreign tree. Both replicas
+refuse equal parent-field assignment with 3200 and equal full replacement with
+3201. Producer SHA-256 is
+`7625e750a16ff865a820a8b5f7688903298828cd0edc7ed04004141c9969238f`;
+input ZIP SHA-256 is
+`07dd323ed5463ff154ce44e27f412c37e3253b17742c4ef0471764aed56a9f87`.
+Root inspected all three followups' closed receipts and outcomes. The code
+excludes the selected replacement child only when the parent physical tree
+precedes the foreign tree, then restores it for final key matching. Existing
+EXP-0286 foreign-before-parent checks remain intact, including the null-parent
+replacement refusal. All 82 focused relationship tests pass and independent
+GPT-5.6 Sol high review finds no correctness issues. These are native controls
+and focused implementation checks; graph differential acceptance follows
+separately.

@@ -244,8 +244,11 @@ nulls, but a null child blocks changing or removing a null parent unless that
 child reference is removed in the same operation. Ordinary logical aliases
 may share one physical tree, which is maintained once. Every child key with at
 least one non-null component must occur in its parent. Explicitly assigning a
-referenced parent key is refused even when its value is unchanged. Self-linked insertions and full-row
-replacements check the resulting rows. When the foreign physical index precedes
+referenced parent field is refused even when its value is unchanged. A full-row
+self replacement excludes its own child reference from this assignment guard
+when the parent physical tree precedes the foreign tree; other referencing rows
+still block it (EXP-0292). Self-linked insertions and full-row replacements check
+the resulting rows. When the foreign physical index precedes
 the parent index, the child key must also exist before the operation (EXP-0286).
 This follows physical update order for both declared and generated indexes.
 Self-deletion checks the remaining rows. Shared foreign

@@ -63,7 +63,9 @@ Related tables admit inserts, field/full-row updates and deletion for enforced,
 non-cascading relationships with one to ten ordered scalar fields, including multiple constraints and self-references.
 Endpoint types must agree; Text/Binary widths may differ and fixed/variable Text
 may mix. Only all-null child keys are exempt from parent matching. Explicit
-assignments of referenced parent keys are refused even when unchanged. One-field
+field assignments of referenced parent keys are refused even when unchanged.
+Full-row self replacements can retain their own reference when the parent tree
+precedes the foreign tree; other referencing rows still block them. One-field
 updates support nullable/variable values and retain unassigned Memo/OLE descriptors.
 Boolean null assignments store False. Nullable foreign keys and shared
 foreign indexes are supported. Atomic
