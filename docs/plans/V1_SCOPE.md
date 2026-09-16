@@ -90,7 +90,12 @@ are refused. Relationship names share the 63-byte usable index-name limit.
 Other name encodings, index key types and relationship forms remain restricted.
 Empty OLE payloads store null. Text/Memo columns can independently
 allow present-empty values, including later indexed tables and chained column
-properties. Fixed Text retains its exact-width input contract. Existing-table schema changes and
+properties. Required column constraints are encoded and enforced on initial rows,
+insertion and replacement, including Boolean and AutoIncrement exceptions and
+empty Binary/OLE normalization. Read-only validation checks Required nulls and
+named Boolean property framing. Native facts are EXP-0283; differential
+acceptance of this implementation remains pending. Fixed Text retains its
+exact-width input contract. Existing-table schema changes and
 table/relationship dropping are absent. EXP-0239 adds explicit, negative and
 wrapping AutoIncrement IDs to the finite writer comparisons.
 

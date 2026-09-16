@@ -18446,3 +18446,75 @@ preservation and the validation contract remain tracked in issue #369.
   simultaneous relationships in these creation cases, and the recorded scalar
   index forms. Larger graphs, composite/cascading/other-key constraints,
   relationship alteration/drop and whole-v1 compatibility remain separate work.
+
+
+## EXP-0283 — Native Required column constraints and null normalization
+
+Native run `20260916T050547Z-required-columns-r1` completed 36 schemas in two
+replicas: 72 receipts, 504 closed MDB checkpoints and 432 operations. Each table
+has an ordinary Long primary key and one Payload column. The matrix covers all
+15 exposed column kinds, Required false/true, and both AllowZeroLength values
+for Text, Fixed Text and Memo. It probes nonnull, explicit Null, omission,
+zero/empty insertion and null/nonnull updates. Production context was main
+`2962acd`; this entry establishes native observations, not Rust compatibility.
+
+The durable private bundle is
+`shared/checks/20260916-required-column-discovery` beneath the local VM root.
+It retains exact inputs, provider identity, receipts, all checkpoints, complete
+raw observations, evaluator and failed-write effects. SHA-256 identities:
+
+- Matrix: `a464799a3f3770ec339c5d6062b3529845c385cd6fcd7b6e1323d08bad8cb3ec`.
+- Producer: `7e2f663790decbd4ada075fa8d434d167f41455aad0ae8d5223c0c9c11b955ff`.
+- Evaluator: `ecede7c519a3ffa6c2f22d3a2ece2a4f9289b270bad47a6778e923ed1a5e1cc6`.
+- Report: `826c3a8dffa50976cf14ea10c4bfae213238429a5606a92a6740e88db31b9a9a`.
+- Run manifest: `e671b4172cc30e591d5ac2b6f5988e7ceb931460c646595810ef965b1f0c2268`.
+- Bundle manifest: `5a8e811692818e43e2f87dd1c2b8786d3138fbcae0cd84614f9bd0466145d7ed`.
+
+Provider: x86 DAO.DBEngine.36 version 3.6, dao360.dll 03.60.9765.0 SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`, Windows
+10.0.20348.0, en-US, ANSI 1252. Independent evaluation checks complete schema,
+properties, rows, primary traversal and Seek outcomes; raw values, payloads,
+keys/locators/counters, maps and ownership; stable property payloads; replica
+agreement; and rejected-write effects. Replay reproduces the report exactly.
+
+Observed behavior:
+
+- Byte, Integer, Long, Currency, Single, Double, DateTime and Guid retain the
+  requested Required flag. Required true rejects explicit Null, omission and
+  null updates with 3314; zero and nonzero values succeed. Required false admits
+  these null operations.
+- Boolean retains Required but maps explicit Null, omission and null updates
+  to false. The physical Boolean presence bit is clear for false; there is no
+  separate Boolean Null state in these observations.
+- AutoIncrement normalizes requested Required true to false and omits its
+  field property block. Omission generates a value. Explicit Null insertion
+  rejects 3162 after consuming a generator value; existing-field assignment
+  rejects 3164. This failed-insert counter effect differs from the Rust
+  whole-file refusal-preservation contract and needs independent-source
+  comparisons; a continued generator sequence cannot be equated across it.
+- Variable Text and Memo reject empty values with 3315 when AllowZeroLength is
+  false. True preserves a present zero-length value. Required independently
+  rejects Null with 3314.
+- Fixed Text width four pads an empty native BSTR to four ASCII spaces with
+  either property setting. Required rejects actual Null. Rust retains its
+  documented exact-width row-input contract; an explicit padding adapter is
+  needed when comparing native empty-string assignment.
+- Empty Binary and OLE byte arrays normalize to Null, so Required true rejects
+  them with 3314. Nonempty bytes succeed. Every non-Auto rejection in this
+  matrix preserves the whole file.
+
+Property grammar extends EXP-0266 without changing its Boolean record:
+`KKD\0`, a dictionary block of length 16 for Required alone or 33 for Required
+then AllowZeroLength, and named field blocks of length `21 + name_len` or
+`30 + name_len`. Each block has kind 1, nested length `6 + name_len`, then
+nine-byte records containing the dictionary ordinal and Boolean 00/ff. Ordinary
+Id has a Required-false block; non-Auto Payload has Required and text-like
+Payload also has AllowZeroLength, including false. Auto Payload has no block.
+Complete payload lengths are 43 bytes for Auto, 71 for other Required-only
+schemas and 97 for schemas with both properties; row mutations preserve them.
+
+Absent fixed-field padding bytes can differ across native replicas while the
+presence bit, logical value and indexes agree. Do not interpret or require
+stable bytes for absent values. Raw bytes remain retained in the report.
+Defaults/rules, relationship interactions and other index combinations are not
+established by this discovery matrix.

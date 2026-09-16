@@ -362,3 +362,6 @@ mod determinism;
 
 #[path = "schema_name_tests.rs"]
 mod schema_names;
+
+#[path = "required_column_tests.rs"]
+mod required_columns;

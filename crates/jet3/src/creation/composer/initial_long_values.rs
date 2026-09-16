@@ -104,26 +104,20 @@ pub(crate) fn encode_initial_row(
     })?;
     for (ordinal, value) in values.iter().enumerate() {
         budget.charge_items(1)?;
-        if matches!(value, RowValue::Text([]) | RowValue::Memo([]))
-            && matches!(
-                layout[ordinal].storage(),
-                crate::ColumnStorageClass::Variable { .. }
-            )
-            && matches!(
-                (value, layout[ordinal].physical_type()),
-                (RowValue::Text(_), ColumnPhysicalType::Text)
-                    | (RowValue::Memo(_), ColumnPhysicalType::Memo)
-            )
-            && !columns
-                .get(ordinal)
-                .is_some_and(ColumnSpec::allow_zero_length)
-        {
-            return Err(RowWriteError::ZeroLengthNotAllowed {
-                ordinal: ordinal as u16,
-                physical_type: layout[ordinal].physical_type(),
-            }
-            .into());
-        }
+        let options = columns.get(ordinal).map_or(
+            crate::column_property_reader::ColumnOptions::default(),
+            |column| crate::column_property_reader::ColumnOptions {
+                required: column.required(),
+                allow_zero_length: column.allow_zero_length(),
+            },
+        );
+        crate::column_value_policy::check_value(
+            ordinal as u16,
+            layout[ordinal].physical_type(),
+            layout[ordinal].storage(),
+            options,
+            *value,
+        )?;
         let (payload, expected) = match value {
             RowValue::Memo(payload) => (*payload, ColumnPhysicalType::Memo),
             RowValue::LongBinary(payload) => (*payload, ColumnPhysicalType::LongBinary),

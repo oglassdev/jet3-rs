@@ -122,6 +122,7 @@ pub struct ColumnSpec<'a> {
     name: &'a [u8],
     column_type: ColumnType,
     allow_zero_length: bool,
+    required: bool,
 }
 
 impl<'a> ColumnSpec<'a> {
@@ -132,6 +133,7 @@ impl<'a> ColumnSpec<'a> {
             name,
             column_type,
             allow_zero_length: false,
+            required: false,
         }
     }
 
@@ -152,6 +154,21 @@ impl<'a> ColumnSpec<'a> {
     #[must_use]
     pub const fn allow_zero_length(&self) -> bool {
         self.allow_zero_length
+    }
+
+    /// Requires a non-null value independently of index null policies.
+    ///
+    /// AutoIncrement ignores this option and retains Required=false (EXP-0283).
+    #[must_use]
+    pub const fn with_required(mut self) -> Self {
+        self.required = !matches!(self.column_type, ColumnType::AutoIncrement);
+        self
+    }
+
+    /// Whether this column requires a non-null value.
+    #[must_use]
+    pub const fn required(&self) -> bool {
+        self.required
     }
 
     /// Returns the raw name bytes.

@@ -602,10 +602,9 @@ fn check_long_value_written_pages(
     budget: &mut ResourceBudget,
 ) -> Result<(), CandidateCheckError> {
     if !tables.iter().any(|table| {
-        table
-            .columns
-            .iter()
-            .any(|column| column.column_type().is_long_value() || column.allow_zero_length())
+        table.columns.iter().any(|column| {
+            column.column_type().is_long_value() || column.allow_zero_length() || column.required()
+        })
     }) {
         return Ok(());
     }
