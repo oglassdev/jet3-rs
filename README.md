@@ -70,12 +70,13 @@ and Windows. Windows flushes the file before publication without a separate
 directory-sync guarantee.
 Creation produces identical MDB bytes for the same ordered request and library
 version, independently of the destination path and successful resource limits.
-The read-only library and CLI validator check user-table rows, values, index
+The read-only library and CLI validator check user/system table rows, values, index
 membership and supported scalar key semantics within a shared budget. It checks
 key completeness, null rules, uniqueness and branch bounds, and reports indexes
 whose key schemas remain uninterpreted.
 It also checks catalogued allocation ownership, availability-map membership,
-and unique reachability of user rows and live Memo/OLE fragments. Enforced Long
+and unique reachability of rows and live Memo/OLE fragments, including catalog
+property payloads. Enforced Long
 relationships get reciprocal-metadata and parent/child key checks; unsupported
 forms are counted separately. Saved-query
 definitions and their system storage survive the recorded native-input row

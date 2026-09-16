@@ -152,14 +152,36 @@ fn complete_inventory_rejects_an_endpoint_hidden_from_the_central_catalog() -> R
         .next_row()?
         .ok_or("row absent")?
         .locator();
-    let mut bytes = fs::read(fixture.path())?;
-    // EXP-0060/0073: hide the central row and correct its advertised live count.
-    bytes[locator.page().get() as usize * PAGE_BYTES + 11 + usize::from(locator.slot()) * 2] |=
-        0x80;
-    let count = central.root().get() as usize * PAGE_BYTES + 12;
-    bytes[count..count + 4].fill(0);
-    drop(db);
-    fs::write(fixture.path(), bytes)?;
+    let mut indexes = crate::index_mutation::load(&mut db, &central, &mut work)?;
+    indexes.remove(locator, &mut work)?;
+    let mut page = [0; PAGE_BYTES];
+    db.read_raw_page(locator.page(), &mut page, &mut work)?;
+    let removed = crate::row_delete_page::remove(
+        locator.page(),
+        central.root(),
+        &page,
+        locator.slot(),
+        &mut work,
+    )?;
+    let mut edits = crate::page_edits::PageEdits::new(db.geometry().page_count());
+    edits.set_image(&mut db, locator.page(), removed.image().clone(), &mut work)?;
+    for map in [central.maps().owned(), central.maps().available()] {
+        edits.map_bit(&mut db, map, locator.page(), true, false, &mut work)?;
+    }
+    edits.map_bit(
+        &mut db,
+        crate::mutation_map_write::global_locator(),
+        locator.page(),
+        false,
+        true,
+        &mut work,
+    )?;
+    indexes.stage(&mut db, &central, &mut edits, &mut work)?;
+    // EXP-0073: remove the central row and its keys, retaining dangling endpoints.
+    edits.patch_bytes(&mut db, central.root(), 12, &0_u32.to_le_bytes(), &mut work)?;
+    edits.publish(&fixture.path(), db, &mut work, |_| {
+        Ok::<(), std::convert::Infallible>(())
+    })?;
     assert_eq!(
         relation_error(&fixture)?,
         RelationshipValidationError::Metadata("unresolved relationship endpoint record")

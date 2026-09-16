@@ -166,9 +166,9 @@ fn fixed_text_indexes_enforce_collisions_and_follow_public_mutations() -> TestRe
         let mut work = budget();
         let mut db = DatabaseReader::open(directory.target(), &mut work)?;
         let report = db.validate(crate::TextCodePage::Windows1252, &mut work)?;
-        assert_eq!(report.indexes_with_verified_keys, 3);
+        assert_eq!(report.indexes_with_verified_keys, 10);
         assert_eq!(report.uninterpreted_indexes, 0);
-        assert_eq!(report.index_entries, 9);
+        assert_eq!(report.index_entries, 45);
         let definition = db.table_definition(PageNumber::new(20), &mut work)?;
         let root = definition.physical_indexes()[1].root().get() as usize * crate::PAGE_BYTES;
         let mut cursor = db.rows(&definition, &mut work)?;

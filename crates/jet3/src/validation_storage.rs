@@ -370,13 +370,20 @@ impl PayloadInventory {
     pub fn finish<S: ReadAt>(
         self,
         database: &mut DatabaseReader<S>,
+        empty_column: Option<ColumnOrdinal>,
         budget: &mut ResourceBudget,
     ) -> Result<(), StorageValidationError> {
         budget
             .charge_work_units(self.0.len() as u64)
             .map_err(StorageValidationError::Resource)?;
         for page in self.0 {
-            if live_fragments(database, page.page, budget)? != page.seen {
+            if live_fragments(
+                database,
+                page.page,
+                empty_column == Some(page.column),
+                budget,
+            )? != page.seen
+            {
                 return Err(conflict(page.page, "unreferenced live payload fragment"));
             }
         }
@@ -387,6 +394,7 @@ impl PayloadInventory {
 fn live_fragments<S: ReadAt>(
     database: &mut DatabaseReader<S>,
     page: PageNumber,
+    allow_empty: bool,
     budget: &mut ResourceBudget,
 ) -> Result<[u64; 4], StorageValidationError> {
     let mut image = [0; PAGE_BYTES];
@@ -414,7 +422,7 @@ fn live_fragments<S: ReadAt>(
         }
         live[usize::from(slot) / 64] |= 1 << (slot % 64);
     }
-    if live == [0; 4] {
+    if !allow_empty && live == [0; 4] {
         return Err(conflict(page, "owned payload page has no live fragments"));
     }
     Ok(live)

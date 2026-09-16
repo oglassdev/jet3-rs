@@ -117,8 +117,8 @@ fn unsupported_key_schemas_report_coverage_and_still_check_membership() -> TestR
     // EXP-0062: retarget the index descriptor to the uninterpreted Memo column.
     bytes[positions[0]..positions[0] + 2].copy_from_slice(&1_u16.to_le_bytes());
     let report = validate(&bytes)??;
-    assert_eq!(report.indexes, 1);
-    assert_eq!(report.indexes_with_verified_keys, 0);
+    assert_eq!(report.indexes, 8);
+    assert_eq!(report.indexes_with_verified_keys, 7);
     assert_eq!(report.uninterpreted_indexes, 1);
     assert_eq!(report.uninterpreted_index_entries, 3);
     let root = page_start(table.physical_indexes()[0].root());
@@ -231,7 +231,7 @@ fn composite_text_binary_guid_null_policies_and_branch_bounds_are_checked() -> T
         .flat_map(|page| page.image().as_bytes().iter().copied())
         .collect();
     let report = validate(&bytes)??;
-    assert_eq!(report.indexes_with_verified_keys, 2);
+    assert_eq!(report.indexes_with_verified_keys, 9);
     assert_eq!(report.uninterpreted_index_entries, 0);
     let table = definition(&bytes, b"Items")?;
     let physical = table
@@ -288,13 +288,13 @@ fn all_null_omission_and_repeated_nullable_unique_keys_have_complete_coverage() 
             .flat_map(|page| page.image().as_bytes().iter().copied())
             .collect();
         let report = validate(&bytes)??;
-        assert_eq!(report.indexes_with_verified_keys, 1);
+        assert_eq!(report.indexes_with_verified_keys, 8);
         assert_eq!(
             report.index_entries,
             if policy == crate::IndexNullPolicy::Include {
-                4
+                40
             } else {
-                2
+                38
             }
         );
         let table = definition(&bytes, b"Items")?;

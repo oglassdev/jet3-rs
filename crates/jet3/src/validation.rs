@@ -1,8 +1,8 @@
 //! Read-only composition of the catalog (`EXP-0058`), definition (`EXP-0059`),
 //! row (`EXP-0060`), long-value (`EXP-0061`) and index (`EXP-0062`) readers.
 //!
-//! Success covers catalogued allocation roles and user table contents. System
-//! table row values and index keys, and non-table object contents, are skipped.
+//! Success covers catalogued allocation roles and user/system table contents.
+//! Non-table object contents are skipped.
 //! Unreferenced file pages, allocation slack, unsupported relationship forms,
 //! and application compatibility are outside this check. Index references must
 //! name distinct live logical rows. Supported scalar schemas additionally check
@@ -11,7 +11,7 @@
 //! live-row membership are still checked. No index key-count prefix is compared
 //! with the live row count: `EXP-0219` permits retained counts after deletion.
 //! Catalogued allocation roles must be disjoint from incompatible owners and
-//! globally free pages. User row storage and every live payload fragment must
+//! globally free pages. Row storage and every live payload fragment must
 //! be uniquely reachable through the owning table or column. Enforced, non-cascading
 //! single ascending Long relationships check reciprocal records and non-null child
 //! keys against their parent. Other forms are counted as uninterpreted. Complete
@@ -37,15 +37,17 @@ pub struct ValidationReport {
     pub catalog_objects: u64,
     /// User table definitions and their reachable data checked.
     pub user_tables: u64,
-    /// System objects whose row values and index keys were not checked.
+    /// System table definitions and their reachable data checked.
+    pub system_tables: u64,
+    /// System objects without a table definition whose contents were not checked.
     pub skipped_system_objects: u64,
     /// Non-system, non-table objects whose contents were not checked.
     pub skipped_other_objects: u64,
-    /// Live logical user rows decoded, with declared table counts checked.
+    /// Live logical user and system rows decoded, with declared counts checked.
     pub rows: u64,
-    /// User field values decoded, including nulls.
+    /// User and system field values decoded, including nulls.
     pub values: u64,
-    /// Physical user indexes fully traversed, counted once per definition.
+    /// Physical user and system indexes traversed, counted once per definition.
     pub indexes: u64,
     /// Leaf entries traversed across those indexes.
     pub index_entries: u64,
@@ -77,7 +79,7 @@ pub struct ValidationReport {
 pub enum ValidationError {
     /// Catalog discovery, records or table references failed.
     Catalog(CatalogError),
-    /// A user-table check failed; the original catalog identity is retained.
+    /// A table check failed; the original catalog identity is retained.
     Table {
         /// Catalog name, identifier and table-definition reference.
         table: CatalogRecord,
@@ -92,13 +94,13 @@ pub enum ValidationError {
     Resource(Error),
 }
 
-/// Context for a failure inside one user table.
+/// Context for a failure inside one user or system table.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TableValidationError {
     /// Definition or its typed references could not be decoded.
     Definition(TableDefinitionError),
-    /// The definition kind disagrees with its user-class catalog record.
+    /// The definition kind disagrees with its catalog record's class.
     DefinitionKind {
         /// Kind required by the catalog classification.
         expected: TableDefinitionKind,
@@ -214,7 +216,7 @@ impl std::error::Error for TableValidationError {
 }
 
 impl<S: ReadAt> DatabaseReader<S> {
-    /// Checks the catalog and reachable user-table data without writing.
+    /// Checks the catalog and reachable user/system table data without writing.
     ///
     /// Pass the same budget used to open the reader to bound the entire
     /// operation. All readers, pending records and traversal scratch share it.
@@ -244,35 +246,62 @@ impl<S: ReadAt> DatabaseReader<S> {
                         .map_err(ValidationError::Resource)?;
                     roots.push(root);
                 }
-                if record.class() == CatalogObjectClass::System {
-                    add(&mut report.skipped_system_objects, 1)
-                        .map_err(ValidationError::Resource)?;
-                } else if let Some(root) = record.table_definition() {
+                if let Some(root) = record.table_definition() {
                     reserve(&mut tables, 1, catalog.budget_mut())
                         .map_err(ValidationError::Resource)?;
                     tables.push((record, root));
+                } else if record.class() == CatalogObjectClass::System {
+                    add(&mut report.skipped_system_objects, 1)
+                        .map_err(ValidationError::Resource)?;
                 } else {
                     add(&mut report.skipped_other_objects, 1).map_err(ValidationError::Resource)?;
                 }
             }
         }
         for (table, root) in tables {
+            let expected = match table.class() {
+                CatalogObjectClass::User => TableDefinitionKind::User,
+                CatalogObjectClass::System => TableDefinitionKind::System,
+            };
             let result = self
                 .table_definition(root, budget)
                 .map_err(TableValidationError::Definition)
                 .and_then(|definition| {
-                    if definition.kind() != TableDefinitionKind::User {
+                    if definition.kind() != expected {
                         return Err(TableValidationError::DefinitionKind {
-                            expected: TableDefinitionKind::User,
+                            expected,
                             actual: definition.kind(),
                         });
                     }
-                    validate_table(self, &definition, code_page, budget, &mut report)
+                    let empty_payload_column = if table.class() == CatalogObjectClass::System
+                        && table.name().raw_bytes() == b"MSysObjects"
+                    {
+                        // EXP-0091: the catalog can retain an empty owned LvProp page.
+                        definition
+                            .columns()
+                            .iter()
+                            .find(|column| column.name().raw_bytes() == b"LvProp")
+                            .map(|column| column.ordinal())
+                    } else {
+                        None
+                    };
+                    validate_table(
+                        self,
+                        &definition,
+                        code_page,
+                        budget,
+                        &mut report,
+                        empty_payload_column,
+                    )
                 });
             if let Err(source) = result {
                 return Err(ValidationError::Table { table, source });
             }
-            add(&mut report.user_tables, 1).map_err(ValidationError::Resource)?;
+            let count = match table.class() {
+                CatalogObjectClass::User => &mut report.user_tables,
+                CatalogObjectClass::System => &mut report.system_tables,
+            };
+            add(count, 1).map_err(ValidationError::Resource)?;
         }
         let mut allocation =
             storage::AllocationState::new(self, budget).map_err(ValidationError::Storage)?;
@@ -300,6 +329,7 @@ fn validate_table<S: ReadAt>(
     code_page: TextCodePage,
     budget: &mut ResourceBudget,
     report: &mut ValidationReport,
+    empty_payload_column: Option<ColumnOrdinal>,
 ) -> Result<(), TableValidationError> {
     let mut payloads = storage::PayloadInventory::new(database, definition, budget)
         .map_err(TableValidationError::Storage)?;
@@ -312,7 +342,7 @@ fn validate_table<S: ReadAt>(
         &mut payloads,
     )?;
     payloads
-        .finish(database, budget)
+        .finish(database, empty_payload_column, budget)
         .map_err(TableValidationError::Storage)?;
     budget
         .charge_work_units(
