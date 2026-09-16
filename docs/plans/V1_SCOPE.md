@@ -343,6 +343,15 @@ composite/cascading relationships remain separate work.
 
 ### Remaining work
 
+EXP-0275 accepts 30 initial relationship-graph creation pairs and 168 native
+lifecycle stage captures, with 136 expected refusals and 564 successful native
+requests. Multiple-parent/child, shared-index, self-reference, AutoNumber and
+27-table catalog-boundary cases retain complete values, schema, properties,
+keys, allocation and the recorded counter behavior. Referenced chain-middle
+rows use native FK/Memo field edits: DAO rejects a full-row edit that reassigns
+their unchanged primary key. The plural creation APIs and CLI `relationships`
+array retain the two-constraint bounds above.
+
 - Extend creation to remaining schema/index-key combinations and relationship forms.
 - Extend updates to remaining index key types/collations, relationship forms,
   additional payload/schema combinations, broader

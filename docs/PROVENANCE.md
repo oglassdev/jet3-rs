@@ -18050,3 +18050,72 @@ relationships, at most two simultaneous constraints per endpoint, and the
 listed Memo transitions. It does not establish relationship creation/drop,
 composite/cascading/other-key relationships, OLE growth in these graph schemas,
 more complex graph inventories, other providers or whole-v1 compatibility.
+
+
+### EXP-0275 — Relationship graph creation and native continuations
+
+- Recorded: 2026-09-16, OpenAI Codex.
+- Scope: two enforced, non-cascading ascending Long constraints, including
+  multiple parents/children, chains, self-references, shared foreign physical
+  indexes and unrelated tables. Parent keys may be AutoIncrement. Rich columns,
+  nullable FKs, empty Text/Memo, independent Memo/OLE maps and chained
+  definitions/properties retain their existing grammar.
+- Sources: baseline `bdf6c085d85c93dfa4f01c6c73441d6cd8759485`, AutoNumber arm
+  `3c2516ca8c069d5f5066f94498c221ed419e79e3`; the integrated example at
+  `ca36ab505951bf94487a6db2341d9fb2db598e31` reproduces the submitted MDB bytes.
+  Reproducible matrices, inputs, native producers, failed attempts, complete
+  captures, source archives and root evaluation are retained externally.
+- Environment: the local Windows DAO 3.6 x86 environment recorded in EXP-0273,
+  including DLL 03.60.9765.0 with SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+- Initial creation compares 30 pairs: six ordinary graph shapes in empty and
+  populated forms, two 27-table catalog-boundary forms, and a populated
+  AutoNumber parent, each replicated twice. Full DAO schema, rows, traversal,
+  Seek results, named properties, reciprocal records, system/user index
+  keys and locators, both prefix words, allocation and payload reachability
+  match their declared expectations. The boundary includes 34 child fields,
+  eight independent payload maps, continued definitions/properties and a
+  genuinely multi-page MSysObjects catalog.
+- Native continuations cover 168 stage captures (including 60 initial captures)
+  and 136 expected refusal captures, with 564 successful DAO requests across
+  both construction lineages. Each stage checks complete values, keys, Seek,
+  per-lineage counter history, physical definition roots/map locators,
+  unchanged system maps/properties/catalog pages and unrelated tables.
+- Failed writes preserve rows, keys, allocation and schema in these cases but
+  may change page-zero bookkeeping and index prefixes. Orphan inserts can
+  increment the ordinary primary counter. Rejected self-parent deletion and
+  rejected foreign-key edits can decrement a nonzero foreign first word and
+  clamp its second word. The evaluator predicts these finite effects instead
+  of normalizing or ignoring them.
+- DAO full-row edits that reassign an unchanged referenced Middle primary key
+  return 3200 in both ordinary and boundary chains. Those failed runs remain
+  retained. Accepted chain continuations edit only ParentId and Memo fields;
+  they do not establish native full-row acceptance for those referenced rows.
+- Serialization differences are explicit: created Rust foreign indexes start
+  with first word zero; native creation after population retains the child row
+  count. The AutoNumber parent uses a different valid Required/AllowZeroLength
+  dictionary order; both raw 72-byte payloads remain retained and decode to the
+  same named Boolean properties. Only volatile DateCreated/LastUpdated values
+  are normalized for DAO property comparison; raw timestamps remain retained.
+- The original smaller catalog boundary failed its intended page-count check;
+  all four failures remain recorded and were replaced by the larger cases.
+  Original harness failures, timeouts and rejected evaluations remain separate.
+- Bounds: at most two constraints in creation, first-declared ascending parent
+  primary, Long child columns, ASCII names, no cascades or relationship dropping.
+  These finite comparisons do not establish whole-v1 compatibility. The Long
+  relationship validator also passes the 212 retained EXP-0274 captures without
+  modification; that replay is internal validation rather than a new differential.
+
+- Retained bundle: private VM `shared/checks/20260916-relationship-graph-creation`;
+  2,110-file manifest SHA-256
+  `3863de16faeaa70466224dd78dd0d14934f8415b2152f93b5a05fa74461b5f8e`.
+  The root combined report SHA-256 is
+  `9439f10ba0a069108d7c90b2433d03b34011b9cbf2c7107269e9bc1aa4322f86`.
+  The frozen native summary counted 560 requests; the accepted matrices and
+  operation receipts both total 564 (200 + 192 + 12 + 160), as recorded by the
+  root report and additive count correction.
+- Portable preparation/evaluation: `relationship_graph_prepare.py`,
+  `relationship_graph_creation.py`, `relationship_graph_checks.py` and
+  `relationship_graph_lifecycle.py` under `oracle/windows-dao/scripts`.
+  GPT-5.6 Sol high independently reviewed production code and the comparisons.
+  Final production `just ready` passes 1,554 test executions with zero failures.
