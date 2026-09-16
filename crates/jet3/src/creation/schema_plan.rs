@@ -304,13 +304,11 @@ pub(crate) fn plan_table_schema_with_logical_names(
     extra_names: &[&[u8]],
     budget: &mut crate::ResourceBudget,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
-    let columns = spec.columns.len().min(255) as u64;
-    let indexes = (spec.indexes.len().min(32) as u64).saturating_add(extra_names.len() as u64);
     budget
         .charge_work_units(
-            columns
-                .saturating_mul(columns)
-                .saturating_add(indexes.saturating_mul(indexes))
+            (spec.columns.len().min(255) as u64)
+                .saturating_add(spec.indexes.len().min(32) as u64)
+                .saturating_add(extra_names.len() as u64)
                 .saturating_mul(512),
         )
         .map_err(TableSchemaPlanError::Resource)?;
@@ -334,6 +332,7 @@ pub(crate) fn plan_table_schema_with_logical_names(
             ordinal,
             column.name(),
             spec.columns[..ordinal].iter().map(|c| c.name()),
+            budget,
         )?;
     }
     validate_column_layout(spec.columns, TableDefinitionKind::User, &[])
@@ -366,12 +365,12 @@ pub(crate) fn plan_table_schema_with_logical_names(
             .chain(extra_names[..position].iter().copied());
         validate_name("logical index", ordinal as u16, name, prior.clone())
             .map_err(TableSchemaPlanError::Definition)?;
-        validate_distinct_name("logical index", ordinal, name, prior.clone())?;
+        validate_distinct_name("logical index", ordinal, name, prior.clone(), budget)?;
     }
     let length = measure_definition(spec, extra_names)?;
     let index_fields = resolve_index_fields(spec)?;
     let plan = assign_pages(spec, first_page, first_create, length, index_fields)?;
-    validate_indexes(spec, &plan)?;
+    validate_indexes(spec, &plan, budget)?;
     Ok(plan)
 }
 
@@ -464,15 +463,36 @@ fn validate_distinct_name<'a>(
     role: &'static str,
     ordinal: usize,
     name: &[u8],
-    mut earlier: impl Iterator<Item = &'a [u8]>,
+    earlier: impl Iterator<Item = &'a [u8]>,
+    budget: &mut crate::ResourceBudget,
 ) -> Result<(), TableSchemaPlanError> {
-    if earlier.any(|other| catalog_names_equal(other, name)) {
-        return Err(TableSchemaPlanError::Definition(
-            TableDefinitionWriteError::DuplicateName {
-                role,
-                ordinal: ordinal as u16,
-            },
-        ));
+    for other in earlier {
+        if other.len() > 64 {
+            continue;
+        }
+        budget
+            .charge_work_units(((name.len().min(64) + other.len().min(64)) as u64) * 2 + 1)
+            .map_err(TableSchemaPlanError::Resource)?;
+        let equal = if name.is_ascii()
+            && other.is_ascii()
+            && !name.ends_with(b" ")
+            && !other.ends_with(b" ")
+        {
+            name.eq_ignore_ascii_case(other)
+        } else {
+            budget
+                .charge_work_units(512)
+                .map_err(TableSchemaPlanError::Resource)?;
+            catalog_names_equal(other, name)
+        };
+        if equal {
+            return Err(TableSchemaPlanError::Definition(
+                TableDefinitionWriteError::DuplicateName {
+                    role,
+                    ordinal: ordinal as u16,
+                },
+            ));
+        }
     }
     Ok(())
 }
@@ -577,6 +597,7 @@ fn assign_pages(
 fn validate_indexes(
     spec: &TableSpec<'_>,
     plan: &TableSchemaPlan,
+    budget: &mut crate::ResourceBudget,
 ) -> Result<(), TableSchemaPlanError> {
     let mut primary: Option<usize> = None;
     for ((position, planned), fields) in spec.indexes.iter().enumerate().zip(plan.index_fields()) {
@@ -589,6 +610,7 @@ fn validate_indexes(
             position,
             planned.name,
             spec.indexes[..position].iter().map(|earlier| earlier.name),
+            budget,
         )?;
         validate_name(
             "logical index",

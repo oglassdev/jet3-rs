@@ -59,7 +59,7 @@ compatibility claim. No separate output configuration is required.
 
 Creation packs tables with multi-page system catalogs and catalog indexes
 with inline and indirect allocation maps. Table and column names admit
-64 ASCII bytes and index names admit 63. Table definitions may
+64 Windows-1252 bytes and index names admit 63. Table definitions may
 span linked pages on first and later tables, including populated and indexed
 schemas. It supports multi-page initial rows, explicit/generated AutoIncrement
 IDs, and up to 32 scalar indexes per table, including Date, Binary, fixed/variable

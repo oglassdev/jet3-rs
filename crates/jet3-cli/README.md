@@ -122,7 +122,14 @@ value object. The tag must match the column type (fixed text uses `text`):
 | `{"binary": [0, 255]}`, `{"long_binary": [0, 255]}` | Exact binary/OLE bytes |
 | `{"guid": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]}` | Sixteen bytes in conventional GUID display order |
 
-Names are Unicode JSON strings encoded strictly as Windows-1252. String text values must be ASCII. For non-ASCII text use already-encoded
+Names are Unicode JSON strings encoded strictly as Windows-1252. Table and
+column names allow up to 64 encoded bytes; index and relationship names allow
+63. Names preserve their supplied bytes, including trailing spaces. Names with
+equal English-US/CP1252 collation keys collide (for example, `AE` and `Æ`).
+Controls, undefined bytes, leading ASCII spaces and `. ! [ ]` or backtick are
+refused. References to tables and columns use their exact supplied names.
+
+String text values must be ASCII. For non-ASCII text use already-encoded
 byte arrays; the CLI does not silently encode UTF-8 into the database. All
 byte array elements must be integers from 0 through 255. The CLI exposes no
 raw Memo/OLE reference headers; the library allocates payload references.
