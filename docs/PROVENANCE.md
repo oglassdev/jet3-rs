@@ -18866,3 +18866,60 @@ matrix `a9d733d7ef40645cecb431336e5fe858db9c5e891d5f1e4edb259c6f989bfa4b`;
 ZIP `b71ad3e50154b0106c0262255d9ba0615fb0d1342b5aad1c6659712ca48bf247`.
 The complete DAO readback comparison remains pending; Rust-only preparation
 success does not establish compatibility.
+
+### Accepted property-presence mutation comparison
+
+Run `20260916T082937Z-property-presence-acceptance-r2` closes complete DAO
+readbacks for all 252 prepared Rust outputs in two workers. The differential
+accepts 226 successful operations and 26 matching refusals against the exact
+native predecessor inputs. Complete DAO schema/property getters, values,
+index traversal and Seek agree. Raw checks retain the named property models,
+row bytes, complete physical keys and locators, counters, ownership maps,
+unrelated system storage and byte-exact refusals. The six first-insert placement
+differences use only the bounded comparison described above; the other 246
+pairs retain the direct allocation and locator comparisons. Updates exercise
+full-row replacement, not the fixed-field editing API.
+
+Root replay reproduces the accepted report byte for byte. Independent Sol high
+review found no correctness blocker in the production change or the bounded
+allocation comparison. Accepted SHA-256 identities:
+
+- Complete differential report: `31ebff0a23c43ebc28045ae3427fd3c45e9bb7a663018d3d78909b141e112cd2`.
+- Capture producer: `849fefb5030679455c00173aa0ecda6a664d372adeae641d5a68bafa1e5079fa`.
+- Differential evaluator: `a0e412eb5d8cf7d19bc87f2d4040e51a8f5fcc33f026d9c6498b2c1541f5abf5`.
+- Allocation comparison: `f8820625b8df496a36ad70a11c91d39e5be85badedc89442367101251381109d`.
+
+The durable private bundle is
+`shared/checks/20260916-column-property-presence-acceptance` beneath the local
+VM root. Its manifest SHA-256 is
+`9933e95788446be7ff0f920acaa12ba7a19a15014d62e1cb1a2638b87ebf0706`;
+FINDINGS SHA-256 is
+`309fc0aa6d1615789879b0d90fe9e238bd0edc218a6222fbd05fdbe2d01c7d59`.
+All 475 manifested files (150,694,186 bytes) and the exact directory inventory
+were independently verified. The bundle retains the native and differential
+runs, source/CLI and tools, the rejected fixed-field preparation, the failed
+setter-omission hypothesis and tombstone preparation, and the host-only staging
+filename failure. No failed result supplies accepted compatibility evidence.
+
+This accepts only the declared absent/partial Boolean properties and Text,
+FixedText and Memo insert/replacement cases. Defaults, validation expressions,
+arbitrary property grammars and whole-v1 compatibility remain outside this scope.
+
+### Combined source after larger-graph merge
+
+Revision `0a7e9e00d2cd23643fa8543fd96abe4261c2b1aa`, rebased onto larger-graph
+main `9a59db02d53e363ae715fcbbeb602ec6848549ae`, passes `just ready` with
+1,610 passing executions, zero failures and ten ignored tests. Its ready-log
+SHA-256 is `e2991fe8cade1ee693399572753569d2840c22ee1dcf4dcf078fa1994e3a009d`.
+The same 252 requests reproduce every accepted Rust MDB byte for byte;
+reproduction report SHA-256 is
+`6d64bd008f7fa55bf2208f43a1c49ee0daeef546ab559282b964ea752948f3c1`.
+This carries the finite DAO comparison to the combined production source
+without attributing an additional native run.
+
+The source archive, CLI, ready log, requests, outputs and reproduction report
+are retained in the separate immutable supplement
+`shared/checks/20260916-column-property-presence-combined-source` beneath the
+local VM root. Its manifest covers 1,520 files (69,062,371 bytes), SHA-256
+`36c787a41531549cf97511bf83d84624266db6ce0f7e2afee85efe948a74fead`.
+The accepted acquisition archive above remains unchanged.

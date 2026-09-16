@@ -364,4 +364,6 @@ unchanged rows and byte-exact refusals. For the first insertion into wholly
 absent-property inputs, a bounded check compares append versus reuse of the
 released property page, retaining complete ownership and row/index comparisons.
 Retain failed preparation and evaluator
-outputs alongside corrected runs. Acceptance for this batch remains pending.
+outputs alongside corrected runs. EXP-0285 records acceptance of all 252 pairs
+(226 successes and 26 refusals), the independently reproduced complete report,
+and the verified durable archive. The tested updates use full-row replacement.
