@@ -1,4 +1,4 @@
-//! Read-only checks of EXP-0268/0273 relationship metadata and Long keys.
+//! Read-only checks of EXP-0268/0273/0279 relationship metadata and Long keys.
 use super::*;
 use crate::{TextCodePage, ValueKind};
 
@@ -106,6 +106,7 @@ fn check_keys<S: ReadAt>(
                 .ok_or(UpdateError::Mismatch("relationship parent key absent"))?
                 .kind()
             {
+                ValueKind::Null => continue,
                 ValueKind::Long(value) => *value,
                 _ => return Err(UpdateError::Mismatch("relationship parent key type")),
             };

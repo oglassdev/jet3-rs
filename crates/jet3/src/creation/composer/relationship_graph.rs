@@ -81,7 +81,11 @@ pub(crate) fn compose_relationship_graph(
             match values.get(usize::from(edge.child_column)) {
                 Some(RowValue::Null) => {}
                 Some(RowValue::Long(value))
-                    if creates[edge.parent].contains_initial_long(*value, budget)? => {}
+                    if creates[edge.parent].contains_initial_long(
+                        edge.parent_physical,
+                        *value,
+                        budget,
+                    )? => {}
                 Some(RowValue::Long(value)) => {
                     return Err(ComposeError::OrphanInitialRelationshipKey { row, value: *value });
                 }

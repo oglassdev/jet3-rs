@@ -557,7 +557,8 @@ def _definition(data: bytes, root: int) -> dict[str, Any]:
             {
                 "class": raw[19],
                 "name": "",
-                "physical_index": _u32(raw, 0, what),
+                "selector": _u32(raw, 0, what),
+                "physical_index": _u32(raw, 4, what),
                 "raw_hex": raw.hex(),
             }
         )
@@ -777,6 +778,11 @@ def _assign_role(roles: dict[int, dict[str, Any]], page: int, role: str, owner: 
     existing = roles.get(page)
     if existing is None:
         roles[page] = {"role": role, "owners": set()}
+    elif {existing["role"], role} <= {"map_rows", "long_value_map_rows"}:
+        # A data page may hold independent allocation-map rows for both table/index
+        # storage and long-value storage. Every locator and bitmap is still decoded
+        # and attributed separately below; only the containing page role is shared.
+        existing["role"] = "map_rows"
     elif existing["role"] != role:
         raise DecodeError(f"page {page} is both {existing['role']} and {role}")
     if owner is not None:

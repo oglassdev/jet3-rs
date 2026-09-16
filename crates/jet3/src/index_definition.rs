@@ -1,5 +1,6 @@
 //! Lossless physical and logical index definitions from `EXP-0059` and
-//! relationship options isolated by `EXP-0062`.
+//! relationship options isolated by `EXP-0062`, and shared ordinary aliases
+//! from `EXP-0279`.
 //!
 //! This module decodes references and metadata only. Index-tree traversal is
 //! provided separately by [`crate::index_tree`].
@@ -213,15 +214,6 @@ pub enum IndexDefinitionError {
         /// Physical-index count.
         physical_count: u16,
     },
-    /// An ordinary index's two physical selectors differ.
-    InconsistentOrdinarySelectors {
-        /// Zero-based logical-index ordinal.
-        logical_index: u16,
-        /// First sourced selector.
-        first: u32,
-        /// Second sourced selector.
-        second: u32,
-    },
     /// A logical record has unsupported class/context fields.
     UnsupportedLogicalRecord {
         /// Zero-based logical-index ordinal.
@@ -434,13 +426,8 @@ pub(crate) fn decode_indexes(
                         marker,
                     });
                 }
-                if first != second {
-                    return Err(IndexDefinitionError::InconsistentOrdinarySelectors {
-                        logical_index,
-                        first,
-                        second,
-                    });
-                }
+                // EXP-0279: the first word identifies the logical alias; only the
+                // second selects its physical tree. Aliases may share that tree.
                 if relation_ordinal != u32::MAX || related_raw != 0 {
                     return Err(IndexDefinitionError::UnexpectedOrdinaryRelationshipFields {
                         logical_index,

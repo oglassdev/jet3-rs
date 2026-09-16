@@ -7,15 +7,15 @@ use crate::{CatalogObjectKind, RelationshipSide, RelationshipSpec, TableRef, Tex
 ///
 /// Table order is independent of relationship direction. Multiple endpoints,
 /// chains, self-references and two parents sharing a child FK column are admitted.
-/// Each parent needs an ascending Long/AutoIncrement primary as its first index. A child FK
-/// must not already have a declared single-column index; the composer appends
-/// its foreign index, sharing it between relationships on that column.
-/// Other columns retain the normal creation planner's bounds. Generated foreign
-/// indexes need free slots within the 32-physical-index limit. Parent logical
-/// ordinals, including earlier relationship records, must fit the current
-/// hidden-name construction policy through `.rZ` (ordinal 25).
+/// Each parent needs an ascending unique Long/AutoIncrement index. The composer
+/// selects the first eligible index in logical name order. An ordinary ascending
+/// child index on the FK column is reused, retaining its declared name; otherwise
+/// the composer adds a foreign index. Relationships on the same child column
+/// share its physical index. Each reciprocal relationship record consumes one
+/// of the table's 32 logical index slots. Other columns retain the normal
+/// creation planner's bounds.
 ///
-/// This uses the EXP-0273 reciprocal grammar and existing creation primitives.
+/// This uses the EXP-0273/0279 reciprocal grammar and existing creation primitives.
 /// It is a candidate construction; only recorded DAO comparisons establish
 /// compatibility. Existing destinations and the budget guarantees of
 /// [`create_database`] apply.
@@ -157,9 +157,31 @@ fn check_graph(
             let parent_definition = database
                 .table_definition(tables[parent].0, budget)
                 .map_err(CandidateCheckError::Definition)?;
+            budget
+                .charge_work_units(
+                    (parent_definition.indexes().len() as u64)
+                        .saturating_mul(definition.indexes().len() as u64 * 64),
+                )
+                .map_err(CandidateCheckError::Read)?;
+            let mut parent_relations = parent_definition.relationships().filter(|relation| {
+                relation.side() == RelationshipSide::PrimaryTable
+                    && relation.related_table() == root
+                    && definition.relationships().any(|foreign| {
+                        foreign.side() == RelationshipSide::ForeignTable
+                            && foreign.name().raw_bytes() == spec.name
+                            && foreign.raw_selector() == relation.raw_relation_ordinal()
+                            && foreign.raw_relation_ordinal() == relation.raw_selector()
+                    })
+            });
+            let primary = parent_relations
+                .next()
+                .ok_or(mismatch("graph parent relationship"))?;
+            if parent_relations.next().is_some() {
+                return Err(mismatch("graph ambiguous parent relationship"));
+            }
             let parent_key = parent_definition
                 .physical_indexes()
-                .first()
+                .get(usize::from(primary.physical_index()))
                 .ok_or(mismatch("relationship graph parent index"))?;
             if parent_key.fields().len() != 1
                 || Some(parent_key.fields()[0].column().get())

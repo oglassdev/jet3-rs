@@ -109,12 +109,8 @@ impl<'a> PlannedCreate<'a> {
                             detail: "foreign physical index missing",
                         },
                     )?;
-                    let append = *slot;
-                    if !append && index.name != physical.name {
-                        return Err(ComposeError::UnsupportedRelationship {
-                            detail: "foreign record must retain its generated index name",
-                        });
-                    }
+                    // EXP-0279: declared aliases remain; generated foreign names are replaced.
+                    let append = *slot || index.name != physical.name;
                     *slot = true;
                     append
                 }
@@ -378,11 +374,12 @@ impl<'a> PlannedCreate<'a> {
 
     pub(super) fn contains_initial_long(
         &self,
+        physical: u16,
         value: i32,
         budget: &mut ResourceBudget,
     ) -> Result<bool, ComposeError> {
         self.initial_indexes
-            .first()
+            .get(usize::from(physical))
             .ok_or(ComposeError::UnsupportedInitialIndexSchema)?
             .contains_single_long(value, budget)
     }
@@ -554,7 +551,11 @@ impl<'a> PlannedCreate<'a> {
                     detail: "relationship physical index missing",
                 },
             )?;
-            if foreign && !*flag {
+            let generated = spec
+                .indexes
+                .get(usize::from(index.physical_index))
+                .is_some_and(|physical| physical.name == index.name);
+            if foreign && !*flag && generated {
                 let slot = logical
                     .iter_mut()
                     .find(|existing| existing.physical_index == index.physical_index)

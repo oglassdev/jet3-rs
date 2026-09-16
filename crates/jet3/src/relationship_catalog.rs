@@ -1,4 +1,4 @@
-//! EXP-0073/0114 endpoints, EXP-0059/0062/0268 reciprocal metadata, and EXP-0277 names.
+//! EXP-0073/0114/0279 endpoints, EXP-0059/0062/0268 reciprocals, and EXP-0277 names.
 use crate::catalog_name_key::{catalog_names_equal, validate_catalog_name};
 use crate::{
     CatalogObjectClass, CatalogObjectKind, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
@@ -224,12 +224,16 @@ fn index(
             "relationship requires one ascending Long key",
         ));
     }
-    if index.unique() != parent
-        || (parent && !index.required())
-        || (!parent && index.raw_flags() != 0)
-    {
+    let flags = index.raw_flags();
+    let supported = if parent {
+        flags == crate::PhysicalIndexFlagsSpec::Unique.raw()
+            || flags == crate::PhysicalIndexFlagsSpec::UniqueRequired.raw()
+    } else {
+        flags == crate::PhysicalIndexFlagsSpec::Ordinary.raw()
+    };
+    if !supported {
         return Err(UpdateError::Unsupported(
-            "relationship requires a primary parent and ordinary child index",
+            "relationship requires a unique parent and ordinary child index",
         ));
     }
     Ok(())

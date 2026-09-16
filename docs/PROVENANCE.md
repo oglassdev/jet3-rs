@@ -18278,3 +18278,171 @@ more complex graph inventories, other providers or whole-v1 compatibility.
   non-cascading Long relationship inventory. Other name encodings, undefined
   bytes, longer index/relationship names, broader relationship forms and
   whole-v1 compatibility are not established by these finite comparisons.
+
+## EXP-0279 — Native relationship index selection, reuse and logical limits
+
+- **Inputs/provider:** four local suites, each with two replicas, using x86
+  DAO 3.6 on Windows Server 2022 (10.0.20348, en-US/CP1252). DLL 03.60.9765.0
+  SHA-256 `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  Source contexts are `c85c116f50e9cb0625a27f6cf9b2e9b647186277` and
+  `226fc39a6a9d97f99e34f93306dad7d6019ef74e`; discovery uses native-created
+  databases, not Rust candidates. Runs are
+  `20260916T024836Z-relationship-index-r1`,
+  `20260916T030504Z-relationship-index-supp-r1`,
+  `20260916T031054Z-relationship-index-life-r1` and
+  `20260916T031841Z-relationship-index-bound-r1`.
+- **Parent selection:** an ascending single-Long primary need not be physical
+  index zero. A nonprimary unique index may be nullable (flags 1) or required
+  (flags 9). Parent keys `{1, Null, Null}` and child keys `{1, Null}` are accepted;
+  all parent row locators remain indexed, with distinct counter 2. When eligible
+  `AUnique` and `ZPrimary` indexes are declared in either order, DAO chooses
+  `AUnique`, consistent with logical name order rather than primary priority.
+- **Child reuse:** an ordinary ascending single-column FK index (flags 0) is
+  reused before or after a primary, retaining its ordinary logical alias.
+  Two native ordinary aliases and the relationship share one physical tree.
+  Unique, primary, Required, IgnoreNulls and descending ordinary child indexes
+  are retained while DAO adds an ascending ordinary foreign tree. A declared
+  child index with the relationship name refuses DAO 3284.
+- **Logical capacity:** 31 declared child indexes admit a relationship, reaching
+  32 logical records and either 31 reused or 32 newly allocated physical trees.
+  With 32 declared indexes, both child variants and the parent variant refuse
+  DAO 3626. Each reciprocal alias consumes a logical slot even when reusing a
+  physical tree. Parent selectors/names are 1 `.rB`, 2 `.rC`, 15 `.rP`,
+  16 `.rAB`, 24 `.rIB`, 25 `.rJB`, 26 `.rKB`, 31 `.rPB`. These boundary
+  observations support low-nibble-first hexadecimal digits mapped to `A..P`;
+  intermediate selectors follow that rule but were not all acquired separately.
+  Reciprocal selectors, relation ordinals, roots, sides and zero context retain
+  the EXP-0273 grammar. Two separate child FKs reuse independent trees.
+- **Lifecycle:** 24 captures across four lineages preserve complete rows,
+  Memo-4096 edits, keys/locators, reciprocal/catalog records and allocation.
+  There are 24 successful operations and eight expected refusals (3201 orphan
+  FK, 3200 referenced-parent deletion). The generated foreign prefix follows
+  `(2,2)` initially, `(2,3)` after insertion, `(1,1)` after FK assignment and
+  `(0,0)` after deleting the duplicate-key child. A reused tree's first word
+  begins at zero and retains the prior zero-saturation rules. Alias trees are
+  maintained once. Failed writes retain the established finite prefix/page-zero
+  bookkeeping without row, key, root or map changes.
+- **Verification/history:** 46 main, 18 supplement, four boundary and 24 lifecycle
+  captures are checked for exact output inventory, full DAO schema/properties/
+  rows, every traversal and Seek, physical keys/locators, relationship system
+  rows and allocation separation. The original main parent-count arms had an
+  orphan seed and refused 3201; they establish no capacity facts. Corrected
+  supplements establish the counts above. Wrapper/evaluator failures remain
+  retained alongside successful reruns. These are native observations, not
+  a Rust compatibility claim.
+- **Artifacts:** `shared/checks/20260916-relationship-index-discovery`, 231-file
+  manifest SHA-256
+  `c259a537024de00246061635459cbad41224e5b1c71e623d23902215b69564e6`;
+  final report `c6576c95b4ffa693e54ca210d33af948c7288f5cf6c0e7fb5a2318ce52362ece`;
+  findings `b89304e6c7c331729868f082777acfa1d42c652ff8d505deba4b231b4e252b75`.
+  Inputs, producers, clean-room evaluators, complete outputs and report replay
+  are retained; root verifies every durable manifest entry.
+- **Limits:** enforced non-cascading single-Long keys, at most two relations,
+  the stated flag/direction combinations and selected capacity boundaries.
+  DAO additionally creates a separate ascending required-unique parent tree
+  when only a descending unique index qualifies; this construction remains
+  deferred. Composite/cascading/cross-type forms and whole-v1 compatibility
+  are not established.
+
+### EXP-0279 — Ordinary logical selector clarification
+
+The retained native `child-fk-two-aliases` definitions carry ordinary records
+`010000000100000000ffffffff00000000040400` (`FkA`) and
+`020000000100000000ffffffff00000000040400` (`FkB`), followed by relationship
+selector 3 pointing to physical tree 1. The first ordinary word identifies
+the logical alias; it need not equal the second, physical selector. Both
+complete raw records are retained in the same EXP-0279 bundle. The reader now
+preserves that first word without interpreting it as a physical bound, and
+continues validating the second against the physical inventory. The previous
+equality refusal and its self-generated corruption case were disproved by
+this native input. A failed native-input mutation preparation is retained;
+this clarification makes no additional compatibility claim.
+
+### EXP-0279 — Read-only validation of retained native outcomes
+
+After the ordinary-alias decoder correction, root validates all 92 retained
+MDBs without changing any input byte. All 74 successful creation/lifecycle/
+boundary captures pass. The other 18 are the retained native relation-creation
+refusals or invalid preparations: their `MSysObjects` definition declares 11
+rows while ten live rows remain. The validator reports this count mismatch;
+its equality check is unchanged. This is an integrity observation over native
+failed-operation outcomes, not a failed relationship-key comparison or an
+additional compatibility claim. The complete results are retained with the
+subsequent relationship-index acceptance artifacts; broader native failed-write
+preservation and the validation contract remain tracked in issue #369.
+## EXP-0280 — Relationship index selection and shared-alias acceptance
+
+- **Source/provider:** production revision
+  `2c4a77f02001beb78ebd8415392c91d08b3c8f1d`, source archive SHA-256
+  `e29c6640b17a1ec3c90491d510ebb834a415ddceea1d74837ee6d1b31e0ea3a2`.
+  Candidate generator `993ab53183155a3046552f87ea0c207fc68ef57142dd4eb8c15baae5807521f7`;
+  CLI `149aba8ff7e82b67aecceda6b667126459fb62ef296dafcd5b90e137205d8193`.
+  Microsoft DAO 3.6 x86, DLL 03.60.9765.0 SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`,
+  Windows Server 10.0.20348, en-US/CP1252. The reviewed production revision
+  reproduces all 128 submitted creation and lifecycle MDB images exactly.
+- **Creation:** 20 schemas, two replicas each: 40 candidate/native pairs and
+  80 captures. These cover later/nonprimary/nullable unique parents, repeated
+  parent Nulls, eligible-parent name ordering, existing child FK index reuse,
+  ordinary aliases sharing a native physical tree, nonreusable child flags and
+  direction, two relationships, logical capacity 31 and hidden-name boundaries
+  15/16/31. Complete DAO schema, properties, rows, traversal and Seek results
+  agree after normalizing only table creation/update dates. Raw comparisons
+  check every user/system key and row locator, reciprocal selectors, selected
+  index definitions, catalog/ACE rows, counters and allocation ownership.
+  The unrelated Notes Memo is exactly 4,608 bytes. Allocation and ordinary-alias
+  physical layouts may differ between independently created files; every tree
+  and logical alias is checked against its own rows and declared role.
+- **Mutation:** eight lineages from Rust and native origins, two replicas of
+  nullable parents and shared child aliases: 72 pairs and 144 captures.
+  The 56 successful operations include parent/child insertion, FK edits,
+  full-row Memo growth to 4,096 bytes, and child/parent deletion. Complete
+  values, schema/properties, traversal/Seek, keys/locators, both index prefix
+  words, maps/free pages, system storage and unrelated Notes agree. Native
+  shared aliases select one physical tree, which is maintained once.
+  Eight orphan refusals return DAO 3201 and eight referenced-parent refusals
+  return 3200. Every Rust refusal preserves the whole input. Native orphan
+  refusals retain the previously observed finite foreign-prefix side effect;
+  referenced-parent refusals preserve the native image exactly.
+- **Payload placement:** successful replacement may choose different valid
+  Memo pages: the representative candidate-origin pair uses Rust page 43 and
+  DAO page 41; native-origin pairs use 34/32 or 33/31. Comparisons normalize
+  only the selected descriptor placement and mask that descriptor in the raw
+  row before comparing every remaining byte. Complete payload bytes, length,
+  flags, row locator/storage, ownership/reachability, keys, counters, maps and
+  unrelated rows remain checked. This is semantic compatibility, not identical
+  payload allocation.
+- **Harness/history:** the 31-index candidate shares one allocation-map
+  container between ordinary index-map rows and Memo-map rows. The helper now
+  permits these compatible row families while retaining exact bitmap ownership
+  and all other page-role conflicts. The original map-family, payload-size,
+  system-page-hash and payload-placement failures remain retained. The creation
+  guest completed after the host wrapper's wait expired; complete receipts,
+  exit 0 and its interrupted local wrapper are retained. The first lifecycle
+  dispatch failed before DAO because the ZIP had the wrong basename; the
+  corrected run retains all eight worker exits 0. The 18 EXP-0279 native failed
+  creation/preparation images still fail their catalog row-count check and
+  remain outside this acceptance; no integrity check was relaxed.
+- **Runs/replay:** creation `20260916T032512Z-relationship-index-accept-r1`;
+  lifecycle `20260916T040131Z-rel-index-life-r2`. Repository producers are
+  `relationship_index_acceptance.ps1` and `relationship_index_lifecycle.ps1`;
+  evaluators are `relationship_index_creation.py` and
+  `relationship_index_lifecycle.py` under `oracle/windows-dao/scripts/`.
+  They take `--evidence-root` plus the retained matrix/bundle/config, outbox and
+  output-report paths; both shared and frozen inbox/outbox layouts are accepted.
+  `acquisition/relationship-indexes.matrix.json` retains the submitted matrix.
+  Root replay through the repository tools reproduces every report field except
+  the evaluator's own identity. Independent GPT-5.6 Sol high review is clear;
+  `just ready` passes 1,592 test executions, zero failures and ten ignored.
+- **Artifacts:** `shared/checks/20260916-relationship-index-acceptance`, with
+  `preparation/` and frozen `review/` inputs, producers, reports, complete outputs
+  and failure histories. Root verifies every entry in the 2,064-file manifest,
+  SHA-256 `bcee42b65c9c62aad56c75eb252f16cd9a0d78ceb74b03950de6ac400fcb7195`.
+  Review manifest `77a9487b00bf79dc4a78d3b8eb974f2e2d3fc4901a4cacc1701928f55965c4e6`;
+  final report `2fa3caa1a24f73f6ef260bf3ca65f77eea5e32b81c1217d2cf91bc4737c0e35f`;
+  creation report `a5c6e1e7fcd5cda40508f29051a9d92bb3eefec4bc270c440cdcaba5e3dbe25e`;
+  lifecycle report `cebb1eac52fbf677213546b9c87aa407de56ae7bd76a8ab4da4251e2d1e9ba23`.
+- **Limits:** enforced non-cascading single-Long constraints, at most two
+  simultaneous relationships in these creation cases, and the recorded scalar
+  index forms. Larger graphs, composite/cascading/other-key constraints,
+  relationship alteration/drop and whole-v1 compatibility remain separate work.

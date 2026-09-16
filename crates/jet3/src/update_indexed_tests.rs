@@ -99,7 +99,7 @@ fn nonkey_update_preserves_every_index_and_unrelated_byte() -> TestResult {
 }
 
 #[test]
-fn inconsistent_or_out_of_range_index_mapping_refuses_publication() -> TestResult {
+fn out_of_range_index_mapping_refuses_publication() -> TestResult {
     let fixture = indexed()?;
     let row = fixture.locator(0)?;
     let original = fs::read(fixture.path())?;
@@ -117,8 +117,8 @@ fn inconsistent_or_out_of_range_index_mapping_refuses_publication() -> TestResul
     assert_eq!(matches.len(), 1);
     let offset = root_offset + matches[0];
     drop(db);
-    // EXP-0059 logical selectors: mismatched selectors and out-of-range references.
-    for (first, second) in [(1_u32, 0_u32), (1, 1)] {
+    // EXP-0279: the second selector references the physical tree.
+    for (first, second) in [(0_u32, 1_u32), (0, u32::MAX)] {
         let mut damaged = original.clone();
         damaged[offset..offset + 4].copy_from_slice(&first.to_le_bytes());
         damaged[offset + 4..offset + 8].copy_from_slice(&second.to_le_bytes());
