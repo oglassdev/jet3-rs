@@ -458,7 +458,8 @@ fn relationship_catalog_cases(fixture: Fixture, column: ColumnOrdinal) -> TestRe
         (Some(b"iTeMs".as_slice()), Some(b"Other".as_slice()), true),
         (Some(b"Other".as_slice()), Some(b"Items".as_slice()), true),
         (None, Some(b"Other".as_slice()), true),
-        (Some(b"\x80".as_slice()), Some(b"Other".as_slice()), true),
+        (Some(b"\x81".as_slice()), Some(b"Other".as_slice()), true),
+        (Some(b"\x80".as_slice()), Some(b"Other".as_slice()), false),
         (
             Some(b"Other".as_slice()),
             Some(b"Elsewhere".as_slice()),

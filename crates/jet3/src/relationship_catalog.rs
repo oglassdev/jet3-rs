@@ -1,4 +1,5 @@
-//! EXP-0073/0114 endpoints and EXP-0059/0062/0268 reciprocal relationship metadata.
+//! EXP-0073/0114 endpoints, EXP-0059/0062/0268 reciprocal metadata, and EXP-0277 names.
+use crate::catalog_name_key::{catalog_names_equal, validate_catalog_name};
 use crate::{
     CatalogObjectClass, CatalogObjectKind, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
     DatabaseReader, IndexDirection, PageNumber, ReadAt, Relationship, RelationshipSide,
@@ -61,15 +62,12 @@ fn resolve_tables(
             + child.columns().len()
             + parent.indexes().len()
             + child.indexes().len()) as u64
-            * 255,
+            * 512,
     )?;
     let parent_column = key_column(&parent, &record.parent_column)?;
     let child_column = key_column(&child, &record.child_column)?;
     let mut foreign = child.relationships().filter(|relation| {
-        relation
-            .name()
-            .raw_bytes()
-            .eq_ignore_ascii_case(&record.name)
+        catalog_names_equal(relation.name().raw_bytes(), &record.name)
             && relation.side() == RelationshipSide::ForeignTable
             && relation.related_table() == parent.root()
     });
@@ -241,7 +239,7 @@ fn key_column(table: &TableDefinition, name: &[u8]) -> Result<ColumnOrdinal, Upd
     let mut columns = table
         .columns()
         .iter()
-        .filter(|column| column.name().raw_bytes().eq_ignore_ascii_case(name));
+        .filter(|column| catalog_names_equal(column.name().raw_bytes(), name));
     let column = columns
         .next()
         .ok_or(UpdateError::Mismatch("relationship column absent"))?;
@@ -266,9 +264,10 @@ fn table<S: ReadAt>(
     {
         let mut catalog = database.catalog(budget)?;
         while let Some(record) = catalog.next_record()? {
+            catalog.budget_mut().charge_work_units(512)?;
             if record.class() == CatalogObjectClass::User
                 && record.kind() == CatalogObjectKind::Table
-                && record.name().raw_bytes().eq_ignore_ascii_case(name)
+                && catalog_names_equal(record.name().raw_bytes(), name)
             {
                 if root.is_some() {
                     return Err(UpdateError::Mismatch("ambiguous relationship table"));
@@ -364,7 +363,11 @@ fn read_records<S: ReadAt>(
     let mut result = Vec::new();
     let mut rows = database.rows(&definition, budget)?;
     let mut count = 0_u32;
-    while let Some(mut row) = rows.next_row()? {
+    loop {
+        rows.owned.budget_mut().charge_work_units(1024)?;
+        let Some(mut row) = rows.next_row()? else {
+            break;
+        };
         count = count
             .checked_add(1)
             .ok_or(UpdateError::Mismatch("relationship row count overflow"))?;
@@ -387,16 +390,16 @@ fn read_records<S: ReadAt>(
         let child = field(4)?;
         let parent = field(6)?;
         if let Some(target) = target {
-            if !target.is_ascii()
+            if validate_catalog_name(target).is_err()
                 || [child, parent]
                     .iter()
-                    .any(|name| name.is_empty() || !name.is_ascii())
+                    .any(|name| validate_catalog_name(name).is_err())
             {
                 return Err(UpdateError::Unsupported(
                     "unresolved relationship endpoint name",
                 ));
             }
-            if !child.eq_ignore_ascii_case(target) && !parent.eq_ignore_ascii_case(target) {
+            if !catalog_names_equal(child, target) && !catalog_names_equal(parent, target) {
                 continue;
             }
             if metadata != [0, 1, 0] {
@@ -406,10 +409,15 @@ fn read_records<S: ReadAt>(
             }
         }
         let sources = [field(0)?, parent, child, field(7)?, field(5)?];
+        if target.is_some() && sources[0].len() > 63 {
+            return Err(UpdateError::Unsupported(
+                "relationship name exceeds 63 bytes",
+            ));
+        }
         if target.is_some()
             && sources
                 .iter()
-                .any(|name| name.is_empty() || !name.is_ascii())
+                .any(|name| validate_catalog_name(name).is_err())
         {
             return Err(UpdateError::Unsupported("unresolved relationship name"));
         }

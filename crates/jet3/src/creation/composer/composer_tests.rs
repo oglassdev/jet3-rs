@@ -596,6 +596,7 @@ fn the_planner_reproduces_the_accepted_alpha_page_assignment() -> TestResult {
         },
         EMPTY_DATABASE_PAGE_COUNT,
         true,
+        &mut crate::ResourceBudget::new(crate::ResourceLimits::default()),
     )?;
     assert_eq!(plan.object_id(), ALPHA_ROOT as i32);
     assert_eq!(plan.definition_root(), PageNumber::new(ALPHA_ROOT));

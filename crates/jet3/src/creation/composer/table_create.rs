@@ -26,7 +26,6 @@
 use super::*;
 use crate::creation::schema_plan::{
     AVAILABLE_MAP_ROW, FIRST_INDEX_MAP_ROW, OWNED_MAP_ROW, TableSchemaPlan, TableSpec,
-    logical_index_order,
 };
 
 /// `EXP-0093`: `MSysObjects` `Flags` of a created user table.
@@ -134,6 +133,7 @@ impl<'a> PlannedCreate<'a> {
             first_page,
             first_create,
             &names,
+            budget,
         )?;
         if spec.columns.iter().any(|column| {
             column.allow_zero_length()
@@ -520,10 +520,11 @@ impl<'a> PlannedCreate<'a> {
                 },
             )
             .collect::<Vec<_>>();
-        let mut logical = logical_index_order(spec.indexes)
-            .into_iter()
-            .map(|ordinal| {
-                let index = &spec.indexes[ordinal];
+        let mut logical = spec
+            .indexes
+            .iter()
+            .enumerate()
+            .map(|(ordinal, index)| {
                 Ok(LogicalIndexSpec {
                     name: index.name,
                     physical_index: u16::try_from(ordinal).map_err(|_| {
@@ -567,12 +568,7 @@ impl<'a> PlannedCreate<'a> {
                 logical.push(index);
             }
         }
-        if !self.relationships.is_empty() {
-            budget.charge_work_units(
-                (logical.len() as u64).saturating_mul(u64::from(logical.len().max(1).ilog2()) + 1),
-            )?;
-            logical.sort_unstable_by(|left, right| left.name.cmp(right.name));
-        }
+        sort_logical_indexes(&mut logical, budget)?;
         budget.charge_allocation(ByteCount::new(
             (self.long_value_count * size_of::<LongValueMapSpec>()) as u64,
         ))?;
@@ -687,10 +683,10 @@ pub(crate) fn compose_database_with_table_rows(
     let mut next_page = EMPTY_DATABASE_PAGE_COUNT;
     for (position, request) in requests.iter().enumerate() {
         budget.charge_items(1)?;
-        budget.charge_work_units(position as u64)?;
+        budget.charge_work_units((position as u64).saturating_mul(512))?;
         if let Some(first) = requests[..position]
             .iter()
-            .position(|earlier| earlier.table.name.eq_ignore_ascii_case(request.table.name))
+            .position(|earlier| catalog_names_equal(earlier.table.name, request.table.name))
         {
             return Err(ComposeError::DuplicateTableName {
                 first,
@@ -759,3 +755,25 @@ mod definition_chain_tests;
 
 #[path = "column_property_pages.rs"]
 mod column_property_pages;
+
+/// EXP-0277: logical ordinals follow the English-US/CP1252 name collation.
+fn sort_logical_indexes(
+    indexes: &mut [LogicalIndexSpec<'_>],
+    budget: &mut ResourceBudget,
+) -> Result<(), ComposeError> {
+    use crate::catalog_name_key::NameKey;
+    let mut keyed = Vec::new();
+    crate::resource::reserve(&mut keyed, indexes.len(), budget)?;
+    budget.charge_work_units((indexes.len() as u64).saturating_mul(512))?;
+    for &index in indexes.iter() {
+        keyed.push((NameKey::new(index.name)?, index));
+    }
+    budget.charge_work_units(
+        (indexes.len() as u64).saturating_mul(u64::from(indexes.len().max(1).ilog2()) + 1) * 194,
+    )?;
+    keyed.sort_unstable_by(|(left, _), (right, _)| left.bytes().cmp(right.bytes()));
+    for (slot, (_, index)) in indexes.iter_mut().zip(keyed) {
+        *slot = index;
+    }
+    Ok(())
+}

@@ -26,6 +26,7 @@ impl<'a> RelationshipPlan<'a> {
     pub(super) fn new(
         tables: &'a [TableSpec<'a>],
         spec: &'a RelationshipSpec<'a>,
+        budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
         if tables.len() != 2 {
             return Err(invalid("exactly two tables required"));
@@ -37,12 +38,12 @@ impl<'a> RelationshipPlan<'a> {
         {
             return Err(invalid("at most 255 columns per table"));
         }
-        let mut key = [0_u8; INDEX_KEY_CAPACITY];
+        let mut key = [0_u8; CATALOG_KEY_CAPACITY];
         encode_catalog_name_key(RELATIONSHIPS_ID, spec.name, &mut key)?;
-        let parent = plan_table_schema(&tables[0], EMPTY_DATABASE_PAGE_COUNT, true)?;
+        let parent = plan_table_schema(&tables[0], EMPTY_DATABASE_PAGE_COUNT, true, budget)?;
         let child_root = parent.definition_root().get() + parent.appended_page_count();
-        let child = plan_table_schema(&tables[1], child_root, false)?;
-        if tables[0].name.eq_ignore_ascii_case(tables[1].name) {
+        let child = plan_table_schema(&tables[1], child_root, false, budget)?;
+        if catalog_names_equal(tables[0].name, tables[1].name) {
             return Err(ComposeError::DuplicateTableName {
                 first: 0,
                 second: 1,

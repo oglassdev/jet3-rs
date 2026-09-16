@@ -14,7 +14,7 @@
 
 use std::fmt;
 
-use crate::catalog_name_key::{CatalogNameKeyError, encode_catalog_name_key};
+use crate::catalog_name_key::{CatalogNameKeyError, catalog_names_equal, encode_catalog_name_key};
 use crate::creation::schema_plan::{TableSchemaPlanError, TableSpec};
 use crate::page_append_plan::EMPTY_DATABASE_PAGE_COUNT;
 use crate::whole_file_plan::{WholeFileImagePlan, WholeFilePlanError};
@@ -56,9 +56,7 @@ const MAP_BITMAP_BYTES: u64 = 128;
 const INDEX_ENTRY_AREA_OFFSET: usize = 248;
 const INDEX_ENTRY_AREA_LEN: usize = PAGE_BYTES - INDEX_ENTRY_AREA_OFFSET;
 const INDEX_BOUNDARY_BITMAP_OFFSET: usize = 22;
-const INDEX_KEY_CAPACITY: usize = 64;
-// EXP-0249: 64-byte table name plus Long and Text framing.
-const CATALOG_KEY_CAPACITY: usize = 64 + 7;
+const CATALOG_KEY_CAPACITY: usize = crate::catalog_name_key::MAX_CREATION_KEY_BYTES;
 // EXP-0084 preregisters only these fixed per-row candidate values; their SID
 // meanings are not generalized.
 const CATALOG_OWNER_0203: &[u8] = b"\x02\x03";
@@ -139,10 +137,10 @@ pub(crate) fn compose_database(
     let mut next_page = EMPTY_DATABASE_PAGE_COUNT;
     for (position, spec) in specs.iter().enumerate() {
         budget.charge_items(1)?;
-        budget.charge_work_units(position as u64)?;
+        budget.charge_work_units((position as u64).saturating_mul(512))?;
         if let Some(first) = specs[..position]
             .iter()
-            .position(|earlier| earlier.name.eq_ignore_ascii_case(spec.name))
+            .position(|earlier| catalog_names_equal(earlier.name, spec.name))
         {
             return Err(ComposeError::DuplicateTableName {
                 first,

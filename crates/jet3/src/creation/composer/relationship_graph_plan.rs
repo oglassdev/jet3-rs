@@ -48,10 +48,10 @@ pub(super) fn resolve<'a>(
     let mut logical_counts = Vec::new();
     let mut physical_counts = Vec::new();
     for (position, request) in requests.iter().enumerate() {
-        budget.charge_work_units(position as u64 * 255)?;
+        budget.charge_work_units((position as u64).saturating_mul(512))?;
         if let Some(first) = requests[..position]
             .iter()
-            .position(|earlier| earlier.table.name.eq_ignore_ascii_case(request.table.name))
+            .position(|earlier| catalog_names_equal(earlier.table.name, request.table.name))
         {
             return Err(ComposeError::DuplicateTableName {
                 first,
@@ -77,7 +77,7 @@ pub(super) fn resolve<'a>(
         if relationship.name.len() > 63
             || relationships[..position]
                 .iter()
-                .any(|prior| prior.name.eq_ignore_ascii_case(relationship.name))
+                .any(|prior| catalog_names_equal(prior.name, relationship.name))
         {
             return Err(invalid(
                 "relationship names must be distinct and at most 63 bytes",

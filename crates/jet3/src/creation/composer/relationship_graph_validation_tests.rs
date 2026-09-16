@@ -276,3 +276,38 @@ fn relationship_checks_share_the_validation_resource_budget() -> Result {
     assert_eq!(fs::read(fixture.path())?, before);
     Ok(())
 }
+
+#[test]
+fn relationship_names_above_the_usable_index_limit_remain_uninterpreted() -> Result {
+    for name in [&[b'R'; 63][..], &[b'R'; 64][..]] {
+        let fixture = fixture(&[Edge {
+            name,
+            parent: 0,
+            child: 1,
+            column: 1,
+        }])?;
+        let report = validate(&fixture)?;
+        assert_eq!(
+            report.relationships_with_verified_keys,
+            u64::from(name.len() == 63)
+        );
+        assert_eq!(
+            report.uninterpreted_relationship_rows,
+            u64::from(name.len() == 64)
+        );
+        let before = fs::read(fixture.path())?;
+        let result = field(&fixture, 1, 2, 1, RowValue::Long(1));
+        if name.len() == 63 {
+            result?;
+        } else {
+            assert!(matches!(
+                result,
+                Err(UpdateError::Unsupported(
+                    "relationship name exceeds 63 bytes"
+                ))
+            ));
+            assert_eq!(fs::read(fixture.path())?, before);
+        }
+    }
+    Ok(())
+}

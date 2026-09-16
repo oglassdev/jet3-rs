@@ -1,4 +1,4 @@
-//! Named Boolean field properties from EXP-0208/0266/0270, stored in catalog LvProp.
+//! Named Boolean field properties from EXP-0208/0266/0270/0277, stored in catalog LvProp.
 use crate::{BinaryWriter, ColumnPhysicalType, ColumnSpec, Error, ResourceBudget};
 
 const DICTIONARY_LENGTH: usize = 33;
@@ -22,7 +22,7 @@ impl<'a> ColumnProperties<'a> {
         }
         let mut length = 4 + DICTIONARY_LENGTH;
         for column in columns {
-            if column.name().is_empty() || column.name().len() > 64 || !column.name().is_ascii() {
+            if crate::catalog_name_key::validate_catalog_name(column.name()).is_err() {
                 return None;
             }
             if column.column_type() == crate::ColumnType::AutoIncrement {

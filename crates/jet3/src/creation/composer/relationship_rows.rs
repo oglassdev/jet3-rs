@@ -32,7 +32,7 @@ pub(super) fn compose_with_rows(
     relationship: &RelationshipSpec<'_>,
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, ComposeError> {
-    let mut relation = RelationshipPlan::new(tables, relationship)?;
+    let mut relation = RelationshipPlan::new(tables, relationship, budget)?;
     let mut parent = PlannedCreate::new_with_relationship(
         &tables[0],
         EMPTY_DATABASE_PAGE_COUNT,

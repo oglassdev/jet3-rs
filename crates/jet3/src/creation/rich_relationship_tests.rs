@@ -236,14 +236,25 @@ fn parent_relationship_record_at_definition_boundary_keeps_external_payload_star
                 columns: &columns,
                 indexes: PRIMARY,
             };
-            let plan = plan_table_schema_with_logical_index(&parent, 20, true, Some(b".rB"))?;
+            let plan = plan_table_schema_with_logical_index(
+                &parent,
+                20,
+                true,
+                Some(b".rB"),
+                &mut crate::ResourceBudget::new(crate::ResourceLimits::default()),
+            )?;
             if plan.definition_len() != 2048 {
                 continue;
             }
             assert!(
-                plan_table_schema(&parent, 20, true)?
-                    .continuation_page()
-                    .is_none()
+                plan_table_schema(
+                    &parent,
+                    20,
+                    true,
+                    &mut crate::ResourceBudget::new(crate::ResourceLimits::default())
+                )?
+                .continuation_page()
+                .is_none()
             );
             assert!(plan.continuation_page().is_some());
             let payload = vec![b'p'; 4096];

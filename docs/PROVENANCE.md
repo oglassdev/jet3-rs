@@ -18155,3 +18155,53 @@ more complex graph inventories, other providers or whole-v1 compatibility.
   report `20e5e75b6ff0f32d00fb4c6cd6d4e0f022726326bdd702a1c14a6b338a7b85ab`.
   Inputs, constructors, native producers, evaluator/helpers, provider receipts
   and all three raw run histories remain private; no MDB bytes are committed.
+
+## EXP-0277 — CP1252 schema names, logical order, collisions and boundaries
+
+- **Method/environment:** clean-room native creation and read-only DAO 3.6
+  comparisons, two replicas, en-US/ANSI 1252, x86 `DAO.DBEngine.36` on Windows
+  Server 2022 (`10.0.20348`). Provider `dao360.dll` `03.60.9765.0`, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+  Harness source context `9df387a205de9bba201af5bcc39b9e637771757e`;
+  retained producer, matrices, evaluators and helper sources are independently
+  pinned. Final main run `20260916T012323Z-schema-names-r3` retains 138 MDBs:
+  three accepted schema arms and 66 independent probes per replica. Supplement
+  `20260916T014125Z-schema-collide-r1` retains twelve collision-probe MDBs.
+- **Observed names/order:** table, field, index, relationship and catalog names
+  preserve the tested CP1252 bytes. Mixed accents/expansions and 64-byte table
+  and column names with a 63-byte index pass full schema/value/index reads.
+  Append order `ById, Z, a, Á, æ, B` becomes both DAO-visible and raw logical
+  definition order `a, Á, æ, B, ById, Z`, consistent with EXP-0248 Text keys.
+  The accented relationship parent has raw `.rB, PKeyé` records and exposes only
+  `PKeyé` through DAO; the child raw and visible names are
+  `CKeyß, FKeyÆ, Rélation Æ`. Physical index references remain explicit.
+- **Collisions/whitespace:** all three object roles reject the second name in
+  `Case/case`, `AE/Æ`, `ss/ß`, straight/curly apostrophe, `X/X `, and
+  `A B/A B` (NBSP) pairs. Native errors are table 3010, column 3191, index 3284.
+  `e/é` remains distinct. Internal ASCII/NBSP spaces and trailing ASCII spaces
+  are stored exactly; the collation comparison does not change stored names.
+  Leading ASCII space, empty names, TAB and `. ! [ ]` or backtick reject with
+  3125. `SELECT` and `Table` are accepted names.
+- **Limits/controls:** 65-byte table/column names reject with 3001. A 64-byte
+  index is created but selecting it for traversal/Seek fails with HRESULT
+  `-2146825288`, reserved error `-1038`; usable index names remain bounded to 63.
+  NUL-bearing BSTR names truncate at NUL; DEL is retained. U+0081 is an exact
+  BSTR control only and establishes no defined CP1252 representation. The
+  writer continues to refuse controls, DEL and undefined CP1252 bytes. Leading
+  and trailing NBSP remain outside this discovery's observed boundary cases.
+- **Complete comparisons:** every accepted visible index traverses all rows
+  and passes Seek for every distinct key and a missing key. Raw analysis binds
+  catalog keys to exact row locators, checks system allocations and logical
+  ordering, and retains complete property payloads. Accented Text/Memo
+  `AllowZeroLength` fields preserve raw `café`/`mémø` bytes in named `LvProp`
+  blocks. The accented enforced Long relationship preserves its endpoints.
+  Read-only captures leave whole-file hashes unchanged. This is native schema
+  discovery; Rust-created candidates and mutation acceptance are separate work.
+- **Retained evidence:** private bundle
+  `shared/checks/20260916-schema-name-discovery`, 320 manifest-pinned files;
+  manifest SHA-256 `c09e93d1ace1ed5cb3ac2839c47cf85c920c6abc21131ec1b388b2f3c71acc1e`;
+  final report SHA-256 `d699596cbf5353ff4f4b40ee16a54a4aff498a941bca9a9bf04bb6a078e753c4`.
+  Both evaluators independently reproduce their reports byte-for-byte from the
+  retained copy. Historical syntax, CP1252 receipt-helper and incomplete-capture
+  failures, plus the diagnostic ordering run, remain alongside final runs;
+  none establishes acceptance or is overwritten by the successful captures.

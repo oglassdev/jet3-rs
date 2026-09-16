@@ -34,15 +34,18 @@ pub(crate) fn validate<S: ReadAt>(
             &record.child_column,
         ];
         if record.metadata != [0, 1, 0]
-            || names.iter().any(|name| name.is_empty() || !name.is_ascii())
+            || record.name.len() > 63
+            || names
+                .iter()
+                .any(|name| validate_catalog_name(name).is_err())
         {
             report.uninterpreted += 1;
             continue;
         }
-        budget.charge_work_units((records.len() as u64).saturating_mul(255))?;
+        budget.charge_work_units((records.len() as u64).saturating_mul(512))?;
         if records
             .iter()
-            .filter(|other| other.name.eq_ignore_ascii_case(&record.name))
+            .filter(|other| catalog_names_equal(&other.name, &record.name))
             .count()
             != 1
         {
@@ -51,7 +54,7 @@ pub(crate) fn validate<S: ReadAt>(
         let parent = table(database, &record.parent, budget)?;
         let child = table(database, &record.child, budget)?;
         budget.charge_work_units(
-            ((parent.columns().len() + child.columns().len()) as u64).saturating_mul(255),
+            ((parent.columns().len() + child.columns().len()) as u64).saturating_mul(512),
         )?;
         let mut supported = true;
         for (table, name) in [

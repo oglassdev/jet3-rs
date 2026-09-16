@@ -406,7 +406,12 @@ fn text_only_properties_are_checked_before_publication() -> Result<(), Box<dyn S
         columns: &columns,
         indexes: &[],
     };
-    let plan = crate::creation::schema_plan::plan_table_schema(&table, 20, true)?;
+    let plan = crate::creation::schema_plan::plan_table_schema(
+        &table,
+        20,
+        true,
+        &mut crate::ResourceBudget::new(crate::ResourceLimits::default()),
+    )?;
     assert_eq!(plan.continuation_page(), None);
     assert_eq!(plan.property_page_count(), 2);
     let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_chain_depth(1));
