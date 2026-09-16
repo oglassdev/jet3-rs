@@ -1,9 +1,11 @@
 //! EXP-0073/0114/0279 endpoints, EXP-0059/0062/0268 reciprocals, and EXP-0277 names.
+use crate::ColumnPhysicalType;
 use crate::catalog_name_key::{catalog_names_equal, validate_catalog_name};
+use crate::numeric_index_key::NumericKeyType;
 use crate::{
-    CatalogObjectClass, CatalogObjectKind, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
-    DatabaseReader, IndexDirection, PageNumber, ReadAt, Relationship, RelationshipSide,
-    ResourceBudget, TableDefinition, TableDefinitionKind, UpdateError, page_edits::reserve,
+    CatalogObjectClass, CatalogObjectKind, ColumnOrdinal, ColumnStorageClass, DatabaseReader,
+    IndexDirection, PageNumber, ReadAt, Relationship, RelationshipSide, ResourceBudget,
+    TableDefinition, TableDefinitionKind, UpdateError, page_edits::reserve,
 };
 
 pub(crate) struct Constraint {
@@ -11,6 +13,8 @@ pub(crate) struct Constraint {
     pub child: TableDefinition,
     pub parent_column: ColumnOrdinal,
     pub child_column: ColumnOrdinal,
+    pub parent_kind: NumericKeyType,
+    pub child_kind: NumericKeyType,
     pub self_reference_requires_existing_parent: bool,
     parent_record: [u8; 20],
     child_record: [u8; 20],
@@ -65,8 +69,11 @@ fn resolve_tables(
             + child.indexes().len()) as u64
             * 512,
     )?;
-    let parent_column = key_column(&parent, &record.parent_column)?;
-    let child_column = key_column(&child, &record.child_column)?;
+    let (parent_column, parent_kind) = key_column(&parent, &record.parent_column)?;
+    let (child_column, child_kind) = key_column(&child, &record.child_column)?;
+    if !crate::relationship_key::compatible(parent_kind, child_kind) {
+        return Err(UpdateError::Mismatch("relationship endpoint types differ"));
+    }
     let mut foreign = child.relationships().filter(|relation| {
         catalog_names_equal(relation.name().raw_bytes(), &record.name)
             && relation.side() == RelationshipSide::ForeignTable
@@ -92,6 +99,8 @@ fn resolve_tables(
         child,
         parent_column,
         child_column,
+        parent_kind,
+        child_kind,
         self_reference_requires_existing_parent,
         parent_record,
         child_record,
@@ -226,7 +235,7 @@ fn index(
         || index.fields()[0].direction() != IndexDirection::Ascending
     {
         return Err(UpdateError::Unsupported(
-            "relationship requires one ascending Long key",
+            "relationship requires one ascending scalar key",
         ));
     }
     let flags = index.raw_flags();
@@ -244,7 +253,10 @@ fn index(
     Ok(())
 }
 
-fn key_column(table: &TableDefinition, name: &[u8]) -> Result<ColumnOrdinal, UpdateError> {
+fn key_column(
+    table: &TableDefinition,
+    name: &[u8],
+) -> Result<(ColumnOrdinal, NumericKeyType), UpdateError> {
     let mut columns = table
         .columns()
         .iter()
@@ -255,13 +267,19 @@ fn key_column(table: &TableDefinition, name: &[u8]) -> Result<ColumnOrdinal, Upd
     if columns.next().is_some() {
         return Err(UpdateError::Mismatch("ambiguous relationship column"));
     }
-    if column.physical_type() != ColumnPhysicalType::Long
-        || column.size() != 4
-        || !matches!(column.storage(), ColumnStorageClass::Fixed { .. })
+    let kind = NumericKeyType::from_definition(column).ok_or(UpdateError::Unsupported(
+        "relationship scalar column schema",
+    ))?;
+    if !matches!(
+        kind,
+        NumericKeyType::Text { .. } | NumericKeyType::Binary { .. }
+    ) && !matches!(column.storage(), ColumnStorageClass::Fixed { .. })
     {
-        return Err(UpdateError::Unsupported("relationship Long column schema"));
+        return Err(UpdateError::Unsupported(
+            "relationship scalar column schema",
+        ));
     }
-    Ok(column.ordinal())
+    Ok((column.ordinal(), kind))
 }
 
 fn table<S: ReadAt>(

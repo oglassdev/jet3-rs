@@ -3,8 +3,8 @@ use super::{TableValidationError, ValidationReport, add, reserve};
 use crate::numeric_index_entry::{EntryError, NumericIndexEntry, NumericIndexField, sort_cost};
 use crate::numeric_index_key::NumericKeyType;
 use crate::{
-    ColumnPhysicalType, DatabaseReader, IndexNullPolicy, IndexTree, ReadAt, ResourceBudget,
-    RowLocator, TableDefinition, UpdateError,
+    DatabaseReader, IndexNullPolicy, IndexTree, ReadAt, ResourceBudget, RowLocator,
+    TableDefinition, UpdateError,
 };
 
 pub(super) fn key(row: RowLocator) -> (u64, u8) {
@@ -177,31 +177,8 @@ fn fields(
             .columns()
             .get(ordinal)
             .ok_or_else(|| failure(index, "missing index column"))?;
-        let kind = match column.physical_type() {
-            ColumnPhysicalType::Boolean => NumericKeyType::Boolean,
-            ColumnPhysicalType::Byte => NumericKeyType::Byte,
-            ColumnPhysicalType::Integer => NumericKeyType::Integer,
-            ColumnPhysicalType::Long => NumericKeyType::Long,
-            ColumnPhysicalType::Currency => NumericKeyType::Currency,
-            ColumnPhysicalType::Single => NumericKeyType::Single,
-            ColumnPhysicalType::Double => NumericKeyType::Double,
-            ColumnPhysicalType::DateTime => NumericKeyType::DateTime,
-            ColumnPhysicalType::Guid => NumericKeyType::Guid,
-            ColumnPhysicalType::Binary | ColumnPhysicalType::Text => {
-                let Ok(max_len @ 1..=255) = u8::try_from(column.size()) else {
-                    return Ok(None);
-                };
-                if column.physical_type() == ColumnPhysicalType::Binary {
-                    NumericKeyType::Binary { max_len }
-                // EXP-0264: fixed Text padding is handled by the same key transform.
-                } else if column.raw_encoding_context() == &crate::text_index_key::ENCODING_CONTEXT
-                {
-                    NumericKeyType::Text { max_len }
-                } else {
-                    return Ok(None);
-                }
-            }
-            _ => return Ok(None),
+        let Some(kind) = NumericKeyType::from_definition(column) else {
+            return Ok(None);
         };
         fields.push(NumericIndexField {
             column: ordinal,

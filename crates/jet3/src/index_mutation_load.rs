@@ -1,6 +1,5 @@
 use super::*;
 use crate::numeric_index_key::NumericKeyType;
-use crate::{ColumnPhysicalType, ColumnType};
 
 pub(crate) fn load(
     database: &mut DatabaseReader<FileSource>,
@@ -34,38 +33,8 @@ pub(crate) fn load(
                 .columns()
                 .get(ordinal)
                 .ok_or(UpdateError::NotFound("key column"))?;
-            let kind = match column.physical_type() {
-                ColumnPhysicalType::Boolean => ColumnType::Boolean,
-                ColumnPhysicalType::Byte => ColumnType::Byte,
-                ColumnPhysicalType::Integer => ColumnType::Integer,
-                ColumnPhysicalType::Long => ColumnType::Long,
-                ColumnPhysicalType::Currency => ColumnType::Currency,
-                ColumnPhysicalType::Single => ColumnType::Single,
-                ColumnPhysicalType::Double => ColumnType::Double,
-                ColumnPhysicalType::DateTime => ColumnType::DateTime,
-                ColumnPhysicalType::Binary => ColumnType::Binary {
-                    max_len: u8::try_from(column.size())
-                        .ok()
-                        .and_then(std::num::NonZeroU8::new)
-                        .ok_or(UpdateError::Mismatch("binary index field capacity"))?,
-                },
-                ColumnPhysicalType::Text => {
-                    // EXP-0264: fixed and variable Text share the recorded collation.
-                    if column.raw_encoding_context() != &crate::text_index_key::ENCODING_CONTEXT {
-                        return Err(UpdateError::Unsupported("text index collation context"));
-                    }
-                    ColumnType::Text {
-                        max_len: u8::try_from(column.size())
-                            .ok()
-                            .and_then(std::num::NonZeroU8::new)
-                            .ok_or(UpdateError::Mismatch("text index field capacity"))?,
-                    }
-                }
-                ColumnPhysicalType::Guid => ColumnType::Guid,
-                _ => return Err(UpdateError::Unsupported("non-numeric index key")),
-            };
-            let kind = NumericKeyType::from_column(kind)
-                .ok_or(UpdateError::Unsupported("numeric index type"))?;
+            let kind = NumericKeyType::from_definition(column)
+                .ok_or(UpdateError::Unsupported("unsupported index key schema"))?;
             result.columns[ordinal] = true;
             fields.push(NumericIndexField {
                 column: ordinal,

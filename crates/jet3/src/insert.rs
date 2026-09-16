@@ -14,7 +14,7 @@ use std::path::Path;
 /// fields admit primary, unique, nonunique, descending and nullable keys. Each
 /// complete tree and row/key correspondence must validate. Changed trees retain
 /// their roots, reuse reserved index pages and append nodes as needed. Other
-/// key types are refused. Enforced non-cascading single-Long relationships admit
+/// key types are refused. Enforced non-cascading single-column scalar relationships admit
 /// null foreign keys and require a matching parent for non-null keys. Memo/OLE payloads
 /// use independent column maps; raw caller-supplied headers are refused.
 /// If no populated page fits, a released global-free page belonging to this table
@@ -47,11 +47,11 @@ use std::path::Path;
 /// Callers must exclude external writers throughout this operation on Unix or Windows.
 /// A pre-publication failure preserves the original; publication errors identify
 /// their stage. One resource budget covers planning, copying and full verification.
-/// Every affected enforced, non-cascading Long relationship is checked, including
+/// Every affected enforced, non-cascading scalar relationship is checked, including
 /// multiple relationships and self-references. Every resulting non-null child
 /// key must occur in its parent table. A self-reference whose foreign physical
 /// index precedes its parent index requires that key before insertion (EXP-0286).
-/// Other key types and cascades are refused.
+/// Composite relationship keys and cascades are refused.
 pub fn insert_row(
     path: impl AsRef<Path>,
     table: &[u8],

@@ -29,6 +29,13 @@ pub enum RelationshipValidationError {
         /// Missing parent key.
         value: i32,
     },
+    /// A non-Long scalar child key has no matching parent.
+    ScalarOrphan {
+        /// Definition root of the parent table.
+        parent: PageNumber,
+        /// Definition root of the child table.
+        child: PageNumber,
+    },
 }
 
 impl From<UpdateError> for RelationshipValidationError {
@@ -51,6 +58,9 @@ impl From<UpdateError> for RelationshipValidationError {
                 child,
                 value,
             },
+            UpdateError::ScalarRelationshipConstraint { parent, child } => {
+                Self::ScalarOrphan { parent, child }
+            }
             _ => Self::Metadata("unexpected relationship reader failure"),
         }
     }
@@ -70,7 +80,7 @@ impl std::error::Error for RelationshipValidationError {
             Self::Rows(source) => Some(source),
             Self::Value(source) => Some(source),
             Self::Resource(source) => Some(source),
-            Self::Metadata(_) | Self::Orphan { .. } => None,
+            Self::Metadata(_) | Self::Orphan { .. } | Self::ScalarOrphan { .. } => None,
         }
     }
 }

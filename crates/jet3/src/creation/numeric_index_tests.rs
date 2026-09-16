@@ -243,7 +243,6 @@ fn wide_numeric_components_pack_across_leaf_boundaries() -> TestResult {
 #[test]
 fn excluded_scalar_values_and_types_never_publish() -> TestResult {
     for (column, value) in [
-        (ColumnType::Boolean, RowValue::Null),
         (ColumnType::Single, RowValue::Single(f32::INFINITY)),
         (ColumnType::Single, RowValue::Single(f32::NAN)),
         (ColumnType::Double, RowValue::Double(f64::NEG_INFINITY)),

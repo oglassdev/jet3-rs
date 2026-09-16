@@ -47,6 +47,13 @@ pub enum UpdateError {
         /// Child value requiring a matching parent.
         value: i32,
     },
+    /// A non-Long scalar child key would have no matching parent after the change.
+    ScalarRelationshipConstraint {
+        /// Definition page of the referenced parent table.
+        parent: crate::PageNumber,
+        /// Definition page of the referencing child table.
+        child: crate::PageNumber,
+    },
     /// A null parent key cannot be changed or removed while null child keys exist.
     NullRelationshipConstraint {
         /// Definition page of the referenced parent table.
@@ -111,6 +118,7 @@ impl StdError for UpdateError {
             | Self::Unsupported(_)
             | Self::Mismatch(_)
             | Self::RelationshipConstraint { .. }
+            | Self::ScalarRelationshipConstraint { .. }
             | Self::NullRelationshipConstraint { .. } => None,
         }
     }
@@ -155,9 +163,10 @@ conversion!(crate::IndexTreeError, Index);
 /// Selected multi-hop chains are refused. A missing or
 /// unreadable relationship catalog and unresolved non-ASCII relationship endpoint
 /// names are also refused.
-/// Enforced non-cascading relationships with one ascending Long key are checked
+/// Enforced non-cascading relationships with one ascending scalar key are checked
 /// against both endpoint tables and their reciprocal metadata. Orphan keys and
-/// referenced-parent changes return [`UpdateError::RelationshipConstraint`].
+/// referenced-parent changes return [`UpdateError::RelationshipConstraint`] for Long
+/// keys or [`UpdateError::ScalarRelationshipConstraint`] for other scalars.
 /// Changing or removing a null parent while null child keys remain returns
 /// [`UpdateError::NullRelationshipConstraint`] (EXP-0286).
 /// Only the requested field, index nodes/counters and necessary index allocation bits
@@ -168,9 +177,9 @@ conversion!(crate::IndexTreeError, Index);
 /// a post-publication sync failure is distinguished by the publication error stage.
 /// The same budget covers planning, copying, patching and streaming verification.
 /// Structural verification is not a DAO compatibility claim.
-/// Every affected enforced, non-cascading Long relationship is checked, including
+/// Every affected enforced, non-cascading scalar relationship is checked, including
 /// multiple relationships and self-references. Every resulting non-null child
-/// key must occur in its parent table. Other key types and cascades are refused.
+/// key must occur in its parent table. Composite relationship keys and cascades are refused.
 pub fn update_field(
     path: impl AsRef<Path>,
     request: FieldUpdate<'_>,

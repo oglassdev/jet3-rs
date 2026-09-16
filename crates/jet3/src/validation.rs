@@ -13,7 +13,7 @@
 //! Catalogued allocation roles must be disjoint from incompatible owners and
 //! globally free pages. Row storage and every live payload fragment must
 //! be uniquely reachable through the owning table or column. Enforced, non-cascading
-//! single ascending Long relationships check reciprocal records and non-null child
+//! single ascending scalar relationships check reciprocal records and non-null child
 //! keys against their parent. Other forms are counted as uninterpreted. Complete
 //! endpoint inventory is checked only when every central record is interpreted.
 
@@ -59,7 +59,7 @@ pub struct ValidationReport {
     pub uninterpreted_index_entries: u64,
     /// Central relationship catalog rows decoded, including uninterpreted forms.
     pub relationship_catalog_rows: u64,
-    /// Enforced single-Long relationships whose metadata and key inclusion agree.
+    /// Enforced single-column scalar relationships whose metadata and key inclusion agree.
     pub relationships_with_verified_keys: u64,
     /// Central rows whose relationship form or key schema is not interpreted.
     pub uninterpreted_relationship_rows: u64,

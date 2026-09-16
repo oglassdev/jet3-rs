@@ -187,10 +187,8 @@ pub(crate) fn resolve_column(
             })
         }
         ColumnStorageKind::Fixed => {
-            let offset = if definition_kind == TableDefinitionKind::System
-                && physical_type == ColumnPhysicalType::Boolean
-            {
-                // EXP-0073: MSysACEs.FInheritable carries offset zero.
+            let offset = if physical_type == ColumnPhysicalType::Boolean {
+                // EXP-0073/0198/0288: Boolean uses the presence bit and offset zero.
                 0
             } else {
                 *next_fixed_offset

@@ -1,6 +1,6 @@
-//! Read-only checks of EXP-0268/0273/0279 relationship metadata and Long keys.
+//! Read-only checks of EXP-0268/0273/0279 relationship metadata and scalar keys.
 use super::*;
-use crate::{TextCodePage, ValueKind};
+use crate::relationship_key::{self, Key};
 
 #[derive(Default)]
 pub(crate) struct Summary {
@@ -63,7 +63,7 @@ pub(crate) fn validate<S: ReadAt>(
         ] {
             match key_column(table, name) {
                 Ok(_) => {}
-                Err(UpdateError::Unsupported("relationship Long column schema")) => {
+                Err(UpdateError::Unsupported("relationship scalar column schema")) => {
                     supported = false
                 }
                 Err(error) => return Err(error),
@@ -73,7 +73,7 @@ pub(crate) fn validate<S: ReadAt>(
             report.uninterpreted += 1;
             continue;
         }
-        // Once both Long endpoints are known, every reciprocal/index mismatch is an error.
+        // Once both scalar endpoints are known, every reciprocal/index mismatch is an error.
         let constraint = resolve_tables(record, parent, child, budget)?;
         check_keys(database, &constraint, budget)?;
         reserve(&mut endpoints, 2, budget)?;
@@ -101,47 +101,26 @@ fn check_keys<S: ReadAt>(
     {
         let mut rows = database.rows(&constraint.parent, budget)?;
         while let Some(mut row) = rows.next_row()? {
-            let key = match row
-                .value(constraint.parent_column, TextCodePage::Windows1252)?
-                .ok_or(UpdateError::Mismatch("relationship parent key absent"))?
-                .kind()
-            {
-                ValueKind::Null => continue,
-                ValueKind::Long(value) => *value,
-                _ => return Err(UpdateError::Mismatch("relationship parent key type")),
+            let value = crate::numeric_row_values::read_column(&mut row, constraint.parent_column)?;
+            let Some(key) = Key::encode(constraint.parent_kind, value, row.budget_mut())? else {
+                continue;
             };
             reserve(&mut parent_keys, 1, rows.owned.budget_mut())?;
             parent_keys.push(key);
         }
     }
-    budget.charge_work_units(
-        (parent_keys.len() as u64).saturating_mul(u64::from(parent_keys.len().max(1).ilog2()) + 1),
-    )?;
-    parent_keys.sort_unstable();
-    budget.charge_work_units(parent_keys.len() as u64)?;
-    if parent_keys.windows(2).any(|pair| pair[0] == pair[1]) {
+    relationship_key::sort(&mut parent_keys, budget)?;
+    if !relationship_key::unique(&parent_keys, budget)? {
         return Err(UpdateError::Mismatch("duplicate relationship parent key"));
     }
     let mut rows = database.rows(&constraint.child, budget)?;
     while let Some(mut row) = rows.next_row()? {
-        let key = match row
-            .value(constraint.child_column, TextCodePage::Windows1252)?
-            .ok_or(UpdateError::Mismatch("relationship child key absent"))?
-            .kind()
-        {
-            ValueKind::Null => continue,
-            ValueKind::Long(value) => *value,
-            _ => return Err(UpdateError::Mismatch("relationship child key type")),
+        let value = crate::numeric_row_values::read_column(&mut row, constraint.child_column)?;
+        let Some(key) = Key::encode(constraint.child_kind, value, row.budget_mut())? else {
+            continue;
         };
-        rows.owned
-            .budget_mut()
-            .charge_work_units(u64::from(parent_keys.len().max(1).ilog2()) + 1)?;
-        if parent_keys.binary_search(&key).is_err() {
-            return Err(UpdateError::RelationshipConstraint {
-                parent: constraint.parent.root(),
-                child: constraint.child.root(),
-                value: key,
-            });
+        if !relationship_key::contains(&parent_keys, &key, row.budget_mut())? {
+            return Err(key.violation(constraint.parent.root(), constraint.child.root()));
         }
     }
     Ok(())

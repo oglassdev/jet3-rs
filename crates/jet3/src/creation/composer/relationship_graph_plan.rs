@@ -3,6 +3,7 @@ use super::*;
 use crate::RelationshipSide;
 use crate::creation::relationship_indexes::{select_descending_parent, select_existing};
 use crate::creation::relationship_name::HiddenName;
+use crate::numeric_index_key::NumericKeyType;
 use crate::{
     ColumnRef, IndexColumnSpec, IndexKind, IndexSpec, RelationshipSpec, TableRef, TableRows,
 };
@@ -13,6 +14,7 @@ pub(super) struct GraphRelation<'a> {
     pub child: usize,
     pub parent_column: u16,
     pub child_column: u16,
+    pub child_kind: NumericKeyType,
     pub physical: u16,
     pub parent_physical: u16,
     pub parent_kind: IndexKind,
@@ -116,15 +118,17 @@ pub(super) fn resolve<'a>(
             .column
             .resolve(child_table.columns)
             .ok_or(invalid("child column reference"))?;
-        // EXP-0239/0270: AutoIncrement keys use the same physical Long encoding.
-        if !matches!(
-            parent_table.columns[usize::from(parent_column)].column_type(),
-            ColumnType::Long | ColumnType::AutoIncrement
-        ) || child_table.columns[usize::from(child_column)].column_type() != ColumnType::Long
+        // EXP-0288: scalar types agree; Text/Binary widths may differ.
+        let parent_type = parent_table.columns[usize::from(parent_column)].column_type();
+        let child_type = child_table.columns[usize::from(child_column)].column_type();
+        let parent_kind = NumericKeyType::from_column(parent_type)
+            .ok_or(invalid("relationship parent key type"))?;
+        let child_kind = NumericKeyType::from_column(child_type)
+            .ok_or(invalid("relationship child key type"))?;
+        if child_type == ColumnType::AutoIncrement
+            || !crate::relationship_key::compatible(parent_kind, child_kind)
         {
-            return Err(invalid(
-                "relationship requires a Long/AutoIncrement parent and Long child",
-            ));
+            return Err(invalid("relationship requires compatible scalar key types"));
         }
         let parent_physical = select_existing(
             parent_table,
@@ -139,7 +143,7 @@ pub(super) fn resolve<'a>(
         };
         let source_parent = parent_physical
             .or(descending_parent)
-            .ok_or(invalid("parent requires a unique Long index"))?;
+            .ok_or(invalid("parent requires a unique scalar index"))?;
         let parent_kind = IndexKind::Unique.with_null_policy(
             parent_table.indexes[usize::from(source_parent)]
                 .kind
@@ -212,6 +216,7 @@ pub(super) fn resolve<'a>(
                 child,
                 parent_column,
                 child_column,
+                child_kind,
                 physical,
                 parent_physical,
                 parent_kind,

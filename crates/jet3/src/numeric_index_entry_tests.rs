@@ -98,7 +98,6 @@ fn schema_and_value_refusals_are_structured() {
     );
     for (kind, value) in [
         (NumericKeyType::Long, RowValue::Byte(1)),
-        (NumericKeyType::Boolean, RowValue::Null),
         (NumericKeyType::Double, RowValue::Double(f64::NAN)),
         (
             NumericKeyType::DateTime,

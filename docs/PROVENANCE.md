@@ -19142,3 +19142,223 @@ Its 813 listed evidence files total 137,898,013 bytes; the manifest SHA-256 is
 Root independently verifies every listed size/hash and the complete inventory,
 including the three nested capture manifests. All MDB/provider/VM bytes remain
 outside the repository.
+
+## EXP-0288 — Native scalar relationship eligibility
+
+On 2026-09-16, local x86 `DAO.DBEngine.36` 3.6, DLL 03.60.9765.0
+(SHA-256 `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`),
+Windows 10.0.20348, en-US/CP1252, closed a 22-schema, two-replica matrix.
+Run `20260916T103125Z-scalar-rel-create-r2` is retained privately under
+`/tmp/jet3-scalar-relationship-discovery-r1`, with recipes, four worker receipts,
+actual property getters, complete rows, traversal/full-key Seek and closed MDBs.
+The producer context revision is `9a59db02d53e363ae715fcbbeb602ec6848549ae`;
+this native discovery makes no claim about Rust output compatibility.
+
+All twelve exact-schema cases accept an enforced non-cascading single-column
+relationship: Long, Byte, Integer, Currency, Single, Double, Date, Text(8),
+FixedText(8), Binary(8), GUID and Boolean. Parent keys have a declared ascending
+nonprimary unique index; child tables have a separate Long primary index and a
+Memo column. Text(8) to Text(16), variable Text(8) to fixed Text(8), and Binary(8)
+to Binary(16) also accept empty relationship creation. Byte to Integer, Integer
+to Long, Single to Double, Currency to Double, Date to Double, GUID to Binary(16),
+and Boolean to Byte each refuse error 3368, HRESULT -2146824920. Both replicas
+agree. There are 30 accepted and 14 rejected captures, with no capture, property,
+traversal or Seek errors in this corrected run.
+
+Populated non-Boolean cases have two distinct present parent values plus null,
+and four child rows with repeated/null keys. Their parent index has flags 1,
+first retained word 0 and distinct word 3; the generated foreign index has flags
+0, first word 4, distinct word 3 and four exact row locators. Boolean parents
+contain False/True; a child null assignment stores False. The parent distinct
+word is 2; the foreign tree has three locators, first word 3 and distinct word 1.
+Empty accepted width controls retain both words at zero. Complete reciprocal
+records, central catalog rows/objects/ACEs, scalar/system index keys, row locators,
+and allocation ownership are checked. Child and parent logical records retain
+the established selector/ordinal pairing and zero context.
+
+Matrix SHA-256 is
+`faaf5b024733f94cdd565450a27eba81242ac1c95d8295d6a1478743f4ca1e93`;
+producer SHA-256 is
+`c3338e886dbd170159718b03467ad2e13492e4c8010902df78a32c7a61e23de4`;
+evaluator SHA-256 is
+`7f6ac6eab25f7666957f9378579616852b607bb7582ed57523fdb1b157503deb`.
+`CREATION_REPORT.json` is 8,007,703 bytes, SHA-256
+`af9299c0f39c7dd6cc77ac32348ae4f03afff0f6112bfe2175030b34c856502d`.
+The first run, `20260916T102704Z-scalar-rel-create-r1`, remains retained with its
+Text/Boolean missing-Seek helper errors. The corrected producer uses a scalar
+missing-key record and omits impossible Boolean missing queries when both values
+exist. Lifecycle/equality observations and Rust differential acceptance are
+separate from this creation-eligibility result.
+
+The complete raw definition comparison also confirms the EXP-0198 Boolean
+zero placeholder in both Parent.Key and Child.Key, ordinal 1 after Long Id:
+DAO writes fixed-offset word 0 while the former Rust writer wrote 4. Boolean
+row values use the presence bitmap and do not advance the fixed data offset.
+The first scalar candidate's rows, key bytes, reciprocal metadata and counters
+agree across all 30 positive images, but the two Boolean replicas fail exact
+column-metadata comparison. The failed candidate/source and raw report are
+retained under the private `scalar-relationships/creation-r1` work root; the
+writer is corrected to emit zero for user Boolean fields as well as system fields.
+
+Strict Rust validation at revision `4f3fbeb93f8046b2a2426cd3ca97b57477970dc1`
+passes all 30 native accepted-creation images. All 14 incompatible-schema
+refusal images instead retain `MSysObjects` declared row count 11 with 10 live
+rows, repeating the failed-creation residue in EXP-0279. Their complete captures
+establish the native refusal outcome, but do not establish integrity or make
+these terminal failed copies valid continuation inputs. The validator remains
+strict. Input hashes are unchanged by this read-only check. The private
+`scalar-relationships/native-validation-r1/report.json` is 45,341 bytes,
+SHA-256 `f857679a02820fcfc75bc5e5f4ce0f3f1d539c4d78c9dbc902306e11cf202eed`.
+
+Native lifecycle discovery retains 44 valid lineages from
+`20260916T104156Z-scalar-rel-life-r2`: 362 operations, 258 successes and 104
+refusals. Both replicas agree on complete values, actual properties,
+traversal/Seek, raw scalar keys and locators, prefixes, system indexes and maps.
+Every non-Boolean exact type admits the planned insertion, reassignment, null
+transition and deletion. Orphan writes refuse 3201; referenced-parent and
+null-parent changes/deletions refuse 3200. Populated Text(8) to Text(16),
+Text(8) to FixedText(8), and Binary(8) to Binary(16) lifecycles also pass.
+Text matching accepts case changes and trailing spaces, including `écho` against
+`Écho`, but refuses accent-stripped `Echo` against `Écho`. FixedText case changes
+match; short `AB` and `AB ` inputs are padded to the declared width and match.
+Empty Binary child assignment stores null. The selected report is 99,352,704
+bytes, SHA-256 `8aaa70c3e2fd0f30c15398a046a0c392b6172fd58e1b6f531660420faca6103a`;
+root independently reproduces it byte for byte.
+
+Six original lineages are excluded explicitly: two Boolean recipes addressed
+an absent row, and four signed-zero recipes attempted to replace a null parent
+while null children remained. Their failed outputs and evaluation remain
+retained. Run `20260916T111635Z-scalar-rel-life-correction-r1` corrects the
+Boolean row selection; its two Boolean lineages contain 16 operations, 14
+successes and two refusals, including null-to-True and null-to-False assignment.
+The selected Boolean report SHA-256 is
+`4a38ae490a9d06a21ed636e98e13661dcffbdd5c66c6b5c3064b4fa46e25d53b`.
+Its four ordinary-JSON signed-zero lineages remain inconclusive because the
+receipt loses the attempted sign; they are not used as equality evidence.
+
+Run `20260916T112204Z-scalar-rel-zero-bits-r1` instead supplies explicit IEEE
+little-endian hex objects and constructs the Single/Double variants with
+`BitConverter`. Both replicas insert a positive-zero parent, then refuse a
+negative-zero child with DAO 3201. Thus these relationship comparisons retain
+the distinct positive/negative zero index keys already observed in EXP-0243.
+The four lineages contain eight operations, four successes and four refusals.
+Report SHA-256 is
+`4e40f73a9622247e05c6b63f0d2b27d8136010f3194343cc0969ee6def37433a`, independently
+reproduced byte for byte. The selected lifecycle inventory totals 50 lineages
+and 386 operations; failed copies never become continuation inputs. These are
+native observations. Rust candidate readback acceptance is recorded separately.
+
+The boundary supplement, `20260916T112328Z-scalar-rel-supplement-r1`, accepts
+eight creation captures across Text(16) to Text(8), Binary(16) to Binary(8),
+exact Text(255) and exact Binary(255), each replicated twice. Its report SHA-256
+is `099cf4f5864774871d46dd5c97f0f905186e86bf854e6d8d60c7eb14ad1d1728`.
+Run `20260916T112452Z-scalar-rel-supp-life-r1` adds 72 operations on those
+eight sources: 56 successful key/null/row transitions and 16 exact 3200/3201
+refusals. Full shortened 255-byte index keys and locators, complete values,
+getters, catalogs and allocation remain checked. Report SHA-256 is
+`0816db43f760e91db47f9fbe74ed5c5a417e817831c55849628b45775dfd5c60`.
+
+Run `20260916T113103Z-scalar-rel-fixed-field-r1` separately checks native
+field assignment for Byte, Integer, Long, Currency, Single, Double, Date, GUID
+and FixedText(8), twice each. All 18 assignments to an existing parent key
+succeed; all 18 isolated assignments to a missing key refuse 3201. Complete
+values, getters, traversal/Seek, raw trees/locators, prefixes and maps are
+checked. Report SHA-256 is
+`2f486b8957b28f4c7d4f7d9d29ba6108f6530ea71ad82532ab491d835046ea6a`.
+Root independently reproduces all three supplement reports byte for byte.
+
+
+## EXP-0289 — Scalar relationship differential acceptance
+
+Production source `4f3fbeb93f8046b2a2426cd3ca97b57477970dc1` passes 38 creation
+pairs and 494 same-input mutation pairs against the EXP-0288 DAO environment:
+350 successful mutations and 144 expected refusals. The main creation report
+contains 30 pairs; the reverse-width/255-byte supplement contains eight.
+The lifecycle inventory combines 362 original selected operations, sixteen
+corrected Boolean operations, eight explicit IEEE signed-zero operations,
+72 width/boundary operations and 36 direct fixed-field operations. All Rust
+outputs pass strict validation. This acceptance covers the finite schemas,
+values, assignments and transitions in those reproducible recipes.
+
+Creation comparisons include complete actual property getters, rows, index
+traversal and Seek; raw columns, values, logical selectors, every physical key
+byte apart from construction-specific row locators, exact second counters,
+relationship catalog rows/objects/ACEs and complete system-index key semantics.
+Rust construction creates indexes before rows and retains zero first counters;
+DAO's relation-after-rows construction history is checked separately.
+
+Mutation comparisons include complete actual property getters, rows, traversal
+and Seek, physical key bytes and locators, both counter words, complete maps,
+ownership, reachable payloads, relationship/system metadata and every system
+page. Successful counters match exactly. Rust refusals preserve every input
+byte. The native refusal counter/header effects are checked against the finite
+EXP-0288 model, with every other byte constrained. Same-input metadata dates
+remain exact. Normalization is limited to explicitly assigned-null fixed-field
+padding with a clear presence bit, and selected Memo/OLE descriptor placement
+when the Rust request replaces the complete row. Payload bytes, descriptor
+semantics, allocation and all other row bytes remain checked.
+
+The final report SHA-256 values are:
+
+- 30 creation pairs:
+  `fc542f32e5bf60a4d441def098b5bc97cee4a562a29e9ae45db4b1e9138b03bc`.
+- Eight creation supplement pairs:
+  `effb151ac9c81652f4c608e6148a490a2e82a413436922837f87f30fda40ae91`.
+- 494 lifecycle pairs:
+  `fb353ebf182ed6059be8e4e6c67ba78be48b4c6b359fcbcd3f9817e3b48b81e6`.
+
+Root independently replayed all three reports byte for byte from the durable
+archive at `shared/checks/20260916-scalar-relationship-acceptance`, beneath the
+local Windows VM root documented in `docs/LOCAL_WINDOWS_VM.md`. The archive
+contains 6,767 files, including source/binary pins, recipes, native and Rust
+inputs/outputs, complete receipts, failed attempts, exact historical evaluators
+and replay commands. All 6,766 manifest entries and the exact file inventory
+were independently verified. Manifest SHA-256 is
+`887560e02582814ccad7f05d7ac6b3b2992489f01690f4faa039632bd2f6b14a`;
+findings SHA-256 is
+`ce7a2fe031d15ac5f493e88de03461fcc5fd5a87a00aa04b09dac5dee6590da6`;
+production pins SHA-256 is
+`e2a5aca1b95aa4fc2c2959783eb69bf9695e0b9282074c2757ac683b62969e57`.
+
+The faulty initial Seek helper, ZIP-expansion race, six invalid lifecycle
+recipes, inconclusive JSON negative-zero receipt, initial Boolean column offset,
+preflight/status failures and evaluator representation failures are retained
+alongside corrected runs. Failed native creation files remain terminal controls;
+strict validation is not weakened for their catalog row-count discrepancy.
+Independent GPT-5.6 Sol high review covered production changes and lifecycle
+preparation. `just ready` passed 1,638 test executions, zero failures, ten ignored.
+Composite/cascading relationships and existing relationship schema edits remain
+outside this acceptance.
+
+
+A later control, `20260916T122108Z-scalar-equal-parent-r1`, checks explicit
+same-value assignment of referenced Long and Text(8) parents and complete parent
+replacement retaining the key. All four native attempts refuse 3200 / HRESULT
+-2146825088, preserving the entire input. Inventory SHA-256 is
+`5571151a4a3aad04d7350b4530cc24bb5d56cadd97de8eadd7eddc72b063e3fe`.
+This establishes that checking only the resulting key set misses an assigned
+parent constraint: explicit key assignments are checked even when the encoded
+key remains equal. The Rust guard now checks the assigned parent row against
+remaining children. Candidate replay and additional acceptance are recorded below.
+
+
+The equal-assignment supplement is now accepted for source
+`f98d37ad0e0dd194e5f0813bd41308e9c35a98ab`. All four Rust refusals preserve the
+complete native predecessor and match complete DAO readbacks. The independent
+replay report SHA-256 is
+`5deaa12085c5ca8ad7e510522f5d347b38b2802f7d334d53c9d6afebc94b061c`.
+The additive bundle is retained outside Git at
+`checks/20260916-scalar-equal-parent-guard`; its 104-file exact inventory has
+manifest SHA-256
+`1208d20614c9c240f9bbd84bacbfa57cab1d099b1a86efb70677f934454bd1b1`.
+The first failed capture and corrected capture remain together. Production source,
+CLI, creation binary and exact requests are pinned in the bundle. Re-execution
+under this source reproduces all prior 532 accepted output files byte-for-byte;
+`IDENTICAL_PRIOR_OUTPUTS.json` SHA-256 is
+`1bf1890b2859fb4cf8b679f1a37d35f2f61800b5831b8007f61158abe423d859`.
+The aggregate tested scope is 38 creations and 498 mutations (350 successes,
+148 refusals), with the four new operations limited to one Long and one Text(8)
+lineage. Independent review of the assignment guard found no blockers.
+`just ready` again passed 1,638 test executions, zero failures and ten ignored;
+its retained log SHA-256 is
+`e642fd9b748b168c6be10750b4321e8f13ca4b1206f6bad4f0ba2efb3adf4766`.

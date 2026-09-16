@@ -15,7 +15,7 @@ pub struct RowDelete<'a> {
 
 /// Deletes one logical row and its hidden storage, compacting or releasing pages.
 ///
-/// Retains any AutoNumber state. Enforced non-cascading single-Long relationships
+/// Retains any AutoNumber state. Enforced non-cascading single-column scalar relationships
 /// require deletion of referencing children before their parent. Memo/OLE fragments
 /// are removed from their independent column storage after complete reference
 /// and ownership validation; emptied payload pages become globally free.
@@ -46,9 +46,9 @@ pub struct RowDelete<'a> {
 /// The same resource budget covers planning, private copying and full-file
 /// verification. Any pre-publication failure preserves the original; publication
 /// errors identify their stage, including post-publication sync failures.
-/// Every affected enforced, non-cascading Long relationship is checked, including
+/// Every affected enforced, non-cascading scalar relationship is checked, including
 /// multiple relationships and self-references. Every resulting non-null child
-/// key must occur in its parent table. Other key types and cascades are refused.
+/// key must occur in its parent table. Composite relationship keys and cascades are refused.
 pub fn delete_row(
     path: impl AsRef<Path>,
     request: RowDelete<'_>,

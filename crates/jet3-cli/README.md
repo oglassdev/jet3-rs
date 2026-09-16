@@ -57,7 +57,7 @@ includes the table and available field/index/row context. Invalid arguments exit
 Counts include both user and system tables. Validation checks row counts and values,
 unique row/payload reachability,
 index live-row membership, supported scalar keys and branch bounds, and catalogued
-allocation ownership. Enforced single ascending Long relationships check reciprocal
+allocation ownership. Enforced single ascending scalar relationships check reciprocal
 metadata, parent uniqueness and non-null child-key inclusion. The JSON report
 counts unsupported index schemas and relationship catalog rows separately; complete
 relationship inventory is checked only when all central rows are interpreted.
@@ -165,12 +165,12 @@ adds no relationship, index, schema or payload support beyond the linked
 
 For multiple or self-referencing relationships, use `"relationships": [...]`
 with an array of the same objects. The array admits enforced, non-cascading
-single-Long constraints within each table's logical-index capacity, along with
-any supported unrelated tables. Parent keys may be Long or AutoIncrement and need
-a unique index. An eligible ascending index is selected in logical name order;
+single-column scalar constraints within each table's logical-index capacity, along with
+any supported unrelated tables. Parent keys need a unique scalar index;
+AutoIncrement parents also qualify. An eligible ascending index is selected in logical name order;
 a descending-only parent gets a separate ascending tree with the same null policy,
-shared by its relationships. Foreign
-columns must be Long. Existing ordinary ascending FK indexes are reused, and
+shared by its relationships. Endpoints must have matching scalar types; Text/Binary
+widths may differ and fixed/variable Text may mix. Existing ordinary ascending FK indexes are reused, and
 each relationship alias consumes a slot within the 32-logical-index limit.
 Supply only one of `relationship` and `relationships`. An empty array creates
 ordinary tables.
