@@ -18370,3 +18370,79 @@ failed-operation outcomes, not a failed relationship-key comparison or an
 additional compatibility claim. The complete results are retained with the
 subsequent relationship-index acceptance artifacts; broader native failed-write
 preservation and the validation contract remain tracked in issue #369.
+## EXP-0280 — Relationship index selection and shared-alias acceptance
+
+- **Source/provider:** production revision
+  `2c4a77f02001beb78ebd8415392c91d08b3c8f1d`, source archive SHA-256
+  `e29c6640b17a1ec3c90491d510ebb834a415ddceea1d74837ee6d1b31e0ea3a2`.
+  Candidate generator `993ab53183155a3046552f87ea0c207fc68ef57142dd4eb8c15baae5807521f7`;
+  CLI `149aba8ff7e82b67aecceda6b667126459fb62ef296dafcd5b90e137205d8193`.
+  Microsoft DAO 3.6 x86, DLL 03.60.9765.0 SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`,
+  Windows Server 10.0.20348, en-US/CP1252. The reviewed production revision
+  reproduces all 128 submitted creation and lifecycle MDB images exactly.
+- **Creation:** 20 schemas, two replicas each: 40 candidate/native pairs and
+  80 captures. These cover later/nonprimary/nullable unique parents, repeated
+  parent Nulls, eligible-parent name ordering, existing child FK index reuse,
+  ordinary aliases sharing a native physical tree, nonreusable child flags and
+  direction, two relationships, logical capacity 31 and hidden-name boundaries
+  15/16/31. Complete DAO schema, properties, rows, traversal and Seek results
+  agree after normalizing only table creation/update dates. Raw comparisons
+  check every user/system key and row locator, reciprocal selectors, selected
+  index definitions, catalog/ACE rows, counters and allocation ownership.
+  The unrelated Notes Memo is exactly 4,608 bytes. Allocation and ordinary-alias
+  physical layouts may differ between independently created files; every tree
+  and logical alias is checked against its own rows and declared role.
+- **Mutation:** eight lineages from Rust and native origins, two replicas of
+  nullable parents and shared child aliases: 72 pairs and 144 captures.
+  The 56 successful operations include parent/child insertion, FK edits,
+  full-row Memo growth to 4,096 bytes, and child/parent deletion. Complete
+  values, schema/properties, traversal/Seek, keys/locators, both index prefix
+  words, maps/free pages, system storage and unrelated Notes agree. Native
+  shared aliases select one physical tree, which is maintained once.
+  Eight orphan refusals return DAO 3201 and eight referenced-parent refusals
+  return 3200. Every Rust refusal preserves the whole input. Native orphan
+  refusals retain the previously observed finite foreign-prefix side effect;
+  referenced-parent refusals preserve the native image exactly.
+- **Payload placement:** successful replacement may choose different valid
+  Memo pages: the representative candidate-origin pair uses Rust page 43 and
+  DAO page 41; native-origin pairs use 34/32 or 33/31. Comparisons normalize
+  only the selected descriptor placement and mask that descriptor in the raw
+  row before comparing every remaining byte. Complete payload bytes, length,
+  flags, row locator/storage, ownership/reachability, keys, counters, maps and
+  unrelated rows remain checked. This is semantic compatibility, not identical
+  payload allocation.
+- **Harness/history:** the 31-index candidate shares one allocation-map
+  container between ordinary index-map rows and Memo-map rows. The helper now
+  permits these compatible row families while retaining exact bitmap ownership
+  and all other page-role conflicts. The original map-family, payload-size,
+  system-page-hash and payload-placement failures remain retained. The creation
+  guest completed after the host wrapper's wait expired; complete receipts,
+  exit 0 and its interrupted local wrapper are retained. The first lifecycle
+  dispatch failed before DAO because the ZIP had the wrong basename; the
+  corrected run retains all eight worker exits 0. The 18 EXP-0279 native failed
+  creation/preparation images still fail their catalog row-count check and
+  remain outside this acceptance; no integrity check was relaxed.
+- **Runs/replay:** creation `20260916T032512Z-relationship-index-accept-r1`;
+  lifecycle `20260916T040131Z-rel-index-life-r2`. Repository producers are
+  `relationship_index_acceptance.ps1` and `relationship_index_lifecycle.ps1`;
+  evaluators are `relationship_index_creation.py` and
+  `relationship_index_lifecycle.py` under `oracle/windows-dao/scripts/`.
+  They take `--evidence-root` plus the retained matrix/bundle/config, outbox and
+  output-report paths; both shared and frozen inbox/outbox layouts are accepted.
+  `acquisition/relationship-indexes.matrix.json` retains the submitted matrix.
+  Root replay through the repository tools reproduces every report field except
+  the evaluator's own identity. Independent GPT-5.6 Sol high review is clear;
+  `just ready` passes 1,592 test executions, zero failures and ten ignored.
+- **Artifacts:** `shared/checks/20260916-relationship-index-acceptance`, with
+  `preparation/` and frozen `review/` inputs, producers, reports, complete outputs
+  and failure histories. Root verifies every entry in the 2,064-file manifest,
+  SHA-256 `bcee42b65c9c62aad56c75eb252f16cd9a0d78ceb74b03950de6ac400fcb7195`.
+  Review manifest `77a9487b00bf79dc4a78d3b8eb974f2e2d3fc4901a4cacc1701928f55965c4e6`;
+  final report `2fa3caa1a24f73f6ef260bf3ca65f77eea5e32b81c1217d2cf91bc4737c0e35f`;
+  creation report `a5c6e1e7fcd5cda40508f29051a9d92bb3eefec4bc270c440cdcaba5e3dbe25e`;
+  lifecycle report `cebb1eac52fbf677213546b9c87aa407de56ae7bd76a8ab4da4251e2d1e9ba23`.
+- **Limits:** enforced non-cascading single-Long constraints, at most two
+  simultaneous relationships in these creation cases, and the recorded scalar
+  index forms. Larger graphs, composite/cascading/other-key constraints,
+  relationship alteration/drop and whole-v1 compatibility remain separate work.

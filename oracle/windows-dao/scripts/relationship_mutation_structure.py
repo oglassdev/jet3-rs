@@ -46,7 +46,8 @@ def map_info(data,locator,role):
 
 def payload(data,field,owned,reached):
     req(len(field)>=12,'long header');word=int.from_bytes(field[:4],'little');length=word&0xffffff;flags=word&0xff000000
-    req(field[8:12]==bytes(4) and length<=4096,'long header fields')
+    # This acceptance matrix has one explicitly modeled 4,608-byte Notes value.
+    req(field[8:12]==bytes(4) and length<=8192,'long header fields')
     descriptor={'raw_hex':field.hex(),'length':length,'flags':flags,'locator':None}
     if flags==0x80000000:
         req(field[4:8]==bytes(4) and len(field)==length+12,'inline length');return field[12:],descriptor

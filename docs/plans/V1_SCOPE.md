@@ -142,6 +142,14 @@ system storage agree. Eight constraint refusals preserve the Rust inputs;
 object IDs and catalog row locators while storing equal catalog key bytes.
 Other name encodings and relationship forms remain separate work.
 
+EXP-0279/0280 add later and nullable unique parent selection, existing child
+index reuse and native aliases sharing a physical tree. Forty creation pairs and
+72 mutation pairs match complete schema, values, traversal/Seek, physical keys,
+counters and allocation. Sixteen Rust refusals preserve the whole input. Native
+orphan refusals retain the observed finite counter side effect. Memo replacement
+may choose a different valid payload page while preserving complete values,
+ownership and unrelated storage. The two-relationship creation bound remains.
+
 ### Updates
 
 Public APIs implement bounded field updates, insertion into populated pages or
