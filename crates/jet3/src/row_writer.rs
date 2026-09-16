@@ -118,6 +118,13 @@ pub enum RowValue<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum RowWriteError {
+    /// A column's Required property forbids the resulting null value.
+    RequiredValueMissing {
+        /// Zero-based column ordinal.
+        ordinal: u16,
+        /// Column physical type.
+        physical_type: ColumnPhysicalType,
+    },
     /// The Text or Memo column does not allow a present empty value.
     ZeroLengthNotAllowed {
         /// Zero-based column ordinal.

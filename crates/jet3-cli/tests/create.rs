@@ -39,7 +39,6 @@ fn create_rejects_unknown_fields_types_and_arguments() -> Result {
         r#"{"tables":[{"name":"T","columns":[{"name":"Id","type":"long"}],"rows":[[{"long":2147483648}]]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"Id","type":"long","size":4}]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"Text","type":"text","size":0}]}]}"#,
-        r#"{"tables":[{"name":"T","columns":[{"name":"Text","type":"fixed_text","size":8,"allow_zero_length":true}]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"Id","type":"long","allow_zero_length":true}]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"Text","type":"text","size":10}],"rows":[[{"text":"é"}]]}]}"#,
         r#"{"tables":[{"name":"T","columns":[{"name":"B","type":"binary","size":2}],"rows":[[{"binary":[256]}]]}]}"#,
@@ -74,7 +73,7 @@ fn create_file_input_preserves_typed_rows_and_refuses_overwrite() -> Result {
     let output = directory.path().join("created.mdb");
     let input = directory.path().join("request.json");
     let request = json!({"tables":[{
-        "name":"Items", "columns":[{"name":"Id","type":"auto_increment"},{"name":"Label","type":"text","size":20}],
+        "name":"Items", "columns":[{"name":"Id","type":"auto_increment"},{"name":"Label","type":"text","size":20,"required":true}],
         "indexes":[{"name":"ById","kind":"primary","fields":[{"column":"Id"}]}],
         "rows":[["auto_increment",{"text":"Hello"}],["auto_increment",{"text":[233]}]]
     }]});
@@ -92,6 +91,13 @@ fn create_file_input_preserves_typed_rows_and_refuses_overwrite() -> Result {
     );
     assert_eq!(serde_json::from_slice::<Value>(&result.stdout)?["ok"], true);
     let bytes = fs::read(&output)?;
+    let mut invalid = request.clone();
+    invalid["tables"][0]["rows"][0][1] = Value::Null;
+    let refused = directory.path().join("required-null.mdb");
+    let result = run(&refused, &invalid.to_string())?;
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("RequiredValueMissing"));
+    assert!(!refused.exists());
     let inspection = Command::new(env!("CARGO_BIN_EXE_jet3-cli"))
         .arg("inspect")
         .arg(&output)

@@ -71,7 +71,7 @@ fn duplicate_child_keys_keep_payload_locators_maps_and_distinct_counts() -> Test
         &mut budget(),
     )?;
     let bytes = fs::read(directory.target())?;
-    assert_eq!(bytes.len(), 32 * crate::PAGE_BYTES);
+    assert_eq!(bytes.len(), 33 * crate::PAGE_BYTES);
     assert_eq!(
         &bytes[25 * crate::PAGE_BYTES + 12..25 * crate::PAGE_BYTES + 16],
         &20_u32.to_le_bytes()
@@ -80,12 +80,12 @@ fn duplicate_child_keys_keep_payload_locators_maps_and_distinct_counts() -> Test
         &bytes[25 * crate::PAGE_BYTES + 47..25 * crate::PAGE_BYTES + 51],
         &3_u32.to_le_bytes()
     );
-    for page in 28..31 {
+    for page in 29..32 {
         assert!(map_bit(&bytes, 26, 0, page)?);
         assert!(map_bit(&bytes, 26, 1, page)?);
     }
-    assert!(map_bit(&bytes, 26, 2, 27)?);
-    assert!(!map_bit(&bytes, 26, 0, 27)?);
+    assert!(map_bit(&bytes, 26, 2, 28)?);
+    assert!(!map_bit(&bytes, 26, 0, 28)?);
     let mut operation = budget();
     let mut database = DatabaseReader::open(directory.target(), &mut operation)?;
     let child = database.table_definition(PageNumber::new(25), &mut operation)?;
@@ -101,7 +101,7 @@ fn duplicate_child_keys_keep_payload_locators_maps_and_distinct_counts() -> Test
         positions
             .iter()
             .map(|position| RowLocator::new(
-                PageNumber::new(28 + position / 7),
+                PageNumber::new(29 + position / 7),
                 (position % 7) as u8
             ))
             .collect::<Vec<_>>()
@@ -111,8 +111,8 @@ fn duplicate_child_keys_keep_payload_locators_maps_and_distinct_counts() -> Test
     for offset in [
         25 * crate::PAGE_BYTES + 47,
         26 * crate::PAGE_BYTES + 5,
-        28 * crate::PAGE_BYTES + 2047,
-        27 * crate::PAGE_BYTES + 252,
+        29 * crate::PAGE_BYTES + 2047,
+        28 * crate::PAGE_BYTES + 252,
     ] {
         let mut changed = bytes.clone();
         changed[offset] ^= 1;

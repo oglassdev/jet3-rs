@@ -79,6 +79,8 @@ pub struct ValidationReport {
 pub enum ValidationError {
     /// Catalog discovery, records or table references failed.
     Catalog(CatalogError),
+    /// Catalog property values could not be collected.
+    ColumnProperties(crate::ColumnPropertyError),
     /// A table check failed; the original catalog identity is retained.
     Table {
         /// Catalog name, identifier and table-definition reference.
@@ -98,6 +100,15 @@ pub enum ValidationError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TableValidationError {
+    /// Named column properties or their payload storage could not be read.
+    ColumnProperties(crate::ColumnPropertyError),
+    /// A stored null violates the column's Required property.
+    RequiredValue {
+        /// Logical row containing the null.
+        row: RowLocator,
+        /// Required field ordinal.
+        column: ColumnOrdinal,
+    },
     /// Definition or its typed references could not be decoded.
     Definition(TableDefinitionError),
     /// The definition kind disagrees with its catalog record's class.
@@ -164,6 +175,7 @@ impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Catalog(source) => write!(f, "validation catalog: {source}"),
+            Self::ColumnProperties(source) => write!(f, "validation properties: {source}"),
             Self::Table { table, source } => {
                 f.write_str("validation table ")?;
                 if let Some(name) = table.name().decoded_ascii() {
@@ -184,6 +196,7 @@ impl std::error::Error for ValidationError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(match self {
             Self::Catalog(source) => source,
+            Self::ColumnProperties(source) => source,
             Self::Table { source, .. } => source,
             Self::Storage(source) => source,
             Self::Relationships(source) => source,
@@ -201,6 +214,7 @@ impl fmt::Display for TableValidationError {
 impl std::error::Error for TableValidationError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::ColumnProperties(source) => Some(source),
             Self::Definition(source) => Some(source),
             Self::Rows { source, .. } => Some(source),
             Self::Value { source, .. } => Some(source),
@@ -208,9 +222,10 @@ impl std::error::Error for TableValidationError {
             Self::Index { source, .. } => Some(source),
             Self::Storage(source) => Some(source),
             Self::Resource(source) => Some(source),
-            Self::DefinitionKind { .. } | Self::RowCount { .. } | Self::IndexContents { .. } => {
-                None
-            }
+            Self::DefinitionKind { .. }
+            | Self::RowCount { .. }
+            | Self::IndexContents { .. }
+            | Self::RequiredValue { .. } => None,
         }
     }
 }
@@ -237,8 +252,10 @@ impl<S: ReadAt> DatabaseReader<S> {
         let mut report = ValidationReport::default();
         let mut tables = Vec::new();
         let mut roots = Vec::new();
+        let catalog_root;
         {
             let mut catalog = self.catalog(budget).map_err(ValidationError::Catalog)?;
+            catalog_root = catalog.root();
             while let Some(record) = catalog.next_record().map_err(ValidationError::Catalog)? {
                 add(&mut report.catalog_objects, 1).map_err(ValidationError::Resource)?;
                 if let Some(root) = record.table_definition() {
@@ -258,6 +275,9 @@ impl<S: ReadAt> DatabaseReader<S> {
                 }
             }
         }
+        let mut properties =
+            crate::column_property_values::Properties::load(self, catalog_root, &roots, budget)
+                .map_err(ValidationError::ColumnProperties)?;
         for (table, root) in tables {
             let expected = match table.class() {
                 CatalogObjectClass::User => TableDefinitionKind::User,
@@ -285,6 +305,13 @@ impl<S: ReadAt> DatabaseReader<S> {
                     } else {
                         None
                     };
+                    let options = if expected == TableDefinitionKind::User {
+                        properties
+                            .options(self, &definition, budget)
+                            .map_err(TableValidationError::ColumnProperties)?
+                    } else {
+                        [crate::column_property_reader::ColumnOptions::default(); 255]
+                    };
                     validate_table(
                         self,
                         &definition,
@@ -292,6 +319,7 @@ impl<S: ReadAt> DatabaseReader<S> {
                         budget,
                         &mut report,
                         empty_payload_column,
+                        &options,
                     )
                 });
             if let Err(source) = result {
@@ -330,6 +358,7 @@ fn validate_table<S: ReadAt>(
     budget: &mut ResourceBudget,
     report: &mut ValidationReport,
     empty_payload_column: Option<ColumnOrdinal>,
+    options: &[crate::column_property_reader::ColumnOptions; 255],
 ) -> Result<(), TableValidationError> {
     let mut payloads = storage::PayloadInventory::new(database, definition, budget)
         .map_err(TableValidationError::Storage)?;
@@ -340,6 +369,7 @@ fn validate_table<S: ReadAt>(
         budget,
         report,
         &mut payloads,
+        options,
     )?;
     payloads
         .finish(database, empty_payload_column, budget)
@@ -373,6 +403,7 @@ fn validate_rows<S: ReadAt>(
     budget: &mut ResourceBudget,
     report: &mut ValidationReport,
     payloads: &mut storage::PayloadInventory,
+    options: &[crate::column_property_reader::ColumnOptions; 255],
 ) -> Result<Vec<RowLocator>, TableValidationError> {
     let mut locators = Vec::new();
     let mut pending: Vec<(ColumnOrdinal, LongValueReference)> = Vec::new();
@@ -403,7 +434,7 @@ fn validate_rows<S: ReadAt>(
         };
         let locator = row.locator();
         pending.clear();
-        for column in definition.columns() {
+        for (column, option) in definition.columns().iter().zip(options) {
             let ordinal = column.ordinal();
             let value = row
                 .value(ordinal, code_page)
@@ -415,6 +446,12 @@ fn validate_rows<S: ReadAt>(
                 .ok_or(TableValidationError::Resource(Error::Arithmetic {
                     operation: "access defined validation field",
                 }))?;
+            if option.required && matches!(value.kind(), ValueKind::Null) {
+                return Err(TableValidationError::RequiredValue {
+                    row: locator,
+                    column: ordinal,
+                });
+            }
             if let ValueKind::LongValue(value) = value.kind() {
                 add(&mut report.long_values, 1).map_err(TableValidationError::Resource)?;
                 match value {

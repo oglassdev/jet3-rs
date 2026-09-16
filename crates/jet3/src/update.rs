@@ -30,6 +30,8 @@ pub struct FieldUpdate<'a> {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum UpdateError {
+    /// Named column properties or their storage are malformed.
+    ColumnProperties(crate::ColumnPropertyError),
     /// The named user table, row, or column was not found.
     NotFound(&'static str),
     /// The request needs an unimplemented update capability.
@@ -83,6 +85,7 @@ impl fmt::Display for UpdateError {
 impl StdError for UpdateError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
+            Self::ColumnProperties(source) => Some(source),
             Self::Resource(source) => Some(source),
             Self::Io(source) => Some(source),
             Self::Open(source) => Some(source),
@@ -115,6 +118,7 @@ macro_rules! conversion {
     };
 }
 conversion!(crate::Error, Resource);
+conversion!(crate::ColumnPropertyError, ColumnProperties);
 conversion!(std::io::Error, Io);
 conversion!(crate::DatabaseOpenError, Open);
 conversion!(crate::CatalogError, Catalog);

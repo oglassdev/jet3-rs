@@ -74,6 +74,8 @@ struct Column {
     size: Option<NonZeroU8>,
     #[serde(default)]
     allow_zero_length: bool,
+    #[serde(default)]
+    required: bool,
 }
 
 #[derive(Deserialize)]
@@ -106,7 +108,8 @@ impl Column {
         {
             return Err(format!("column {} does not accept size", self.name));
         }
-        if self.allow_zero_length && !matches!(self.kind, Kind::Text | Kind::Memo) {
+        if self.allow_zero_length && !matches!(self.kind, Kind::Text | Kind::FixedText | Kind::Memo)
+        {
             return Err(format!(
                 "column {} requires text or memo for allow_zero_length",
                 self.name
@@ -129,12 +132,14 @@ impl Column {
             Kind::Memo => ColumnType::Memo,
             Kind::LongBinary => ColumnType::LongBinary,
         };
-        let spec = ColumnSpec::new(self.name.bytes(), kind);
-        Ok(if self.allow_zero_length {
-            spec.with_allow_zero_length()
-        } else {
-            spec
-        })
+        let mut spec = ColumnSpec::new(self.name.bytes(), kind);
+        if self.allow_zero_length {
+            spec = spec.with_allow_zero_length();
+        }
+        if self.required {
+            spec = spec.with_required();
+        }
+        Ok(spec)
     }
 }
 

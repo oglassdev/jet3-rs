@@ -54,16 +54,16 @@ fn mixed_tables_assign_later_roots_maps_indexes_and_payloads() -> TestResult {
     ];
     create_database_with_table_rows(directory.target(), &requests, &mut budget())?;
     let bytes = fs::read(directory.target())?;
-    assert_eq!(bytes.len(), 36 * crate::PAGE_BYTES);
+    assert_eq!(bytes.len(), 37 * crate::PAGE_BYTES);
     for page in 23..26 {
         assert!(map_bit(&bytes, 21, 0, page)?);
     }
     assert!(map_bit(&bytes, 27, 2, 28)?);
     assert!(map_bit(&bytes, 27, 0, 29)?);
-    assert!(map_bit(&bytes, 31, 2, 32)?);
-    assert!(map_bit(&bytes, 31, 3, 32)?);
-    assert!(!map_bit(&bytes, 31, 0, 32)?);
-    assert!(map_bit(&bytes, 31, 0, 33)?);
+    assert!(map_bit(&bytes, 31, 2, 33)?);
+    assert!(map_bit(&bytes, 31, 3, 33)?);
+    assert!(!map_bit(&bytes, 31, 0, 33)?);
+    assert!(map_bit(&bytes, 31, 0, 34)?);
     let mut operation = budget();
     let mut database = DatabaseReader::open(directory.target(), &mut operation)?;
     let definition = database.table_definition(PageNumber::new(26), &mut operation)?;
@@ -85,7 +85,7 @@ fn mixed_tables_assign_later_roots_maps_indexes_and_payloads() -> TestResult {
     for offset in [
         28 * crate::PAGE_BYTES + 4,
         29 * crate::PAGE_BYTES + 4,
-        32 * crate::PAGE_BYTES + 1536,
+        33 * crate::PAGE_BYTES + 1536,
     ] {
         let mut changed = bytes.clone();
         changed[offset] ^= 1;

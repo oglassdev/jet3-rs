@@ -90,7 +90,14 @@ are refused. Relationship names share the 63-byte usable index-name limit.
 Other name encodings, index key types and relationship forms remain restricted.
 Empty OLE payloads store null. Text/Memo columns can independently
 allow present-empty values, including later indexed tables and chained column
-properties. Fixed Text retains its exact-width input contract. Existing-table schema changes and
+properties. Required column constraints are encoded and enforced on initial rows,
+insertion and replacement, including Boolean and AutoIncrement exceptions and
+empty Binary/OLE normalization. Read-only validation checks Required nulls and
+named Boolean property framing. EXP-0283/0284 cover native discovery and
+72 creation plus 204 mutation comparisons, including 70 expected refusals.
+Fixed Text retains its exact-width input contract. Creation persists disabled empty-value properties;
+legacy mutation with absent or partial properties still needs the
+follow-up recorded in EXP-0284. Existing-table schema changes and
 table/relationship dropping are absent. EXP-0239 adds explicit, negative and
 wrapping AutoIncrement IDs to the finite writer comparisons.
 
@@ -267,8 +274,9 @@ multiple constraints are checked separately, including shared foreign indexes.
 Unsupported relationship catalog rows are counted explicitly; complete endpoint
 inventory is checked only when every central row is interpreted. Known endpoints
 must still occur exactly once when other forms are present.
-Catalog property payloads are decoded as binary values without interpreting their
-application-specific grammar. Non-table contents, unreferenced file
+User-table catalog properties decode Required and AllowZeroLength records and
+reject malformed or unsupported framing. Other property values remain opaque.
+Non-table contents, unreferenced file
 pages and unsupported index key schemas remain outside these checks. Catalog
 reading follows native overflow records using the shared row-locator grammar
 (EXP-0228). Validation success does not establish DAO compatibility.

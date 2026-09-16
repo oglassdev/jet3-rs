@@ -18446,3 +18446,165 @@ preservation and the validation contract remain tracked in issue #369.
   simultaneous relationships in these creation cases, and the recorded scalar
   index forms. Larger graphs, composite/cascading/other-key constraints,
   relationship alteration/drop and whole-v1 compatibility remain separate work.
+
+
+## EXP-0283 — Native Required column constraints and null normalization
+
+Native run `20260916T050547Z-required-columns-r1` completed 36 schemas in two
+replicas: 72 receipts, 504 closed MDB checkpoints and 432 operations. Each table
+has an ordinary Long primary key and one Payload column. The matrix covers all
+15 exposed column kinds, Required false/true, and both AllowZeroLength values
+for Text, Fixed Text and Memo. It probes nonnull, explicit Null, omission,
+zero/empty insertion and null/nonnull updates. Production context was main
+`2962acd`; this entry establishes native observations, not Rust compatibility.
+
+The durable private bundle is
+`shared/checks/20260916-required-column-discovery` beneath the local VM root.
+It retains exact inputs, provider identity, receipts, all checkpoints, complete
+raw observations, evaluator and failed-write effects. SHA-256 identities:
+
+- Matrix: `a464799a3f3770ec339c5d6062b3529845c385cd6fcd7b6e1323d08bad8cb3ec`.
+- Producer: `7e2f663790decbd4ada075fa8d434d167f41455aad0ae8d5223c0c9c11b955ff`.
+- Evaluator: `ecede7c519a3ffa6c2f22d3a2ece2a4f9289b270bad47a6778e923ed1a5e1cc6`.
+- Report: `826c3a8dffa50976cf14ea10c4bfae213238429a5606a92a6740e88db31b9a9a`.
+- Run manifest: `e671b4172cc30e591d5ac2b6f5988e7ceb931460c646595810ef965b1f0c2268`.
+- Bundle manifest: `5a8e811692818e43e2f87dd1c2b8786d3138fbcae0cd84614f9bd0466145d7ed`.
+
+Provider: x86 DAO.DBEngine.36 version 3.6, dao360.dll 03.60.9765.0 SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`, Windows
+10.0.20348.0, en-US, ANSI 1252. Independent evaluation checks complete schema,
+properties, rows, primary traversal and Seek outcomes; raw values, payloads,
+keys/locators/counters, maps and ownership; stable property payloads; replica
+agreement; and rejected-write effects. Replay reproduces the report exactly.
+
+Observed behavior:
+
+- Byte, Integer, Long, Currency, Single, Double, DateTime and Guid retain the
+  requested Required flag. Required true rejects explicit Null, omission and
+  null updates with 3314; zero and nonzero values succeed. Required false admits
+  these null operations.
+- Boolean retains Required but maps explicit Null, omission and null updates
+  to false. The physical Boolean presence bit is clear for false; there is no
+  separate Boolean Null state in these observations.
+- AutoIncrement normalizes requested Required true to false and omits its
+  field property block. Omission generates a value. Explicit Null insertion
+  rejects 3162 after consuming a generator value; existing-field assignment
+  rejects 3164. This failed-insert counter effect differs from the Rust
+  whole-file refusal-preservation contract and needs independent-source
+  comparisons; a continued generator sequence cannot be equated across it.
+- Variable Text and Memo reject empty values with 3315 when AllowZeroLength is
+  false. True preserves a present zero-length value. Required independently
+  rejects Null with 3314.
+- Fixed Text width four pads an empty native BSTR to four ASCII spaces with
+  either property setting. Required rejects actual Null. Rust retains its
+  documented exact-width row-input contract; an explicit padding adapter is
+  needed when comparing native empty-string assignment.
+- Empty Binary and OLE byte arrays normalize to Null, so Required true rejects
+  them with 3314. Nonempty bytes succeed. Every non-Auto rejection in this
+  matrix preserves the whole file.
+
+Property grammar extends EXP-0266 without changing its Boolean record:
+`KKD\0`, a dictionary block of length 16 for Required alone or 33 for Required
+then AllowZeroLength, and named field blocks of length `21 + name_len` or
+`30 + name_len`. Each block has kind 1, nested length `6 + name_len`, then
+nine-byte records containing the dictionary ordinal and Boolean 00/ff. Ordinary
+Id has a Required-false block; non-Auto Payload has Required and text-like
+Payload also has AllowZeroLength, including false. Auto Payload has no block.
+Complete payload lengths are 43 bytes for Auto, 71 for other Required-only
+schemas and 97 for schemas with both properties; row mutations preserve them.
+
+Absent fixed-field padding bytes can differ across native replicas while the
+presence bit, logical value and indexes agree. Do not interpret or require
+stable bytes for absent values. Raw bytes remain retained in the report.
+Defaults/rules, relationship interactions and other index combinations are not
+established by this discovery matrix.
+
+## EXP-0284 — Required acceptance findings and explicit disabled empty values
+
+The first acceptance run, `20260916T063539Z-required-column-acceptance-r1`,
+uses source `e19315a3807fca836e4c9d1e8657075af3b70bf7` and the EXP-0283
+provider. This run is not accepted. Its closed Text Required-false,
+AllowZeroLength-false receipt has SHA-256
+`496c6ad67b1da211f6dfd81e1e9f89217a681edbbefa6cad7b318bf23fd5d844`.
+DAO reports both properties as false in a Rust-created file whose catalog
+LvProp is absent, but accepts inserting an empty BSTR. The source image is
+`935c6e23e6bea04ba414905807bc22c2f2844f375616078a2fac1faa327c3502`;
+the native postimage is
+`27060846cfb7c922a1c9b1f271b660525373f19a9f1b19ca172f02e719c06689`.
+Rust refuses that insertion without changing the file. The explicit false
+property in the native EXP-0283 control rejects the same empty assignment
+with 3315. Creation must therefore persist disabled AllowZeroLength on text
+columns rather than infer enforcement from the reported default property.
+The native property framing and false value remain those of EXP-0266/0283.
+
+The same acceptance run also exposed a preparation error: its GUID requests
+used little-endian storage bytes although RowValue::Guid takes conventional
+GUID display-order bytes (EXP-0061). The original inputs and mismatched
+comparisons are retained. Correcting this adapter is not a format change.
+
+The subsequently closed Memo Required-false, AllowZeroLength-false receipt
+`407a538b190072b6862f5d87783a0684bb6d6da7fc721d4ca84f085d46ec0ffc`
+shows the same absent-property behavior: native empty insertion succeeds,
+with source `d9b01f10d39ccdb65f357482c8db02b04ad93c6c63de1c10de12d9cd3def0f2f`
+and postimage `511774b3ba70616a42a48c000630aec69a45144b504d4b85186a17a617379f4f`.
+The writer fix persists explicit false for variable Text, FixedText and Memo.
+Legacy mutation/validation of absent or partially present properties remains a
+separate limitation; the tested absence result covers variable Text and Memo.
+
+Read-only validation already accepts both retained native empty Text/Memo
+postimages above: the `43e8d80` CLI validates each successfully. Validation
+checks Required nulls and property framing, not AllowZeroLength enforcement
+on stored values. The proven legacy-file mismatch is therefore mutation
+refusal when AllowZeroLength is absent; it is not a demonstrated read-only
+validation failure.
+
+### Accepted corrected Required comparison
+
+Run `20260916T070405Z-required-column-acceptance-r2` uses production source
+`43e8d8088d4a24a207a1b763899e6f8a982b8e4d` and the EXP-0283 provider.
+All 36 schemas pass: 72 independent creation pairs and 204 mutation pairs
+(134 successes and 70 expected refusals), comprising 552 closed MDB captures.
+The corrected GUID adapter supplies display-order bytes. Text, FixedText and
+Memo creation emits explicit Required/AllowZeroLength properties even when
+both are false. All non-Auto mutations start from the same one-row input for
+Rust and DAO; Auto mutation comparisons are excluded for the failed-insert
+counter behavior recorded in EXP-0283. FixedText uses the documented
+exact-width input adapter. Payload columns are not indexed; Id is an ordinary
+Long primary key. All 15 exposed column kinds are covered in creation.
+
+The evaluator compares complete DAO schema, properties, rows, index traversal
+and Seek, requested raw column definitions, named property models, complete
+payload bytes, physical keys/locators/counters, system catalogs and allocation
+ownership. Mutation comparisons preserve schema, properties, unselected rows
+and unrelated system pages. Selected/new raw row bytes agree except assigned
+Null fixed-field padding (EXP-0283) and assigned Memo/OLE descriptor placement;
+complete payload bytes, reachability and disjoint ownership remain checked.
+Rust refusals preserve the entire input. Independent creation may choose
+different valid physical layouts; DateCreated/LastUpdated are the only ignored
+DAO properties between those independent creations. Scalar all-default and
+Auto property payloads may be absent while the complete DAO properties agree.
+
+The immutable private bundle is
+`shared/checks/20260916-required-column-acceptance` beneath the local VM root.
+It retains failed r1 and accepted r2 exact inbox/outbox, preparation histories,
+source archive/pins, evaluators and dependencies, partial reports and targeted
+GUID/Text/Memo diagnostics. All 1,253 manifested files (170,467,023 bytes)
+were independently hash-verified. SHA-256 identities:
+
+- Source archive: `d155df174e785c1a1507f083310562917652486b0fdb157e0b950e6a6dc88298`.
+- Candidate binary: `6383e037dc5773b997910b5851a4f1c39a6dbbb7ad4cf7839e63b4c445247b19`.
+- Input ZIP: `d9e4f152e42fb4657d75a646a3a3e15b7fe9659db5c1326211991c5897897a52`.
+- Matrix: `6d487e89a91ec6cf72d9864deecad90d4d7375c035c9f57fe51ad348070a629a`.
+- Producer: `e7ba3875ccd57f75670fe55de8ec49f034e31d89096e38fa438c0da851f132a5`.
+- Evaluator: `5b2ca3c90b796e73a595664fe5e114e285bf6178acefb35f5f42ff6f0be8d9bf`.
+- Report: `535d828e8f132d58938386047249cfc01eb0a70bf7895e79dc7cf0ad53805b2e`.
+- Findings: `4f314537a4d570f680c39524ef4a78d86b6c98d0bd3b8dd885fff72c7f1cf8cf`.
+- Bundle manifest: `0769ad3729f7d030c14557acfcb18cf04be6061051b155eacab6db7c75e985b5`.
+
+An independent replay reproduced the accepted report byte-for-byte.
+`just ready` passed 1,600 tests with zero failures and ten ignored; independent
+GPT-5.6 Sol high review was clear. The 750 retained validation inputs passed
+at `e19315a`, before the subsequent writer-only explicit-false property fix;
+that sweep is not attributed to the later source revision. Legacy absent or
+partial property mutation, defaults, validation expressions, relationship
+interactions and other index combinations remain outside this accepted scope.

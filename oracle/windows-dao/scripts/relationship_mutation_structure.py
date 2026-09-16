@@ -20,7 +20,7 @@ def pattern(length,seed): return bytes((i*37+seed*13+11)%256 for i in range(leng
 def layout(raw,columns):
     count=raw[0];req(count==len(columns),'physical column count')
     pl=(count+7)//8;presence=raw[-pl:];variables=sum(c['storage']=='variable' for c in columns)
-    fixed=1+max((c['fixed_offset']+c['size'] for c in columns if c['storage']=='fixed'),default=0)
+    fixed=1+max((c['fixed_offset']+c['size'] for c in columns if c['storage']=='fixed' and c['type']!='Boolean'),default=0)
     bounds=[];jumps=b''
     if variables:
         pos=len(raw)-pl-1;req(raw[pos]==variables,'variable count');jc=(len(raw)-1)//256;end=pos-jc-variables-1
@@ -32,7 +32,8 @@ def layout(raw,columns):
     vals=[]
     for c in columns:
         o=c['ordinal'];present=bool(presence[o//8]&(1<<(o%8)))
-        if not present: value=None
+        if c['type']=='Boolean': value=b'' if present else None
+        elif not present: value=None
         elif c['storage']=='fixed': value=raw[1+c['fixed_offset']:1+c['fixed_offset']+c['size']]
         else: value=raw[bounds[c['variable_index']]:bounds[c['variable_index']+1]]
         if not present and c['storage']=='variable':
@@ -79,7 +80,8 @@ def rows(data,table,primary_column='Id'):
                 req(len(raw)==4,'overflow link');current,slot=int.from_bytes(raw[1:],'little'),raw[0];req(current in table['data_pages'],'overflow ownership');image=catalog._page(data,current,'overflow');entry=catalog._row_directory(image,current)[slot];req(entry['hidden'] and entry['start']<entry['end'],'overflow target')
             req((current,entry['row']) not in storage,'distinct storage');storage.add((current,entry['row']));rawvals,shape=layout(raw,cols);values={};descriptors={}
             for c,v in zip(cols,rawvals):
-                if v is None: decoded=None
+                if c['type']=='Boolean': decoded=v is not None
+                elif v is None: decoded=None
                 elif c['type'] in ('Memo','LongBinary'):
                     decoded,descriptor=payload(data,v,owned[c['ordinal']],reached[c['ordinal']]);descriptors[c['name']]=descriptor
                 else: decoded=catalog._decode_value(c,v,True)

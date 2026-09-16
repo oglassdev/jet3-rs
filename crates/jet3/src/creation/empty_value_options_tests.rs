@@ -190,7 +190,10 @@ fn malformed_properties_and_disabled_empty_values_preserve_input() -> Result<(),
                 })
             ));
         } else {
-            assert!(matches!(error, crate::UpdateError::Mismatch(_)));
+            assert!(matches!(
+                error,
+                crate::UpdateError::ColumnProperties(crate::ColumnPropertyError::Invalid(_))
+            ));
         }
         assert_eq!(fs::read(&path)?, changed);
     }
@@ -239,7 +242,9 @@ fn malformed_properties_and_disabled_empty_values_preserve_input() -> Result<(),
                 &[RowValue::Long(2), RowValue::Memo(b"")],
                 &mut budget()
             ),
-            Err(crate::UpdateError::Mismatch(_))
+            Err(crate::UpdateError::ColumnProperties(
+                crate::ColumnPropertyError::Invalid(_)
+            ))
         ));
         assert_eq!(fs::read(&path)?, changed);
     }
@@ -253,7 +258,7 @@ fn malformed_properties_and_disabled_empty_values_preserve_input() -> Result<(),
             definition.columns(),
             &mut limited
         ),
-        Err(crate::UpdateError::Resource(
+        Err(crate::ColumnPropertyError::Resource(
             crate::Error::ResourceLimitExceeded { .. }
         ))
     ));
@@ -271,6 +276,11 @@ fn chained_properties_keep_options_independent() -> Result<(), Box<dyn StdError>
     let width = std::num::NonZeroU8::new(8).ok_or("width")?;
     for (i, name) in names.iter().enumerate() {
         let field = ColumnSpec::new(name.as_bytes(), ColumnType::Text { max_len: width });
+        let field = if i % 3 == 0 {
+            field.with_required()
+        } else {
+            field
+        };
         fields.push(if i % 2 == 0 {
             field.with_allow_zero_length()
         } else {
@@ -316,6 +326,15 @@ fn chained_properties_keep_options_independent() -> Result<(), Box<dyn StdError>
         crate::insert_row(&path, b"Rows", &initial, &mut budget()),
         Err(crate::UpdateError::Encoding(
             crate::RowWriteError::ZeroLengthNotAllowed { ordinal: 2, .. }
+        ))
+    ));
+    assert_eq!(fs::read(&path)?, original);
+    initial[1] = RowValue::Null;
+    initial[2] = RowValue::Text(b"value");
+    assert!(matches!(
+        crate::insert_row(&path, b"Rows", &initial, &mut budget()),
+        Err(crate::UpdateError::Encoding(
+            crate::RowWriteError::RequiredValueMissing { ordinal: 1, .. }
         ))
     ));
     assert_eq!(fs::read(&path)?, original);
@@ -380,8 +399,8 @@ fn text_only_properties_are_checked_before_publication() -> Result<(), Box<dyn S
     fs::write(&alias, &changed)?;
     assert!(matches!(
         crate::insert_row(&alias, b"Rows", &[RowValue::Text(b"")], &mut budget()),
-        Err(crate::UpdateError::Mismatch(
-            "property page belongs to another object"
+        Err(crate::UpdateError::ColumnProperties(
+            crate::ColumnPropertyError::Invalid("property page belongs to another object")
         ))
     ));
     assert_eq!(fs::read(&alias)?, changed);

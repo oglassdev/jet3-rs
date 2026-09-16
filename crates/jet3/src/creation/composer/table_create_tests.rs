@@ -368,10 +368,8 @@ fn database_bytes(specs: &[TableSpec<'_>]) -> Result<Vec<u8>, ComposeError> {
 }
 
 #[test]
-fn later_creates_follow_the_observed_page_and_row_pattern() -> TestResult {
-    // EXP-0087: the alpha, beta, gamma, and delta checkpoints were 23, 25, 28,
-    // and 31 pages; each create added one catalog row and two ACE rows, and
-    // page-zero byte 1538 advanced by two per create.
+fn later_creates_keep_catalog_rows_and_explicit_text_properties() -> TestResult {
+    // EXP-0087 catalog rows/counters and EXP-0284 explicit text properties.
     let gamma_indexes = [IndexSpec {
         name: b"PrimaryKey",
         fields: &[field(0, IndexDirection::Ascending)],
@@ -387,19 +385,19 @@ fn later_creates_follow_the_observed_page_and_row_pattern() -> TestResult {
         kind: IndexKind::Ordinary,
     }];
     let tables = exp_0087_tables(&gamma_indexes, &delta_indexes, &label);
-    for (count, pages) in [(1, 23), (2, 25), (3, 28), (4, 31)] {
+    for (count, pages) in [(1, 23), (2, 26), (3, 29), (4, 33)] {
         let bytes = database_bytes(&tables[..count])?;
         assert_eq!(bytes.len(), pages * PAGE_BYTES, "{count} tables");
         assert_eq!(bytes[1538], 2 * count as u8);
     }
     let bytes = database_bytes(&tables)?;
-    // Only the first create appends the LvProp page; later roots follow.
+    // The first empty property page remains; Beta and Delta have named properties.
     assert_eq!(&page(&bytes, 22)[..8], b"\x01\x01\xf6\x07LVAL");
-    for root in [20, 23, 25, 28] {
+    for root in [20, 23, 26, 29] {
         assert_eq!(page(&bytes, root)[0], 2, "definition root {root}");
         assert_eq!(page(&bytes, root + 1)[0], 1, "map page after {root}");
     }
-    for index_root in [27, 30] {
+    for index_root in [28, 32] {
         assert_eq!(page(&bytes, index_root)[0], 4, "index root {index_root}");
     }
     let mut budget = read_budget(bytes.len());
@@ -423,15 +421,15 @@ fn later_creates_follow_the_observed_page_and_row_pattern() -> TestResult {
         [
             (b"Alpha".to_vec(), 20, Some(PageNumber::new(20))),
             (b"Beta".to_vec(), 23, Some(PageNumber::new(23))),
-            (b"Gamma".to_vec(), 25, Some(PageNumber::new(25))),
-            (b"Delta".to_vec(), 28, Some(PageNumber::new(28))),
+            (b"Gamma".to_vec(), 26, Some(PageNumber::new(26))),
+            (b"Delta".to_vec(), 29, Some(PageNumber::new(29))),
         ]
     );
-    let gamma = database.table_definition(PageNumber::new(25), &mut budget)?;
-    assert_eq!(gamma.physical_indexes()[0].root(), PageNumber::new(27));
+    let gamma = database.table_definition(PageNumber::new(26), &mut budget)?;
+    assert_eq!(gamma.physical_indexes()[0].root(), PageNumber::new(28));
     assert_eq!(
         gamma.physical_indexes()[0].usage_map().page(),
-        PageNumber::new(26)
+        PageNumber::new(27)
     );
     let aces = database.table_definition(PageNumber::new(3), &mut budget)?;
     let mut ace_rows = 0;

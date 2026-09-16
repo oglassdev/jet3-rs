@@ -336,12 +336,12 @@ fn two_tables_are_created_in_order_and_reopen() -> TestResult {
         },
     ];
     create_database(&target, &tables, &mut budget())?;
-    assert_eq!(fs::metadata(&target)?.len(), 26 * crate::PAGE_BYTES as u64);
+    assert_eq!(fs::metadata(&target)?.len(), 27 * crate::PAGE_BYTES as u64);
     let mut budget = budget();
     let mut database = DatabaseReader::open(&target, &mut budget)?;
     let gamma = database.table_definition(PageNumber::new(23), &mut budget)?;
     assert_eq!(gamma.columns().len(), 2);
-    assert_eq!(gamma.physical_indexes()[0].root(), PageNumber::new(25));
+    assert_eq!(gamma.physical_indexes()[0].root(), PageNumber::new(26));
     Ok(())
 }
 
@@ -362,3 +362,6 @@ mod determinism;
 
 #[path = "schema_name_tests.rs"]
 mod schema_names;
+
+#[path = "required_column_tests.rs"]
+mod required_columns;

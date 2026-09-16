@@ -135,7 +135,15 @@ byte array elements must be integers from 0 through 255. The CLI exposes no
 raw Memo/OLE reference headers; the library allocates payload references.
 
 Text and Memo columns accept `"allow_zero_length": true` to permit present-empty
-values. The default is false; other column types reject that option when true.
+values. Fixed Text also accepts the property but requires exactly its declared
+byte width in row inputs. The default is false; other types reject this option.
+
+Columns accept `"required": true` to reject stored nulls during creation,
+insertion and replacement. Empty Binary/OLE values store null and therefore
+also fail this constraint. Boolean null inputs store false. AutoIncrement
+ignores Required and retains false; use `"auto_increment"` to generate a value.
+Required and AllowZeroLength are independent, so required Text/Memo can admit
+present-empty values when both options are true.
 
 An optional top-level `relationship` selects the two-table relationship API:
 

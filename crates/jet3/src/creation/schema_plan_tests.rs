@@ -79,14 +79,13 @@ fn a_table_without_an_index_appends_a_root_a_map_page_and_a_property_page() -> P
 }
 
 #[test]
-fn a_later_create_appends_no_property_page() -> PlanResult {
-    // EXP-0087: Beta, the second create, appended only its root and map page;
-    // Gamma, with one index, appended root, map page, then the index root.
+fn later_text_properties_precede_index_roots() -> PlanResult {
+    // EXP-0284: disabled empty values need explicit properties on later text tables.
     let columns = [ID, NAME, NOTE];
     let plan = plan_table_schema(&spec(b"Beta", &columns, &[]), 23, false, &mut budget())?;
     assert_eq!(plan.object_id(), 23);
-    assert_eq!(plan.property_page(), None);
-    assert_eq!(plan.appended_page_count(), 2);
+    assert_eq!(plan.property_page(), Some(PageNumber::new(25)));
+    assert_eq!(plan.appended_page_count(), 3);
     let indexes = [IndexSpec {
         name: b"PrimaryKey",
         fields: &[key(0)],
@@ -139,12 +138,12 @@ fn later_indexes_have_separate_roots_and_maps_in_physical_order() -> PlanResult 
             false,
             &mut budget(),
         )?;
-        assert_eq!(plan.property_page(), None);
-        assert_eq!(plan.appended_page_count(), 2 + count as u64);
+        assert_eq!(plan.property_page(), Some(PageNumber::new(25)));
+        assert_eq!(plan.appended_page_count(), 3 + count as u64);
         assert_eq!(
             plan.index_placements().collect::<Vec<_>>(),
             (0..count)
-                .map(|n| (PageNumber::new(25 + n as u64), 2 + n as u8))
+                .map(|n| (PageNumber::new(26 + n as u64), 2 + n as u8))
                 .collect::<Vec<_>>()
         );
     }

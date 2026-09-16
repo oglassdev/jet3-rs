@@ -117,8 +117,8 @@ fn checks_multiple_tables_index_and_inline_single_and_chained_long_values() -> T
             indexes: 8,
             indexes_with_verified_keys: 8,
             index_entries: 47,
-            long_values: 4,
-            long_value_bytes: 4642,
+            long_values: 5,
+            long_value_bytes: 4736,
             ..ValidationReport::default()
         }
     );

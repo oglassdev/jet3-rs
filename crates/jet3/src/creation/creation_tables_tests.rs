@@ -242,6 +242,12 @@ fn catalog_data_and_index_pages_grow_with_complete_row_locators() -> TestResult 
             u16::from_le_bytes(raw[1538..1540].try_into()?) as usize,
             0x0100 + 2 * count
         );
+        if count == 256 {
+            let mut work = ResourceBudget::new(ResourceLimits::default());
+            let report = DatabaseReader::open(directory.target(), &mut work)?
+                .validate(TextCodePage::Windows1252, &mut work)?;
+            assert_eq!(report.user_tables, count as u64);
+        }
     }
     Ok(())
 }
@@ -251,11 +257,11 @@ fn catalog_spill_extends_maps_without_overwriting_existing_destination() -> Test
     let directory = TestDirectory::create()?;
     let names = (0..40).map(|n| format!("T{n:02}")).collect::<Vec<_>>();
     let payload = [b'x'; 200];
-    let values = [RowValue::Text(&payload); 8];
+    let values = [RowValue::Binary(&payload); 8];
     let rows = [values.as_slice(); 26];
     let width = std::num::NonZeroU8::new(200).ok_or("binary width")?;
     let columns = [b"C0", b"C1", b"C2", b"C3", b"C4", b"C5", b"C6", b"C7"]
-        .map(|name| ColumnSpec::new(name, ColumnType::FixedText { len: width }));
+        .map(|name| ColumnSpec::new(name, ColumnType::Binary { max_len: width }));
     let mut requests = names
         .iter()
         .enumerate()

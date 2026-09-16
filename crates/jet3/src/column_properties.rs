@@ -1,7 +1,8 @@
-//! Named Boolean field properties from EXP-0208/0266/0270/0277, stored in catalog LvProp.
+//! Named Boolean field properties from EXP-0208/0266/0270/0277/0283/0284, stored in catalog LvProp.
 use crate::{BinaryWriter, ColumnPhysicalType, ColumnSpec, Error, ResourceBudget};
 
-const DICTIONARY_LENGTH: usize = 33;
+const REQUIRED_DICTIONARY_LENGTH: usize = 16;
+const ZERO_LENGTH_DICTIONARY_ENTRY: usize = 17;
 const FIELD_PREFIX: usize = 12;
 const BOOLEAN_RECORD_LENGTH: usize = 9;
 
@@ -12,15 +13,25 @@ pub(crate) const fn has_zero_length_property(kind: ColumnPhysicalType) -> bool {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ColumnProperties<'a> {
     columns: &'a [ColumnSpec<'a>],
+    zero_length: bool,
     length: usize,
 }
 
 impl<'a> ColumnProperties<'a> {
     pub(crate) fn new(columns: &'a [ColumnSpec<'a>]) -> Option<Self> {
-        if columns.len() > u8::MAX as usize || !columns.iter().any(ColumnSpec::allow_zero_length) {
+        if columns.len() > u8::MAX as usize
+            || !columns
+                .iter()
+                .any(|column| has_zero_length_property(column.physical_type()) || column.required())
+        {
             return None;
         }
-        let mut length = 4 + DICTIONARY_LENGTH;
+        let zero_length = columns
+            .iter()
+            .any(|column| has_zero_length_property(column.physical_type()));
+        let mut length = 4
+            + REQUIRED_DICTIONARY_LENGTH
+            + usize::from(zero_length) * ZERO_LENGTH_DICTIONARY_ENTRY;
         for column in columns {
             if crate::catalog_name_key::validate_catalog_name(column.name()).is_err() {
                 return None;
@@ -33,7 +44,11 @@ impl<'a> ColumnProperties<'a> {
                 + BOOLEAN_RECORD_LENGTH
                     * (1 + usize::from(has_zero_length_property(column.physical_type())));
         }
-        Some(Self { columns, length })
+        Some(Self {
+            columns,
+            zero_length,
+            length,
+        })
     }
 
     pub(crate) const fn len(self) -> usize {
@@ -47,9 +62,12 @@ impl<'a> ColumnProperties<'a> {
     ) -> Result<usize, Error> {
         let mut writer = BinaryWriter::new(output, budget)?;
         writer.write_exact(b"KKD\0")?;
-        writer.write_u32_le(DICTIONARY_LENGTH as u32)?;
+        let dictionary_length = REQUIRED_DICTIONARY_LENGTH
+            + usize::from(self.zero_length) * ZERO_LENGTH_DICTIONARY_ENTRY;
+        writer.write_u32_le(dictionary_length as u32)?;
         writer.write_u16_le(0x80)?;
-        for name in [b"Required".as_slice(), b"AllowZeroLength"] {
+        let names = [b"Required".as_slice(), b"AllowZeroLength"];
+        for name in &names[..1 + usize::from(self.zero_length)] {
             writer.write_u16_le(name.len() as u16)?;
             writer.write_exact(name)?;
         }
@@ -69,7 +87,7 @@ impl<'a> ColumnProperties<'a> {
             if eligible {
                 boolean(&mut writer, 1, column.allow_zero_length())?;
             }
-            boolean(&mut writer, 0, false)?;
+            boolean(&mut writer, 0, column.required())?;
         }
         Ok(self.length)
     }
@@ -87,6 +105,30 @@ fn boolean(writer: &mut BinaryWriter<'_, '_>, ordinal: u16, value: bool) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn disabled_empty_values_have_an_explicit_property() -> Result<(), Box<dyn std::error::Error>> {
+        for kind in [
+            crate::ColumnType::Text {
+                max_len: std::num::NonZeroU8::new(4).ok_or("width")?,
+            },
+            crate::ColumnType::FixedText {
+                len: std::num::NonZeroU8::new(4).ok_or("width")?,
+            },
+            crate::ColumnType::Memo,
+        ] {
+            let columns = [ColumnSpec::new(b"Payload", kind)];
+            let properties = ColumnProperties::new(&columns).ok_or("explicit false property")?;
+            let mut bytes = vec![0; properties.len()];
+            let mut budget = ResourceBudget::new(crate::ResourceLimits::default());
+            properties.encode(&mut bytes, &mut budget)?;
+            assert_eq!(
+                &bytes[bytes.len() - 18..bytes.len() - 9],
+                &[9, 0, 1, 1, 1, 0, 1, 0, 0]
+            );
+        }
+        Ok(())
+    }
+
     #[test]
     fn auto_number_omits_its_default_property_block() -> Result<(), Box<dyn std::error::Error>> {
         let columns = [
