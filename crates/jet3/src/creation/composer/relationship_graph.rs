@@ -25,6 +25,7 @@ pub(crate) fn compose_relationship_graph(
     let mut indexes: Vec<Vec<IndexSpec<'_>>> = Vec::new();
     let mut overlays: Vec<Vec<LogicalIndexSpec<'_>>> = Vec::new();
     for (table, request) in requests.iter().enumerate() {
+        budget.charge_work_units(edges.len() as u64)?;
         let mut physical = Vec::new();
         crate::resource::reserve(&mut physical, request.table.indexes.len(), budget)?;
         physical.extend_from_slice(request.table.indexes);
@@ -77,6 +78,7 @@ pub(crate) fn compose_relationship_graph(
         create.resolve_relationship_targets(&roots)?;
     }
     for edge in &edges {
+        budget.charge_items(requests[edge.child].rows.len() as u64)?;
         for (row, values) in requests[edge.child].rows.iter().enumerate() {
             match values.get(usize::from(edge.child_column)) {
                 Some(RowValue::Null) => {}
@@ -127,93 +129,36 @@ fn assemble(
         push(&mut aces, ace(id, b"\x02\x01", 1048575, false), budget)?;
     }
     let catalog = CatalogPages::new_with_extras(creates, &objects, &aces, budget)?;
-    let data_page = catalog.page_count();
-    let mut maps = AllocationMaps::new(data_page + 1);
+    let relationship_pages = RelationshipPages::new(
+        edges.iter().map(|edge| {
+            let child = &requests[edge.child].table;
+            let parent = &requests[edge.parent].table;
+            relationship_pages::RelationshipRow {
+                name: edge.name,
+                child_table: child.name,
+                child_column: child.columns[usize::from(edge.child_column)].name(),
+                parent_table: parent.name,
+                parent_column: parent.columns[usize::from(edge.parent_column)].name(),
+            }
+        }),
+        catalog.page_count(),
+        budget,
+    )?;
+    let mut maps = AllocationMaps::new(relationship_pages.page_count());
     let images = compose_existing_pages_with_relationships(
         creates,
         &catalog,
-        &[data_page],
+        relationship_pages.maps(),
         &mut maps,
         budget,
     )?;
     let mut image = WholeFileImagePlan::from_existing_pages(images, budget)?;
-    let mut counts = [0; 3];
-    for (ordinal, root) in [
-        RELATIONSHIPS_NAME_ROOT,
-        RELATIONSHIPS_OBJECT_ROOT,
-        RELATIONSHIPS_REFERENCED_ROOT,
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let mut entries = Vec::new();
-        for (row, edge) in edges.iter().enumerate() {
-            let name = match ordinal {
-                0 => edge.name,
-                1 => requests[edge.child].table.name,
-                _ => requests[edge.parent].table.name,
-            };
-            let mut entry = OwnedIndexEntry::name(0, name, catalog_row_number(row)?)?;
-            let prefix = crate::catalog_name_key::LONG_COMPONENT_LEN;
-            entry.key.copy_within(prefix..entry.len, 0);
-            entry.len -= prefix;
-            push(&mut entries, entry, budget)?;
-        }
-        sort_index_entries(&mut entries);
-        counts[ordinal] = 1 + entries
-            .windows(2)
-            .filter(|pair| pair[0].key[..pair[0].len] != pair[1].key[..pair[1].len])
-            .count() as u32;
-        image.replace(
-            PageNumber::new(root),
-            index_page(MSYS_RELATIONSHIPS_ROOT, data_page, &entries, budget)?,
-        )?;
-    }
-    image.replace(
-        PageNumber::new(MSYS_RELATIONSHIPS_ROOT),
-        msys_relationships_definition(edges.len() as u32, counts, budget)?,
-    )?;
+    relationship_pages.replace_existing(&mut image, budget)?;
     for create in creates {
         create.append_pages(&mut image, &mut maps, budget)?;
     }
     catalog.append(&mut image, budget)?;
-    image.append_image(relationship_rows(requests, edges, budget)?, budget)?;
+    relationship_pages.append(&mut image, budget)?;
     maps.finish(&mut image, budget)?;
     Ok(image)
-}
-
-fn relationship_rows(
-    requests: &[TableRows<'_>],
-    edges: &[GraphRelation<'_>],
-    budget: &mut ResourceBudget,
-) -> Result<PageImage, ComposeError> {
-    let layout = [
-        variable(ColumnPhysicalType::Text, 0, 255),
-        fixed(ColumnPhysicalType::Long, 0, 4),
-        fixed(ColumnPhysicalType::Long, 4, 4),
-        fixed(ColumnPhysicalType::Long, 8, 4),
-        variable(ColumnPhysicalType::Text, 1, 255),
-        variable(ColumnPhysicalType::Text, 2, 255),
-        variable(ColumnPhysicalType::Text, 3, 255),
-        variable(ColumnPhysicalType::Text, 4, 255),
-    ];
-    let mut builder = DataPageBuilder::new(PageNumber::new(MSYS_RELATIONSHIPS_ROOT), budget)?;
-    let mut row = [0; PAGE_BYTES];
-    for edge in edges {
-        let child = &requests[edge.child].table;
-        let parent = &requests[edge.parent].table;
-        let values = [
-            RowValue::Text(edge.name),
-            RowValue::Long(0),
-            RowValue::Long(1),
-            RowValue::Long(0),
-            RowValue::Text(child.name),
-            RowValue::Text(child.columns[usize::from(edge.child_column)].name()),
-            RowValue::Text(parent.name),
-            RowValue::Text(parent.columns[usize::from(edge.parent_column)].name()),
-        ];
-        let length = encode_row(&layout, &values, &mut row, budget)?.get() as usize;
-        builder.append_row(&row[..length], budget)?;
-    }
-    finish_data_builder(builder, budget)
 }

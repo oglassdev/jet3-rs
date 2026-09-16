@@ -159,7 +159,7 @@ fn assemble_relationship(
         (
             SHARED_MAP_PAGE,
             shared_map_page_with_aces(
-                &[relation.data_page()],
+                RelationshipMaps::single(&[relation.data_page()]),
                 &[MSYS_ACES_DATA_PAGE],
                 &[MSYS_ACES_DATA_PAGE],
                 &[ACES_OBJECT_ID_ROOT],

@@ -69,18 +69,21 @@ Memo/OLE columns can coexist with numeric indexes and generated IDs; the payload
 columns themselves cannot be indexed. Each payload column has separate ownership
 and availability maps. Definitions and map rows can span multiple pages; files
 are bounded by map-reference capacity and the caller's resource budget.
-The plural relationship APIs admit up to two enforced, non-cascading Long
-constraints, including multiple parents or children, chains, self-references,
+The plural relationship APIs admit enforced, non-cascading Long constraints,
+including multiple parents or children, chains, cycles, self-references,
 shared foreign physical indexes and unrelated tables in any order. Parent keys
 may be Long or AutoIncrement and require an ascending unique index. The first
 eligible logical name selects the parent tree, including nonprimary and nullable
 unique indexes. Child keys must be Long. Existing ordinary ascending FK indexes
 are reused while retaining declared aliases; other child index forms need a
 separate foreign tree. Both endpoint aliases count toward the 32-logical-index
-limit. Nullable keys and a separate child primary are admitted. Other columns retain generated IDs, Text/Memo options,
-independent Memo/OLE maps and definition/property chains. The singular APIs
-retain their two-ordered-table bounds. Other key types, cascades and larger
-relationship graphs remain outside creation scope.
+limit; a self-reference consumes two slots. Relationship rows and all three
+system indexes can span multiple pages, with graph size bounded by per-table
+index capacity and the caller's resource budget. Nullable keys and a separate
+child primary are admitted. Other columns retain generated IDs, Text/Memo
+options, independent Memo/OLE maps and definition/property chains. The singular
+APIs retain their two-ordered-table bounds. Other key types and cascades remain
+outside creation scope.
 
 Schema names use defined Windows-1252 bytes and the observed English-US
 collation for ordering and duplicate detection. Stored names retain their exact
@@ -155,7 +158,17 @@ index reuse and native aliases sharing a physical tree. Forty creation pairs and
 counters and allocation. Sixteen Rust refusals preserve the whole input. Native
 orphan refusals retain the observed finite counter side effect. Memo replacement
 may choose a different valid payload page while preserving complete values,
-ownership and unrelated storage. The two-relationship creation bound remains.
+ownership and unrelated storage. That comparison exercises at most two
+relationships per database.
+
+EXP-0281/0282 extend creation to larger graphs within the per-table logical-index
+limits. Twenty complete creation pairs cover up to 32 relationships, branched
+relationship catalogs, 31-child graphs and 15 self-references. Eighty lifecycle
+pairs cover shared keys, cycles, capacity boundaries and payload changes: 60
+successes and 20 expected refusals. Actual property-collection getters were
+compared across all 170 initial/output images, alongside complete values,
+indexes, counters, allocation and unrelated storage. This is finite evidence;
+other key types, cascades and existing-schema relationship edits remain open.
 
 ### Updates
 
@@ -385,8 +398,8 @@ requests. Multiple-parent/child, shared-index, self-reference, AutoNumber and
 27-table catalog-boundary cases retain complete values, schema, properties,
 keys, allocation and the recorded counter behavior. Referenced chain-middle
 rows use native FK/Memo field edits: DAO rejects a full-row edit that reassigns
-their unchanged primary key. The plural creation APIs and CLI `relationships`
-array retain the two-constraint bounds above.
+their unchanged primary key. That comparison exercises at most two constraints
+per database.
 
 - Extend creation to remaining schema/index-key combinations and relationship forms.
 - Extend updates to remaining index key types/collations, relationship forms,

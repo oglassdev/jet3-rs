@@ -6,15 +6,15 @@ use crate::numeric_index_pages::{IndexRecord, NumericIndexPages, TreeBuildError}
 
 const PAGE_LIMIT: u64 = allocation_maps::PAGE_LIMIT;
 
-struct CatalogData {
-    images: Vec<(u64, PageImage)>,
-    owned: Vec<u64>,
-    available: Vec<u64>,
-    locators: Vec<(u64, u8)>,
+pub(super) struct CatalogData {
+    pub(super) images: Vec<(u64, PageImage)>,
+    pub(super) owned: Vec<u64>,
+    pub(super) available: Vec<u64>,
+    pub(super) locators: Vec<(u64, u8)>,
 }
 
 impl CatalogData {
-    fn build<T>(
+    pub(super) fn build<T>(
         owner: u64,
         first_page: u64,
         seeds: impl Iterator<Item = T>,
@@ -109,13 +109,14 @@ impl CatalogRecord {
     }
 }
 
-struct CatalogIndex {
-    images: Vec<(u64, PageImage)>,
-    owned: Vec<u64>,
+pub(super) struct CatalogIndex {
+    pub(super) images: Vec<(u64, PageImage)>,
+    pub(super) owned: Vec<u64>,
+    pub(super) distinct_count: u32,
 }
 
 impl CatalogIndex {
-    fn build(
+    pub(super) fn build(
         owner: u64,
         root: u64,
         locators: &[(u64, u8)],
@@ -140,11 +141,23 @@ impl CatalogIndex {
         }
         budget.charge_work_units((entries.len() as u64).saturating_mul(entries.len() as u64))?;
         entries.sort_unstable_by(|left, right| left.record().cmp(right.record()));
+        let distinct_count = usize::from(!entries.is_empty())
+            + entries
+                .windows(2)
+                .filter(|pair| {
+                    pair[0].bytes[..pair[0].length - 4] != pair[1].bytes[..pair[1].length - 4]
+                })
+                .count();
         let tree =
             NumericIndexPages::new(&entries, PAGE_LIMIT as usize, budget).map_err(tree_error)?;
         let mut result = Self {
             images: Vec::new(),
             owned: Vec::new(),
+            distinct_count: u32::try_from(distinct_count).map_err(|_| {
+                ComposeError::CatalogLayout {
+                    detail: "catalog distinct key count",
+                }
+            })?,
         };
         for position in 0..tree.len() {
             let page = if position + 1 == tree.len() {
@@ -170,7 +183,7 @@ impl CatalogIndex {
         Ok(result)
     }
 
-    fn root(&self) -> Result<PageImage, ComposeError> {
+    pub(super) fn root(&self) -> Result<PageImage, ComposeError> {
         self.images
             .last()
             .map(|(_, image)| image.clone())
@@ -336,12 +349,12 @@ impl CatalogPages {
     }
     pub(super) fn shared_map(
         &self,
-        relationship_pages: &[u64],
+        relationships: RelationshipMaps<'_>,
         maps: &mut AllocationMaps,
         budget: &mut ResourceBudget,
     ) -> Result<PageImage, ComposeError> {
         shared_map_page_with_aces(
-            relationship_pages,
+            relationships,
             &self.aces.owned,
             &self.aces.available,
             &self.ace_ids.owned,

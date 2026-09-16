@@ -48,7 +48,7 @@ def component(value, descending):
     raw = b'\0' if value is None else b'\x7f' + ((value & 0xffffffff) ^ 0x80000000).to_bytes(4, 'big')
     return bytes(byte ^ 255 for byte in raw) if descending else raw
 
-def observe_raw(path, case, *, include_row_bytes=False):
+def observe_raw(path, case, *, include_row_bytes=False, system_inventory=None):
     data = path.read_bytes(); analysis = catalog.analyze_checkpoint(data)
     named = {table['name']: table for table in analysis['tables'].values()}
     result = {'identity': identity(path), 'page_count': len(data)//2048,
@@ -112,16 +112,19 @@ def observe_raw(path, case, *, include_row_bytes=False):
         else:
             ids = {row['Id'] for row in result['relationship_objects']}
             result['relationship_aces'] = [row for row in rows if row['ObjectId'] in ids]
-    rel_table = named['MSysRelationships']; raw_rel_rows = raw_rows(data, rel_table, primary_column='szRelationship')
-    rel_locators = {(row['locator']['page'], row['locator']['row']) for row in raw_rel_rows}
-    result['relationship_system_indexes'] = []
-    for physical in rel_table['definition']['physical_indexes']:
-        leaf = leaf_entries(data, physical['root'])
-        req({(entry['row_page'], entry['row']) for entry in leaf['entries']} == rel_locators,
-            f'{path.name} relationship system-index locator coverage')
-        result['relationship_system_indexes'].append({'index': physical['index'], 'root': physical['root'],
-            'flags': physical['flags'], 'first_word': int.from_bytes(bytes.fromhex(physical['prefix_hex']), 'little'),
-            'second_word': physical['entry_count'], 'entries': leaf['entries']})
+    if system_inventory is not None:
+        result['relationship_system_indexes'] = system_inventory(path)['MSysRelationships']['indexes']
+    else:
+        rel_table = named['MSysRelationships']; raw_rel_rows = raw_rows(data, rel_table, primary_column='szRelationship')
+        rel_locators = {(row['locator']['page'], row['locator']['row']) for row in raw_rel_rows}
+        result['relationship_system_indexes'] = []
+        for physical in rel_table['definition']['physical_indexes']:
+            leaf = leaf_entries(data, physical['root'])
+            req({(entry['row_page'], entry['row']) for entry in leaf['entries']} == rel_locators,
+                f'{path.name} relationship system-index locator coverage')
+            result['relationship_system_indexes'].append({'index': physical['index'], 'root': physical['root'],
+                'flags': physical['flags'], 'first_word': int.from_bytes(bytes.fromhex(physical['prefix_hex']), 'little'),
+                'second_word': physical['entry_count'], 'entries': leaf['entries']})
     maps = {'global': map_info(data, {'page':1,'row':0}, 'global')}
     for name, table in named.items():
         definition = table['definition']
@@ -150,7 +153,7 @@ def observe_raw(path, case, *, include_row_bytes=False):
     result['maps']={key:{'record':value[0],'members':value[1]} for key,value in maps.items()}
     return result
 
-def evaluate_case(case, result, mdb_path, *, include_row_bytes=False):
+def evaluate_case(case, result, mdb_path, *, include_row_bytes=False, system_inventory=None):
     req(result['status']=='pass' and result['error'] is None, f'{mdb_path.name} worker status')
     req(result['capture']['before']==result['capture']['after']==identity(mdb_path), f'{mdb_path.name} read-only identity')
     snapshot=result['capture']['snapshot']; captured={n(table):table for table in snapshot['tables']}
@@ -183,7 +186,7 @@ def evaluate_case(case, result, mdb_path, *, include_row_bytes=False):
                     if match: req(seek['row'] in match and json.dumps(seek['row'],sort_keys=True) in matches,f'{mdb_path.name} Seek row')
     successes=[entry['name'] for entry in result['relations'] if entry['error'] is None]
     req([n(relation) for relation in snapshot['relations']]==successes,f'{mdb_path.name} relation API inventory')
-    raw=observe_raw(mdb_path,case,include_row_bytes=include_row_bytes)
+    raw=observe_raw(mdb_path,case,include_row_bytes=include_row_bytes,system_inventory=system_inventory)
     if result['table_error'] is None:
         for spec in case['tables']:
             req([{key:(value.hex() if isinstance(value,bytes) else value) for key,value in row.items()} for row in expected_rows(spec,True)]
@@ -206,9 +209,16 @@ def evaluate_case(case, result, mdb_path, *, include_row_bytes=False):
         req(sum(item['class']==2 and item['name'].startswith('.r') for item in logical)==sum(relation['parent']==spec['name'] for relation in successful_specs),f'{mdb_path.name} {spec["name"]} hidden parent inventory')
     for relation in snapshot['relations']:
         spec=next(item for item in case['relations'] if item['name']==n(relation)); parent=raw['tables'][spec['parent']];child=raw['tables'][spec['child']]
-        pr=[logical_relation(item['raw_hex'])|{'name':item['name']} for item in parent['logical_indexes'] if item['class']==2 and item['name'].startswith('.r') and logical_relation(item['raw_hex'])['related_root']==child['root']]
         cr=[logical_relation(item['raw_hex'])|{'name':item['name']} for item in child['logical_indexes'] if item['class']==2 and item['name']==spec['name']]
-        req(len(pr)==len(cr)==1,f'{mdb_path.name} reciprocal record count {spec["name"]}');p,c=pr[0],cr[0]
+        req(len(cr)==1,f'{mdb_path.name} named foreign record count {spec["name"]}');c=cr[0]
+        # Multiple relations may share a table pair, and self-relations share one root.
+        # Select the parent alias using the exact reciprocal selector/ordinal cross-link.
+        pr=[logical_relation(item['raw_hex'])|{'name':item['name']} for item in parent['logical_indexes']
+            if item['class']==2 and item['name'].startswith('.r')
+            and logical_relation(item['raw_hex'])['related_root']==child['root']
+            and logical_relation(item['raw_hex'])['selector']==c['relation_ordinal']
+            and logical_relation(item['raw_hex'])['relation_ordinal']==c['selector']]
+        req(len(pr)==1,f'{mdb_path.name} reciprocal parent record count {spec["name"]}');p=pr[0]
         req(p['side']==1 and c['side']==2 and p['context_hex']==c['context_hex']=='0000',f'{mdb_path.name} reciprocal roles')
         req(p['selector']==c['relation_ordinal'] and p['relation_ordinal']==c['selector'],f'{mdb_path.name} reciprocal selectors')
         req(parent['physical_indexes'][p['physical_index']]['keys'][0]['column']==next(i for i,f in enumerate(next(t for t in case['tables'] if t['name']==spec['parent'])['fields']) if f['name']==spec['parent_field']),f'{mdb_path.name} parent physical selection')

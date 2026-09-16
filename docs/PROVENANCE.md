@@ -18608,3 +18608,177 @@ at `e19315a`, before the subsequent writer-only explicit-false property fix;
 that sweep is not attributed to the later source revision. Legacy absent or
 partial property mutation, defaults, validation expressions, relationship
 interactions and other index combinations remain outside this accepted scope.
+
+## EXP-0281 — Larger native relationship graphs and logical-index capacity
+
+Observed 2026-09-16 using DAO 3.6 x86, `dao360.dll` 03.60.9765.0,
+SHA-256 `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`,
+on Windows 10.0.20348, English-US/CP1252. This extends the EXP-0273/0279
+non-cascading, single ascending Long relationship inventory without introducing
+a new row, index, or reciprocal-record grammar.
+
+Ten positive schemas were created twice by DAO: three children, three parents
+sharing an existing child FK index, a four-table chain, a three-table cycle,
+three and fifteen self-constraints, 31 foreign columns on one child, 31 children
+of one parent, a 32-edge chain, and 32 edges with 63-byte relationship names.
+All native creations and complete schema/row/index traversal and Seek captures
+succeeded. Complete raw checks retain every logical alias, reciprocal selector,
+physical user/system index key and locator, prefix word, and allocation owner.
+
+- Multiple constraints between the same table pair and self-constraints use
+  reciprocal selector/ordinal cross-links to identify each hidden parent alias;
+  matching table roots alone is insufficient.
+- A primary index plus 31 incoming or outgoing relationship aliases fills a
+  table's 32 logical slots. A self-constraint consumes both a foreign alias and
+  a hidden parent alias: one primary plus fifteen self-constraints uses 31 slots.
+- The long-name case has two MSysRelationships data pages, with only the final
+  page available. Its name index has one branch and two leaves; the two table-name
+  indexes remain leaves. Every index contains all 32 relationship row locators.
+  The three second prefix words count distinct keys independently: repeated
+  parent or child table names do not increase that index's distinct count.
+- Two separately replicated capacity probes accept the first 31 child
+  relationships and reject the 32nd with DAO 3626, or accept the first fifteen
+  self-relationships and reject the 16th with DAO 3626. `Relations.Count` stays
+  at 31 or 15 respectively. Rust refuses the corresponding requested schemas
+  before producing an output file because they require 33 logical slots.
+
+The four failed native append outputs retain an integrity failure: MSysObjects
+has one more declared row than live rows, and each of its two index second words
+is one above the current distinct-key count. MSysACEs has two more declared rows
+than live rows and its distinct-key second word is one high. Complete live
+user/system keys and locators still match their live rows. These are retained
+failed-write artifacts, not valid continuation inputs; no validator check was
+relaxed to accept them. This extends the failed-append bookkeeping observation
+in EXP-0279 and the remaining failure contract tracked by issue #369.
+
+Retained acquisition runs:
+
+- `20260916T043401Z-larger-graph-create-r1`: 20 candidate/native creation pairs,
+  40 complete captures, guest exit zero. The native half establishes the facts
+  above; creation acceptance and the subsequent lifecycle are summarized in
+  EXP-0282. Matrix SHA-256
+  `523c37d10cf261b3e82b31b70b9420e7c4e667877754440ab748bdc542ae2397`;
+  submitted bundle SHA-256
+  `f2d1fe38a085b2368aec8a4ae1fcdab5cc5bc5d7a78dcd66b9efa9ec68d759a5`.
+- `20260916T050032Z-larger-graph-negative-r3`: four native capacity captures,
+  guest exit zero. Matrix SHA-256
+  `eff66114533cf45c52c2e8af3f74d36bae6a7eb7f72cbfc302a3b61833d04c2a`;
+  producer SHA-256
+  `7d8a202301aa7ba8f6e6b40d11bdc52ffb0a72e950841f6f3650416f4006c8c0`;
+  negative report SHA-256
+  `ea5d73dce27a717684f05f1edb12f03ec8f1cc2655911b739f991aec27468e38`.
+- Negative producer r1 had a PowerShell parse error. Producer r2 tried to hash
+  an open MDB before the first relation attempt. Both runs, scripts and failures
+  remain retained alongside the corrected r3 run; neither supplies capacity facts.
+
+The independent creation report is SHA-256
+`d1fd91b3253afeb6c612b4057465472fdc1a776c18394af1164ac91fa819cbae`;
+root replay produced the identical report. The preparation and review roots are
+`/tmp/jet3-larger-relationship-graphs` and
+`/tmp/jet3-larger-relationship-graphs-review-r1`; EXP-0282 records the final durable
+bundle. These observations do not establish cascading, composite, other-key,
+or existing-schema relationship edits.
+
+## EXP-0282 — Larger graph creation and lifecycle comparisons
+
+The EXP-0281 creation batch accepts 20 Rust/native pairs (40 closed captures)
+for ten schemas in two replicas at source
+`e56791a8da1d022c48db303c817841c92d137688`. Complete DAO schema, properties,
+rows, traversal and Seek agree; raw checks cover user/system index keys,
+locators, both prefix words, reciprocal aliases and allocation ownership.
+The separate four native capacity-refusal images remain terminal failed-write
+artifacts, as recorded in EXP-0281.
+
+The first complete-lifecycle attempt, run
+`20260916T052449Z-larger-graph-lifecycle-r2`, timed out after 2,400 seconds.
+Seven of ten groups closed (56 mutation pairs, 112 captures); six additional
+deep-chain images have no completed group receipt. Its immutable run manifest
+is `b7230a8b15038529f6922833dc9b30350137fd779895702364a7bcb3f6652655`.
+Independent replay retains 17 prefix/DistinctCount mismatches: the producer
+assigned one native field while Rust replaced the whole row, and it continued
+from native refusal images carrying the EXP-0268 counter effects. These are
+failed/incomplete comparisons. The corrected producer assigns every requested
+non-Id field and isolates refused native writes on disposable copies. Unchanged
+referenced Id remains unassigned under the native restriction in EXP-0275.
+
+The corrected run `20260916T072920Z-larger-graph-lifecycle-r3` completed all
+80 mutation pairs (60 successes, 20 expected refusals), with 160 closed images.
+Its first evaluator rejected a selected Memo allocation difference after a
+full-row reassignment. Native DAO can allocate a fresh three-page chain and
+release the previous chain, while Rust can reuse its prior pages. Subsequent
+replacement can leave different free-page/EOF histories. The selected payload's
+complete bytes, descriptor kind/length, all active payload-slot reachability
+and disjoint ownership agree. The revised comparison retains exact unselected
+maps, exact map framing/locators/references, equal selected ownership and
+availability counts, complete page accounting, and limits free/EOF differences
+to pages observed in the selected column's allocation history. Refusal images
+remain subject to the independent before/after byte-difference checks. The
+original failure is retained; independent Sol high review found no blocker in
+this finite comparison policy.
+
+This lifecycle run remains provisional at this recording point. Its optimized
+snapshot capture deferred ConflictTable/ReplicaFilter Value getters when DAO
+reported Type zero. One-image equivalence is insufficient for the whole batch.
+The evaluator now requires separate actual property-collection getters for all
+170 images (ten initial plus 160 outputs), linked by exact file identity,
+TableDefs ordinal/name and property ordinal/type/value. Direct TableDef members
+are not interchangeable with Properties.Item(ordinal).Value: the former can
+return an empty BSTR where the latter returns a null value. Actual getter results
+must agree with every complete snapshot before final acceptance is recorded.
+
+Rebasing onto Required-column source `2d07c8f` produces graph revision
+`a3bb7b8b58d56533f887a8d4ab7d0804a9e48d2a`. It reproduces all 20 creation
+images and 80 Rust mutation images byte-for-byte; the reproduction report is
+`b2bbbc803ab0efae47c716148ab50c8523c1c46597105898d335f9c836cd4e2c`.
+`just ready` passes 1,608 tests with zero failures and ten ignored. The first
+local check exhausted the host root filesystem during compilation; that log
+is retained and build caches were moved to the larger home filesystem before
+the successful retry. These local checks do not replace DAO comparisons.
+
+### Accepted complete larger-graph lifecycle
+
+The required getter supplement, `20260916T074633Z-property-sweep-r4`, closes
+all 170 images, 1,462 table-images and 2,924 actual property reads. Every
+ConflictTable/ReplicaFilter read uses
+`TableDef.Properties.Item(collection ordinal).Value`; all four workers pass
+and the source images remain byte-exact. Every actual property ordinal, type,
+null classification and value agrees with the complete optimized snapshot.
+The plan's historical runtime label still says direct getters, but the executed
+r4 producer and reports record the actual collection accessor; the earlier
+direct-getter probes remain retained separately.
+
+The final lifecycle evaluator requires that supplement and accepts the corrected
+`20260916T072920Z-larger-graph-lifecycle-r3`: ten groups, 80 mutation pairs,
+160 closed output images, 60 successes and 20 refusals (ten each of native
+errors 3200/3201). Complete values, schema/properties, index traversal/Seek,
+physical keys/locators, exact successful prefix counters, isolated refusal
+counter effects, bounded selected-payload placement and unrelated storage
+comparisons all pass. Root independently reproduces the final report byte for
+byte. Accepted SHA-256 identities:
+
+- Final lifecycle report: `c363759a6d6af7fa6e0292c21a7ed612de618dc64dd7422c44f328b20365c676`.
+- Lifecycle evaluator: `ebcb38bc5a0ebff96d160e606a06ddc735d15b4f91d7b13b7decc11bc6b33163`.
+- Lifecycle producer: `03b9456ac9d6e01803f6c1bba1ad6bf3d37af6d054f5fe9928760cdbc3c9c8d4`.
+- Lifecycle input ZIP: `68ff06eafe0f23f3c8a3853fa7ccb74df3b14f06941ace6d207a9d11c7987e64`.
+- Actual-getter report: `b643b2cd931c3480b238ac2922f882957b17273cc4f291b57747a516c57a85d6`.
+- Getter input ZIP: `8b58b18d13341d4f95c690b14cd725bc1cb90a51eeffbef0f2f557eb07fbd736`.
+- Getter plan: `07746d7522f81448c129f0d7977b11cf96cff4e41b310fc095db92ff4fd9dacf`.
+- Getter producer: `6c10dce1b19c4e559d35f851b3b2cc92b3e58aa9e0bb72c3dd9ab6e8bbd9c96a`.
+- Getter worker summary: `4905f956137aa1da48eb5368a979d85ec74fe0e7c4a2b3424e4adc5a8f1fb1a6`.
+
+The creation and lifecycle inputs were generated at `e56791a8`; the rebased
+production source `a3bb7b8` reproduces all 20 creation and 80 Rust mutation
+images exactly, as recorded above. The accepted observations are finite
+non-cascading single-Long graph cases. They do not establish other key types,
+cascades, existing-schema edits or whole-v1 compatibility. Native terminal
+capacity failures and every failed/provisional comparison remain retained.
+
+The durable private bundle is
+`shared/checks/20260916-larger-relationship-graph-acceptance` beneath the local
+VM root. It retains the accepted creation, native capacity, final lifecycle and
+getter runs; failed/provisional histories; exact tools and source inputs;
+combined-source byte reproduction and local checks. Its manifest SHA-256 is
+`43aa59db890f0fd020413db60a418aab97c806b953689198c05387ec45c7a254`;
+FINDINGS SHA-256 is
+`952ddbf2447e1b022d57241b1d62f6cf62fea9ad023aafb476d4b94d69dba130`.
+All 682 manifested files (322,033,013 bytes) were independently hash-verified.

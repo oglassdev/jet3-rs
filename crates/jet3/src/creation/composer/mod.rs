@@ -211,13 +211,19 @@ fn compose_existing_pages(
     maps: &mut AllocationMaps,
     budget: &mut ResourceBudget,
 ) -> Result<[PageImage; EMPTY_DATABASE_PAGE_COUNT as usize], ComposeError> {
-    compose_existing_pages_with_relationships(creates, catalog, &[], maps, budget)
+    compose_existing_pages_with_relationships(
+        creates,
+        catalog,
+        RelationshipMaps::single(&[]),
+        maps,
+        budget,
+    )
 }
 
 fn compose_existing_pages_with_relationships(
     creates: &[PlannedCreate<'_>],
     catalog: &CatalogPages,
-    relationship_pages: &[u64],
+    relationships: RelationshipMaps<'_>,
     maps: &mut AllocationMaps,
     budget: &mut ResourceBudget,
 ) -> Result<[PageImage; EMPTY_DATABASE_PAGE_COUNT as usize], ComposeError> {
@@ -236,7 +242,7 @@ fn compose_existing_pages_with_relationships(
         catalog.names_root()?,
         catalog.ids_map(maps, budget)?,
         catalog.ids_root()?,
-        catalog.shared_map(relationship_pages, maps, budget)?,
+        catalog.shared_map(relationships, maps, budget)?,
         catalog.aces_root()?,
         empty_index_page(MSYS_QUERIES_ROOT, budget)?,
         empty_index_page(MSYS_RELATIONSHIPS_ROOT, budget)?,
@@ -345,7 +351,7 @@ fn objects_map_page(
 }
 
 fn shared_map_page_with_aces(
-    relationship_pages: &[u64],
+    relationships: RelationshipMaps<'_>,
     ace_owned: &[u64],
     ace_available: &[u64],
     ace_index: &[u64],
@@ -357,10 +363,11 @@ fn shared_map_page_with_aces(
     let ace_index = maps.row(ace_index.iter().copied(), budget)?;
     let empty = inline_map_row(&[], budget)?;
     let query_index = inline_map_row(&[QUERIES_INDEX_ROOT], budget)?;
-    let relation_data = maps.row(relationship_pages.iter().copied(), budget)?;
-    let relation_name = inline_map_row(&[RELATIONSHIPS_NAME_ROOT], budget)?;
-    let relation_object = inline_map_row(&[RELATIONSHIPS_OBJECT_ROOT], budget)?;
-    let relation_referenced = inline_map_row(&[RELATIONSHIPS_REFERENCED_ROOT], budget)?;
+    let relation_data = maps.row(relationships.owned.iter().copied(), budget)?;
+    let relation_available = maps.row(relationships.available.iter().copied(), budget)?;
+    let relation_name = maps.row(relationships.indexes[0].iter().copied(), budget)?;
+    let relation_object = maps.row(relationships.indexes[1].iter().copied(), budget)?;
+    let relation_referenced = maps.row(relationships.indexes[2].iter().copied(), budget)?;
     let rows: [&[u8]; 13] = [
         &ace_owned,
         &ace_available,
@@ -371,7 +378,7 @@ fn shared_map_page_with_aces(
         &empty,
         &query_index,
         &relation_data,
-        &relation_data,
+        &relation_available,
         &relation_name,
         &relation_object,
         &relation_referenced,
@@ -583,7 +590,9 @@ mod tests;
 #[path = "relationship_candidate.rs"]
 mod relationship_candidate;
 mod relationship_graph;
+mod relationship_pages;
 pub(crate) use relationship_graph::{GraphImage, compose_relationship_graph};
+use relationship_pages::{RelationshipMaps, RelationshipPages};
 
 pub(crate) use relationship_candidate::{compose_relationship, compose_relationship_with_rows};
 
