@@ -110,12 +110,13 @@ fn checks_multiple_tables_index_and_inline_single_and_chained_long_values() -> T
             catalog_objects: 11,
             relationship_inventory_checked: true,
             user_tables: 3,
-            skipped_system_objects: 8,
-            rows: 7,
-            values: 10,
-            indexes: 1,
-            indexes_with_verified_keys: 1,
-            index_entries: 3,
+            system_tables: 4,
+            skipped_system_objects: 4,
+            rows: 40,
+            values: 285,
+            indexes: 8,
+            indexes_with_verified_keys: 8,
+            index_entries: 47,
             long_values: 4,
             long_value_bytes: 4642,
             ..ValidationReport::default()
@@ -307,3 +308,6 @@ mod index_checks;
 
 #[path = "validation_storage_tests.rs"]
 mod storage_checks;
+
+#[path = "validation_system_tests.rs"]
+mod system_checks;

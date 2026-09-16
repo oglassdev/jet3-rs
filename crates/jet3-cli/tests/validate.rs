@@ -67,8 +67,9 @@ fn validation_reports_coverage_and_counts_without_modifying_input() -> TestResul
     assert!(output.stderr.is_empty());
     let result: Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(result["ok"], true);
-    assert_eq!(result["scope"], "catalogued_allocations_and_user_tables");
+    assert_eq!(result["scope"], "catalogued_allocations_and_tables");
     assert_eq!(result["checked"]["user_tables"], 2);
+    assert_eq!(result["checked"]["system_tables"], 4);
     assert_eq!(result["checked"]["relationship_catalog_rows"], 0);
     assert_eq!(result["checked"]["relationships_with_verified_keys"], 0);
     assert_eq!(result["checked"]["relationship_inventory_checked"], true);
@@ -76,12 +77,12 @@ fn validation_reports_coverage_and_counts_without_modifying_input() -> TestResul
         result["coverage_limits"]["uninterpreted_relationship_rows"],
         0
     );
-    assert_eq!(result["checked"]["rows"], 3);
-    assert_eq!(result["checked"]["index_entries"], 2);
-    assert_eq!(result["checked"]["indexes_with_verified_keys"], 1);
+    assert_eq!(result["checked"]["rows"], 33);
+    assert_eq!(result["checked"]["index_entries"], 42);
+    assert_eq!(result["checked"]["indexes_with_verified_keys"], 8);
     assert_eq!(result["coverage_limits"]["uninterpreted_indexes"], 0);
     assert_eq!(result["checked"]["long_value_bytes"], 4096);
-    assert_eq!(result["coverage_limits"]["skipped_system_objects"], 8);
+    assert_eq!(result["coverage_limits"]["skipped_system_objects"], 4);
     assert!(
         result["resources"]["bytes_read"]
             .as_u64()
