@@ -47,6 +47,13 @@ pub enum UpdateError {
         /// Child value requiring a matching parent.
         value: i32,
     },
+    /// A null parent key cannot be changed or removed while null child keys exist.
+    NullRelationshipConstraint {
+        /// Definition page of the referenced parent table.
+        parent: crate::PageNumber,
+        /// Definition page of the referencing child table.
+        child: crate::PageNumber,
+    },
     /// Resource policy or raw input failure.
     Resource(crate::Error),
     /// File operation failed.
@@ -103,7 +110,8 @@ impl StdError for UpdateError {
             Self::NotFound(_)
             | Self::Unsupported(_)
             | Self::Mismatch(_)
-            | Self::RelationshipConstraint { .. } => None,
+            | Self::RelationshipConstraint { .. }
+            | Self::NullRelationshipConstraint { .. } => None,
         }
     }
 }
@@ -150,6 +158,8 @@ conversion!(crate::IndexTreeError, Index);
 /// Enforced non-cascading relationships with one ascending Long key are checked
 /// against both endpoint tables and their reciprocal metadata. Orphan keys and
 /// referenced-parent changes return [`UpdateError::RelationshipConstraint`].
+/// Changing or removing a null parent while null child keys remain returns
+/// [`UpdateError::NullRelationshipConstraint`] (EXP-0286).
 /// Only the requested field, index nodes/counters and necessary index allocation bits
 /// change. Opaque pages and vacated index entry space remain unchanged.
 /// Locators remain valid only while the source is unchanged: callers must exclude

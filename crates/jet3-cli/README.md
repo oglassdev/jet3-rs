@@ -166,8 +166,10 @@ adds no relationship, index, schema or payload support beyond the linked
 For multiple or self-referencing relationships, use `"relationships": [...]`
 with an array of the same objects. The array admits enforced, non-cascading
 single-Long constraints within each table's logical-index capacity, along with
-any supported unrelated tables. Parent keys may be Long or AutoIncrement and need an ascending unique
-index; the first eligible index in logical name order is selected. Foreign
+any supported unrelated tables. Parent keys may be Long or AutoIncrement and need
+a unique index. An eligible ascending index is selected in logical name order;
+a descending-only parent gets a separate ascending tree with the same null policy,
+shared by its relationships. Foreign
 columns must be Long. Existing ordinary ascending FK indexes are reused, and
 each relationship alias consumes a slot within the 32-logical-index limit.
 Supply only one of `relationship` and `relationships`. An empty array creates

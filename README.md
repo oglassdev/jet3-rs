@@ -51,7 +51,8 @@ index names admit 63. Linked table definitions support
 first and later tables, initial rows, and indexes with independent map pages.
 It supports initial rows, explicit/generated AutoIncrement IDs, independent
 Memo/OLE columns, up to 32 scalar indexes (including Date, Binary, fixed/variable
-Text and GUID), and up to two enforced Long relationships. Creation handles
+Text and GUID), and enforced Long relationship graphs within each table's
+32-logical-index capacity. Creation handles
 multiple parents or children, chains, self-references and shared foreign indexes,
 with nullable child keys, Long/AutoIncrement parents, column options and payloads. Existing-file mutations include row insertion/deletion,
 row replacement with stable locators across overflow growth and collapse,
@@ -60,9 +61,11 @@ index maintenance for those key types with one to ten components per index. The 
 lifecycles include native DAO continuations and Rust mutation of native files.
 Related tables admit inserts, field/full-row updates and deletion for enforced,
 non-cascading Long relationships, including multiple constraints and self-references.
-Nullable foreign keys, shared foreign indexes and atomic self-reference changes
-are supported; related-row payloads retain the normal Memo/OLE mutation bounds. Orphan writes and changes to referenced parent keys are
-refused before publication.
+Nullable foreign keys and shared foreign indexes are supported. Atomic
+self-reference changes follow physical index order: if the foreign index precedes
+the parent index, the child key must exist before the edit.
+Related-row payloads retain the normal Memo/OLE mutation bounds. Orphan writes
+and changes to referenced parent keys are refused before publication.
 
 Creation and updates remain partial: schema combinations, index key types,
 allocation, and relationship mutation are restricted. Publication supports Unix

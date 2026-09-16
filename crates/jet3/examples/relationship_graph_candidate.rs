@@ -60,6 +60,11 @@ fn create(case: &Value, output: &Path, replicas: u64) -> Result<()> {
                         _ => return Err("unsupported matrix field".into()),
                     };
                     let column = ColumnSpec::new(text(field, "name")?.as_bytes(), kind);
+                    let column = if field["required"].as_bool().unwrap_or(false) {
+                        column.with_required()
+                    } else {
+                        column
+                    };
                     Ok(
                         if matches!(kind, ColumnType::Text { .. } | ColumnType::Memo)
                             && field["allow_zero_length"].as_bool().unwrap_or(true)

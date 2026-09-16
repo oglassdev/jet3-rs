@@ -336,7 +336,14 @@
         "oracle/windows-dao/scripts/prepare_column_property_presence_acceptance.py",
         "oracle/windows-dao/scripts/column_property_presence_capture.ps1",
         "oracle/windows-dao/scripts/column_property_presence_acceptance.py",
-        "oracle/windows-dao/scripts/column_property_presence_allocation.py"
+        "oracle/windows-dao/scripts/column_property_presence_allocation.py",
+        "crates/jet3/src/creation/descending_parent_tests.rs",
+        "crates/jet3/src/creation/self_reference_order_tests.rs",
+        "crates/jet3/src/creation/relationship_indexes.rs",
+        "crates/jet3/src/index_counter.rs",
+        "oracle/windows-dao/scripts/prepare_descending_parent_lifecycle.py",
+        "oracle/windows-dao/scripts/descending_parent_capture.ps1",
+        "oracle/windows-dao/scripts/descending_parent_lifecycle.py"
       ]
     },
     {
@@ -450,7 +457,14 @@
         "oracle/windows-dao/scripts/larger_graph_lifecycle.py",
         "oracle/windows-dao/scripts/larger_graph_checks.py",
         "crates/jet3/src/creation/composer/relationship_pages.rs",
-        "oracle/windows-dao/scripts/larger_graph_negative.py"
+        "oracle/windows-dao/scripts/larger_graph_negative.py",
+        "crates/jet3/src/creation/descending_parent_tests.rs",
+        "crates/jet3/src/creation/self_reference_order_tests.rs",
+        "crates/jet3/src/creation/relationship_indexes.rs",
+        "crates/jet3/src/index_counter.rs",
+        "oracle/windows-dao/scripts/prepare_descending_parent_lifecycle.py",
+        "oracle/windows-dao/scripts/descending_parent_capture.ps1",
+        "oracle/windows-dao/scripts/descending_parent_lifecycle.py"
       ]
     },
     {

@@ -72,9 +72,14 @@ are bounded by map-reference capacity and the caller's resource budget.
 The plural relationship APIs admit enforced, non-cascading Long constraints,
 including multiple parents or children, chains, cycles, self-references,
 shared foreign physical indexes and unrelated tables in any order. Parent keys
-may be Long or AutoIncrement and require an ascending unique index. The first
-eligible logical name selects the parent tree, including nonprimary and nullable
-unique indexes. Child keys must be Long. Existing ordinary ascending FK indexes
+may be Long or AutoIncrement and require a unique index. The first eligible
+ascending logical name selects the parent tree, including nonprimary and nullable
+unique indexes. Descending-only parents generate a shared ascending tree with
+the same null policy; EXP-0286/0287 record native observations and 18 creation
+plus 84 lifecycle comparisons. Mutations reject changing or removing a null parent
+while null child keys remain, and permit deleting the sole null self-reference.
+Null child insertion remains exempt from requiring a matching parent. Child
+keys must be Long. Existing ordinary ascending FK indexes
 are reused while retaining declared aliases; other child index forms need a
 separate foreign tree. Both endpoint aliases count toward the 32-logical-index
 limit; a self-reference consumes two slots. Relationship rows and all three
@@ -173,6 +178,14 @@ compared across all 170 initial/output images, alongside complete values,
 indexes, counters, allocation and unrelated storage. This is finite evidence;
 other key types, cascades and existing-schema relationship edits remain open.
 
+EXP-0286/0287 add descending-only parent indexes, nullable parent mutation
+boundaries and physical-order self-reference checks. Eighteen creation pairs
+and 84 same-input lifecycle pairs (40 successes, 44 refusals) compare complete
+DAO getters, rows, traversal/Seek, raw keys, schema, maps and retained counters.
+Native refusals may change exact historical counters and a header byte; Rust
+refusals preserve their entire inputs. Generated parent trees share the existing
+relationship counter rule while retaining declared descending indexes.
+
 ### Updates
 
 Public APIs implement bounded field updates, insertion into populated pages or
@@ -205,10 +218,14 @@ relationships support these row mutations, including multiple constraints,
 self-references, nullable foreign keys and Memo/OLE payloads. All reciprocal
 records and the relationship catalog must agree; existing orphan keys and
 damaged indexes are refused. Nullable unique parent keys may contain multiple
-nulls; only non-null keys participate in the constraint. Ordinary logical aliases
-may share one physical tree, which is maintained once. Every resulting non-null child key must occur
-in its parent. Atomic self-linked insert, full-row replacement and deletion
-are admitted when the resulting rows satisfy every constraint. Shared foreign
+nulls, but a null child blocks changing or removing a null parent unless that
+child reference is removed in the same operation. Ordinary logical aliases
+may share one physical tree, which is maintained once. Every resulting non-null
+child key must occur in its parent. Self-linked insertions and full-row
+replacements check the resulting rows. When the foreign physical index precedes
+the parent index, the child key must also exist before the operation (EXP-0286).
+This follows physical update order for both declared and generated indexes.
+Self-deletion checks the remaining rows. Shared foreign
 physical indexes are updated once. Composite, cascading and other-key
 relationships remain outside this mutation scope.
 

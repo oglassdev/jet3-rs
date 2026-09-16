@@ -18923,3 +18923,222 @@ are retained in the separate immutable supplement
 local VM root. Its manifest covers 1,520 files (69,062,371 bytes), SHA-256
 `36c787a41531549cf97511bf83d84624266db6ce0f7e2afee85efe948a74fead`.
 The accepted acquisition archive above remains unchanged.
+
+## EXP-0286 — Descending unique relationship parents
+
+Native run `20260916T085741Z-desc-parent-rel-index-r1` compares eight schemas
+in two replicas with the EXP-0285 DAO 3.6 x86 provider. All 16 complete captures
+pass; creation report SHA-256 is
+`dfb003ec083075fab5954d50dfdf60d822dd98467866b07e683d38fa5820adac`,
+matrix `b89dcdc97cd305a7eea9cc69b4126073d8eb54c423ff031b2d2eb7958c165665`,
+producer `720179a4edcff9ad27c845b8c9c269ed4be60baf2c86f6569f097529b965f4e9`.
+The private acquisition root is `/tmp/jet3-desc-relationship-index-discovery`.
+
+When only a descending single-Long unique/primary parent index qualifies, DAO
+retains that declared index and creates a separate ascending physical index
+for the hidden primary-side relationship alias. The new index retains flags
+9 (unique/required) or 1 (nullable unique). Nullable parents include duplicate
+null rows; null child keys remain exempt. An eligible declared ascending unique
+index is reused instead. Two children referencing the same descending parent
+column share the generated parent tree, with distinct hidden logical aliases.
+
+Self-relationship creation appends the ascending foreign physical index before
+the ascending parent physical index. With two declared indexes these are physical
+2 and 3; logical selectors 2 and 3 cross-reference each other at the same root.
+An orphan child input refuses native relation creation with 3201 and adds no
+relationship logical or physical index records.
+
+In these rows-before-relation inputs a newly generated tree's first prefix word
+is the indexed row count; its second word counts distinct keys. Declared parent
+indexes retain zero in their first word. This does not change the existing
+candidate creation history, whose relationship indexes precede initial-row
+insertion and start with zero first words. Empty-origin/lifecycle observation
+and Rust differential acceptance remain pending for this batch.
+
+The populated-source lifecycle observes generated parent words `(2,2)` becoming
+`(2,3)` after inserting a new parent, `(1,1)` after assigning an unreferenced
+parent key, and `(0,0)` after deleting another unreferenced parent. Declared
+primary/descending indexes retain first word zero and second word three through
+these assignments/deletions. A subsequent deletion at first word zero leaves
+both generated words unchanged. This applies the EXP-0268 decrement-and-clamp
+rule to hidden parent trees without an ordinary/primary alias, as well as the
+previously observed foreign trees. Complete replicated lifecycle evaluation
+is pending; this is a native observation supporting the candidate implementation.
+
+The separate selection supplement `20260916T092525Z-desc-parent-selection-r1`
+accepts two append-order cases in two replicas. A descending nullable unique
+`ANullableDesc` and descending required primary `ZRequiredPrimary` index the
+same Long column. In both physical orders, the generated ascending parent tree
+copies flags 1 from `ANullableDesc`; logical name order takes precedence over
+primary status and physical append order. Complete schema/property getters,
+traversal/Seek, raw metadata and maps agree across replicas. Report SHA-256 is
+`d54878b18cf8cb28d7f94684c2039987207a7350c888201d3a724a529b28ddcf`;
+matrix SHA-256 is `3efdc5db28fe6ad764dae2bda28aa3ff62e44ef2ee3643150f4a6d4ae7b710ad`.
+
+Run `20260916T092544Z-ascending-null-control-r1` establishes that null-parent
+mutation refusal also occurs with a reused declared ascending nullable unique
+index. With two null parent rows and one null child key, both deleting a null
+parent and assigning its key from null to 22 refuse with DAO 3200 / HRESULT
+-2146825088 in both replicas. The complete files remain unchanged, including
+both prefix words. This differs from insertion's null-child exemption and
+cannot be limited to generated descending-parent trees. Positive controls
+without null children and the self-reference boundary remain under observation.
+
+The positive null-boundary control uses source creation
+`20260916T092810Z-desc-null-create-r1` and lifecycle
+`20260916T092940Z-desc-null-life-r1`. Parent keys are 1/null/null; the child
+contains only key 1. Independent source copies accept deletion of one null
+parent and assignment from null to 22 in both replicas. The generated parent
+words change from `(3,2)` to `(2,2)` in both cases. Complete physical keys include
+22 after assignment despite the retained distinct counter of two. The report
+SHA-256 is `9155950edaafdb333f7e36a95c8837d6b2ddae939c1579a6a584e30ff7ab9f3a`.
+Thus null parent rows alone do not prevent mutation: an existing null child key
+is the distinguishing condition in these non-self cases. The ascending refusal
+control report is
+`f2f26cc0a45e0642c1eb6c4ade45338085bf16a654650fa2db4f0cbe643c3c48`.
+
+The isolated self-reference probe `20260916T093218Z-self-null-life-r1`
+creates one row with distinct parent and child key columns both null. Both
+replicas accept deleting that row, removing its own null child reference.
+Changing only the parent key from null to 4 refuses with HRESULT -2146825088
+(3200), while the DAO Errors array is empty. The first harness incorrectly
+classified that assignment as a successful stage; it remains retained as a
+failed run. A corrected complete refusal capture and the simultaneous full-row
+parent/child assignment control are pending. This establishes the observed
+self-delete exception without claiming complete lifecycle acceptance.
+
+The complete native lifecycle `20260916T092039Z-desc-parent-life-r2` now
+accepts ten replicated groups: 28 successful stages, 24 isolated refusals and
+ten initial captures. Report SHA-256 is
+`008235e0cb456e22d14ff4a70e8826d2c952bc55e0ec06865a38cb2e5e225e8b`;
+recipe SHA-256 is `47faa894f2dfda1412fe82f43a4e0e1cb9940c197c3a31b07d7c6af7807b9078`.
+The original nullable-parent expected-success failure remains retained in
+`20260916T090614Z-desc-parent-life-r1`. Refused deletion of a referenced parent
+can decrement and clamp a generated parent prefix from `(2,2)` to `(1,1)` in
+the isolated failed copy. Rust refusal retains its entire input, following the
+existing publication contract. Successful continuations never use failed copies.
+
+The corrected self-null lifecycle `20260916T093440Z-self-null-life-r2` accepts
+both sole-row deletions and records both parent-only assignment refusals;
+report SHA-256 is
+`ceae2352e77dd5d2438717e31d55efaf8ddd491d233cc864d96d40429b1c55b8`.
+The simultaneous parent/child null-to-4 assignment unexpectedly refuses 3201,
+retained first as `20260916T093628Z-self-null-atomic-r1` and then captured as
+an isolated refusal in `20260916T093744Z-self-null-atomic-r2` (report
+`acbd82bfc281ed0220081a21b1b06aa866e5379475dd40aae0a7432c16205e0a`).
+This self-reference uses a generated ascending parent tree backed only by its
+hidden relationship alias. It differs from EXP-0275's reused declared parent
+index; those accepted self-linked insertions and replacements remain supported.
+
+Further generated-parent self controls distinguish this from assignment order.
+`20260916T094345Z-self-parent-first-r1` explicitly assigns the parent before
+the child: insertion of `(4,4)`, replacement of `(null,null)` with `(4,4)`,
+and replacement of `(1,null)` with `(4,4)` all still refuse 3201 in both
+replicas. `20260916T094746Z-self-linked-probe-r1` starts from an existing
+`(1,1)` self-link: replacing both keys with `(4,4)` refuses 3201; changing
+only the parent to 4 refuses 3200. In contrast,
+`20260916T094031Z-self-outcome-probes-r1` accepts changing `(null,null)` to
+`(4,1)` when another row already supplies parent key 1. The candidate therefore
+checks resulting child keys against both old and new parent keys when the
+self-relationship's parent tree has no ordinary/primary logical alias. Complete
+Rust differential acceptance and the consolidated self-control report are pending.
+
+The physical-order control supersedes the preceding generated-versus-declared
+candidate rule. Creation `20260916T095415Z-self-tree-order-create-r1` and
+outcomes `20260916T095704Z-self-tree-order-probe-r1` establish two opposite
+orders. An external child relation created before the self relation generates
+parent physical tree 2, followed by self foreign tree 3: self insertion `(4,4)`
+and replacement `(1,1)` with `(4,4)` both succeed. Conversely, declared ordinary
+foreign tree 1 followed by declared ascending unique parent tree 2 refuses both
+operations with 3201. All explicit assignments set the parent before the child.
+For these enforced single-Long self relationships, the existing-parent check
+therefore applies when the foreign physical selector precedes the parent, for
+both declared and generated trees. Earlier ordinary-primary self evidence
+remains consistent with parent-first physical order. Creation report SHA-256:
+`f3b0d618e27f679bd68ceedaa448cc3e64132c899de8c5b82adfe465f7be9721`.
+The consolidated 20-group/26-probe self-control report is
+`038cacf65e4423110fa7f0631729db5763681f9caa2759bd66b8f29695b77ee4`.
+
+Native discovery is retained under the local VM's
+`shared/checks/20260916-descending-parent-index-discovery`. Its 634-file
+manifest SHA-256 is
+`462df6633490af981d12991546910e624d34c05cab806b414c76631079c93a23`;
+`FINDINGS.md` is `0f0dac625a37a64b9f7aeaa7a63384e590f1b21ff45d9a4a2c6c0bb72180feb1`.
+This archive includes complete inputs, providers, producers, reports and failed
+or superseded attempts. It establishes native format observations; Rust
+differential acceptance remains separate.
+
+## EXP-0287 — Descending-parent creation and lifecycle acceptance
+
+Production source `8fda6c8252eb47d1519ad9048acda8fca933b541` implements
+EXP-0286's generated ascending parent trees, shared aliases, retained counters,
+null-parent constraints and physical-order self-reference checks. Its source
+archive SHA-256 is
+`b516389d6a3b5449b0f0751b86094fcc1e30f022c0d038b544b88cf8ca43b32b`;
+CLI `295d1dd43abdba3189fa6316671a23bc1e56f0333537d1db983eccad87546aac`;
+creation example `ae8c8b263ec499e1c8c5241dcedf7ce9ccc64841cd57e3313f0196784a0974bd`.
+`just ready` passes 1,628 test executions, zero failures and ten ignored tests,
+plus formatting, Clippy, docs and quick acceptance. Log SHA-256 is
+`69ec89d101cce6718d49a3af30e339b047fcf7d4e012d6a5d5a8b5573db4f10b`.
+Independent GPT-5.6 Sol high review found no blocker in the final physical-order
+rule and regressions; the earlier generated-only candidate rule was corrected
+before this source was frozen.
+
+Creation run `20260916T094632Z-desc-parent-acceptance-r1` accepts 18 pairs
+(nine schemas in two replicas). These include descending primary and required
+unique parents, duplicate-null nullable parents, ascending preference,
+shared generated parent trees, self-references, both physical orders of two
+eligible descending indexes, and unrelated Memo data. Complete actual DAO
+properties, rows, traversal/Seek, raw columns, logical/physical index semantics,
+key/locator correspondence, system indexes and allocation are checked. Native
+rows-before-relation and candidate relation-before-rows retain their distinct,
+explicitly checked first-word histories. Report SHA-256 is
+`03fc080d6c540e07e68c78613e1d421ec69894ffd5224f000f6d425711a7bf8d`;
+root independently replayed the report byte for byte.
+
+The lifecycle suite accepts 84 same-input pairs: 40 successful operations and
+44 expected refusals, covering empty/populated generated trees, positive and
+zero retained prefixes, nullable parents with and without null children,
+self-delete, self-link changes and both physical index orders. Complete
+actual-getter readbacks are retained in
+`20260916T095553Z-desc-parent-life-capture-r2` (52 images),
+`20260916T100611Z-desc-parent-control-capture-r2` (24), and
+`20260916T100942Z-desc-self-order-r2` (eight). Every Rust stage starts from the
+exact native predecessor; isolated refused copies never become continuation
+inputs. The portable evaluator is `descending_parent_lifecycle.py`, with
+preparation and capture in `prepare_descending_parent_lifecycle.py` and
+`descending_parent_capture.ps1`. Report SHA-256 is
+`b8cea6863cb57eff0262fe9c83933f188f3aaf10e26ee6caee81a4417dab31ac`.
+
+Successful pairs match all retained counters. Refusals preserve the entire
+Rust input; native failed copies are checked against the exact affected physical
+trees and prefix transitions. Failed insertion advances only newly encountered
+keys in trees preceding the foreign constraint check. Failed key assignment
+or deletion applies the established decrement/clamp to assigned relationship
+trees, including generated parent trees. Every other raw counter, row, key,
+locator, map and schema record remains compared. Native changed-byte scope is
+limited to those verified prefix fields and header byte 1538. Actual DAO
+DistinctCount getters are checked against each raw second word before projecting
+the exact refusal differences. Only explicitly assigned null Long padding may
+be normalized: the two main null-child inserts differ at row offsets 6 and 8,
+inside the absent ParentId slot `[5,9)`. Other row bytes remain compared.
+System pages/indexes and all unselected rows remain unchanged.
+
+The final source reproduces all 18 earlier creation images and 76 earlier
+mutation images byte for byte, with identical request semantics; eight final
+physical-order cases were prepared directly from that source. Reproduction
+report SHA-256 is
+`b63e17015170e5ea56fe7638c0eb3a6f9d7c7adb946b551fa3881e9fda8ecab2`.
+Failed and superseded native discovery and capture-adapter/preflight attempts
+are retained separately. This finite result does not establish composite,
+non-Long, cascading or arbitrary relationship schema-edit compatibility.
+
+Independent Sol replay reproduces the lifecycle report byte for byte and
+confirms the exact failed-copy counter formulas against all 20 retained refused
+self-control probes. The durable combined acceptance archive is
+`shared/checks/20260916-descending-parent-acceptance` beneath the local VM root.
+Its 813 listed evidence files total 137,898,013 bytes; the manifest SHA-256 is
+`b576b59e1d47bfa457975ca77992c553328e462b376a989cb97f5ecebdf45243`.
+Root independently verifies every listed size/hash and the complete inventory,
+including the three nested capture manifests. All MDB/provider/VM bytes remain
+outside the repository.

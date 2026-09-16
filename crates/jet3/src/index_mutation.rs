@@ -27,7 +27,7 @@ struct MutableIndex {
     entries: Vec<NumericIndexEntry>,
     mapped: Vec<PageNumber>,
     changed: bool,
-    foreign: bool,
+    relationship_counter: bool,
     counter: Option<Change>,
 }
 
@@ -209,8 +209,8 @@ impl Indexes {
     ) -> Result<(), UpdateError> {
         for index in &mut self.indexes {
             index.remove(row, budget)?;
-            if index.foreign {
-                index.counter = Some(Change::RemoveForeignEntry);
+            if index.relationship_counter {
+                index.counter = Some(Change::RemoveRelationshipEntry);
             }
         }
         Ok(())
@@ -239,8 +239,8 @@ impl Indexes {
                     * (2 * record_capacity(&index.fields) + size_of::<NumericIndexEntry>()) as u64,
             )?;
             let old = index.entries.iter().find(|r| r.locator() == row);
-            // EXP-0268: equal FK assignments also update the two-word retained state.
-            if index.foreign
+            // EXP-0268/0286: equal relationship-key assignments also update retained state.
+            if index.relationship_counter
                 && column.is_none_or(|column| {
                     index
                         .fields
@@ -248,7 +248,7 @@ impl Indexes {
                         .any(|field| field.column == usize::from(column.get()))
                 })
             {
-                index.counter = Some(Change::RemoveForeignEntry);
+                index.counter = Some(Change::RemoveRelationshipEntry);
             }
             if old == new.as_ref() {
                 continue;

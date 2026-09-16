@@ -38,15 +38,13 @@ def validate_counters(raw,graph,role):
             entries=[bytes.fromhex(value) for value in physical['entries_hex']]
             req(physical['second_word']==len({entry[:-4] for entry in entries}),f'{graph["id"]}/{role}/{table_name}/{physical["index"]} distinct counter')
             if role=='candidate':req(physical['first_word']==0,f'{graph["id"]} candidate first word')
-            elif physical['first_word']!=0:
-                req(table_name in {relation['child'] for relation in graph['relations']} and physical['first_word']==len(spec['rows']),f'{graph["id"]} native first word')
-    if role=='native':
-        for relation in graph['relations']:
-            child=raw['tables'][relation['child']];record=next(logical_relation(item['raw_hex']) for item in child['logical_indexes'] if item['class']==2 and item['name']==relation['name'])
-            selected=child['physical_indexes'][record['physical_index']]
-            declared=next(table for table in graph['tables'] if table['name']==relation['child'])['indexes']
-            reusable=any(index['field']==relation['child_field'] and index['direction']=='asc' and not any(index[key] for key in ('primary','unique','required','ignore_nulls')) for index in declared)
-            req(selected['first_word']==(0 if reusable else len(next(table for table in graph['tables'] if table['name']==relation['child'])['rows'])),f'{graph["id"]} native selected prefix history')
+            else:
+                # EXP-0286: rows-before-relation history seeds both generated endpoint trees.
+                ordinal=physical['index']
+                declared=any(item['class']!=2 and int.from_bytes(bytes.fromhex(item['raw_hex'])[4:8],'little')==ordinal for item in table['logical_indexes'])
+                related=any(item['class']==2 and logical_relation(item['raw_hex'])['physical_index']==ordinal for item in table['logical_indexes'])
+                expected=len(spec['rows']) if related and not declared else 0
+                req(physical['first_word']==expected,f'{graph["id"]}/{table_name}/{ordinal} native selected prefix history')
 def inbox_for(outbox):
     retained=outbox.parent/'inbox'
     return retained if retained.is_dir() else outbox.parent.parent/'inbox'/outbox.name
@@ -54,8 +52,10 @@ def main():
     ap=argparse.ArgumentParser();ap.add_argument('--evidence-root',type=Path,required=True);ap.add_argument('matrix',type=Path);ap.add_argument('bundle',type=Path);ap.add_argument('outbox',type=Path);ap.add_argument('report',type=Path);a=ap.parse_args()
     matrix=json.loads(a.matrix.read_text());graphs={graph['id']:graph for graph in matrix['graphs']};pairs=[(replica,graph['id']) for graph in matrix['graphs'] for replica in range(1,matrix['replicas']+1)]
     final_verification=json.loads((a.evidence_root/'final-source-verification.json').read_text())
-    creation_checks=[item for item in final_verification['checks'] if item['reference'].startswith('creation-r1/')]
-    req(final_verification['source_revision']=='2c4a77f02001beb78ebd8415392c91d08b3c8f1d' and len(creation_checks)==40 and all(item['byte_exact'] for item in creation_checks),'final source/creation byte equivalence')
+    candidate_names={f'{graphs[case]["name"]}-r{replica}.mdb' for replica,case in pairs}
+    creation_checks=[item for item in final_verification['checks'] if Path(item['reference']).name in candidate_names]
+    req(len(creation_checks)==len(pairs) and {Path(item['reference']).name for item in creation_checks}==candidate_names
+        and all(item['byte_exact'] for item in creation_checks),'final source/creation byte equivalence')
     allowed={'workers.json','exit.txt','log.txt'}|{f'r{replica}-{case}{suffix}' for replica,case in pairs for suffix in ('-result.json','-candidate.mdb','-native.mdb')}
     actual={path.name for path in a.outbox.iterdir() if path.is_file()};req(actual==allowed,f'outbox inventory missing={sorted(allowed-actual)} extra={sorted(actual-allowed)}')
     req((a.outbox/'exit.txt').read_text().strip()=='0' and not (a.outbox/'log.txt').read_text(encoding='utf-8-sig').strip(),'wrapper exit/log')

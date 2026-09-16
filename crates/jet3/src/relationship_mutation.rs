@@ -58,6 +58,8 @@ impl Change<'_> {
 struct Keys {
     before: Vec<i32>,
     after: Vec<i32>,
+    has_null_after: bool,
+    removed_null: bool,
 }
 fn push(
     keys: &mut Vec<i32>,
@@ -81,6 +83,8 @@ fn keys(
     let mut result = Keys {
         before: Vec::new(),
         after: Vec::new(),
+        has_null_after: false,
+        removed_null: false,
     };
     let mut rows = database.rows(table, budget)?;
     let mut count = 0_u32;
@@ -102,6 +106,8 @@ fn keys(
             Some(change) => change.existing(locator, column, before)?,
             None => Some(before),
         };
+        result.has_null_after |= after == Some(None);
+        result.removed_null |= before.is_none() && after != Some(None);
         push(&mut result.before, before, rows.owned.budget_mut())?;
         if let Some(after) = after {
             push(&mut result.after, after, rows.owned.budget_mut())?;
@@ -111,11 +117,9 @@ fn keys(
         return Err(UpdateError::Mismatch("relationship table row count"));
     }
     if let Some(Change::Insert(values)) = change {
-        push(
-            &mut result.after,
-            column_value(values, column)?,
-            rows.owned.budget_mut(),
-        )?;
+        let inserted = column_value(values, column)?;
+        result.has_null_after |= inserted.is_none();
+        push(&mut result.after, inserted, rows.owned.budget_mut())?;
     }
     Ok(result)
 }
@@ -177,7 +181,23 @@ pub(crate) fn check(
         if missing(&parent.before, &child.before, budget)?.is_some() {
             return Err(UpdateError::Mismatch("orphan relationship key"));
         }
-        if let Some(value) = missing(&parent.after, &child.after, budget)? {
+        // EXP-0286: a null child blocks changing/removing a null parent, even
+        // when another null parent remains. Null child insertion is exempt.
+        if parent.removed_null && child.has_null_after {
+            return Err(UpdateError::NullRelationshipConstraint {
+                parent: constraint.parent.root(),
+                child: constraint.child.root(),
+            });
+        }
+        let missing_after = missing(&parent.after, &child.after, budget)?;
+        // EXP-0286: a foreign tree preceding its parent tree cannot reference
+        // a self key established by the same insertion/replacement.
+        let missing_before = if constraint.self_reference_requires_existing_parent {
+            missing(&parent.before, &child.after, budget)?
+        } else {
+            None
+        };
+        if let Some(value) = missing_after.or(missing_before) {
             return Err(UpdateError::RelationshipConstraint {
                 parent: constraint.parent.root(),
                 child: constraint.child.root(),
