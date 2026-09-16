@@ -331,5 +331,5 @@ a closed supplementary run with `inbox/` and `outbox/` directories.
 getters for ConflictTable and ReplicaFilter on every initial and output image.
 The evaluator checks all 170 image links and every observed property against
 the optimized snapshots. A direct TableDef getter is a different accessor and
-cannot supply this comparison. Full lifecycle acceptance remains pending until
-this supplement passes; earlier failed or provisional reports stay retained.
+cannot supply this comparison. EXP-0282 records the accepted complete supplement
+and lifecycle replay; earlier failed or provisional reports stay retained.

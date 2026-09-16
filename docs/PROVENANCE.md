@@ -18734,3 +18734,51 @@ images and 80 Rust mutation images byte-for-byte; the reproduction report is
 local check exhausted the host root filesystem during compilation; that log
 is retained and build caches were moved to the larger home filesystem before
 the successful retry. These local checks do not replace DAO comparisons.
+
+### Accepted complete larger-graph lifecycle
+
+The required getter supplement, `20260916T074633Z-property-sweep-r4`, closes
+all 170 images, 1,462 table-images and 2,924 actual property reads. Every
+ConflictTable/ReplicaFilter read uses
+`TableDef.Properties.Item(collection ordinal).Value`; all four workers pass
+and the source images remain byte-exact. Every actual property ordinal, type,
+null classification and value agrees with the complete optimized snapshot.
+The plan's historical runtime label still says direct getters, but the executed
+r4 producer and reports record the actual collection accessor; the earlier
+direct-getter probes remain retained separately.
+
+The final lifecycle evaluator requires that supplement and accepts the corrected
+`20260916T072920Z-larger-graph-lifecycle-r3`: ten groups, 80 mutation pairs,
+160 closed output images, 60 successes and 20 refusals (ten each of native
+errors 3200/3201). Complete values, schema/properties, index traversal/Seek,
+physical keys/locators, exact successful prefix counters, isolated refusal
+counter effects, bounded selected-payload placement and unrelated storage
+comparisons all pass. Root independently reproduces the final report byte for
+byte. Accepted SHA-256 identities:
+
+- Final lifecycle report: `c363759a6d6af7fa6e0292c21a7ed612de618dc64dd7422c44f328b20365c676`.
+- Lifecycle evaluator: `ebcb38bc5a0ebff96d160e606a06ddc735d15b4f91d7b13b7decc11bc6b33163`.
+- Lifecycle producer: `03b9456ac9d6e01803f6c1bba1ad6bf3d37af6d054f5fe9928760cdbc3c9c8d4`.
+- Lifecycle input ZIP: `68ff06eafe0f23f3c8a3853fa7ccb74df3b14f06941ace6d207a9d11c7987e64`.
+- Actual-getter report: `b643b2cd931c3480b238ac2922f882957b17273cc4f291b57747a516c57a85d6`.
+- Getter input ZIP: `8b58b18d13341d4f95c690b14cd725bc1cb90a51eeffbef0f2f557eb07fbd736`.
+- Getter plan: `07746d7522f81448c129f0d7977b11cf96cff4e41b310fc095db92ff4fd9dacf`.
+- Getter producer: `6c10dce1b19c4e559d35f851b3b2cc92b3e58aa9e0bb72c3dd9ab6e8bbd9c96a`.
+- Getter worker summary: `4905f956137aa1da48eb5368a979d85ec74fe0e7c4a2b3424e4adc5a8f1fb1a6`.
+
+The creation and lifecycle inputs were generated at `e56791a8`; the rebased
+production source `a3bb7b8` reproduces all 20 creation and 80 Rust mutation
+images exactly, as recorded above. The accepted observations are finite
+non-cascading single-Long graph cases. They do not establish other key types,
+cascades, existing-schema edits or whole-v1 compatibility. Native terminal
+capacity failures and every failed/provisional comparison remain retained.
+
+The durable private bundle is
+`shared/checks/20260916-larger-relationship-graph-acceptance` beneath the local
+VM root. It retains the accepted creation, native capacity, final lifecycle and
+getter runs; failed/provisional histories; exact tools and source inputs;
+combined-source byte reproduction and local checks. Its manifest SHA-256 is
+`43aa59db890f0fd020413db60a418aab97c806b953689198c05387ec45c7a254`;
+FINDINGS SHA-256 is
+`952ddbf2447e1b022d57241b1d62f6cf62fea9ad023aafb476d4b94d69dba130`.
+All 682 manifested files (322,033,013 bytes) were independently hash-verified.

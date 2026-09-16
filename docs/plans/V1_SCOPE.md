@@ -161,6 +161,15 @@ may choose a different valid payload page while preserving complete values,
 ownership and unrelated storage. That comparison exercises at most two
 relationships per database.
 
+EXP-0281/0282 extend creation to larger graphs within the per-table logical-index
+limits. Twenty complete creation pairs cover up to 32 relationships, branched
+relationship catalogs, 31-child graphs and 15 self-references. Eighty lifecycle
+pairs cover shared keys, cycles, capacity boundaries and payload changes: 60
+successes and 20 expected refusals. Actual property-collection getters were
+compared across all 170 initial/output images, alongside complete values,
+indexes, counters, allocation and unrelated storage. This is finite evidence;
+other key types, cascades and existing-schema relationship edits remain open.
+
 ### Updates
 
 Public APIs implement bounded field updates, insertion into populated pages or
