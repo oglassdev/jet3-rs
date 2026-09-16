@@ -255,3 +255,88 @@ fn required_property_corruption_and_stored_nulls_are_reported() -> TestResult {
     ));
     Ok(())
 }
+
+#[test]
+fn missing_zero_length_properties_do_not_disable_empty_strings() -> TestResult {
+    for kind in [
+        ColumnType::Text { max_len: nz(8) },
+        ColumnType::FixedText { len: nz(4) },
+        ColumnType::Memo,
+    ] {
+        let directory = TestDirectory::create()?;
+        let path = directory.target();
+        let columns = [ID, ColumnSpec::new(b"Payload", kind)];
+        create_database(
+            &path,
+            &[TableSpec {
+                name: b"Rows",
+                columns: &columns,
+                indexes: &[],
+            }],
+            &mut budget(),
+        )?;
+        let mut db = DatabaseReader::open(&path, &mut budget())?;
+        let definition = crate::update::indexed_writable_table(&mut db, b"Rows", &mut budget())?;
+        let column = &definition.columns()[1];
+        let cases = [
+            (None, false, None),
+            (Some(ID.with_required()), false, None),
+            (
+                Some(ColumnSpec::new(b"Payload", ColumnType::Long).with_required()),
+                true,
+                None,
+            ),
+            (Some(columns[1]), false, Some(false)),
+            (Some(columns[1].with_allow_zero_length()), false, Some(true)),
+        ];
+        for (property_column, required, allow_zero_length) in cases {
+            let mut encoded = b"KKD\0\x06\0\0\0\x80\0".to_vec();
+            if let Some(property_column) = property_column {
+                let property_columns = [property_column];
+                let properties = crate::column_properties::ColumnProperties::new(&property_columns)
+                    .ok_or("property block")?;
+                encoded.resize(properties.len(), 0);
+                properties.encode(&mut encoded, &mut budget())?;
+            }
+            let options = crate::column_property_reader::decode(
+                &encoded,
+                definition.columns(),
+                &mut budget(),
+            )?[1];
+            assert_eq!(options.required, required);
+            assert_eq!(options.allow_zero_length, allow_zero_length);
+            let empty = if kind == ColumnType::Memo {
+                RowValue::Memo(b"")
+            } else {
+                RowValue::Text(b"")
+            };
+            for value in [empty, RowValue::Null] {
+                let expected = if matches!(value, RowValue::Null) {
+                    required.then_some(RowWriteError::RequiredValueMissing {
+                        ordinal: 1,
+                        physical_type: column.physical_type(),
+                    })
+                } else {
+                    (allow_zero_length == Some(false)
+                        && !matches!(kind, ColumnType::FixedText { .. }))
+                    .then_some(RowWriteError::ZeroLengthNotAllowed {
+                        ordinal: 1,
+                        physical_type: column.physical_type(),
+                    })
+                };
+                assert_eq!(
+                    crate::column_value_policy::check_value(
+                        1,
+                        column.physical_type(),
+                        column.storage(),
+                        options,
+                        value,
+                    )
+                    .err(),
+                    expected,
+                );
+            }
+        }
+    }
+    Ok(())
+}

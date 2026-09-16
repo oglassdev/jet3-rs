@@ -1,4 +1,4 @@
-//! Named Boolean column constraints using the EXP-0266/0283 property grammar.
+//! Named Boolean column constraints using the EXP-0266/0283 grammar and EXP-0285 presence semantics.
 use crate::{
     ColumnPhysicalType, ColumnPropertyError, ColumnStorageClass, DatabaseReader, ReadAt,
     ResourceBudget, RowValue, RowWriteError, TableDefinition, UpdateError,
@@ -44,7 +44,7 @@ pub(crate) fn check_value(
             physical_type: kind,
         });
     }
-    if !options.allow_zero_length && empty_string(kind, storage, value) {
+    if options.allow_zero_length == Some(false) && empty_string(kind, storage, value) {
         return Err(RowWriteError::ZeroLengthNotAllowed {
             ordinal,
             physical_type: kind,

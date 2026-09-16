@@ -18782,3 +18782,144 @@ combined-source byte reproduction and local checks. Its manifest SHA-256 is
 FINDINGS SHA-256 is
 `952ddbf2447e1b022d57241b1d62f6cf62fea9ad023aafb476d4b94d69dba130`.
 All 682 manifested files (322,033,013 bytes) were independently hash-verified.
+
+## EXP-0285 — Absent and partial Boolean column properties
+
+Native run `20260916T075737Z-property-presence-r1` completes 18 controlled
+schemas in two replicas: 36 receipts, 288 closed MDB checkpoints and 252
+operations (226 successes and 26 refusals). Inputs derive from the EXP-0283
+native empty Text, FixedText and Memo schemas. The six cases are whole catalog
+LvProp absence, another field's Required=false block only, Payload Required
+false/true only, and Payload AllowZeroLength false/true only. Inputs retain the
+known EXP-0060 row/allocation framing and EXP-0266/0283 Boolean property grammar;
+source MDB identities, changed pages and exact property models are recorded.
+The preparation source context is `2d07c8f9e7ac2e06c2818011eab22b19754e95ab`.
+
+Provider is the EXP-0283 x86 DAO.DBEngine.36 environment, with dao360.dll SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+The closed run lives under `shared/{inbox,outbox}/` at the local Windows VM
+root. Complete private inputs and replay artifacts are retained alongside it;
+no MDB/provider bytes enter the repository. SHA-256 identities:
+
+- Input matrix: `1125aa6ee5dee2ca2c3de4d432b9ae62d140e1faf287c24a39d5bf431174eae4`.
+- Input ZIP: `8d7cc39cb42c96690069138a92ba105c6ad186bd518765004a85b59c312e4e44`.
+- Producer: `97c1cb7a910e12656b7f03118020af7052a47a5d7a3f022c4362fafe94bdd8b0`.
+- Evaluator: `7e7af7a4660fe79dd7de6dbf1f178cf2b25390c02e758dd8f1e4be218bd85a25`.
+- Complete native report: `b46bc47cee379234dae1b7ef2fdb06442da39ea622441c891cf0ba3dd1adbd93`.
+
+Both replicas agree on complete captured schema/properties, values, primary
+traversal and Seek after timestamp normalization. Raw checks cover values,
+property descriptors/models, primary keys/locators/counters and system-index
+inventory. Property bytes remain unchanged throughout each lifecycle; every
+refusal leaves the native file byte-for-byte unchanged.
+
+For variable Text and Memo, absent AllowZeroLength reports false through DAO
+but accepts empty insertion and empty replacement. This holds when the whole
+LvProp is absent, only another field has properties, or the same field has
+only Required=false/true. An explicit AllowZeroLength=false record rejects
+both empty operations with 3315; explicit true accepts them. Required=true
+independently rejects null insertion, omitted insertion and null replacement
+with 3314, while still accepting present-empty strings when AllowZeroLength
+is absent. FixedText accepts empty assignments as four spaces in all six
+property-presence cases, with the same Required null refusals.
+
+An earlier probe, `20260916T074700Z-property-defaults-r1`, omitted DAO property
+setters but still produced complete default property records. Its eight closed
+Text receipts and 70 captured images are retained as a failed absence-probe
+hypothesis, not evidence for absent properties. The controlled inputs above
+remove or replace the actual stored records before native operations.
+
+These observations justify retaining property presence internally and rejecting
+empty variable strings only for an explicitly stored false value. Creation
+continues to encode and enforce its requested explicit settings. This entry
+establishes the native policy for the finite controlled inputs; the Rust
+mutation/readback comparison and durable combined archive remain pending.
+
+### Rust preparation and first-insert placement
+
+Production source `4762a8f9ccc4e744678cac3cc42166f16d5954df` passes `just ready`
+with 1,602 passing executions, zero failures and ten ignored tests. Its ready
+log SHA-256 is
+`1dd6d13a06e9e038255bb2af4b5fd6aed0d955c8636f8b5910cbb83a5848672f`.
+The native report above was independently replayed with identical bytes.
+
+The first Rust preparation is retained as failed: one replica incorrectly sent
+variable-field/null changes through `update_field`, whose documented contract
+requires a present fixed-width field. Forty-two expected-success requests were
+refused at that API boundary. Corrected preparation uses full-row replacement
+for all updates; it does not widen that API or discard the original failures.
+
+The six first insertions into wholly absent-property inputs have different
+physical placement. Each source has 24 pages and one free page, 22, released
+from the removed property storage. DAO reuses page 22; Rust appends page 24 and
+retains page 22 as free. Both primary indexes remain on page 23. A bounded
+comparison checks each complete index against its actual row locator, equal
+row bytes/values and tree/schema metadata, exact owned/available/global map bit
+transitions, complete disjoint ownership, and every unrelated source byte.
+Native header byte 1538 transitions from 2 to 4; the other header bytes stay exact.
+This is a finite placement observation, not a universal allocator equivalence.
+
+Corrected preparation contains all 252 same-input operations with no outcome,
+raw comparison or preservation failures. Its source CLI SHA-256 is
+`1e8d595c2134451eb1b2d3a156b05ffa049db465ddd10b33bf103d78901dcdd5`;
+matrix `a9d733d7ef40645cecb431336e5fe858db9c5e891d5f1e4edb259c6f989bfa4b`;
+ZIP `b71ad3e50154b0106c0262255d9ba0615fb0d1342b5aad1c6659712ca48bf247`.
+The complete DAO readback comparison remains pending; Rust-only preparation
+success does not establish compatibility.
+
+### Accepted property-presence mutation comparison
+
+Run `20260916T082937Z-property-presence-acceptance-r2` closes complete DAO
+readbacks for all 252 prepared Rust outputs in two workers. The differential
+accepts 226 successful operations and 26 matching refusals against the exact
+native predecessor inputs. Complete DAO schema/property getters, values,
+index traversal and Seek agree. Raw checks retain the named property models,
+row bytes, complete physical keys and locators, counters, ownership maps,
+unrelated system storage and byte-exact refusals. The six first-insert placement
+differences use only the bounded comparison described above; the other 246
+pairs retain the direct allocation and locator comparisons. Updates exercise
+full-row replacement, not the fixed-field editing API.
+
+Root replay reproduces the accepted report byte for byte. Independent Sol high
+review found no correctness blocker in the production change or the bounded
+allocation comparison. Accepted SHA-256 identities:
+
+- Complete differential report: `31ebff0a23c43ebc28045ae3427fd3c45e9bb7a663018d3d78909b141e112cd2`.
+- Capture producer: `849fefb5030679455c00173aa0ecda6a664d372adeae641d5a68bafa1e5079fa`.
+- Differential evaluator: `a0e412eb5d8cf7d19bc87f2d4040e51a8f5fcc33f026d9c6498b2c1541f5abf5`.
+- Allocation comparison: `f8820625b8df496a36ad70a11c91d39e5be85badedc89442367101251381109d`.
+
+The durable private bundle is
+`shared/checks/20260916-column-property-presence-acceptance` beneath the local
+VM root. Its manifest SHA-256 is
+`9933e95788446be7ff0f920acaa12ba7a19a15014d62e1cb1a2638b87ebf0706`;
+FINDINGS SHA-256 is
+`309fc0aa6d1615789879b0d90fe9e238bd0edc218a6222fbd05fdbe2d01c7d59`.
+All 475 manifested files (150,694,186 bytes) and the exact directory inventory
+were independently verified. The bundle retains the native and differential
+runs, source/CLI and tools, the rejected fixed-field preparation, the failed
+setter-omission hypothesis and tombstone preparation, and the host-only staging
+filename failure. No failed result supplies accepted compatibility evidence.
+
+This accepts only the declared absent/partial Boolean properties and Text,
+FixedText and Memo insert/replacement cases. Defaults, validation expressions,
+arbitrary property grammars and whole-v1 compatibility remain outside this scope.
+
+### Combined source after larger-graph merge
+
+Revision `0a7e9e00d2cd23643fa8543fd96abe4261c2b1aa`, rebased onto larger-graph
+main `9a59db02d53e363ae715fcbbeb602ec6848549ae`, passes `just ready` with
+1,610 passing executions, zero failures and ten ignored tests. Its ready-log
+SHA-256 is `e2991fe8cade1ee693399572753569d2840c22ee1dcf4dcf078fa1994e3a009d`.
+The same 252 requests reproduce every accepted Rust MDB byte for byte;
+reproduction report SHA-256 is
+`6d64bd008f7fa55bf2208f43a1c49ee0daeef546ab559282b964ea752948f3c1`.
+This carries the finite DAO comparison to the combined production source
+without attributing an additional native run.
+
+The source archive, CLI, ready log, requests, outputs and reproduction report
+are retained in the separate immutable supplement
+`shared/checks/20260916-column-property-presence-combined-source` beneath the
+local VM root. Its manifest covers 1,520 files (69,062,371 bytes), SHA-256
+`36c787a41531549cf97511bf83d84624266db6ce0f7e2afee85efe948a74fead`.
+The accepted acquisition archive above remains unchanged.

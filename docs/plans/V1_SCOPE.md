@@ -98,9 +98,12 @@ insertion and replacement, including Boolean and AutoIncrement exceptions and
 empty Binary/OLE normalization. Read-only validation checks Required nulls and
 named Boolean property framing. EXP-0283/0284 cover native discovery and
 72 creation plus 204 mutation comparisons, including 70 expected refusals.
-Fixed Text retains its exact-width input contract. Creation persists disabled empty-value properties;
-legacy mutation with absent or partial properties still needs the
-follow-up recorded in EXP-0284. Existing-table schema changes and
+Fixed Text retains its exact-width input contract. Creation persists disabled
+empty-value properties. Legacy mutation preserves absent and partial Boolean
+property semantics: empty Text/Memo is refused only when AllowZeroLength is
+explicitly false, independently of Required. EXP-0285 accepts 252 same-input
+mutation pairs, including 26 refusals, across Text, FixedText and Memo.
+Existing-table schema changes and
 table/relationship dropping are absent. EXP-0239 adds explicit, negative and
 wrapping AutoIncrement IDs to the finite writer comparisons.
 

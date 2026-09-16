@@ -105,10 +105,13 @@ pub(crate) fn encode_initial_row(
     for (ordinal, value) in values.iter().enumerate() {
         budget.charge_items(1)?;
         let options = columns.get(ordinal).map_or(
-            crate::column_property_reader::ColumnOptions::default(),
+            crate::column_property_reader::ColumnOptions {
+                required: false,
+                allow_zero_length: Some(false),
+            },
             |column| crate::column_property_reader::ColumnOptions {
                 required: column.required(),
-                allow_zero_length: column.allow_zero_length(),
+                allow_zero_length: Some(column.allow_zero_length()),
             },
         );
         crate::column_value_policy::check_value(
