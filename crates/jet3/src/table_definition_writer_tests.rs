@@ -221,7 +221,7 @@ fn round_trips_every_column_type_and_index_kind() -> Result<(), Box<dyn std::err
     assert!(decoded.columns()[0].auto_increment());
     assert_eq!(
         decoded.columns()[1].storage(),
-        ColumnStorageClass::Fixed { offset: 4 }
+        ColumnStorageClass::Fixed { offset: 0 }
     );
     assert_eq!(
         decoded.columns()[2].storage(),

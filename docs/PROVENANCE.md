@@ -19189,3 +19189,13 @@ Text/Boolean missing-Seek helper errors. The corrected producer uses a scalar
 missing-key record and omits impossible Boolean missing queries when both values
 exist. Lifecycle/equality observations and Rust differential acceptance are
 separate from this creation-eligibility result.
+
+The complete raw definition comparison also confirms the EXP-0198 Boolean
+zero placeholder in both Parent.Key and Child.Key, ordinal 1 after Long Id:
+DAO writes fixed-offset word 0 while the former Rust writer wrote 4. Boolean
+row values use the presence bitmap and do not advance the fixed data offset.
+The first scalar candidate's rows, key bytes, reciprocal metadata and counters
+agree across all 30 positive images, but the two Boolean replicas fail exact
+column-metadata comparison. The failed candidate/source and raw report are
+retained under the private `scalar-relationships/creation-r1` work root; the
+writer is corrected to emit zero for user Boolean fields as well as system fields.
