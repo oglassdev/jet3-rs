@@ -81,17 +81,86 @@ fn catalog_property_payloads_are_traversed_and_owned() -> TestResult {
             .value(column, TextCodePage::Windows1252)?
             .ok_or("missing property value")?;
         if let ValueKind::LongValue(LongValue::External(reference)) = value.kind() {
-            target = Some(reference.target());
+            target = Some((reference.target(), row.storage_locator()));
         }
     }
-    let target = target.ok_or("missing property payload")?;
-    let mut changed = original;
+    let (target, source_row) = target.ok_or("missing property payload")?;
+    drop(cursor);
+    let mut changed = original.clone();
     // EXP-0061: every external catalog property uses the same LVAL owner framing.
     changed[page_start(target.page()) + 4] ^= 1;
     assert!(
         matches!(validate(&changed)?, Err(ValidationError::Table { table, source:
         TableValidationError::LongValue { column: actual, .. }
     }) if table.name().raw_bytes() == b"MSysObjects" && actual == column)
+    );
+    let mut page = [0; PAGE_BYTES];
+    database.read_raw_page(source_row.page(), &mut page, &mut work)?;
+    let directory = crate::row_directory::RowDirectory::validate(
+        source_row.page(),
+        table.root(),
+        &page,
+        &mut work,
+    )?;
+    let end = directory.entry(&page, source_row.slot())?.range().end;
+    let null_byte = page_start(source_row.page()) + end - table.columns().len().div_ceil(8)
+        + usize::from(column.get()) / 8;
+    let mut changed = original;
+    // EXP-0060: a null catalog field must not leave a live orphan property payload.
+    changed[null_byte] &= !(1 << (column.get() % 8));
+    assert!(
+        matches!(validate(&changed)?, Err(ValidationError::Table { table, source:
+        TableValidationError::Storage(StorageValidationError::Page {
+            detail: "unreferenced live payload fragment", ..
+        })
+    }) if table.name().raw_bytes() == b"MSysObjects")
+    );
+    Ok(())
+}
+
+#[test]
+fn only_catalog_lvprop_can_retain_empty_owned_payload_pages() -> TestResult {
+    let original = fixture()?;
+    assert_eq!(validate(&original)??.system_tables, 4);
+    let catalog = definition(&original, b"MSysObjects")?;
+    let property = catalog
+        .columns()
+        .iter()
+        .find(|c| c.name().raw_bytes() == b"LvProp")
+        .ok_or("missing LvProp")?
+        .ordinal();
+    let property_maps = catalog
+        .long_value_maps()
+        .iter()
+        .find(|g| g.column() == property)
+        .ok_or("missing property maps")?;
+    let other_maps = catalog
+        .long_value_maps()
+        .iter()
+        .find(|g| g.column() != property)
+        .ok_or("missing other system payload maps")?;
+    let mut work = budget();
+    let mut database = open(&original, &mut work)?;
+    let owned =
+        crate::mutation_map::MapBits::load(&mut database, property_maps.owned(), &mut work)?;
+    let page = *owned
+        .existing_pages(database.geometry().page_count(), false, &mut work)?
+        .first()
+        .ok_or("missing retained property page")?;
+    let mut changed = original;
+    for (old, new) in [
+        (property_maps.owned(), other_maps.owned()),
+        (property_maps.available(), other_maps.available()),
+    ] {
+        super::storage_checks::set_map_bit(&mut changed, old, page, false)?;
+        super::storage_checks::set_map_bit(&mut changed, new, page, true)?;
+    }
+    assert!(
+        matches!(validate(&changed)?, Err(ValidationError::Table { table, source:
+        TableValidationError::Storage(StorageValidationError::Page {
+            detail: "owned payload page has no live fragments", ..
+        })
+    }) if table.name().raw_bytes() == b"MSysObjects")
     );
     Ok(())
 }

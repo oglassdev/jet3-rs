@@ -1,7 +1,7 @@
 use super::*;
 use crate::{MapRowLocator, StorageValidationError};
 
-fn set_map_bit(
+pub(super) fn set_map_bit(
     bytes: &mut [u8],
     locator: MapRowLocator,
     page: PageNumber,

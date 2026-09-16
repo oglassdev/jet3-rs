@@ -273,7 +273,26 @@ impl<S: ReadAt> DatabaseReader<S> {
                             actual: definition.kind(),
                         });
                     }
-                    validate_table(self, &definition, code_page, budget, &mut report)
+                    let empty_payload_column = if table.class() == CatalogObjectClass::System
+                        && table.name().raw_bytes() == b"MSysObjects"
+                    {
+                        // EXP-0091: the catalog can retain an empty owned LvProp page.
+                        definition
+                            .columns()
+                            .iter()
+                            .find(|column| column.name().raw_bytes() == b"LvProp")
+                            .map(|column| column.ordinal())
+                    } else {
+                        None
+                    };
+                    validate_table(
+                        self,
+                        &definition,
+                        code_page,
+                        budget,
+                        &mut report,
+                        empty_payload_column,
+                    )
                 });
             if let Err(source) = result {
                 return Err(ValidationError::Table { table, source });
@@ -310,6 +329,7 @@ fn validate_table<S: ReadAt>(
     code_page: TextCodePage,
     budget: &mut ResourceBudget,
     report: &mut ValidationReport,
+    empty_payload_column: Option<ColumnOrdinal>,
 ) -> Result<(), TableValidationError> {
     let mut payloads = storage::PayloadInventory::new(database, definition, budget)
         .map_err(TableValidationError::Storage)?;
@@ -322,12 +342,7 @@ fn validate_table<S: ReadAt>(
         &mut payloads,
     )?;
     payloads
-        // EXP-0091: system catalog ownership may retain an empty LVAL page.
-        .finish(
-            database,
-            definition.kind() == TableDefinitionKind::System,
-            budget,
-        )
+        .finish(database, empty_payload_column, budget)
         .map_err(TableValidationError::Storage)?;
     budget
         .charge_work_units(

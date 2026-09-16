@@ -370,14 +370,20 @@ impl PayloadInventory {
     pub fn finish<S: ReadAt>(
         self,
         database: &mut DatabaseReader<S>,
-        allow_empty_pages: bool,
+        empty_column: Option<ColumnOrdinal>,
         budget: &mut ResourceBudget,
     ) -> Result<(), StorageValidationError> {
         budget
             .charge_work_units(self.0.len() as u64)
             .map_err(StorageValidationError::Resource)?;
         for page in self.0 {
-            if live_fragments(database, page.page, allow_empty_pages, budget)? != page.seen {
+            if live_fragments(
+                database,
+                page.page,
+                empty_column == Some(page.column),
+                budget,
+            )? != page.seen
+            {
                 return Err(conflict(page.page, "unreferenced live payload fragment"));
             }
         }
