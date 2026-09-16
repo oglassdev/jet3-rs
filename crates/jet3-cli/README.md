@@ -32,7 +32,7 @@ with exit 1. Invalid arguments produce JSON errors on stderr with exit 2. A
 successful inspection describes the requested decoded content; it is not a
 whole-file compatibility verdict. Inspection never modifies the database.
 
-Validate reachable user-table data without modifying the file:
+Validate reachable user and system table data without modifying the file:
 
 ```sh
 jet3-cli validate example.mdb --code-page 1252
@@ -40,27 +40,29 @@ jet3-cli validate example.mdb --max-input-bytes 268435456 --max-work-units 10000
 ```
 
 `validate` calls `DatabaseReader::validate` with one shared resource budget. It
-decodes active catalog records and user-table definitions, checks live row counts,
+decodes active catalog records and table definitions, checks live row counts,
 decodes every field, streams reachable Memo/OLE values to their end, and traverses
-each physical user index using the existing index reader. Text uses Windows-1252
+each physical index using the existing index reader. Text uses Windows-1252
 by default; Windows-1251 is also accepted. The input limit defaults to 256 MiB;
 the other library limits remain in effect alongside the optional work limit.
 Exclude concurrent writers while validation runs.
 
-Success returns `ok: true`, `scope: "catalogued_allocations_and_user_tables"`, checked counts,
+Success returns `ok: true`, `scope: "catalogued_allocations_and_tables"`, checked counts,
 coverage limits and resource usage on stdout with exit 0. Long-value bytes count
 raw payload bytes per reference, before text decoding. The first failure returns
 `validation_failed` JSON on stderr with exit 1 and no success report; its message
 includes the table and available field/index/row context. Invalid arguments exit 2.
 
-Validation checks user row counts and values, unique row/payload reachability,
+Counts include both user and system tables. Validation checks row counts and values,
+unique row/payload reachability,
 index live-row membership, supported scalar keys and branch bounds, and catalogued
 allocation ownership. Enforced single ascending Long relationships check reciprocal
 metadata, parent uniqueness and non-null child-key inclusion. The JSON report
 counts unsupported index schemas and relationship catalog rows separately; complete
 relationship inventory is checked only when all central rows are interpreted.
-System row values and index keys outside the relationship catalog, other object
-contents, unreferenced pages and allocation slack remain outside these checks.
+Non-table object contents, unreferenced pages and allocation slack remain outside
+these checks. Catalog property payloads are checked as binary values; their
+application-specific property grammar is not interpreted.
 Success does not establish Access/DAO compatibility.
 
 The `create` output path must not exist. Creation uses the library's atomic publication,

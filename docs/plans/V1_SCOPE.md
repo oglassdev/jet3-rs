@@ -222,7 +222,7 @@ keys/locators, ownership, counters and unrelated Notes preservation match.
 
 ### Validation
 
-The read-only library and CLI validator walk catalogued user tables with one
+The read-only library and CLI validator walk catalogued user and system tables with one
 shared resource budget: definitions, declared row counts, decoded values,
 long-value chains and physical index traversal. Every leaf reference must name
 a distinct live logical row in its table. Supported scalar key schemas also
@@ -231,7 +231,7 @@ branch bounds; reports count verified and uninterpreted indexes separately.
 All catalogued table definitions, table/index/payload ownership maps and their
 metadata must remain disjoint from incompatible owners and globally free pages.
 Availability maps must be subsets of their own ownership maps; every traversed
-index page must belong to its physical index. User overflow storage and live
+index page must belong to its physical index. Overflow storage and live
 Memo/OLE fragments must be uniquely reachable through the proper table or
 column, including rejection of hidden orphan rows and unreferenced payloads.
 Enforced, non-cascading single ascending Long relationships check reciprocal
@@ -240,7 +240,8 @@ multiple constraints are checked separately, including shared foreign indexes.
 Unsupported relationship catalog rows are counted explicitly; complete endpoint
 inventory is checked only when every central row is interpreted. Known endpoints
 must still occur exactly once when other forms are present.
-Other system row values and index keys, non-table contents, unreferenced file
+Catalog property payloads are decoded as binary values without interpreting their
+application-specific grammar. Non-table contents, unreferenced file
 pages and unsupported index key schemas remain outside these checks. Catalog
 reading follows native overflow records using the shared row-locator grammar
 (EXP-0228). Validation success does not establish DAO compatibility.
