@@ -179,6 +179,8 @@ def observe(path, capture, case, model, label):
             "columns": table["definition"]["columns"],
             "logical_indexes": table["definition"]["logical_indexes"],
             "long_value_maps": table["definition"]["long_value_maps"],
+            "physical_indexes": [{k: v for k, v in index.items() if k not in ("prefix_hex", "entry_count")}
+                                 for index in table["definition"]["physical_indexes"]],
         }
         for name, table in named.items() if name in {t["name"] for t in case["tables"]}
     }
@@ -202,6 +204,8 @@ def stable_metadata(observation):
         "relationship_objects": observation["relationship_objects"],
         "relationship_aces": observation["relationship_aces"],
         "system_relationship_indexes": observation["system_relationship_indexes"],
+        "system_allocation_maps": {k: v for k, v in observation["allocation_maps"].items()
+                                   if k.split('/')[0] in checks.SYSTEM_INDEXES},
     }
 
 
@@ -276,6 +280,30 @@ def byte_diff(before, after):
     limit = min(len(left), len(right))
     offsets = [i for i in range(limit) if left[i] != right[i]]
     return {"before": ident(before), "after": ident(after), "changed_bytes": len(offsets) + abs(len(left) - len(right)), "changed_pages": sorted({i // 2048 for i in offsets}), "size_delta": len(right) - len(left)}
+
+
+def refusal_storage(before, after, spec, model, case, label):
+    """Finite DAO refusal effects from EXP-0273 and the retained graph runs."""
+    expected = copy.deepcopy(before["physical_indexes"])
+    operation = spec["operation"]
+    table = operation["table"]
+    for index in expected[table]:
+        foreign = index["flags"] == 0
+        if spec["name"] == "orphan-insert" and not foreign:
+            value = operation["values"][index["column"]]
+            if value not in {row[index["column"]] for row in model[table]}:
+                index["second_word"] += 1
+        elif foreign:
+            self_delete = operation["kind"] == "delete" and any(
+                relation["table"] == relation["foreign_table"] == table
+                and relation["foreign_field"] == index["column"] for relation in case["relations"])
+            shared_edit = spec["name"] == "shared-key-one-parent-only" and operation.get("column") == index["column"]
+            if (self_delete or shared_edit) and index["first_word"]:
+                index["first_word"] -= 1
+                index["second_word"] = min(index["second_word"], index["first_word"])
+    req(after["physical_indexes"] == expected, label + " refusal physical indexes and prefix effects")
+    req(after["maps"] == before["maps"] and after["allocation_maps"] == before["allocation_maps"],
+        label + " refusal allocation preservation")
 
 
 def main():
@@ -391,6 +419,9 @@ def main():
                         path = args.outbox / filename
                         source_path = args.outbox / f"{stem}-{role}-{refusal_spec['source_stage']}.mdb"
                         current = observe(path, refusal_record["capture"], case, model_at_source, stem + "/" + role + "/refusal/" + refusal_spec["name"])
+                        source_observation = next(s["observation"] for s in stage_observations if s["name"] == refusal_spec["source_stage"])
+                        refusal_storage(source_observation, current, refusal_spec, model_at_source, case,
+                                        stem + "/" + role + "/refusal/" + refusal_spec["name"])
                         req(operation["before"] == ident(source_path) and operation["after"] == current["identity"], stem + "/" + role + "/refusal/" + refusal_spec["name"] + " lineage")
                         req(stable_metadata(current) == original_metadata, stem + "/" + role + "/refusal/" + refusal_spec["name"] + " metadata preservation")
                         refusal_observations.append({"name": refusal_spec["name"], "source_stage": refusal_spec["source_stage"], "operation": operation, "observation": current, "prefixes": prefix_snapshot(current), "source_diff": byte_diff(source_path, path)})
