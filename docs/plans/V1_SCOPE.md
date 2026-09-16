@@ -101,6 +101,12 @@ components may overlap. EXP-0293 accepts the corrected guard and self/shared-ind
 graph supplement: twelve creations, 32 successful mutations and 28 refusals.
 The final candidate also reproduces all 276 main-suite outputs byte-for-byte,
 bringing the combined finite evidence to 348 comparisons.
+EXP-0294–0296 add cascade update/delete creation and mutation evidence:
+eighteen creation pairs and 148 mutation pairs (104 successes, 44 refusals),
+plus two matching creation refusals. Complete actual property collections,
+rows, indexes, counters, maps, payloads and unrelated system/catalog bytes are
+compared. The final report independently replays from its complete archived
+inputs. Existing-database relationship changes/drop remain open.
 
 Schema names use defined Windows-1252 bytes and the observed English-US
 collation for ordering and duplicate detection. Stored names retain their exact
@@ -264,6 +270,12 @@ constraints. All affected rows, indexes, payloads and allocation maps publish in
 one atomic file replacement; a pre-publication failure preserves the entire source.
 EXP-0294/0295 record the native option flags, chain/shared-key behavior, null-tuple
 selection, explicit self-replacement precedence and retained index counters.
+EXP-0296 accepts the complete 166-pair candidate comparison. Ten successful
+operations have bounded selected payload descriptor/allocation differences;
+cascade deletion can clear freed payload bytes that DAO leaves stale. Complete
+payload values, ownership/reachability, all unassigned descriptors/maps and
+system/catalog bytes remain checked. Refused Rust operations preserve every
+input byte while native refusal bookkeeping is checked separately.
 
 EXP-0212 covers seventeen hosted update recipes. EXP-0221 adds local DAO
 comparisons for indexed insertion/deletion, boundary insertion, native

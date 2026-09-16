@@ -19818,3 +19818,84 @@ Root independently reproduced the report byte-for-byte and verified all 105
 listed hashes/sizes and the exact inventory (10,584,390 bytes excluding manifest).
 The initial refused composite creation and skipped events remain retained. These
 are native format/behavior observations; candidate acceptance remains separate.
+## EXP-0296 — Cascade creation and mutation differential acceptance
+
+Production candidate `352325f2e145e63d82cfad72c811d051f1f2f3cd` accepts
+independent cascade update/delete options in enforced relationship graphs and
+publishes each connected mutation in one atomic replacement. The complete
+candidate comparison against EXP-0294/0295 covers 166 pairs: eighteen creations,
+104 successful same-input mutations and 44 refusals. Two additional composite
+creation requests match the native 3201 refusals and publish no Rust file.
+The sixteen events skipped after the original failed native creations remain
+excluded. The suite uses two replicas and the same DAO 3.6 environment as
+EXP-0294/0295; it is finite evidence, not whole-format compatibility.
+
+Final readback `20260916T154500Z-cascade-candidate-acceptance-r4` closes all
+166 images with six successful worker receipts and exit zero. Complete actual
+property collections include table, column, index, relationship and relationship
+field getters. Comparisons cover complete rows, logical traversal, full-arity
+Seek, raw keys/locators, physical flags and retained counters, reciprocal and
+central metadata, system rows/indexes, allocation, and payload contents,
+ownership and reachability. Successful same-input operations preserve raw
+schemas, relationship catalog records, system/catalog page bytes and every
+unassigned Memo/OLE descriptor. Rust refusals preserve every input byte; native
+refusal changes match the exact recorded counter/header residues separately.
+
+Independent creations retain their own valid physical allocation and historical
+index prefixes while matching the complete logical/raw semantics. On existing
+files, payload placement differences are limited to explicitly assigned payload
+columns and payloads of rows proven deleted by the native result. Seventy-two
+operations are eligible for that comparison; only ten, five per replica, have
+actual descriptor or final allocation differences. Those are the chain's root
+payload edit, both root replacements, leaf insertion and middle payload edit.
+The other sixty-two have equal descriptors and final allocation. Every selected
+map's framing/header, page and active-slot counts, payload bytes and reachability
+remain checked. Free-page or EOF differences must belong to the selected payload
+page history; all unselected maps and descriptors remain exact. Key-only
+cascades receive no descriptor or map placement allowance.
+
+For example, root replacement with a new key keeps both files at 172,032 bytes.
+Rust owns Body pages 25–27 and 31–33 and Blob pages 28–29, 34–36 and 77;
+DAO owns Body pages 27–29 and 31–33 and Blob pages 34–36 and 77–79.
+The corresponding free-page exchange is Rust 78–79 versus DAO 25–26.
+The retaining-key full replacement uses four fewer final Rust pages, bounded
+entirely to the selected payload history. Cascade deletion is a separate raw-byte
+difference: final size, free pages, payload ownership/maps and surviving
+references agree, but Rust clears freed payload pages that DAO leaves stale.
+Both replicas identify exactly pages 25–29, 44–46, 57–61, 63–67 and 77–80.
+Complete per-operation differences are retained in
+`PAYLOAD_PLACEMENT_FINDINGS.json` and the final report.
+
+The first capture attempt failed on an input ZIP basename mismatch. The second
+lacked OLE type 11 observation, and the third captured all images but omitted
+relationship property collections. A corrected one-image preflight matched the
+native snapshot before the complete fourth run. All failed attempts and their
+outputs remain retained; they are not accepted evidence. Final observation
+helpers match the native producer, and the strict evaluator retains complete
+property comparison.
+
+Final report SHA-256 is
+`415cc0eba97ac78b764620cc37fdb18b8bc8d7a395e7a287ecccc0890394f338`;
+evaluator SHA-256 is
+`adbb341c2a8b88e1450019a4d33798205d7247b19135b213a3bc1b4fd6e585ec`;
+readback producer SHA-256 is
+`877d1e6dc0806ce393af38f9ebf104a230337876972f84cebd4c340a5b29db29`;
+input ZIP SHA-256 is
+`212bb6f93c297f23eb5dad2f6164dafbddca689dec5a1b2a1c3f80aaa019c02f`.
+Frozen source archive SHA-256 is
+`703424ffd3387af5ead672c10c6d174e6b65c290f413d1a301b3d0ba9b787aba`;
+CLI SHA-256 is
+`c03fed912ffd2fd756e0e73031208c63a82275e65dc383f048b0d1f4097722da`;
+creation helper SHA-256 is
+`c7abf1176cf3437fed7b6b52a54770f027b62f1b8a1598dfb4f5d586586f32a7`.
+
+The durable `checks/20260916-cascade-relationship-acceptance` archive includes
+source/binaries, requests, all native and candidate images, receipts, dependencies,
+failed runs and a self-contained `replay.sh OUTPUT_REPORT`. Its manifest SHA-256 is
+`585a2c719a8dc4148a09d6ebc52c10c7dd5a85e4cd6e5898b7d9b41fffd02a61`.
+Root independently replayed the final report byte-for-byte and verified all
+1,756 listed hashes/sizes and the exact 1,757-file inventory, totaling 242,549,866
+bytes excluding the manifest. Independent GPT-5.6 Sol high code review found no
+concrete correctness issue. Internal `just ready` passed 1,674 test executions,
+zero failures and ten ignored, including the atomic journal boundary test.
+Later API documentation and test additions do not change production behavior.
