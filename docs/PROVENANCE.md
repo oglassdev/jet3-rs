@@ -18119,3 +18119,39 @@ more complex graph inventories, other providers or whole-v1 compatibility.
   `relationship_graph_lifecycle.py` under `oracle/windows-dao/scripts`.
   GPT-5.6 Sol high independently reviewed production code and the comparisons.
   Final production `just ready` passes 1,554 test executions with zero failures.
+
+## EXP-0276 — Rejected hidden multi-hop overflow hypothesis
+
+- Recorded: 2026-09-16, clean-room native DAO discovery. Four retained EXP-0262
+  one-link sources (ordinary and Memo/OLE tables, two replicas) supply eight
+  explicit two/three-link candidates. The constructor retains the visible
+  `0x4000` logical link, inserts nonempty four-byte hidden `0xc000` links and
+  terminates at the original row body in a `0x8000` hidden slot. It preserves
+  all logical values and index keys/locators and updates allocation maps.
+- Final run `20260916T005315Z-multihop-read-r3`: every native source passes
+  complete schema, 72 Items rows, two Notes rows, index traversal and full-row
+  Seek for every distinct key plus a missing key. Every candidate opens, but
+  complete Items enumeration fails with `Record is deleted.`, HRESULT
+  `-2146825121`. All submitted, before/after-read and retained file identities
+  agree. No mutation arm runs after this read failure.
+- Independent raw evaluation checks the exact chains and terminal bodies,
+  unchanged complete physical index pages/keys, unrelated Notes, payload
+  storage and ownership/availability/global-free maps. Rust structural
+  validation accepted these eight inputs; that does not establish native
+  readability. Existing multi-hop mutation refusals remain unchanged.
+- This rejects only the tested intermediate representation. No native
+  multi-hop sample was available; the result does not exclude other encodings.
+  Earlier runs `20260916T004034Z-multihop-read-r1` (unsupported guest hex helper)
+  and `20260916T004550Z-multihop-read-r2` (missing post-failure candidate copies)
+  remain retained, including their observed native errors.
+- Provider: x86 DAO 3.6, DLL 03.60.9765.0, SHA-256
+  `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`;
+  Windows 10.0.20348, PowerShell 5.1.20348.558, CLR 4.0.30319.42000, en-US.
+  Constructor uses clean-room helpers from `9af90efc716c8a9d7ef015e94fe8c959654ef73e`.
+- Reproduction bundle: private VM `shared/checks/20260916-multihop-discovery`.
+  All 104 manifest entries verify; the root evaluator replay reproduces the
+  canonical report exactly. Manifest SHA-256
+  `03507dcd613f09e19b31a79c4666ac37a96ee6a727831d6d72656a9de9360fe8`;
+  report `20e5e75b6ff0f32d00fb4c6cd6d4e0f022726326bdd702a1c14a6b338a7b85ab`.
+  Inputs, constructors, native producers, evaluator/helpers, provider receipts
+  and all three raw run histories remain private; no MDB bytes are committed.
