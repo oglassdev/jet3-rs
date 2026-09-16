@@ -205,6 +205,41 @@ fn scalar_relationship_lifecycles_enforce_keys_and_preserve_refused_inputs() -> 
             "{kind:?}: {referenced:?}"
         );
         assert_eq!(fs::read(&path)?, original);
+        let repeated = crate::update_row(
+            &path,
+            crate::RowUpdate {
+                table: b"Parent",
+                row: locate(&path, b"Parent", 1)?,
+                values: &[RowValue::Long(1), first],
+            },
+            &mut budget(),
+        );
+        assert!(
+            matches!(
+                repeated,
+                Err(UpdateError::ScalarRelationshipConstraint { .. }
+                    | UpdateError::RelationshipConstraint { .. })
+            ),
+            "{kind:?}: {repeated:?}"
+        );
+        assert_eq!(fs::read(&path)?, original);
+        if kind == ColumnType::Long {
+            let repeated = crate::update_field(
+                &path,
+                crate::FieldUpdate {
+                    table: b"Parent",
+                    row: locate(&path, b"Parent", 1)?,
+                    column: ColumnOrdinal::new(1),
+                    value: first,
+                },
+                &mut budget(),
+            );
+            assert!(matches!(
+                repeated,
+                Err(UpdateError::RelationshipConstraint { .. })
+            ));
+            assert_eq!(fs::read(&path)?, original);
+        }
         crate::insert_row(
             &path,
             b"Parent",

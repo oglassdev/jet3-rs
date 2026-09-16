@@ -52,7 +52,8 @@ struct Keys {
     before: Vec<Key>,
     after: Vec<Key>,
     has_null_after: bool,
-    removed_null: bool,
+    assigned_null: bool,
+    assigned: Vec<Key>,
 }
 fn push(
     keys: &mut Vec<Key>,
@@ -78,7 +79,8 @@ fn keys(
         before: Vec::new(),
         after: Vec::new(),
         has_null_after: false,
-        removed_null: false,
+        assigned_null: false,
+        assigned: Vec::new(),
     };
     let mut rows = database.rows(table, budget)?;
     let mut count = 0_u32;
@@ -94,7 +96,19 @@ fn keys(
             None => Some(Key::encode(kind, value, row.budget_mut())?),
         };
         result.has_null_after |= matches!(after, Some(None));
-        result.removed_null |= before.is_none() && !matches!(after, Some(None));
+        let assigned = match change {
+            Some(Change::Delete(selected) | Change::Replace(selected, _)) => selected == locator,
+            Some(Change::Field(selected, changed, _)) => selected == locator && changed == column,
+            _ => false,
+        };
+        if assigned {
+            result.assigned_null |= before.is_none();
+            push(
+                &mut result.assigned,
+                Key::encode(kind, value, row.budget_mut())?,
+                row.budget_mut(),
+            )?;
+        }
         push(&mut result.before, before, rows.owned.budget_mut())?;
         if let Some(after) = after {
             push(&mut result.after, after, rows.owned.budget_mut())?;
@@ -131,7 +145,7 @@ pub(crate) fn check(
             (constraint.parent.root() == target.root()).then_some(change),
             budget,
         )?;
-        let child = keys(
+        let mut child = keys(
             database,
             &constraint.child,
             constraint.child_column,
@@ -147,13 +161,19 @@ pub(crate) fn check(
         if relationship_key::missing(&parent.before, &child.before, budget)?.is_some() {
             return Err(UpdateError::Mismatch("orphan relationship key"));
         }
-        // EXP-0286: a null child blocks changing/removing a null parent, even
-        // when another null parent remains. Null child insertion is exempt.
-        if parent.removed_null && child.has_null_after {
+        // EXP-0286/0289: assigning a referenced parent key is refused even
+        // when the assigned key is unchanged or another null parent remains.
+        if parent.assigned_null && child.has_null_after {
             return Err(UpdateError::NullRelationshipConstraint {
                 parent: constraint.parent.root(),
                 child: constraint.child.root(),
             });
+        }
+        relationship_key::sort(&mut child.after, budget)?;
+        for key in &parent.assigned {
+            if relationship_key::contains(&child.after, key, budget)? {
+                return Err(key.violation(constraint.parent.root(), constraint.child.root()));
+            }
         }
         let missing_after = relationship_key::missing(&parent.after, &child.after, budget)?;
         // EXP-0286: a foreign tree preceding its parent tree cannot reference

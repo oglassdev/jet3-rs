@@ -19329,3 +19329,14 @@ Independent GPT-5.6 Sol high review covered production changes and lifecycle
 preparation. `just ready` passed 1,638 test executions, zero failures, ten ignored.
 Composite/cascading relationships and existing relationship schema edits remain
 outside this acceptance.
+
+
+A later control, `20260916T122108Z-scalar-equal-parent-r1`, checks explicit
+same-value assignment of referenced Long and Text(8) parents and complete parent
+replacement retaining the key. All four native attempts refuse 3200 / HRESULT
+-2146825088, preserving the entire input. Inventory SHA-256 is
+`5571151a4a3aad04d7350b4530cc24bb5d56cadd97de8eadd7eddc72b063e3fe`.
+This establishes that checking only the resulting key set misses an assigned
+parent constraint: explicit key assignments are checked even when the encoded
+key remains equal. The Rust guard now checks the assigned parent row against
+remaining children. Candidate replay and additional acceptance are recorded below.
