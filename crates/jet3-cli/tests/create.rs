@@ -248,3 +248,41 @@ fn create_relationship_array_resolves_generated_parents_and_column_options() -> 
     assert!(!invalid.exists());
     Ok(())
 }
+
+#[test]
+#[cfg(any(unix, windows))]
+fn composite_endpoint_columns_preserve_order_and_reject_ambiguous_shapes() -> Result {
+    let directory = tempfile::tempdir()?;
+    let request = json!({"tables":[
+        {"name":"Parent","columns":[{"name":"A","type":"long"},{"name":"B","type":"long"}],"indexes":[{"name":"Pair","kind":"unique","fields":[{"column":"A"},{"column":"B"}]}],"rows":[[{"long":11},{"long":22}]]},
+        {"name":"Child","columns":[{"name":"X","type":"long"},{"name":"Y","type":"long"}],"rows":[[{"long":11},{"long":22}]]}
+    ],"relationships":[{"name":"Pair","parent":{"table":"Parent","columns":["A","B"]},"child":{"table":"Child","columns":["X","Y"]}}]});
+    let output = directory.path().join("composite.mdb");
+    let result = run(&output, &request.to_string())?;
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let validation = Command::new(env!("CARGO_BIN_EXE_jet3-cli"))
+        .arg("validate")
+        .arg(&output)
+        .output()?;
+    assert!(validation.status.success());
+    let document: Value = serde_json::from_slice(&validation.stdout)?;
+    assert_eq!(document["checked"]["relationship_catalog_rows"], 2);
+    assert_eq!(document["checked"]["relationships_with_verified_keys"], 1);
+    for endpoint in [
+        json!({"table":"Parent","column":"A","columns":["A","B"]}),
+        json!({"table":"Parent","columns":["A"]}),
+        json!({"table":"Parent","columns":["B","A"]}),
+        json!({"table":"Parent","columns":[]}),
+    ] {
+        let mut invalid = request.clone();
+        invalid["relationships"][0]["parent"] = endpoint;
+        let absent = directory.path().join("refused.mdb");
+        assert!(!run(&absent, &invalid.to_string())?.status.success());
+        assert!(!absent.exists());
+    }
+    Ok(())
+}

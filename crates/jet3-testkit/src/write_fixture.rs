@@ -3,7 +3,7 @@ use std::{num::NonZeroU8, path::Path};
 
 use jet3::{
     ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
-    RelationshipColumn, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef,
+    RelationshipField, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef,
     TableRows, TableSpec, create_database_with_relationship_rows, create_database_with_table_rows,
 };
 use serde::Deserialize;
@@ -279,14 +279,12 @@ pub fn write_fixture(id: &str, output: &Path) -> Result<()> {
             &requests,
             &RelationshipSpec {
                 name: relation.name.as_bytes(),
-                parent: RelationshipColumn {
-                    table: TableRef::Ordinal(usize::from(relation.parent_table)),
-                    column: ColumnRef::Ordinal(relation.parent_column),
-                },
-                child: RelationshipColumn {
-                    table: TableRef::Ordinal(usize::from(relation.child_table)),
-                    column: ColumnRef::Ordinal(relation.child_column),
-                },
+                parent: TableRef::Ordinal(usize::from(relation.parent_table)),
+                child: TableRef::Ordinal(usize::from(relation.child_table)),
+                fields: &[RelationshipField {
+                    parent: ColumnRef::Ordinal(relation.parent_column),
+                    child: ColumnRef::Ordinal(relation.child_column),
+                }],
             },
             &mut budget,
         )?;

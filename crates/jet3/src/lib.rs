@@ -72,6 +72,7 @@ pub mod database_header;
 mod definition_name;
 pub mod delete;
 pub mod error;
+mod field_update;
 pub mod header;
 mod index_allocation;
 mod index_counter;

@@ -19,7 +19,7 @@ pub struct RowUpdate<'a> {
 /// Replaces a complete row while retaining its logical locator.
 ///
 /// Supports scalar/null/Boolean/Text/Binary values and independent Memo/OLE
-/// columns. Enforced non-cascading single-column scalar relationships require matching
+/// columns. Enforced non-cascading relationships with one to ten ordered scalar fields require matching
 /// parents and reject changes to referenced parent keys, including null parents
 /// while null child keys remain. Foreign keys and parent keys backed only by
 /// hidden relationship indexes update their two-word retained state on assignment
@@ -52,9 +52,10 @@ pub struct RowUpdate<'a> {
 /// Pre-publication failure preserves the original; errors identify publish stages.
 /// An AutoNumber field accepts its unchanged Long value or `RowValue::AutoIncrement`
 /// to retain its value. Changing that field is refused and its counter is retained.
-/// Every affected enforced, non-cascading scalar relationship is checked, including
-/// multiple relationships and self-references. Every resulting non-null child
-/// key must occur in its parent table. Composite relationship keys and cascades are refused.
+/// Every affected enforced, non-cascading relationship is checked, including
+/// multiple relationships and self-references. Every child key with at least one
+/// non-null component must occur in its parent table. Assigning a referenced parent
+/// key is refused even when unchanged. Cascades are refused.
 pub fn update_row(
     path: impl AsRef<Path>,
     request: RowUpdate<'_>,

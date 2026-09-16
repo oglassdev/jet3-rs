@@ -24,7 +24,7 @@ pub enum ComposeError {
         /// Unsupported relationship constraint.
         detail: &'static str,
     },
-    /// Initial indexes require one or two supported numeric columns and bounded index counts.
+    /// Initial indexes require one to ten supported scalar columns and bounded index counts.
     UnsupportedInitialIndexSchema,
     /// A scalar key value needs an unsupported encoding (including negative zero).
     UnsupportedInitialIndexValue {

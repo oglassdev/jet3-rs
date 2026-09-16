@@ -7,7 +7,7 @@ use crate::long_value_writer::{
 };
 use crate::page_edits::{PageEdits, reserve};
 use crate::{
-    ColumnPhysicalType, DatabaseReader, ExternalLongValueStorage, FileSource,
+    ColumnOrdinal, ColumnPhysicalType, DatabaseReader, ExternalLongValueStorage, FileSource,
     LongValueMapDefinition, MapRowLocator, PAGE_BYTES, PageImage, PageNumber, PageOffset,
     ResourceBudget, RowColumnLayout, RowLocator, RowValue, TableDefinition, UpdateError,
 };
@@ -56,7 +56,17 @@ impl LongValues {
         selected: Option<RowLocator>,
         budget: &mut ResourceBudget,
     ) -> Result<Self, UpdateError> {
-        load::load(database, table, selected, budget)
+        load::load(database, table, selected.map(|row| (row, None)), budget)
+    }
+
+    pub fn load_field(
+        database: &mut DatabaseReader<FileSource>,
+        table: &TableDefinition,
+        row: RowLocator,
+        column: ColumnOrdinal,
+        budget: &mut ResourceBudget,
+    ) -> Result<Self, UpdateError> {
+        load::load(database, table, Some((row, Some(column))), budget)
     }
 
     pub fn remove_selected(&mut self, budget: &mut ResourceBudget) -> Result<(), UpdateError> {
@@ -94,6 +104,29 @@ impl LongValues {
         output: &mut [u8],
         budget: &mut ResourceBudget,
     ) -> Result<usize, UpdateError> {
+        self.encode(layout, values, None, output, budget)
+    }
+
+    /// Unselected descriptors must come from the validated source row.
+    pub fn encode_field_row(
+        &mut self,
+        layout: &[RowColumnLayout],
+        values: &[RowValue<'_>],
+        selected: ColumnOrdinal,
+        output: &mut [u8],
+        budget: &mut ResourceBudget,
+    ) -> Result<usize, UpdateError> {
+        self.encode(layout, values, Some(selected), output, budget)
+    }
+
+    fn encode(
+        &mut self,
+        layout: &[RowColumnLayout],
+        values: &[RowValue<'_>],
+        selected: Option<ColumnOrdinal>,
+        output: &mut [u8],
+        budget: &mut ResourceBudget,
+    ) -> Result<usize, UpdateError> {
         if values.len() != layout.len() || values.len() > u8::MAX as usize {
             return Ok(crate::encode_row(layout, values, output, budget)?.get() as usize);
         }
@@ -106,6 +139,11 @@ impl LongValues {
             let (payload, kind) = match value {
                 RowValue::Memo(bytes) => (*bytes, ColumnPhysicalType::Memo),
                 RowValue::LongBinary(bytes) => (*bytes, ColumnPhysicalType::LongBinary),
+                RowValue::LongValue(_)
+                    if selected.is_some_and(|column| usize::from(column.get()) != ordinal) =>
+                {
+                    continue;
+                }
                 RowValue::LongValue(_) => {
                     return Err(UpdateError::Unsupported(
                         "caller-supplied long-value header",

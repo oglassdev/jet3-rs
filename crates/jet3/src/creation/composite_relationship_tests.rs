@@ -138,6 +138,7 @@ fn composite_relationship_requires_aligned_unique_fields_and_distinct_components
         &[FIELDS[1], FIELDS[0]][..],
         &[FIELDS[0], FIELDS[0]][..],
         &[][..],
+        &[FIELDS[0]; 11][..],
     ] {
         let invalid = RelationshipSpec { fields, ..edge() };
         assert!(matches!(
@@ -172,6 +173,93 @@ fn locate(
         }
     }
     Err("missing row".into())
+}
+
+#[test]
+fn referenced_parent_payload_field_edit_does_not_assign_its_composite_key() -> TestResult {
+    let directory = Directory::new()?;
+    let path = directory.target();
+    let mut columns = COLUMNS.to_vec();
+    columns[3] = ColumnSpec::new(
+        b"Body",
+        ColumnType::Text {
+            max_len: std::num::NonZeroU8::new(255).ok_or("width")?,
+        },
+    );
+    let mut tables = schema();
+    tables[0].columns = &columns;
+    let parent = [
+        RowValue::Long(1),
+        RowValue::Long(11),
+        RowValue::Long(111),
+        RowValue::Text(b"before"),
+    ];
+    let child = [
+        RowValue::Long(10),
+        RowValue::Long(11),
+        RowValue::Long(111),
+        RowValue::Null,
+    ];
+    create_database_with_relationships_and_rows(
+        &path,
+        &[
+            TableRows {
+                table: tables[0],
+                rows: &[&parent],
+            },
+            TableRows {
+                table: tables[1],
+                rows: &[&child],
+            },
+        ],
+        &[edge()],
+        &mut budget(),
+    )?;
+    let row = locate(&path, b"Alpha", 1)?;
+    let original = fs::read(&path)?;
+    let mut replacement = parent;
+    replacement[3] = RowValue::Text(&[b'x'; 255]);
+    assert!(matches!(
+        crate::update_row(
+            &path,
+            crate::RowUpdate {
+                table: b"Alpha",
+                row,
+                values: &replacement,
+            },
+            &mut budget()
+        ),
+        Err(crate::UpdateError::ScalarRelationshipConstraint { .. })
+    ));
+    assert_eq!(fs::read(&path)?, original);
+    crate::update_field(
+        &path,
+        crate::FieldUpdate {
+            table: b"Alpha",
+            row,
+            column: crate::ColumnOrdinal::new(3),
+            value: replacement[3],
+        },
+        &mut budget(),
+    )?;
+    let mut work = budget();
+    let mut db = DatabaseReader::open(&path, &mut work)?;
+    let table = crate::update::indexed_writable_table(&mut db, b"Alpha", &mut work)?;
+    {
+        let mut rows = db.rows(&table, &mut work)?;
+        let mut actual = rows.next_row()?.ok_or("row")?;
+        for (ordinal, expected) in replacement.iter().enumerate() {
+            assert_eq!(
+                crate::numeric_row_values::read_column(
+                    &mut actual,
+                    crate::ColumnOrdinal::new(ordinal as u16)
+                )?,
+                *expected
+            );
+        }
+    }
+    db.validate(TextCodePage::Windows1252, &mut work)?;
+    Ok(())
 }
 
 #[test]

@@ -5,8 +5,8 @@ use crate::names::Name;
 use crate::values::{self, Cell};
 use jet3::{
     ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
-    RelationshipColumn, RelationshipSpec, RowValue, TableRef, TableRows, TableSpec,
-    create_database, create_database_with_relationship, create_database_with_relationship_rows,
+    RelationshipField, RelationshipSpec, RowValue, TableRef, TableRows, TableSpec, create_database,
+    create_database_with_relationship, create_database_with_relationship_rows,
     create_database_with_relationships, create_database_with_relationships_and_rows,
     create_database_with_table_rows,
 };
@@ -187,24 +187,43 @@ struct Relation {
 #[serde(deny_unknown_fields)]
 struct Endpoint {
     table: Name,
-    column: Name,
+    column: Option<Name>,
+    columns: Option<Vec<Name>>,
 }
 
 impl Relation {
-    fn spec(&self) -> RelationshipSpec<'_> {
+    fn fields(&self) -> Result<Vec<RelationshipField<'_>>, String> {
+        let parent = self.parent.columns()?;
+        let child = self.child.columns()?;
+        if parent.len() != child.len() {
+            return Err("relationship endpoints require the same number of columns".into());
+        }
+        Ok(parent
+            .iter()
+            .zip(child)
+            .map(|(parent, child)| RelationshipField {
+                parent: ColumnRef::Name(parent.bytes()),
+                child: ColumnRef::Name(child.bytes()),
+            })
+            .collect())
+    }
+
+    fn spec<'a>(&'a self, fields: &'a [RelationshipField<'a>]) -> RelationshipSpec<'a> {
         RelationshipSpec {
             name: self.name.bytes(),
-            parent: self.parent.spec(),
-            child: self.child.spec(),
+            parent: TableRef::Name(self.parent.table.bytes()),
+            child: TableRef::Name(self.child.table.bytes()),
+            fields,
         }
     }
 }
 
 impl Endpoint {
-    fn spec(&self) -> RelationshipColumn<'_> {
-        RelationshipColumn {
-            table: TableRef::Name(self.table.bytes()),
-            column: ColumnRef::Name(self.column.bytes()),
+    fn columns(&self) -> Result<&[Name], String> {
+        match (&self.column, &self.columns) {
+            (Some(column), None) => Ok(std::slice::from_ref(column)),
+            (None, Some(columns)) if (1..=10).contains(&columns.len()) => Ok(columns),
+            _ => Err("relationship endpoint requires column or columns (1..10)".into()),
         }
     }
 }
@@ -299,7 +318,15 @@ pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
     let empty = tables.iter().all(|table| table.rows.is_empty());
     let schema = tables.iter().map(|table| table.table).collect::<Vec<_>>();
     if let Some(relations) = &request.relationships {
-        let relationships = relations.iter().map(Relation::spec).collect::<Vec<_>>();
+        let fields = relations
+            .iter()
+            .map(Relation::fields)
+            .collect::<Result<Vec<_>, _>>()?;
+        let relationships = relations
+            .iter()
+            .zip(&fields)
+            .map(|(relation, fields)| relation.spec(fields))
+            .collect::<Vec<_>>();
         if empty {
             create_database_with_relationships(
                 &command.output,
@@ -316,7 +343,8 @@ pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
             )
         }
     } else if let Some(relation) = &request.relationship {
-        let relationship = relation.spec();
+        let fields = relation.fields()?;
+        let relationship = relation.spec(&fields);
         if empty {
             create_database_with_relationship(&command.output, &schema, &relationship, &mut budget)
         } else {

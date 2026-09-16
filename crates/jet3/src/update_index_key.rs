@@ -1,4 +1,4 @@
-//! Indexed fixed-field updates share the complete numeric tree mutation planner.
+//! Indexed field updates share the complete numeric tree mutation planner.
 use crate::{
     DatabaseReader, FieldUpdate, FileSource, ResourceBudget, TableDefinition, UpdateError,
 };

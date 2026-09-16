@@ -2,15 +2,15 @@
 //! EXP-0234 supplies release/reuse forms; EXP-0235 permits deleted siblings.
 use super::{LongValues, OWNER, PayloadPage, map::Bitmap, reserve};
 use crate::{
-    DatabaseReader, FileSource, LongValue, LongValueReference, MapRowLocator, PAGE_BYTES,
-    PageImage, PageNumber, ResourceBudget, RowLocator, TableDefinition, TextCodePage, UpdateError,
-    ValueKind,
+    ColumnOrdinal, DatabaseReader, FileSource, LongValue, LongValueReference, MapRowLocator,
+    PAGE_BYTES, PageImage, PageNumber, ResourceBudget, RowLocator, TableDefinition, TextCodePage,
+    UpdateError, ValueKind,
 };
 
 pub(super) fn load(
     database: &mut DatabaseReader<FileSource>,
     table: &TableDefinition,
-    selected: Option<RowLocator>,
+    selected: Option<(RowLocator, Option<ColumnOrdinal>)>,
     budget: &mut ResourceBudget,
 ) -> Result<LongValues, UpdateError> {
     let mut result = LongValues {
@@ -227,7 +227,7 @@ fn exclude_other_ownership(
 fn references(
     database: &mut DatabaseReader<FileSource>,
     table: &TableDefinition,
-    selected: Option<RowLocator>,
+    selected: Option<(RowLocator, Option<ColumnOrdinal>)>,
     result: &mut LongValues,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
@@ -243,7 +243,7 @@ fn references(
         let Some(mut row) = cursor.next_row()? else {
             break;
         };
-        let remove = selected == Some(row.locator());
+        let remove_row = selected.is_some_and(|(locator, _)| locator == row.locator());
         pending.clear();
         for (column, map) in result.maps.iter().enumerate() {
             let value = row
@@ -290,7 +290,11 @@ fn references(
                     return Err(UpdateError::Mismatch("aliased long-value fragment"));
                 }
                 page.seen[word] |= mask;
-                if remove {
+                if remove_row
+                    && selected.is_some_and(|(_, selected_column)| {
+                        selected_column.is_none_or(|value| value == result.maps[column].column())
+                    })
+                {
                     page.removed[word] |= mask;
                 }
             }
