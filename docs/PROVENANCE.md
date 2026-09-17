@@ -20204,3 +20204,49 @@ row count 17/18. In this scope the next relationship id follows the highest
 active unsigned negative object id; no retained monotonic allocator was observed.
 An appended populated AutoIncrement Long (attributes 17) accepts Required true
 and false assignments and reports the assigned value through DAO.
+
+Additional relationship and rewrite boundaries are retained in
+`outbox/20260917T233000Z-final-native-supplement-r1`,
+`outbox/20260917T234500Z-appended-fixed-rewrite-r1`, and
+`outbox/20260917T235500Z-relationship-logical-zero-r1`. Their result SHA-256
+values are respectively
+`784259cf24709ad1b8e699820fb6e6b9525ebc67a5452b1c15d88f37e5c87fca`,
+`f41462527f489343a7ee4d9cc814780ed3107a89e4eb850d9914275058b90ece`,
+and `c3df3d11804967c7339e7b0cf6d6b1400d9b63fdaa1b19047076630da9491ecd`.
+Their producer SHA-256 values are
+`f8f3b6bdef4f3e60dd12217ce494907506e68785513e6c370ce0040606932984`,
+`2faa4e24bf9bc07ed579f7ba1dd8687d21e1274d90ebf3ae311a42ab3d5cbca2`,
+and `1008112990e186525eb9e8988ee0fe372cf38dc015a24390200f7d7d00b52859`.
+
+Deleting a parent PrimaryKey used by a relationship is refused with DAO 3281
+and preserves the file byte-for-byte. Deleting an ordinary child logical index
+that shares its physical tree with a relationship succeeds: the ordinary logical
+record is removed, the relationship logical record and parent reciprocal remain,
+and physical root/map/prefix are retained exact. Thus a shared child tree does
+not make the ordinary logical index undeletable; physical storage is retired only
+after its last selecting logical record is removed.
+
+Logical selector zero is valid for native relationship records. After dropping
+parent ordinary logical identity 0 while retaining unique logical identity 1,
+the reciprocal relationship takes identity/raw selector 0, aliases the surviving
+unique physical tree and receives hidden DAO name `.r`. Its child record points
+to reciprocal ordinal 0. Independently, after dropping child primary logical
+identity 0, the named child relationship takes identity/raw selector 0 and a new
+physical ordinal 0; the parent's `.rB` points to reciprocal ordinal 0. The tested
+hidden-name mapping is therefore selector 0 to `.r`, 1 to `.rB`, and 2 to `.rC`.
+
+DAO orphan relationship append is refused with DAO 3201 and exposes no new
+relationship, catalog object or ACE row, but it is not byte-atomic. Only pages
+0, 2 and 3 change: the `MSysObjects` header counts rise 17 to 18 and `MSysACEs`
+34 to 36 without corresponding live rows, and page 0 byte 1538 changes `01` to
+`03`. This failed-write residue is retained as a native divergence; candidate
+atomic refusal must not be weakened or the residue normalized away.
+
+After appending three nullable Long fields to populated `Target`, all existing
+rows read null in all three fields. A subsequent native rewrite that assigns
+original fixed `Spare` to null and grows original variable `Label` leaves all
+three appended fields null and every other row exact. Only the database header,
+the affected ordinary index and Target data page change during the row rewrite;
+the TDEF and catalog/property pages stay exact. This bounds old-row decoding and
+rewrite against the row's actual stored fixed extent rather than the current
+schema's appended extent.
