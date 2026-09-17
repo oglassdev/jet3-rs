@@ -163,7 +163,8 @@ fn reports_table_and_stream_position_for_corrupt_row_and_live_count() -> TestRes
     // EXP-0060: slot zero ends at the page boundary; byte zero is column count.
     assert_eq!(locator.slot(), 0);
     let mut changed = original.clone();
-    changed[page_start(locator.page()) + PAGE_BYTES - row_length] = 0;
+    changed[page_start(locator.page()) + PAGE_BYTES - row_length] =
+        u8::try_from(table.storage_column_count() + 1)?;
     assert!(
         matches!(validate(&changed)?, Err(ValidationError::Table { table, source:
         TableValidationError::Rows { completed_rows: 0, source: RowError::ColumnCountMismatch { .. } }

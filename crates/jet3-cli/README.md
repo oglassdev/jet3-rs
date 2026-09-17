@@ -1,6 +1,6 @@
 # jet3-cli
 
-`jet3-cli --help` lists `probe`, `inspect`, `validate`, `mutate` and protocol `snapshot`
+`jet3-cli --help` lists `probe`, `inspect`, `validate`, `mutate`, `schema` and protocol `snapshot`
 commands. `create` is an optional JSON frontend to the public creation APIs:
 
 ```sh
@@ -100,6 +100,11 @@ Tables and columns retain their supplied order; row cells are positional.
 or `ordinary`. Each field references an exact column name and has optional
 `direction`: `ascending` (default) or `descending`. Other schema combinations
 and limits are checked by the library, including which types may be indexed.
+Optional `null_policy` is `include`, `ignore_all_null` or `required`. It defaults
+to `required` for primary indexes and `include` otherwise. Primary indexes must
+retain `required`. `ignore_all_null` omits a row only when every indexed component
+is null; `required` rejects any null component. Nullable unique indexes enforce
+uniqueness only for fully present keys.
 
 Column types are `boolean`, `byte`, `integer`, `long`, `auto_increment`,
 `currency`, `single`, `double`, `date_time`, `guid`, `text`, `fixed_text`,
@@ -193,6 +198,137 @@ ordinary tables. Each array entry can set `"cascade_updates": true` and/or
 Place this array alongside the `tables` request. The singular `relationship`
 interface retains its non-cascading two-table bounds.
 
+`schema` applies one public schema edit to an existing database:
+
+```sh
+jet3-cli schema example.mdb --input request.json
+```
+
+Use `--input -` for stdin. Index requests have these shapes:
+
+```json
+{"operation":"create_index","table":"Items","index":{"name":"ByLabel","kind":"ordinary","null_policy":"ignore_all_null","fields":[{"column":"Label","direction":"descending"}]}}
+```
+
+```json
+{"operation":"rename_index","table":"Items","index":"ByLabel","name":"ByLabelDescending"}
+```
+
+```json
+{"operation":"drop_index","table":"Items","index":"ByLabelDescending"}
+```
+
+Index definitions use the same fields and defaults as `create`. A new index is
+built over existing rows; uniqueness and required-key violations refuse the
+edit. Targets use exact names encoded losslessly in Windows-1252. Relationship
+indexes are subject to the library's relationship constraints.
+
+Rename a table and its relationship table-name references with:
+
+```json
+{"operation":"rename_table","table":"Items","name":"Products"}
+```
+
+The table's rows, columns and indexes are retained. To add an empty table:
+
+```json
+{
+  "operation": "create_table",
+  "table": {
+    "name": "Notes",
+    "columns": [
+      {"name": "Id", "type": "auto_increment"},
+      {"name": "Title", "type": "text", "size": 40, "required": true},
+      {"name": "Content", "type": "memo", "allow_zero_length": true}
+    ],
+    "indexes": [{"name": "ById", "kind": "primary", "fields": [{"column": "Id"}]}]
+  }
+}
+```
+
+`create_table` uses the same column and index definitions as `create`; `indexes`
+defaults to an empty array. Its table object rejects `rows`. Insert rows with
+`mutate` after creating the table. Existing tables and their contents are retained.
+
+Rename a column with:
+
+```json
+{"operation":"rename_column","table":"Notes","column":"Title","name":"Heading"}
+```
+
+Column values, index membership, Required and AllowZeroLength settings are retained.
+
+Append a column using the same definition as `create`:
+
+```json
+{"operation":"create_column","table":"Notes","column":{"name":"Summary","type":"memo","allow_zero_length":true}}
+```
+
+Existing rows retain their values; the appended column reads as null, or false
+for Boolean. AutoIncrement assigns existing rows values from 1 through N;
+the next generated value is N+1. Subsequent row updates or inserts can assign
+the new column. All creation column types are accepted within the library's bounds.
+
+Remove a column or table with:
+
+```json
+{"operation":"drop_column","table":"Notes","column":"Summary"}
+```
+
+```json
+{"operation":"drop_table","table":"Notes"}
+```
+
+Drop a column's indexes first. A referenced parent table cannot be dropped;
+dropping a child table also removes its relationships. Remaining columns retain
+their storage ordinals, so use the current
+definition's ordinals for field updates and its live column order for row values.
+
+Change constraints for future writes with:
+
+```json
+{"operation":"set_column_options","table":"Notes","column":"Title","required":true,"allow_zero_length":false}
+```
+
+Omitted or null options retain their current settings. Existing null and empty
+values remain intact; the new settings apply to subsequent writes. AllowZeroLength
+applies to Text and Memo. Column type/size and index options require recreation.
+Use `replace_index` to rebuild an index atomically, retaining the original if
+the new definition fails:
+
+```json
+{"operation":"replace_index","table":"Items","index":"ByLabel","replacement":{"name":"UniqueLabel","kind":"unique","fields":[{"column":"Label"}]}}
+```
+
+Relationship edits use the same definition as creation, including optional
+`cascade_updates`, `cascade_deletes`, and composite endpoint `columns`:
+
+```json
+{"operation":"create_relationship","relationship":{"name":"ParentChild","parent":{"table":"Parent","column":"Id"},"child":{"table":"Child","column":"ParentId"}}}
+```
+
+```json
+{"operation":"replace_relationship","name":"ParentChild","relationship":{"name":"ParentChildCascading","parent":{"table":"Parent","column":"Id"},"child":{"table":"Child","column":"ParentId"},"cascade_updates":true,"cascade_deletes":true}}
+```
+
+```json
+{"operation":"drop_relationship","name":"ParentChildCascading"}
+```
+
+Creation checks existing rows against the referenced unique key. Replacement
+atomically removes and recreates the relationship, allowing a new name, endpoints
+and cascade settings; refusal preserves the original relationship. Deletion
+retains ordinary indexes shared with the relationship.
+
+Each request calls `edit_schema` once with the default library resource budget.
+Success returns `ok`, `operation` and `file` on stdout. Invalid JSON, unknown
+fields or refused edits return `schema_failed` JSON on stderr and exit 1;
+invalid arguments exit 2. Errors include `publication_stage` when the library
+reports a publication failure. Failures before publication retain the original
+file; a sync error after publication can mean the change is already visible.
+Exclude concurrent writers for the entire operation and check the publication
+stage before retrying. CLI tests establish command behavior, not DAO compatibility.
+
 `mutate` applies one public row operation to an existing database:
 
 ```sh
@@ -256,5 +392,5 @@ An AutoNumber insertion accepts `"auto_increment"` or an explicit `{"long": 42}`
 For replacement, supply `"auto_increment"` to keep the existing ID, or its
 unchanged Long value. Deletion retains the generation state. Rejected requests
 preserve the whole file, including that state; DAO can consume a number on a
-failed insert. Relationship schema edits remain restricted. The recorded finite DAO comparisons are in
+failed insert. The recorded finite DAO comparisons are in
 `docs/PROVENANCE.md`; CLI tests do not expand that coverage.

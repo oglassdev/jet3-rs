@@ -1,8 +1,5 @@
-//! Checked physical row counts and variable trailers from EXP-0060/0257/0258.
-use super::{
-    ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass, ResourceBudget, RowError,
-    TableDefinition,
-};
+//! Checked physical row counts and variable trailers from EXP-0060/0257/0258/0297.
+use super::{ColumnPhysicalType, ColumnStorageClass, ResourceBudget, RowError, TableDefinition};
 use std::ops::Range;
 
 #[derive(Debug, Clone, Copy)]
@@ -21,27 +18,28 @@ impl RowLayout {
         definition: &TableDefinition,
         budget: &mut ResourceBudget,
     ) -> Result<Self, RowError> {
-        let expected = u8::try_from(definition.columns().len()).map_err(|_| {
+        let expected = u8::try_from(definition.storage_column_count()).map_err(|_| {
             RowError::ColumnCountNotRepresentable {
-                count: definition.columns().len(),
+                count: usize::from(definition.storage_column_count()),
             }
         })?;
         let column_count = *row.first().ok_or(RowError::RowTooShort {
             length: 0,
             minimum: 1,
         })?;
-        // EXP-0257 admits old rows after appending variable columns only.
-        if column_count > expected
-            || definition.columns()[usize::from(column_count)..]
-                .iter()
-                .any(|c| !matches!(c.storage(), ColumnStorageClass::Variable { .. }))
-        {
+        // EXP-0257/0297: appended columns are absent from unchanged older rows.
+        if column_count > expected {
             return Err(RowError::ColumnCountMismatch {
                 expected,
                 actual: column_count,
             });
         }
-        let columns = &definition.columns()[..usize::from(column_count)];
+        let columns = || {
+            definition
+                .columns()
+                .iter()
+                .filter(|column| column.storage_ordinal() < u16::from(column_count))
+        };
         let null_len = usize::from(column_count).div_ceil(8);
         let minimum = 1 + null_len;
         if row.len() < minimum {
@@ -53,8 +51,8 @@ impl RowLayout {
         budget
             .charge_items(u64::from(expected))
             .map_err(RowError::Resource)?;
-        let fixed_boundary = 1 + columns
-            .iter()
+        let deleted = columns().count() < usize::from(column_count);
+        let fixed_boundary = 1 + columns()
             .filter_map(|column| match column.storage() {
                 ColumnStorageClass::Fixed { offset }
                     if column.physical_type() != ColumnPhysicalType::Boolean =>
@@ -65,11 +63,19 @@ impl RowLayout {
             })
             .max()
             .unwrap_or(0);
-        let variable_count = columns
-            .iter()
-            .filter(|c| matches!(c.storage(), ColumnStorageClass::Variable { .. }))
-            .count() as u8;
-        let maximum = crate::row_offsets::maximum_length(usize::from(variable_count));
+        let minimum_variables = columns()
+            .filter_map(|column| match column.storage() {
+                ColumnStorageClass::Variable { index } => Some(index + 1),
+                _ => None,
+            })
+            .max()
+            .unwrap_or(0) as u8;
+        let variable_limit = if deleted {
+            definition.storage_variable_count()
+        } else {
+            u16::from(minimum_variables)
+        };
+        let maximum = crate::row_offsets::maximum_length(usize::from(variable_limit));
         if row.len() > maximum {
             return Err(RowError::RowTooLong {
                 length: row.len(),
@@ -77,8 +83,10 @@ impl RowLayout {
             });
         }
         let null_start = row.len() - null_len;
-        if variable_count == 0 {
-            if null_start != fixed_boundary {
+        if minimum_variables == 0 {
+            // EXP-0297: deleted fields can leave fixed bytes and variable trailers.
+            // No live field needs those bytes when no variable slot is referenced.
+            if null_start < fixed_boundary || (!deleted && null_start != fixed_boundary) {
                 return Err(RowError::InvalidFixedBoundary {
                     expected: fixed_boundary,
                     actual: null_start,
@@ -89,7 +97,7 @@ impl RowLayout {
                 offsets_start: null_start,
                 null_start,
                 column_count,
-                variable_count,
+                variable_count: 0,
                 jumps: 0,
             });
         }
@@ -97,10 +105,15 @@ impl RowLayout {
             length: row.len(),
             minimum: minimum + 1,
         })?;
-        if row[count_position] != variable_count {
+        let variable_count = row[count_position];
+        if variable_count < minimum_variables
+            || u16::from(variable_count) > definition.storage_variable_count()
+            || variable_count > column_count
+            || (!deleted && variable_count != minimum_variables)
+        {
             return Err(RowError::VariableCountMismatch {
-                expected: variable_count,
-                actual: row[count_position],
+                expected: minimum_variables,
+                actual: variable_count,
             });
         }
         let jumps = (row.len() - 1) / 256;
@@ -139,7 +152,7 @@ impl RowLayout {
             });
         }
         let actual_fixed = layout.boundary(row, 0);
-        if actual_fixed != fixed_boundary {
+        if actual_fixed < fixed_boundary || (!deleted && actual_fixed != fixed_boundary) {
             return Err(RowError::InvalidFixedBoundary {
                 expected: fixed_boundary,
                 actual: actual_fixed,
@@ -186,8 +199,8 @@ impl RowLayout {
         Ok(layout)
     }
 
-    pub(super) fn present(self, row: &[u8], ordinal: ColumnOrdinal) -> bool {
-        let bit = usize::from(ordinal.get());
+    pub(super) fn present(self, row: &[u8], storage_ordinal: u16) -> bool {
+        let bit = usize::from(storage_ordinal);
         bit < usize::from(self.column_count)
             && row
                 .get(self.null_start + bit / 8)

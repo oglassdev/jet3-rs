@@ -1,5 +1,5 @@
 //! Checked encoder for one logical Jet 3 data row, the inverse of the layout
-//! validated by `row.rs` (`EXP-0060/0172/0257/0258`) with scalars of `EXP-0061`.
+//! validated by `row.rs` (`EXP-0060/0172/0257/0258/0297`) with scalars of `EXP-0061`.
 //!
 //! Memo and OLE values are supplied as already-encoded long-value bytes
 //! (12-byte header plus any inline payload); writing external LVAL pages is a
@@ -24,6 +24,7 @@ pub struct RowColumnLayout {
     physical_type: ColumnPhysicalType,
     storage: ColumnStorageClass,
     size: u16,
+    storage_ordinal: Option<u16>,
 }
 
 impl RowColumnLayout {
@@ -38,6 +39,7 @@ impl RowColumnLayout {
             physical_type,
             storage,
             size,
+            storage_ordinal: None,
         }
     }
 
@@ -62,7 +64,12 @@ impl RowColumnLayout {
 
 impl From<&ColumnDefinition> for RowColumnLayout {
     fn from(column: &ColumnDefinition) -> Self {
-        Self::new(column.physical_type(), column.storage(), column.size())
+        Self {
+            physical_type: column.physical_type(),
+            storage: column.storage(),
+            size: column.size(),
+            storage_ordinal: Some(column.storage_ordinal()),
+        }
     }
 }
 
@@ -138,6 +145,13 @@ pub enum RowWriteError {
         count: usize,
         /// Maximum encodable count.
         maximum: usize,
+    },
+    /// Stable storage identities are duplicated, unordered, or out of range.
+    InvalidStorageOrdinal {
+        /// Zero-based live column position.
+        ordinal: u16,
+        /// Rejected stable storage identity.
+        storage_ordinal: u16,
     },
     /// The value slice length differs from the column count.
     ValueCountMismatch {
@@ -249,6 +263,7 @@ impl std::error::Error for RowWriteError {
 
 #[derive(Debug, Clone, Copy)]
 struct RowShape {
+    column_count: usize,
     fixed_size: usize,
     variable_count: usize,
     null_len: usize,
@@ -311,182 +326,9 @@ pub(crate) fn encode_present_fixed_field(
     Ok(width)
 }
 
-fn validate(
-    columns: &[RowColumnLayout],
-    values: &[RowValue<'_>],
-    budget: &mut ResourceBudget,
-) -> Result<RowShape, RowWriteError> {
-    if columns.len() > MAX_COLUMN_COUNT {
-        return Err(RowWriteError::TooManyColumns {
-            count: columns.len(),
-            maximum: MAX_COLUMN_COUNT,
-        });
-    }
-    if values.len() != columns.len() {
-        return Err(RowWriteError::ValueCountMismatch {
-            expected: columns.len(),
-            actual: values.len(),
-        });
-    }
-    budget
-        .charge_items(columns.len() as u64)
-        .map_err(RowWriteError::Resource)?;
-    let mut next_fixed_offset = 0_u16;
-    let mut variable_count = 0_usize;
-    let mut variable_bytes = 0_usize;
-    let mut seen_indexes = [false; MAX_COLUMN_COUNT];
-    for (ordinal, (column, value)) in (0_u16..).zip(columns.iter().zip(values)) {
-        validate_column_layout(ordinal, *column, &mut next_fixed_offset)?;
-        let width = value_width(ordinal, *column, *value)?;
-        match column.storage {
-            ColumnStorageClass::Fixed { .. } => {}
-            ColumnStorageClass::Variable { index } => {
-                let slot = seen_indexes
-                    .get_mut(usize::from(index))
-                    .filter(|seen| !**seen);
-                let Some(slot) = slot else {
-                    return Err(RowWriteError::InvalidVariableIndex {
-                        ordinal,
-                        index,
-                        variable_count: columns.len(),
-                    });
-                };
-                *slot = true;
-                variable_count += 1;
-                variable_bytes =
-                    variable_bytes
-                        .checked_add(width)
-                        .ok_or(RowWriteError::Resource(Error::Arithmetic {
-                            operation: "sum encoded-row variable bytes",
-                        }))?;
-            }
-        }
-    }
-    let fixed_size = usize::from(next_fixed_offset);
-    // Indexes are unique, so any index at or beyond the count leaves a hole.
-    for (ordinal, column) in (0_u16..).zip(columns) {
-        if let ColumnStorageClass::Variable { index } = column.storage
-            && usize::from(index) >= variable_count
-        {
-            return Err(RowWriteError::InvalidVariableIndex {
-                ordinal,
-                index,
-                variable_count,
-            });
-        }
-    }
-    let null_len = columns.len().div_ceil(8);
-    let mut length = 1_usize
-        .checked_add(fixed_size)
-        .and_then(|value| value.checked_add(variable_bytes))
-        .and_then(|value| value.checked_add(null_len))
-        .ok_or(RowWriteError::Resource(Error::Arithmetic {
-            operation: "size encoded row",
-        }))?;
-    if variable_count > 0 {
-        length = length
-            .checked_add(variable_count)
-            .and_then(|value| value.checked_add(2))
-            .ok_or(RowWriteError::Resource(Error::Arithmetic {
-                operation: "size encoded-row variable trailer",
-            }))?;
-    }
-    let jumps = if variable_count == 0 {
-        0
-    } else {
-        crate::row_offsets::jump_count(length)
-    };
-    length = length
-        .checked_add(jumps)
-        .ok_or(RowWriteError::Resource(Error::Arithmetic {
-            operation: "size encoded-row jump bytes",
-        }))?;
-    let maximum = crate::row_offsets::maximum_length(variable_count);
-    if length > maximum {
-        return Err(RowWriteError::RowTooLong { length, maximum });
-    }
-    Ok(RowShape {
-        fixed_size,
-        variable_count,
-        null_len,
-        jumps,
-        length,
-    })
-}
-
-/// Validates the schema invariants established for column definitions.
-fn validate_column_layout(
-    ordinal: u16,
-    column: RowColumnLayout,
-    next_fixed_offset: &mut u16,
-) -> Result<(), RowWriteError> {
-    let valid_size = match column.physical_type {
-        ColumnPhysicalType::Boolean | ColumnPhysicalType::Byte => column.size == 1,
-        ColumnPhysicalType::Integer => column.size == 2,
-        ColumnPhysicalType::Long | ColumnPhysicalType::Single => column.size == 4,
-        ColumnPhysicalType::Currency
-        | ColumnPhysicalType::Double
-        | ColumnPhysicalType::DateTime => column.size == 8,
-        ColumnPhysicalType::Guid => column.size == 16,
-        ColumnPhysicalType::Binary | ColumnPhysicalType::Text => (1..=255).contains(&column.size),
-        ColumnPhysicalType::LongBinary | ColumnPhysicalType::Memo => column.size == 0,
-    };
-    if !valid_size {
-        return Err(RowWriteError::InvalidColumnSize {
-            ordinal,
-            physical_type: column.physical_type,
-            size: column.size,
-        });
-    }
-
-    let storage_error = || RowWriteError::InvalidStorage {
-        ordinal,
-        physical_type: column.physical_type,
-    };
-    match column.storage {
-        ColumnStorageClass::Fixed { offset } => {
-            if matches!(
-                column.physical_type,
-                ColumnPhysicalType::Binary
-                    | ColumnPhysicalType::LongBinary
-                    | ColumnPhysicalType::Memo
-            ) {
-                return Err(storage_error());
-            }
-            // EXP-0198: DAO Boolean records can use zero instead of the current
-            // fixed offset; the value occupies only its presence bit.
-            let boolean_placeholder =
-                column.physical_type == ColumnPhysicalType::Boolean && offset == 0;
-            if offset != *next_fixed_offset && !boolean_placeholder {
-                return Err(RowWriteError::InvalidFixedOffset {
-                    ordinal,
-                    offset,
-                    expected: *next_fixed_offset,
-                });
-            }
-            if column.physical_type != ColumnPhysicalType::Boolean {
-                *next_fixed_offset =
-                    next_fixed_offset
-                        .checked_add(column.size)
-                        .ok_or(RowWriteError::Resource(Error::Arithmetic {
-                            operation: "advance encoded-row fixed offset",
-                        }))?;
-            }
-        }
-        ColumnStorageClass::Variable { .. } => {
-            if !matches!(
-                column.physical_type,
-                ColumnPhysicalType::Binary
-                    | ColumnPhysicalType::Text
-                    | ColumnPhysicalType::LongBinary
-                    | ColumnPhysicalType::Memo
-            ) {
-                return Err(storage_error());
-            }
-        }
-    }
-    Ok(())
-}
+#[path = "row_writer_layout.rs"]
+mod layout;
+use layout::{validate, validate_column_layout};
 
 /// Checks the value against the column and returns its physical byte width.
 fn value_width(
@@ -584,8 +426,8 @@ fn write_row(
     values: &[RowValue<'_>],
     shape: RowShape,
 ) -> Result<(), Error> {
-    let count = u8::try_from(columns.len()).map_err(|_| Error::IntegerConversion {
-        value: columns.len() as u128,
+    let count = u8::try_from(shape.column_count).map_err(|_| Error::IntegerConversion {
+        value: shape.column_count as u128,
         target: "u8",
     })?;
     writer.write_u8(count)?;
@@ -603,7 +445,8 @@ fn write_row(
             _ => true,
         };
         if present {
-            null_map[ordinal / 8] |= 1 << (ordinal % 8);
+            let bit = column.storage_ordinal.map_or(ordinal, usize::from);
+            null_map[bit / 8] |= 1 << (bit % 8);
         }
         if let (ColumnStorageClass::Fixed { offset }, true) = (column.storage, present) {
             if column.physical_type == ColumnPhysicalType::Boolean {
@@ -629,11 +472,8 @@ fn write_row(
         }
     }
     for index in 0..shape.variable_count {
-        let Some(value) = variable_values[index] else {
-            return Err(Error::Arithmetic {
-                operation: "locate validated variable column",
-            });
-        };
+        // EXP-0297: deleted variable slots remain empty offset entries.
+        let value = variable_values[index].unwrap_or(RowValue::Null);
         match value {
             RowValue::Text(bytes) | RowValue::Binary(bytes) | RowValue::LongValue(bytes) => {
                 writer.write_exact(bytes)?;

@@ -30,6 +30,14 @@ pub struct FieldUpdate<'a> {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum UpdateError {
+    /// A requested table schema is invalid.
+    Schema(crate::TableSchemaPlanError),
+    /// A table definition could not be encoded.
+    DefinitionEncoding(crate::TableDefinitionWriteError),
+    /// A schema edit could not encode a data page.
+    PageImage(crate::PageImageError),
+    /// A schema edit could not encode an allocation map.
+    MapEncoding(crate::UsageMapWriteError),
     /// Named column properties or their storage are malformed.
     ColumnProperties(crate::ColumnPropertyError),
     /// The named user table, row, or column was not found.
@@ -99,6 +107,10 @@ impl fmt::Display for UpdateError {
 impl StdError for UpdateError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
+            Self::Schema(source) => Some(source),
+            Self::DefinitionEncoding(source) => Some(source),
+            Self::PageImage(source) => Some(source),
+            Self::MapEncoding(source) => Some(source),
             Self::ColumnProperties(source) => Some(source),
             Self::Resource(source) => Some(source),
             Self::Io(source) => Some(source),
@@ -134,6 +146,10 @@ macro_rules! conversion {
     };
 }
 conversion!(crate::Error, Resource);
+conversion!(crate::TableSchemaPlanError, Schema);
+conversion!(crate::TableDefinitionWriteError, DefinitionEncoding);
+conversion!(crate::PageImageError, PageImage);
+conversion!(crate::UsageMapWriteError, MapEncoding);
 conversion!(crate::ColumnPropertyError, ColumnProperties);
 conversion!(std::io::Error, Io);
 conversion!(crate::DatabaseOpenError, Open);

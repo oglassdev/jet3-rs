@@ -1,9 +1,8 @@
 //! JSON requests over public row mutation APIs; no storage or publication logic.
 use crate::names::Name;
-use crate::values::{self, Cell};
+use crate::values::{self, Cell, Failure};
 use jet3::{
     CatalogObjectClass, ColumnOrdinal, DatabaseReader, ResourceBudget, RowLocator, RowValue,
-    UpdateError,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -77,31 +76,6 @@ fn required_value<'de, D: serde::Deserializer<'de>>(
 struct Locator {
     page: u64,
     slot: u8,
-}
-
-pub(crate) struct Failure {
-    pub message: String,
-    pub publication_stage: Option<String>,
-}
-impl From<String> for Failure {
-    fn from(message: String) -> Self {
-        Self {
-            message,
-            publication_stage: None,
-        }
-    }
-}
-impl From<UpdateError> for Failure {
-    fn from(error: UpdateError) -> Self {
-        let publication_stage = match &error {
-            UpdateError::Publish(error) => Some(format!("{:?}", error.stage())),
-            _ => None,
-        };
-        Self {
-            message: error.to_string(),
-            publication_stage,
-        }
-    }
 }
 
 fn resolve(

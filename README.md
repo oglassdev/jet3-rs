@@ -6,7 +6,7 @@ Jet 3 `.mdb` files.
 The library opens unencrypted Jet 3 files, enumerates schema, streams rows,
 decodes values including Memo/OLE, and traverses indexes. It also provides
 bounded database creation and existing-file insert, update, and delete APIs.
-A CLI exposes inspection, typed JSON creation/mutation requests, and semantic
+A CLI exposes inspection, typed JSON creation, row/schema mutations, and semantic
 snapshots; see [its usage guide](crates/jet3-cli/README.md).
 
 Development is ongoing. DAO differential evidence covers specific recorded
@@ -77,6 +77,13 @@ self-reference changes follow physical index order: if the foreign index precede
 the parent index, the child key must exist before the edit.
 Related-row payloads retain the normal Memo/OLE mutation bounds. Orphan writes
 and conflicts with other enforced relationships are refused before publication.
+
+Existing files can be edited through `edit_schema` or `jet3-cli schema`: create,
+rename and drop tables/columns/indexes; change Required and AllowZeroLength;
+and create, drop or atomically replace relationships and indexes. Deleted
+columns retain the surviving fields' storage identities, and all operations
+preserve unrelated objects. See the [CLI examples](crates/jet3-cli/README.md)
+for request shapes and constraints.
 
 Creation and updates remain partial: schema combinations, index key types,
 allocation, and relationship mutation are restricted. Publication supports Unix

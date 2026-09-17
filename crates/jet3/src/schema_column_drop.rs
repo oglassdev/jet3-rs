@@ -1,0 +1,84 @@
+//! EXP-0297 drops live column metadata while retaining old row storage IDs and bytes.
+use crate::page_edits::PageEdits;
+use crate::{ResourceBudget, UpdateError};
+use std::fs::File;
+
+pub(crate) fn drop_column(
+    file: &mut File,
+    journal: &mut PageEdits,
+    table: &[u8],
+    name: &[u8],
+    budget: &mut ResourceBudget,
+) -> Result<(), UpdateError> {
+    let (catalog, row, properties, retired) =
+        crate::schema_publish::apply(file, journal, budget, |database, budget| {
+            let table = crate::update::indexed_writable_table(database, table, budget)?;
+            let column = table
+                .columns()
+                .iter()
+                .find(|column| column.name().raw_bytes() == name)
+                .ok_or(UpdateError::NotFound("column"))?;
+            if table.columns().len() == 1 {
+                return Err(UpdateError::Unsupported("table must retain a column"));
+            }
+            if table.physical_indexes().iter().any(|index| {
+                index
+                    .fields()
+                    .iter()
+                    .any(|field| field.column() == column.ordinal())
+            }) {
+                return Err(UpdateError::Unsupported("drop indexes before their column"));
+            }
+            crate::relationship_catalog::validate(database, budget)?;
+            crate::row_mutation_graph::RowGraph::load(database, &table, None, budget)?;
+            crate::long_value_mutation::LongValues::load(database, &table, None, budget)?;
+            let (catalog, row, properties) =
+                crate::schema_properties::load(database, &table, budget)?;
+            let properties = crate::schema_properties::remove(&properties, name, budget)?;
+            let mut edited = crate::schema_definition::DefinitionEdit::new(&table, budget)?;
+            edited.columns.remove(usize::from(column.ordinal().get()));
+            edited.header[25..27].copy_from_slice(&(edited.columns.len() as u16).to_le_bytes());
+            let mut edits = PageEdits::new(database.geometry().page_count());
+            let retired = table
+                .long_value_maps()
+                .iter()
+                .find(|map| map.column() == column.ordinal())
+                .map(|map| [map.owned(), map.available()]);
+            if let Some(locators) = retired {
+                for (position, locator) in locators.into_iter().enumerate() {
+                    let map = crate::mutation_map::MapBits::load(database, locator, budget)?;
+                    for page in
+                        map.existing_pages(database.geometry().page_count(), false, budget)?
+                    {
+                        edits.map_bit(database, locator, page, true, false, budget)?;
+                        if position == 0 {
+                            edits.map_bit(
+                                database,
+                                crate::mutation_map_write::global_locator(),
+                                page,
+                                false,
+                                true,
+                                budget,
+                            )?;
+                        }
+                    }
+                }
+                let position = edited
+                    .suffix
+                    .chunks_exact(crate::LONG_VALUE_MAP_GROUP_LEN)
+                    .position(|group| group[..2] == column.storage_ordinal().to_le_bytes())
+                    .ok_or(UpdateError::Mismatch("long-value map suffix"))?;
+                edited.suffix.drain(
+                    position * crate::LONG_VALUE_MAP_GROUP_LEN
+                        ..(position + 1) * crate::LONG_VALUE_MAP_GROUP_LEN,
+                );
+            }
+            edited.stage(database, &table, &mut edits, budget)?;
+            Ok((edits, (catalog.root(), row, properties, retired)))
+        })?;
+    crate::schema_properties::store(file, journal, catalog, row, &properties, budget)?;
+    for locator in retired.into_iter().flatten() {
+        crate::schema_map::retire(file, journal, locator, budget)?;
+    }
+    Ok(())
+}

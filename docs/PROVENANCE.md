@@ -19934,3 +19934,273 @@ Root verified all 979 listed files and the exact 980-file inventory, totaling
 100,051,817 bytes excluding the manifest. Final `just ready` passed 1,676 test
 executions, zero failures and ten ignored; log SHA-256 is
 `90078ef0d4e6b62b951ac62d82768256489cbc68ccb228d4a1758c67537e26a8`.
+
+## EXP-0297 — Native existing-schema index and column edits
+
+On 2026-09-17, local x86 `DAO.DBEngine.36` 3.6, DLL 03.60.9765.0
+(SHA-256 `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`),
+Windows 10.0.20348, en-US/ANSI 1252, edited populated native Jet 3 databases.
+The discovery source context is revision
+`f12722dae812802a02964564dea3cbccc11c2f05` on
+`feat/existing-schema-edits`. The databases contain unrelated tables, a saved
+query, Memo and OLE values, indexes and an enforced relationship. Every edit is
+applied to an isolated clone of one closed baseline; no MDB implementation source
+was consulted. This entry records native observations, not Rust compatibility.
+
+The durable private roots are
+`checks/20260917-schema-edits-native`,
+`checks/20260917-schema-edits-fast`, and
+`checks/20260917-schema-edits-boundaries` beneath the local Windows VM share.
+The baseline is 137,216 bytes, SHA-256
+`e8c8e06a602f3a0ac50d3402ecd5dd20c9d44c05150bd16a4b368ad732d5a762`.
+The compact index/column run is
+`20260917T184000Z-fast-r1`; the boundary run is
+`20260917T190000Z-boundaries-r1`. Their producer SHA-256 values are respectively
+`5ce242ea5994fed1f8a4014ec7d0e96638e2dd27731d65364ffdbb6e317e2e37` and
+`d902c2d9251648bc1714a39e239280db7e01da67300ca72d319606a74660b777`.
+The grouped capture producer SHA-256 is
+`a67e37f93ed391dc42b0c87f6e49d4f613a05ece83363fe17f8e0449dd5caada`.
+The initial native wrapper path mismatch and two catalog-capture syntax failures
+remain retained alongside the corrected runs.
+
+The populated `Target` baseline has four columns, three physical indexes and
+three logical indexes. Appending a two-field ordinary index creates physical
+ordinal 3, root page 67 and map locator page 35 row 5. Its physical prefix is
+`0300000003000000`, and its logical record has first word 3 and physical selector
+3. Appending `ByCodeAlias`, identical to existing `ByCode`, creates no physical
+index: the new logical record has first word 3 and selects existing physical
+ordinal 1. Renaming an index changes its length/name but retains every physical
+and logical record. The add, alias and rename images are respectively:
+
+- 139,264 bytes, SHA-256
+  `cfb9fd7d162aee84762891244564a1af4136b14d4c58e86dddeda4e79f036b84`;
+- 137,216 bytes, SHA-256
+  `863ffdcaa3490418fe39042ca5f9759ef42efd5913cf220337c9406aea8159a9`;
+- 137,216 bytes, SHA-256
+  `767f24c50f57e48eb14bef40f9b721dc04686f9a114690ce694fd8cdf8a6e8ad`.
+
+Dropping last physical/logical `DropIndex` compacts both counts from three to
+two and retains the surviving physical ordinals. The deleted usage-map row at
+page 35 row 4 remains a flagged/deleted row-directory entry; readers must skip
+that slot. Dropping middle `ByCode` and appending it again retains logical first
+word 1, but its physical selector becomes 2 and its new tree uses root 67/map
+35:5. Surviving `DropIndex` retains logical first word 2 while its physical
+selector changes from 2 to 1; its old root 38/map 35:4 remain. Thus the first
+logical word is a persistent logical identity, separate from the compact physical
+ordinal, and same-name reappend reuses the lowest available identity. The drop
+and drop/reappend images are respectively 137,216 bytes/SHA-256
+`6f3ba771f794936b46794fd039f169d84b9d299eff464db6af8a7e3d0b85d890`
+and 139,264 bytes/SHA-256
+`8b01210b3d6a7fdca1927fa43191f566cf9d2409d77d59e15b02a68a3f002d09`.
+
+The two little-endian words in a newly built physical prefix are row-entry count
+then distinct-key count. Three indexed rows with values Alpha, Alpha, Gamma,
+Alpha/null/null, or Alpha/empty/empty each produce
+`0300000002000000`; null and zero-length keys are present when `IgnoreNulls` is
+false. The three images are each 139,264 bytes, with SHA-256 values
+`98aafe27f712b88c6d0834c0da5c8daa9d3d866e45802bfb46b77201f662c050`,
+`4cf7e38868601d249ce580c1b7983feda762fc73d44ed53b51aa56da3d9dd7ee`,
+and `505deb28482bab9de879a277effd514fe2c71b06964df773ed0f8a484a045dda`.
+
+Three table-definition header counters have high-water/live semantics. At byte
+21 is the next column ordinal, byte 23 is the next variable counter, and byte 25
+is the number of live column records. Dropping the last column leaves byte 21 at
+4 while byte 25 becomes 3. Appending one variable column to an intact table sets
+the values to 5, 3 and 5; the new record uses ordinal 4 and variable counter 2.
+The add and drop images are 137,216 bytes with SHA-256 values
+`334f7e7d8d5080a708aec5c80b8dcbe39a5fb975aad223409f62a4b6eee6d1e1`
+and `f4bb8b2037e937ae39b2b125740a0b2910a8161318978fccd3e7e4153777c09f`.
+
+Dropping variable `Code` (ordinal 1/counter 0), then appending `NewVariable`,
+yields header counters next ordinal 5, next variable 3, live count 4. Live records
+have identity/display ordinals `[0,2,3,4]` and variable counters `[0,1,2,2]`;
+`Label` retains variable counter 1 and the appended variable takes 2. That image
+is 137,216 bytes, SHA-256
+`68b3dde8d232901e3c2dd8bb1ea713e323d25efab9a9fb2af0b8a35582b2fdd2`.
+Dropping fixed `Spare` (ordinal 3/offset 4) after appending `FixedAfter`
+(ordinal 4/offset 8), then appending `FixedNewest`, yields next ordinal 6 and live
+count 5. Live ordinals are `[0,1,2,4,5]`; fixed offsets in record order are 0,
+8 and 4, so DAO reuses the fixed-offset hole without sorting records by offset.
+That image is 137,216 bytes, SHA-256
+`6f793829afda8bf9c28800e6fb275f2942476332b0cbbfa6ddb97e0756fe47f3`.
+
+For user columns, record bytes 1..2 hold the stable column identity while bytes
+5..6 hold `OrdinalPosition`. Setting `Label.OrdinalPosition=0` leaves stable
+identity 2 and physical record order unchanged, while changing its second ordinal
+from 2 to 0; duplicate display positions are accepted. The image is 137,216
+bytes, SHA-256
+`b146c1cf5211e23d80701c6440d78296c3c018fff23affbcf827cd7ba13bb666`.
+
+Renaming referenced `Parent.Id` to `ParentKey` retains its primary and reciprocal
+relationship index records and updates
+`MSysRelationships.szReferencedColumn`. Renaming table `Parent` to
+`ParentRenamed` retains definition root 20 and updates the table catalog name and
+`MSysRelationships.szReferencedObject`. These images are 137,216 bytes with
+SHA-256 values
+`0f665be29f54c23be735fc9d1837d676c254b44aca9fef797caa676bfe3947b9`
+and `d634983166cd7aaf3f31d765f0b080bdf35a78907424ed8187569113aa72f604`.
+
+The scope is finite: CP1252 names, small populated tables and the stated field,
+index and relationship shapes. The native MDBs remain outside the repository.
+
+An additive populated-column boundary run
+`20260917T204500Z-columns-r1` is retained under
+`checks/20260917-column-append-boundaries`. Its producer SHA-256 is
+`3986d76e64c9e6171182bee1df1117eccd4736b1bc1228af91a7e367851f362c`;
+its 8,579-byte result SHA-256 is
+`99249ab3e6fceb935cda38e8728eeffe7cf40563c5d3fcafa3a75c1fd08211e5`.
+Appending nullable Long, required Long without a default, or required Long with
+default `42` all succeeds. Every preexisting row reads null in the new column;
+the default does not backfill. All three retain the complete Target data page
+byte-for-byte. Appending nullable or required Boolean succeeds, retains the data
+page byte-for-byte, and every old row reads false. Appending AutoIncrement Long
+succeeds, reports attributes 17/Required false, rewrites 55 data-page bytes and
+assigns 1, 2 and 3 in existing row order. Changing an existing Text field to
+Required succeeds both when every value is present and when one value is null;
+the null remains. Thus Required is not retroactively enforced for these edits.
+
+The `Code` to `CodeRenamed` catalog property edit replaces only that field's
+named block. The Target `LvProp` payload grows from 155 to 162 bytes. The outer
+block length at payload offset 60 changes 34 to 41, nested record length at 66
+changes 10 to 17, name length at 70 changes 4 to 11, and bytes from 72 replace
+`Code` with `CodeRenamed`; applying exactly those four edits reproduces the
+after-payload byte-for-byte. All other column property bytes, including the
+Required and AllowZeroLength dictionaries, remain identical.
+
+The current index-edit candidate was built as uncommitted source above base
+revision `f12722dae812802a02964564dea3cbccc11c2f05`; its CLI SHA-256 is
+`f15fafeaae38cea030d5b666a367499348b7ed805fd28576f3828a9b2d77a43d`.
+Five exact-baseline outputs cover composite creation, identical alias creation,
+drop, rename and drop/reappend. All pass full Rust validation. Readback run
+`20260917T203000Z-candidate-r2` uses producer SHA-256
+`96d40ac0cda5ce1995cbe40890e79c8cb2a61e0ef39317e3f3fe533a560e04b8`;
+its 257,328-byte result SHA-256 is
+`df088ea56a758431d6d2b59973ae1c505e2c4d2ac011a4b3fd8f0ece33ee805d`.
+The same observer's native result from run
+`20260917T210000Z-native-index-r1` is 257,393 bytes, SHA-256
+`45f5af9aae4ec45fe145f8ebdf01b47fa1f2c7dd2bc1d75aaba37853b2fb6bcf`.
+All five pairs match table, field, index, relation and relation-field getters;
+every Target index traversal; Target rows; complete Child/Sentinel Memo and OLE
+values; and saved query getters/SQL, after masking only independently generated
+DateCreated/LastUpdated values. Raw table definitions match after allowing only
+independent new index root/map locators and uninterpreted bytes 14..15 of variable
+column records. This finite comparison covers these five index operations.
+
+The complete grouped native result is the 2,158,409-byte
+`checks/20260917-schema-edits-native/outbox/20260917T182000Z-native-r3/RESULT.json`,
+SHA-256 `4f0c09916f57c25277afa3342941c96d30e88555825362279ed275333493451f`.
+All thirteen isolated table, column, index and relationship lineages completed.
+For every lineage the Sentinel table is semantically identical before and after
+once its collection ordinal is omitted: all field/index/table properties, its
+9,009-character Memo, its 5,005-byte OLE value and its row are equal. The saved
+query, including all properties and normalized SQL, is identical in every
+lineage. Sentinel's collection ordinal changes only for table create and drop.
+The preexisting relationship is identical for every edit that does not target it.
+
+Native relationship add writes all three metadata layers. Adding `AltRelation`
+adds a central `MSysRelationships` row with `grbit=0`, `ccolumn=1`, `icolumn=0`;
+a Type 8/Relationships-parent catalog object with id `0x80000002`; and two ACE
+rows, ACM 983294/SID `0301` and ACM 1048575/SID `0201`. The parent's reciprocal
+`.rB` logical record has identity 1 and aliases primary physical index 0. The
+child's named logical record has identity 1 and selects new physical ordinal 1,
+root page 67, map page 61 row 3. Both use selector/relation ordinal 1 and context
+bytes `[0,0]`. Dropping `ParentChild` removes its central row, Type 8 object and
+two ACEs. It removes the parent's `.rB` while retaining the shared primary tree;
+it removes the child's logical and dedicated physical tree, flags map row 26:7
+deleted and frees root 65.
+
+Changing cascade flags is a delete plus append, rather than an in-place catalog
+update. The replacement central row has `grbit=4352`, its reciprocal context
+bytes are `[1,1]`, and a new Type 8 id `0x80000002` and the two ACE templates are
+inserted while the old relationship id/ACEs are removed. Logical identity 1 and
+child physical ordinal 1 are reused, but storage is not: old root 65/map 26:7 is
+freed/tombstoned and new root 68/map 26:8 is allocated. The parent shared physical
+index remains unchanged. The exact fast-r2 producer is SHA-256
+`512a6e8ff2fb9d0db85662525d265cace378bd8df06317e533f7f19bad6fa3d1`.
+
+Table deletion has an asymmetric native dependency rule. Deleting referenced
+`Parent` is refused with DAO 3281/HRESULT -2146825007 and preserves the input
+byte-for-byte. Deleting foreign `Child` succeeds and removes its table catalog
+row, relationship catalog/central rows, ACEs and the parent reciprocal logical
+record while retaining the parent's shared primary tree. The retained result is
+`checks/20260917-drop-related-tables/outbox/20260917T213000Z-drop-related-r1/RESULT.json`,
+SHA-256 `cf636f4f738f3a332cfd13489dfcf25e638e91720a768d0afd6ba6429e209fbb`;
+its producer SHA-256 is
+`e7867a4f813d17fbee8d0e44a9ff425342c19203ee583c8205e86d386b7d6769`.
+
+The field dependency/long-value run is retained as
+`outbox/20260917T220000Z-drop-column-deps-r1/RESULT.json`, SHA-256
+`b2037c7608cf6b252eb718346878d22f9a21d8d54b4240c2cef436fa40809833`;
+the producer SHA-256 is
+`12e247d5ec01e1dd89a9c962cc1970d9fad5dc195e4fcb0dc85085a646c071ed`.
+Deleting an ordinary-indexed field, a referenced primary-key field, or a foreign
+relationship field is refused with DAO 3280/HRESULT -2146825008 and preserves the
+file byte-for-byte. DAO does not implicitly drop the ordinary index.
+
+Deleting populated Child Memo or OLE fields succeeds while leaving the complete
+row data page 33 byte-for-byte intact, including now-unreachable value descriptors.
+The TDEF high-water column count remains 4 and the live count becomes 3. The
+long-value suffix changes from
+`0200021a0000031a00000300041a0000051a0000` to
+`0300041a0000051a0000` for Memo deletion or
+`0200021a0000031a0000` for OLE deletion: surviving stable column ids and map
+locators do not compact. The removed map-row pair is flagged deleted (26:2/3 for
+Memo, 26:4/5 for OLE). Payload page contents are retained but their global
+allocation bits are freed: chained Memo pages 28--31 change one map byte from
+`00` to `f0`, and OLE page 32 changes one map byte from `00` to `01`.
+
+The retained in-place property boundary result is
+`outbox/20260917T221500Z-alter-properties-r1/RESULT.json`, SHA-256
+`34a14e7afef3090f1b1cf8b48eb8f76ea052c63080bb5a6d984b884432325f2c`;
+its producer SHA-256 is
+`6b47a0aa1f2f4209e52daee355134841ed59a133a928c7767f9367a354eaaecc`.
+On populated appended objects, setting Field.Type from Text to Long or changing
+Field.Size from 40 to either 3 or 80 is refused with DAO 3219/HRESULT
+-2146825069 and preserves the input byte-for-byte. Setting Index.Unique,
+Index.Required, Index.IgnoreNulls, or PrimaryKey.Unique after append is refused
+with DAO 3268/HRESULT -2146825020 and likewise preserves the exact pre-action
+file, independent of duplicate/null data. These index shapes require delete and
+append rather than in-place property assignment through DAO.
+
+Field constraints are prospective in the tested cases. Required false-to-true
+succeeds while retaining an existing null; AllowZeroLength true-to-false succeeds
+while retaining an existing empty string; and assigning validation rule
+`Is Not Null` succeeds while retaining an existing null (the getter returns the
+rule with a trailing NUL). No existing row is rewritten by these assignments.
+
+Dropping standalone populated `DropMe` leaves the file size unchanged and frees
+its contiguous pages 40--43 in the global allocation bitmap (`00` to `0f`). The
+definition page changes only its tag from `02` to `08`; its remaining bytes are
+retained. The map page retains all three directory slots but tombstones each at
+offset `c800`, clears its nonzero map byte and compacts free space. The physical
+index page and populated data page remain byte-for-byte intact while becoming
+globally free.
+
+Relationship physical aliasing is retained in
+`outbox/20260917T223000Z-relationship-alias-r1/RESULT.json`, SHA-256
+`9fc58b4165825ad2376e768c57e2318edca22abc7ae56e49e53b7d70862fdea3`;
+its producer SHA-256 is
+`312507a9623cac07a754a450c0007c97adc9a7391f8c2ad18d2846cea9321628`.
+A second relationship using the same parent primary key creates parent reciprocal
+`.rC` with logical identity/raw selector 2 and aliases physical 0; its child
+record has identity 1 and reciprocal ordinal 2. If the child already has an
+ordinary index on the foreign field, the relationship creates no physical tree:
+its child logical identity/raw selector 2 aliases the ordinary logical identity
+1's physical ordinal 1. Dropping the relationship then removes only the
+relationship logical records and catalog rows; the ordinary logical record,
+physical root/map and prefix remain exact. Reciprocal ordinals therefore name
+the other side's logical identity, and physical storage must be retained while
+any logical record still selects it.
+
+The object-id lifecycle and AutoIncrement Required result is
+`outbox/20260917T224500Z-relid-auto-required-r1/RESULT.json`, SHA-256
+`a102e8447ee33f1862f409a28b928ba5db61b250e40976def6356797fcf4592e`;
+its producer SHA-256 is
+`a47678bddba461958f36462f7e2b57741280a206f40bae2cb94df4e527780583`.
+Adding a relationship allocates Type 8 id `0x80000002`; deleting that highest
+active relationship id and adding another relationship reuses `0x80000002`.
+`MSysObjects` TDEF bytes 16--19 remain zero, and its header changes only the live
+row count 17/18. In this scope the next relationship id follows the highest
+active unsigned negative object id; no retained monotonic allocator was observed.
+An appended populated AutoIncrement Long (attributes 17) accepts Required true
+and false assignments and reports the assigned value through DAO.
