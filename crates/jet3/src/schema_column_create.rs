@@ -138,6 +138,21 @@ pub(crate) fn create(
                 ),
             ))
         })?;
+    crate::schema_publish::apply(file, journal, budget, |database, budget| {
+        let definition = database.table_definition(root, budget)?;
+        let mut layout = Vec::new();
+        reserve(&mut layout, definition.columns().len(), budget)?;
+        layout.extend(
+            definition
+                .columns()
+                .iter()
+                .map(crate::RowColumnLayout::from),
+        );
+        let nulls = [RowValue::Null; 255];
+        let mut row = [0; crate::PAGE_BYTES];
+        crate::encode_row(&layout, &nulls[..layout.len()], &mut row, budget)?;
+        Ok((PageEdits::new(database.geometry().page_count()), ()))
+    })?;
     if !properties.is_empty() {
         crate::schema_publish::apply(file, journal, budget, |database, budget| {
             let catalog = database.table_definition(catalog_root, budget)?;

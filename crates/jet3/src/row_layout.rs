@@ -13,6 +13,10 @@ pub(super) struct RowLayout {
 }
 
 impl RowLayout {
+    pub(super) fn stores_column(&self, ordinal: u16) -> bool {
+        ordinal < u16::from(self.column_count)
+    }
+
     pub(super) fn validate(
         row: &[u8],
         definition: &TableDefinition,

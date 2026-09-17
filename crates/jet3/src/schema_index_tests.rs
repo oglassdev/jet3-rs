@@ -575,3 +575,94 @@ fn drop_table_removes_catalog_grants_and_releases_its_storage() -> TestResult {
 
 #[path = "schema_relationship_tests.rs"]
 mod relationships;
+
+#[test]
+fn field_rewrite_keeps_absent_appended_fixed_fields_null() -> TestResult {
+    let fixture = Fixture::new(&[&[RowValue::Long(7), RowValue::Memo(b"old")]])?;
+    let names = [b"A".as_slice(), b"B", b"C"];
+    for name in names {
+        edit_schema(
+            fixture.path(),
+            SchemaEdit::CreateColumn {
+                table: b"Items",
+                column: ColumnSpec::new(name, ColumnType::Long),
+            },
+            &mut budget(),
+        )?;
+    }
+    let mut b = budget();
+    let mut database = DatabaseReader::open(fixture.path(), &mut b)?;
+    let table = fixture.table()?;
+    let mut rows = database.rows(&table, &mut b)?;
+    let locator = rows.next_row()?.ok_or("old row")?.locator();
+    drop(rows);
+    update_field(
+        fixture.path(),
+        FieldUpdate {
+            table: b"Items",
+            row: locator,
+            column: ColumnOrdinal::new(0),
+            value: RowValue::Null,
+        },
+        &mut budget(),
+    )?;
+    let mut database = DatabaseReader::open(fixture.path(), &mut b)?;
+    let mut rows = database.rows(&table, &mut b)?;
+    let row = rows.next_row()?.ok_or("rewritten row")?;
+    for column in [0, 2, 3, 4] {
+        assert!(
+            row.field(ColumnOrdinal::new(column))
+                .ok_or("field")?
+                .is_null()
+        );
+    }
+    assert_eq!(row.locator(), locator);
+    Ok(())
+}
+
+#[test]
+fn sparse_fixed_offsets_are_checked_against_actual_minimum_row_size() -> TestResult {
+    let fixture = Fixture::new(&[])?;
+    let width = std::num::NonZeroU8::new(200).ok_or("width")?;
+    for ordinal in 0..9 {
+        let name = format!("Fixed{ordinal}");
+        edit_schema(
+            fixture.path(),
+            SchemaEdit::CreateColumn {
+                table: b"Items",
+                column: ColumnSpec::new(name.as_bytes(), ColumnType::FixedText { len: width }),
+            },
+            &mut budget(),
+        )?;
+    }
+    for ordinal in [1, 3, 5, 7] {
+        let name = format!("Fixed{ordinal}");
+        edit_schema(
+            fixture.path(),
+            SchemaEdit::DropColumn {
+                table: b"Items",
+                column: name.as_bytes(),
+            },
+            &mut budget(),
+        )?;
+    }
+    let before = fs::read(fixture.path())?;
+    assert!(
+        edit_schema(
+            fixture.path(),
+            SchemaEdit::CreateColumn {
+                table: b"Items",
+                column: ColumnSpec::new(
+                    b"TooWide",
+                    ColumnType::FixedText {
+                        len: std::num::NonZeroU8::new(255).ok_or("width")?
+                    }
+                )
+            },
+            &mut budget()
+        )
+        .is_err()
+    );
+    assert_eq!(fs::read(fixture.path())?, before);
+    Ok(())
+}
