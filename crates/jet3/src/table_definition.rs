@@ -113,7 +113,19 @@ impl TableDefinition {
     }
 
     #[must_use]
-    /// Returns physical column definitions in ordinal order.
+    /// Returns the high-water count of physical column identities (`EXP-0297`).
+    pub const fn storage_column_count(&self) -> u16 {
+        u16::from_le_bytes([self.raw_header[21], self.raw_header[22]])
+    }
+
+    #[must_use]
+    /// Returns the high-water count of variable storage slots (`EXP-0297`).
+    pub const fn storage_variable_count(&self) -> u16 {
+        u16::from_le_bytes([self.raw_header[23], self.raw_header[24]])
+    }
+
+    #[must_use]
+    /// Returns live column definitions in storage-identity order.
     pub fn columns(&self) -> &[ColumnDefinition] {
         &self.columns
     }
@@ -192,11 +204,11 @@ pub enum TableDefinitionError {
         /// Sourced marker byte.
         raw: u8,
     },
-    /// Repeated header column counts disagree.
+    /// The live count exceeds the storage count, or storage count exceeds 255.
     InconsistentColumnCount {
-        /// First sourced count.
+        /// Sourced storage high-water count.
         first: u16,
-        /// Repeated sourced count.
+        /// Sourced live column count.
         repeated: u16,
     },
     /// A reserved header count is nonzero.
@@ -213,7 +225,7 @@ pub enum TableDefinitionError {
         /// Available definition length.
         length: usize,
     },
-    /// A column record's ordinal fields disagree with its position.
+    /// A storage identity is unordered or out of range, or a system display word is nonzero.
     InvalidColumnOrdinal {
         /// Zero-based record ordinal.
         record: u16,
@@ -263,7 +275,7 @@ pub enum TableDefinitionError {
         /// Sourced size.
         size: u16,
     },
-    /// A fixed column does not begin at the next derived offset.
+    /// A fixed column overlaps another live field or violates a dense layout.
     InvalidFixedOffset {
         /// Zero-based column ordinal.
         ordinal: u16,
@@ -368,13 +380,19 @@ fn decode_definition(
         SYSTEM_HEADER_MARKER => TableDefinitionKind::System,
         raw => return Err(TableDefinitionError::InvalidHeaderMarker { raw }),
     };
-    let column_count = u16_at(bytes, 21);
+    let storage_count = u16_at(bytes, 21);
     let variable_count = u16_at(bytes, 23);
-    let repeated_column_count = u16_at(bytes, 25);
-    if column_count != repeated_column_count {
+    let column_count = u16_at(bytes, 25);
+    if column_count > storage_count || storage_count > u16::from(u8::MAX) {
         return Err(TableDefinitionError::InconsistentColumnCount {
-            first: column_count,
-            repeated: repeated_column_count,
+            first: storage_count,
+            repeated: column_count,
+        });
+    }
+    if variable_count > storage_count {
+        return Err(TableDefinitionError::InconsistentVariableCount {
+            header: variable_count,
+            decoded: storage_count,
         });
     }
     let logical_count = u16_at(bytes, 27);
@@ -403,6 +421,7 @@ fn decode_definition(
         &mut offset,
         kind,
         column_count,
+        storage_count,
         variable_count,
         budget,
     )?;
@@ -411,7 +430,7 @@ fn decode_definition(
             bytes,
             offset: &mut offset,
             prefix_offset,
-            column_count,
+            columns: &columns,
             logical_count,
             physical_count,
             supported_physical_flags: match kind {

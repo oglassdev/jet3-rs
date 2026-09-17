@@ -76,8 +76,21 @@ where
 {
     let mut database = DatabaseReader::open(path, budget)?;
     let definition = crate::update::indexed_writable_table(&mut database, table, budget)?;
-    crate::row_mutation_graph::RowGraph::load(&mut database, &definition, None, budget)?;
-    let mut auto = crate::auto_number_mutation::AutoNumber::load(&definition)?;
+    let (edits, row) = plan(&mut database, &definition, table, values, true, budget)?;
+    edits.publish(path, database, budget, hook)?;
+    Ok(row)
+}
+
+pub(crate) fn plan(
+    database: &mut DatabaseReader<crate::FileSource>,
+    definition: &crate::TableDefinition,
+    table: &[u8],
+    values: &[RowValue<'_>],
+    check_relationships: bool,
+    budget: &mut ResourceBudget,
+) -> Result<(crate::page_edits::PageEdits, RowLocator), UpdateError> {
+    crate::row_mutation_graph::RowGraph::load(database, definition, None, budget)?;
+    let mut auto = crate::auto_number_mutation::AutoNumber::load(definition)?;
     let mut lowered = [RowValue::Null; u8::MAX as usize];
     let values = if let Some(state) = auto {
         state.copy_values(values, &mut lowered, budget)?;
@@ -89,11 +102,7 @@ where
     let mut index = if definition.indexes().is_empty() && definition.physical_indexes().is_empty() {
         None
     } else {
-        Some(crate::index_mutation::load(
-            &mut database,
-            &definition,
-            budget,
-        )?)
+        Some(crate::index_mutation::load(database, definition, budget)?)
     };
     let columns = definition.columns();
     if columns.len() > usize::from(u8::MAX) {
@@ -111,23 +120,25 @@ where
         }
         *target = column.into();
     }
-    crate::column_value_policy::check(&mut database, &definition, values, budget)?;
+    crate::column_value_policy::check(database, definition, values, budget)?;
     let mut long_values =
-        crate::long_value_mutation::LongValues::load(&mut database, &definition, None, budget)?;
+        crate::long_value_mutation::LongValues::load(database, definition, None, budget)?;
     let mut encoded = [0; PAGE_BYTES];
     let length = long_values.encode_row(&layout[..columns.len()], values, &mut encoded, budget)?;
-    crate::relationship_mutation::check(
-        &mut database,
-        &definition,
-        table,
-        crate::relationship_mutation::Change::Insert(values),
-        budget,
-    )?;
+    if check_relationships {
+        crate::relationship_mutation::check(
+            database,
+            definition,
+            table,
+            crate::relationship_mutation::Change::Insert(values),
+            budget,
+        )?;
+    }
     let mut edits = crate::page_edits::PageEdits::new(database.geometry().page_count());
-    long_values.stage(&mut database, &mut edits, budget)?;
+    long_values.stage(database, &mut edits, budget)?;
     let mut observed_rows = 0_u32;
     {
-        let mut rows = database.rows(&definition, budget)?;
+        let mut rows = database.rows(definition, budget)?;
         while let Some(mut row) = rows.next_row()? {
             if let Some(auto) = auto {
                 auto.read(&mut row)?;
@@ -144,10 +155,9 @@ where
     if let Some(auto) = auto {
         auto.write(&mut patched_definition, budget)?;
     }
-    let owned =
-        crate::mutation_map::MapBits::load(&mut database, definition.maps().owned(), budget)?;
+    let owned = crate::mutation_map::MapBits::load(database, definition.maps().owned(), budget)?;
     let available =
-        crate::mutation_map::MapBits::load(&mut database, definition.maps().available(), budget)?;
+        crate::mutation_map::MapBits::load(database, definition.maps().available(), budget)?;
     if owned.overlaps(&available, budget)? {
         return Err(UpdateError::Mismatch("aliased table maps"));
     }
@@ -187,8 +197,8 @@ where
         )?;
         let minimum = crate::row_insert_page::minimum_length(columns, budget)?;
         let maps = crate::allocation_patch::plan(
-            &mut database,
-            &definition,
+            database,
+            definition,
             page,
             crate::allocation_patch::AllocationChange::Retain {
                 before: true,
@@ -196,7 +206,7 @@ where
             },
             budget,
         )?;
-        maps.stage(&mut database, &mut edits, budget)?;
+        maps.stage(database, &mut edits, budget)?;
         RowLocator::new(page, slot)
     } else {
         let mut minimum = [0; PAGE_BYTES];
@@ -209,16 +219,16 @@ where
         )?
         .get() as usize;
         let plan = crate::row_insert_eof::plan(
-            &mut database,
-            &definition,
+            database,
+            definition,
             &encoded[..length],
             &minimum[..minimum_length],
             edits.next_append_page()?,
             budget,
         )?;
-        plan.maps.stage(&mut database, &mut edits, budget)?;
+        plan.maps.stage(database, &mut edits, budget)?;
         if plan.page.get() < database.geometry().page_count() {
-            edits.set_image(&mut database, plan.page, plan.image, budget)?;
+            edits.set_image(database, plan.page, plan.image, budget)?;
         } else if edits.append(plan.image, budget)? != plan.page {
             return Err(UpdateError::Mismatch("EOF placement"));
         }
@@ -226,7 +236,7 @@ where
     };
     if let Some(index) = &mut index {
         index.insert(values, row, budget)?;
-        index.stage(&mut database, &definition, &mut edits, budget)?;
+        index.stage(database, definition, &mut edits, budget)?;
     }
     edits.replace(
         crate::update_pages::PageChange {
@@ -236,8 +246,7 @@ where
         },
         budget,
     )?;
-    edits.publish(path, database, budget, hook)?;
-    Ok(row)
+    Ok((edits, row))
 }
 
 #[cfg(all(test, any(unix, windows)))]

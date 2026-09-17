@@ -1,5 +1,5 @@
-//! Shared typed JSON cells for creation and mutation requests.
-use jet3::{ResourceBudget, ResourceLimits, RowValue};
+//! Shared typed JSON cells, request reading and mutation failure reporting.
+use jet3::{ResourceBudget, ResourceLimits, RowValue, UpdateError};
 use serde::{Deserialize, de::DeserializeOwned};
 use std::{ffi::OsStr, fs::File};
 
@@ -12,6 +12,31 @@ pub(crate) fn read_request<T: DeserializeOwned>(input: &OsStr) -> Result<T, Stri
     } else {
         serde_json::from_reader(File::open(input).map_err(|e| format!("read request: {e}"))?)
             .map_err(|e| e.to_string())
+    }
+}
+
+pub(crate) struct Failure {
+    pub message: String,
+    pub publication_stage: Option<String>,
+}
+impl From<String> for Failure {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            publication_stage: None,
+        }
+    }
+}
+impl From<UpdateError> for Failure {
+    fn from(error: UpdateError) -> Self {
+        let publication_stage = match &error {
+            UpdateError::Publish(error) => Some(format!("{:?}", error.stage())),
+            _ => None,
+        };
+        Self {
+            message: error.to_string(),
+            publication_stage,
+        }
     }
 }
 

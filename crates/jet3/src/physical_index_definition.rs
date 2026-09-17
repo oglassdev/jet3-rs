@@ -2,7 +2,7 @@
 
 use std::mem::size_of;
 
-use crate::column_definition::ColumnOrdinal;
+use crate::column_definition::{ColumnDefinition, ColumnOrdinal};
 use crate::index_definition::IndexDefinitionError;
 use crate::{ByteCount, Error, PageGeometry, PageNumber, ResourceBudget};
 
@@ -160,7 +160,7 @@ pub(crate) fn decode_physical(
     physical_index: u16,
     sourced_prefix: [u8; PHYSICAL_PREFIX_LEN],
     raw_record: [u8; PHYSICAL_RECORD_LEN],
-    column_count: u16,
+    columns: &[ColumnDefinition],
     supported_flags: &[u8],
     geometry: PageGeometry,
     budget: &mut ResourceBudget,
@@ -186,17 +186,24 @@ pub(crate) fn decode_physical(
                 slot: slot_u8,
             });
         }
-        if ordinal >= column_count {
+        budget
+            .charge_work_units(columns.len() as u64)
+            .map_err(IndexDefinitionError::Resource)?;
+        // EXP-0297: physical index slots retain stable column identities.
+        let Some(column) = columns
+            .iter()
+            .find(|column| column.storage_ordinal() == ordinal)
+        else {
             return Err(IndexDefinitionError::InvalidColumnOrdinal {
                 physical_index,
                 slot: slot_u8,
                 ordinal,
-                column_count,
+                column_count: columns.len() as u16,
             });
-        }
+        };
         if fields
             .iter()
-            .any(|field: &IndexField| field.column.get() == ordinal)
+            .any(|field: &IndexField| field.column == column.ordinal())
         {
             return Err(IndexDefinitionError::DuplicateKeyColumn {
                 physical_index,
@@ -221,7 +228,7 @@ pub(crate) fn decode_physical(
             .try_reserve_exact(1)
             .map_err(|_| allocation_failure("reserve physical index key field"))?;
         fields.push(IndexField {
-            column: ColumnOrdinal::new(ordinal),
+            column: column.ordinal(),
             direction,
         });
     }

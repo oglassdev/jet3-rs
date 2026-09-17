@@ -2,7 +2,8 @@
 //!
 //! `SRC-0023` supplies the checked DAO candidate inventory, `EXP-0059`
 //! supplies the user-table physical type, size, class, ordinal, and name
-//! observations, and `EXP-0073` supplies the system-table relaxations.
+//! observations, `EXP-0073` supplies the system-table relaxations, and
+//! `EXP-0297` supplies stable storage identities after schema edits.
 
 use std::mem::size_of;
 
@@ -24,7 +25,7 @@ const SYSTEM_CLASSES: [u8; 3] = [0x12, 0x13, 0x32];
 const USER_COLUMN_CONSTANT: u16 = 1;
 const SYSTEM_COLUMN_CONSTANT: u16 = 0;
 
-/// A zero-based table-column ordinal.
+/// A zero-based position in the table's live column definitions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ColumnOrdinal(u16);
 
@@ -131,9 +132,19 @@ impl ColumnDefinition {
         &self.name
     }
     #[must_use]
-    /// Returns the column's zero-based ordinal.
+    /// Returns the column's zero-based position among live columns.
     pub const fn ordinal(&self) -> ColumnOrdinal {
         self.ordinal
+    }
+    #[must_use]
+    /// Returns the stable physical identity used by rows, indexes, and map groups.
+    pub const fn storage_ordinal(&self) -> u16 {
+        u16::from_le_bytes([self.raw_record[1], self.raw_record[2]])
+    }
+    #[must_use]
+    /// Returns the retained display-position word, independent of storage order.
+    pub const fn display_position(&self) -> u16 {
+        u16::from_le_bytes([self.raw_record[5], self.raw_record[6]])
     }
     #[must_use]
     /// Returns the interpreted physical type.
@@ -187,13 +198,14 @@ pub(crate) fn decode_columns(
     offset: &mut usize,
     kind: TableDefinitionKind,
     column_count: u16,
+    storage_count: u16,
     variable_count: u16,
     budget: &mut ResourceBudget,
 ) -> Result<Vec<ColumnDefinition>, TableDefinitionError> {
     // EXP-0073: system records repeat zero instead of the ordinal.
-    let (expected_constant, admitted_classes, repeats_ordinal) = match kind {
-        TableDefinitionKind::User => (USER_COLUMN_CONSTANT, USER_CLASSES, true),
-        TableDefinitionKind::System => (SYSTEM_COLUMN_CONSTANT, SYSTEM_CLASSES, false),
+    let (expected_constant, admitted_classes) = match kind {
+        TableDefinitionKind::User => (USER_COLUMN_CONSTANT, USER_CLASSES),
+        TableDefinitionKind::System => (SYSTEM_COLUMN_CONSTANT, SYSTEM_CLASSES),
     };
     budget
         .charge_items(u64::from(column_count).saturating_mul(2))
@@ -206,20 +218,29 @@ pub(crate) fn decode_columns(
         .map_err(|_| allocation_failure("reserve raw column definitions"))?;
     let mut variables_seen = 0_u16;
     let mut next_fixed_offset = 0_u16;
+    let sparse = storage_count != column_count;
+    let mut previous_storage = None;
     for record_ordinal in 0..column_count {
         let raw_record = take_array::<COLUMN_RECORD_LEN>(bytes, offset)?;
         let first_ordinal = u16_at(&raw_record, 1);
         let variable_counter = u16_at(&raw_record, 3);
         let repeated_ordinal = u16_at(&raw_record, 5);
-        let expected_repeat = if repeats_ordinal { record_ordinal } else { 0 };
-        if first_ordinal != record_ordinal || repeated_ordinal != expected_repeat {
+        if first_ordinal >= storage_count
+            || previous_storage.is_some_and(|previous| first_ordinal <= previous)
+            || (kind == TableDefinitionKind::System && repeated_ordinal != 0)
+        {
             return Err(TableDefinitionError::InvalidColumnOrdinal {
                 record: record_ordinal,
                 first: first_ordinal,
                 repeated: repeated_ordinal,
             });
         }
-        if variable_counter != variables_seen {
+        previous_storage = Some(first_ordinal);
+        if variable_counter < variables_seen
+            || variable_counter > variable_count
+            || variable_counter > first_ordinal
+            || (!sparse && variable_counter != variables_seen)
+        {
             return Err(TableDefinitionError::InvalidVariableCounter {
                 ordinal: record_ordinal,
                 raw: variable_counter,
@@ -266,9 +287,16 @@ pub(crate) fn decode_columns(
                         raw: raw_class,
                     });
                 }
-                let index = variables_seen;
+                if variable_counter < variables_seen || variable_counter >= variable_count {
+                    return Err(TableDefinitionError::InvalidVariableCounter {
+                        ordinal: record_ordinal,
+                        raw: variable_counter,
+                        expected: variables_seen,
+                    });
+                }
+                let index = variable_counter;
                 variables_seen =
-                    variables_seen
+                    variable_counter
                         .checked_add(1)
                         .ok_or(TableDefinitionError::Resource(Error::Arithmetic {
                             operation: "advance variable column count",
@@ -297,7 +325,9 @@ pub(crate) fn decode_columns(
                     });
                 }
                 let fixed_offset = u16_at(&raw_record, 14);
-                if physical_type != ColumnPhysicalType::Boolean && fixed_offset != next_fixed_offset
+                if !sparse
+                    && physical_type != ColumnPhysicalType::Boolean
+                    && fixed_offset != next_fixed_offset
                 {
                     return Err(TableDefinitionError::InvalidFixedOffset {
                         ordinal: record_ordinal,
@@ -306,11 +336,39 @@ pub(crate) fn decode_columns(
                     });
                 }
                 if physical_type != ColumnPhysicalType::Boolean {
-                    next_fixed_offset = next_fixed_offset.checked_add(size).ok_or(
-                        TableDefinitionError::Resource(Error::Arithmetic {
-                            operation: "advance fixed column offset",
-                        }),
-                    )?;
+                    let end =
+                        fixed_offset
+                            .checked_add(size)
+                            .ok_or(TableDefinitionError::Resource(Error::Arithmetic {
+                                operation: "advance fixed column offset",
+                            }))?;
+                    if sparse {
+                        budget
+                            .charge_work_units(raw_columns.len() as u64)
+                            .map_err(TableDefinitionError::Resource)?;
+                        for previous in &raw_columns {
+                            let RawColumn {
+                                physical_type: previous_type,
+                                storage: ColumnStorageClass::Fixed { offset },
+                                size,
+                                ..
+                            } = previous
+                            else {
+                                continue;
+                            };
+                            if *previous_type != ColumnPhysicalType::Boolean
+                                && fixed_offset < offset.saturating_add(*size)
+                                && *offset < end
+                            {
+                                return Err(TableDefinitionError::InvalidFixedOffset {
+                                    ordinal: record_ordinal,
+                                    raw: fixed_offset,
+                                    expected: next_fixed_offset,
+                                });
+                            }
+                        }
+                    }
+                    next_fixed_offset = next_fixed_offset.max(end);
                 }
                 ColumnStorageClass::Fixed {
                     offset: fixed_offset,
@@ -337,7 +395,7 @@ pub(crate) fn decode_columns(
             raw_record,
         });
     }
-    if variables_seen != variable_count {
+    if !sparse && variables_seen != variable_count {
         return Err(TableDefinitionError::InconsistentVariableCount {
             header: variable_count,
             decoded: variables_seen,

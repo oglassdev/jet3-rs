@@ -17,6 +17,8 @@ mod create;
 mod inspect;
 mod mutate;
 mod names;
+mod schema;
+mod schema_input;
 mod snapshot;
 mod validate;
 mod values;
@@ -87,6 +89,7 @@ enum Command {
     Validate(validate::ValidateCommand),
     Create(create::CreateCommand),
     Mutate(mutate::MutationCommand),
+    Schema(schema::SchemaCommand),
 }
 
 fn main() -> ExitCode {
@@ -100,11 +103,12 @@ fn main() -> ExitCode {
     match command {
         Command::Help => exit_after_write(
             write_stdout(&format!(
-                "{HELP}{}\n{}\n{}\n{}\n{}",
+                "{HELP}{}\n{}\n{}\n{}\n{}\n{}",
                 snapshot::HELP,
                 inspect::HELP,
                 create::HELP,
                 mutate::HELP,
+                schema::HELP,
                 validate::HELP
             )),
             0,
@@ -124,6 +128,16 @@ fn main() -> ExitCode {
         Command::Mutate(command) => match mutate::run(&command) {
             Ok(json) => exit_after_write(write_stdout(&json), 0),
             Err(error) => exit_after_write(write_stderr(&(serde_json::json!({"ok":false,"error":"mutation_failed","message":error.message,"publication_stage":error.publication_stage}).to_string()+"\n")),1),
+        },
+        Command::Schema(command) => match schema::run(&command) {
+            Ok(json) => exit_after_write(write_stdout(&json), 0),
+            Err(error) => exit_after_write(
+                write_stderr(&(serde_json::json!({
+                    "ok": false, "error": "schema_failed", "message": error.message,
+                    "publication_stage": error.publication_stage,
+                }).to_string() + "\n")),
+                1,
+            ),
         },
         Command::Create(command) => match create::run(&command) {
             Ok(json) => exit_after_write(write_stdout(&json), 0),
@@ -165,6 +179,9 @@ fn parse_args(arguments: impl Iterator<Item = OsString>) -> Result<Command, &'st
     }
     if first == "mutate" {
         return mutate::parse_args(arguments).map(Command::Mutate);
+    }
+    if first == "schema" {
+        return schema::parse_args(arguments).map(Command::Schema);
     }
     if first == "create" {
         return create::parse_args(arguments).map(Command::Create);

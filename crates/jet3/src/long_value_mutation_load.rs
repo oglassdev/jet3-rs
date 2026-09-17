@@ -52,7 +52,13 @@ pub(super) fn load(
             }
             let mut image = [0; PAGE_BYTES];
             database.read_raw_page(page, &mut image, budget)?;
-            live_slots(page, &image, true, budget)?;
+            live_slots(
+                page,
+                &image,
+                true,
+                reserved_property(table, map.column()),
+                budget,
+            )?;
             reserve(&mut result.pages, 1, budget)?;
             result.pages.push(PayloadPage {
                 page,
@@ -73,7 +79,7 @@ pub(super) fn load(
         if !matches!(bytes[0], 1 | 9) || bytes[1] != 1 || bytes[4..8] != *b"LVAL" {
             continue;
         }
-        live_slots(page, &bytes, false, budget)?;
+        live_slots(page, &bytes, false, false, budget)?;
         reserve(&mut result.pages, 1, budget)?;
         result.pages.push(PayloadPage {
             page,
@@ -121,6 +127,7 @@ fn live_slots(
     page: PageNumber,
     image: &[u8; PAGE_BYTES],
     owned: bool,
+    reserved_empty: bool,
     budget: &mut ResourceBudget,
 ) -> Result<[u64; 4], UpdateError> {
     if image[1] != 1 || (owned && image[0] != 1) {
@@ -129,6 +136,10 @@ fn live_slots(
     let directory = crate::row_directory::RowDirectory::validate(page, OWNER, image, budget)?;
     let count = directory.row_count();
     if count == 0 {
+        // EXP-0091 retains an empty allocated MSysObjects.LvProp bootstrap page.
+        if reserved_empty && image[2..4] == ((PAGE_BYTES - 10) as u16).to_le_bytes() {
+            return Ok([0; 4]);
+        }
         return Err(UpdateError::Mismatch("empty long-value directory"));
     }
     let lowest = directory.entry(image, (count - 1) as u8)?.range().start;
@@ -310,7 +321,16 @@ fn references(
     }
     for page in &result.pages {
         if page.column.is_some()
-            && page.seen != live_slots(page.page, page.image.as_bytes(), true, budget)?
+            && page.seen
+                != live_slots(
+                    page.page,
+                    page.image.as_bytes(),
+                    true,
+                    page.column.is_some_and(|column| {
+                        reserved_property(table, result.maps[column].column())
+                    }),
+                    budget,
+                )?
         {
             return Err(UpdateError::Mismatch(
                 "unreferenced live long-value fragment",
@@ -318,4 +338,12 @@ fn references(
         }
     }
     Ok(())
+}
+
+fn reserved_property(table: &TableDefinition, column: ColumnOrdinal) -> bool {
+    table.kind() == crate::TableDefinitionKind::System
+        && table
+            .columns()
+            .get(usize::from(column.get()))
+            .is_some_and(|column| column.name().raw_bytes() == b"LvProp")
 }

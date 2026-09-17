@@ -135,9 +135,9 @@ pub(crate) fn plan_fields(
                 {
                     continue;
                 }
-                if let ColumnStorageClass::Fixed { offset } = column.storage() {
-                    let start = 1 + usize::from(offset);
-                    let end = start + usize::from(column.size());
+                if let Some(range) = row.stored_fixed_field_range(column.ordinal()) {
+                    let start = range.start;
+                    let end = range.end;
                     let source = row
                         .raw_bytes()
                         .get(start..end)

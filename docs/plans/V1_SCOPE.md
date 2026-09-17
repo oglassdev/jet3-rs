@@ -108,8 +108,9 @@ rows, indexes, counters, maps, payloads and unrelated system/catalog bytes are
 compared. The final report independently replays from its complete archived
 inputs. The final AutoIncrement marker guard reproduces all 166 accepted images
 byte-for-byte and both creation refusals; its regression and source identities
-are retained in the EXP-0296 supplement. Existing-database relationship changes/drop
-remain open.
+are retained in the EXP-0296 supplement. Existing-database relationship create/drop and atomic replacement are now
+implemented through `edit_schema`; their new differential coverage is recorded
+separately below.
 
 Schema names use defined Windows-1252 bytes and the observed English-US
 collation for ordering and duplicate detection. Stored names retain their exact
@@ -129,8 +130,8 @@ empty-value properties. Legacy mutation preserves absent and partial Boolean
 property semantics: empty Text/Memo is refused only when AllowZeroLength is
 explicitly false, independently of Required. EXP-0285 accepts 252 same-input
 mutation pairs, including 26 refusals, across Text, FixedText and Memo.
-Existing-table schema changes and
-table/relationship dropping are absent. EXP-0239 adds explicit, negative and
+Existing-table schema changes and table/relationship dropping are available
+through the schema-edit API described below. EXP-0239 adds explicit, negative and
 wrapping AutoIncrement IDs to the finite writer comparisons.
 
 EXP-0154 covers twelve hosted write recipes. EXP-0220 corrects the numeric
@@ -215,6 +216,40 @@ DAO getters, rows, traversal/Seek, raw keys, counters, maps and system storage.
 FixedText inputs use explicit width padding. Rust refusals preserve their entire
 inputs; native refusal effects are checked separately. Composite keys, cascades
 and relationship schema edits are outside those runs.
+
+### Existing schema edits
+
+`edit_schema` and `jet3-cli schema` apply one atomic operation to an existing
+file: table creation/rename/drop, column append/rename/drop, Required and
+AllowZeroLength changes, index creation/rename/drop/replacement, or enforced
+relationship creation/drop/replacement. Index and relationship replacement
+retain the original when the replacement fails. Relationship edits include
+ordered scalar/composite keys, shared indexes and cascade settings within the
+existing creation bounds. Referenced parent tables cannot be dropped; dropping
+a child removes its relationships. Indexed columns require their indexes to
+be dropped first.
+
+Column deletion retains the surviving storage IDs and existing row bytes.
+Public column ordinals remain dense positions in the live definition. Appended
+fields read as null on old rows (False for Boolean); AutoIncrement appends
+backfill 1 through N and continue at N+1. Required and AllowZeroLength edits
+preserve existing null/empty values and constrain subsequent assignments.
+Read-only validation can therefore report an old value that violates a newly
+set Required property. Removed index/payload pages are released without
+zeroing their contents, and unused map rows become tombstones.
+
+EXP-0297 records native layouts, dependency refusals and prospective property
+behavior. EXP-0298 accepts 44 native/candidate schema pairs (38 edits and six
+byte-atomic Rust refusals), complete DAO snapshots of all 88 outputs, raw checks
+of all 132 input/output images and five successful native continuation lineages.
+Independent review and `just ready` passed on the final production source.
+Defaults and validation expressions remain opaque and
+cannot be authored through this API. In-place column type/size and index-option
+assignments are refused by DAO; index options can be changed by atomic
+replacement, while column conversion is outside this API. Other code pages,
+unsupported relationship forms and wider preservation/release gates remain open.
+New catalog objects, including replacement relationships, use the existing
+deterministic zero-date writer policy. Surviving object timestamps are retained.
 
 ### Updates
 

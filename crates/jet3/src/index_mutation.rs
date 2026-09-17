@@ -31,7 +31,7 @@ struct MutableIndex {
     counter: Option<Change>,
 }
 
-fn entry_error(error: EntryError) -> UpdateError {
+pub(crate) fn entry_error(error: EntryError) -> UpdateError {
     match error {
         EntryError::Encoding(error) => UpdateError::Resource(error),
         EntryError::NullRequired => UpdateError::Unsupported("null required index key"),
@@ -41,7 +41,7 @@ fn entry_error(error: EntryError) -> UpdateError {
     }
 }
 
-fn tree_error(error: TreeBuildError) -> UpdateError {
+pub(crate) fn tree_error(error: TreeBuildError) -> UpdateError {
     match error {
         TreeBuildError::Encoding(error) => UpdateError::Resource(error),
         TreeBuildError::NodeLimit { .. } => UpdateError::Unsupported("numeric index node limit"),

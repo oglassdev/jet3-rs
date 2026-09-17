@@ -1,4 +1,5 @@
 //! Bounded row-anchored allocation-map views from `SRC-0020` and `EXP-0057`.
+//! `EXP-0297` permits unrelated empty deleted map slots after schema edits.
 
 use std::fmt;
 use std::ops::Range;
@@ -12,6 +13,9 @@ const ROW_ENTRY_LEN: usize = 2;
 const PAGE_BYTES: usize = 2048;
 const MAX_ROW_COUNT: usize = (PAGE_BYTES - ROW_DIRECTORY_OFFSET) / ROW_ENTRY_LEN;
 const MAX_UNFLAGGED_ROW_OFFSET: u16 = 2047;
+const ROW_OFFSET_MASK: u16 = 0x1fff;
+/// EXP-0297: deleted map slots carry both flags and have empty bounds.
+const DELETED_MAP_FLAGS: u16 = 0xc000;
 
 /// One complete allocation-map record borrowed from a data-page row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -194,12 +198,15 @@ pub fn locate_usage_map<'page>(
     for row in 0..row_count {
         let offset = ROW_DIRECTORY_OFFSET + ROW_ENTRY_LEN * usize::from(row);
         let raw_offset = u16::from_le_bytes([raw[offset], raw[offset + 1]]);
-        if raw_offset > MAX_UNFLAGGED_ROW_OFFSET {
+        let deleted = raw_offset & !ROW_OFFSET_MASK == DELETED_MAP_FLAGS;
+        let start = usize::from(raw_offset & ROW_OFFSET_MASK);
+        if raw_offset > MAX_UNFLAGGED_ROW_OFFSET
+            && (!deleted || row == u16::from(locator.row()) || start > PAGE_BYTES)
+        {
             return Err(UsageMapError::FlaggedOrOutOfPageRow { row, raw_offset });
         }
-        let start = usize::from(raw_offset);
         let end = prior_start;
-        if start < directory_end || start >= end {
+        if start < directory_end || start > end || (start == end) != deleted {
             return Err(UsageMapError::InvalidRowBounds {
                 row,
                 start,

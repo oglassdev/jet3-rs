@@ -92,7 +92,7 @@ impl<'row> RowView<'row, '_> {
             let empty = self.layout.fixed_boundary..self.layout.fixed_boundary;
             return Some(RawField::Bytes(&self.raw[empty]));
         }
-        if !self.layout.present(self.raw, ordinal) {
+        if !self.layout.present(self.raw, column.storage_ordinal()) {
             return Some(RawField::Null);
         }
         let range = match column.storage() {
@@ -107,12 +107,27 @@ impl<'row> RowView<'row, '_> {
         Some(RawField::Bytes(&self.raw[range]))
     }
 
+    pub(crate) fn stored_fixed_field_range(&self, ordinal: ColumnOrdinal) -> Option<Range<usize>> {
+        let column = self.definition.columns().get(usize::from(ordinal.get()))?;
+        let ColumnStorageClass::Fixed { offset } = column.storage() else {
+            return None;
+        };
+        if column.physical_type() == ColumnPhysicalType::Boolean
+            || !self.layout.stores_column(column.storage_ordinal())
+        {
+            return None;
+        }
+        let start = 1 + usize::from(offset);
+        let end = start + usize::from(column.size());
+        (end <= self.layout.fixed_boundary).then_some(start..end)
+    }
+
     pub(crate) fn present_fixed_field_range(&self, ordinal: ColumnOrdinal) -> Option<Range<usize>> {
         let column = self.definition.columns().get(usize::from(ordinal.get()))?;
         let ColumnStorageClass::Fixed { offset } = column.storage() else {
             return None;
         };
-        if !self.layout.present(self.raw, ordinal) {
+        if !self.layout.present(self.raw, column.storage_ordinal()) {
             return None;
         }
         let start = 1 + usize::from(offset);
@@ -132,7 +147,7 @@ impl<'row> RowView<'row, '_> {
             return Ok(None);
         };
         let physical_type = column.physical_type();
-        let boolean_bit = self.layout.present(self.raw, ordinal);
+        let boolean_bit = self.layout.present(self.raw, column.storage_ordinal());
         let field = if physical_type == ColumnPhysicalType::Boolean {
             let empty = self.layout.fixed_boundary..self.layout.fixed_boundary;
             RawField::Bytes(&self.raw[empty])

@@ -185,21 +185,25 @@ pub(crate) fn decode_long_value_maps(
             })
         })?;
         let ordinal = u16::from_le_bytes([raw_group[0], raw_group[1]]);
-        let column =
-            columns
-                .get(usize::from(ordinal))
-                .ok_or(LongValueMapError::InvalidColumnOrdinal {
-                    group,
-                    ordinal,
-                    column_count: columns.len(),
-                })?;
+        budget
+            .charge_work_units(columns.len() as u64)
+            .map_err(LongValueMapError::Resource)?;
+        // EXP-0297: map groups use the stable storage identity.
+        let column = columns
+            .iter()
+            .find(|column| column.storage_ordinal() == ordinal)
+            .ok_or(LongValueMapError::InvalidColumnOrdinal {
+                group,
+                ordinal,
+                column_count: columns.len(),
+            })?;
         if !is_long_value(column) {
             return Err(LongValueMapError::NotLongValueColumn {
                 ordinal,
                 physical_type: column.physical_type(),
             });
         }
-        if seen[usize::from(ordinal)] {
+        if seen[usize::from(column.ordinal().get())] {
             return Err(LongValueMapError::DuplicateColumn { ordinal });
         }
         let owned = decode_locator(&raw_group[2..6]);
@@ -208,12 +212,12 @@ pub(crate) fn decode_long_value_maps(
             validate_locator(ordinal, role, locator, geometry)?;
         }
         maps.push(LongValueMapDefinition {
-            column: ColumnOrdinal::new(ordinal),
+            column: column.ordinal(),
             owned,
             available,
             raw_group,
         });
-        seen[usize::from(ordinal)] = true;
+        seen[usize::from(column.ordinal().get())] = true;
     }
     if let Some(missing) = columns
         .iter()

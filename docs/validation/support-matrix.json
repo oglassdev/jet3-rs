@@ -92,7 +92,16 @@
         "crates/jet3/src/mutation_map_guard.rs",
         "crates/jet3/src/creation/composer/allocation_maps.rs",
         "oracle/windows-dao/scripts/allocation_lifecycle.py",
-        "oracle/windows-dao/scripts/allocation_lifecycle_structure.py"
+        "oracle/windows-dao/scripts/allocation_lifecycle_structure.py",
+        "crates/jet3/src/schema_map.rs",
+        "crates/jet3/src/schema_storage.rs",
+        "oracle/windows-dao/scripts/schema_edit_structure.py",
+        "oracle/windows-dao/scripts/compare_schema_structure.py",
+        "oracle/windows-dao/scripts/prepare_schema_candidates.py",
+        "oracle/windows-dao/scripts/schema_candidate_observer.ps1",
+        "oracle/windows-dao/scripts/combine_schema_readbacks.py",
+        "oracle/windows-dao/scripts/compare_schema_candidates.py",
+        "oracle/windows-dao/scripts/candidate_continuations.ps1"
       ]
     },
     {
@@ -108,7 +117,21 @@
         "crates/jet3/src/table_definition.rs",
         "crates/jet3/src/catalog_tests.rs",
         "crates/jet3/src/catalog_record_tests.rs",
-        "crates/jet3/src/table_definition_tests.rs"
+        "crates/jet3/src/table_definition_tests.rs",
+        "crates/jet3/src/schema_definition.rs",
+        "crates/jet3/src/schema_catalog.rs",
+        "crates/jet3/src/schema_column.rs",
+        "crates/jet3/src/schema_column_create.rs",
+        "crates/jet3/src/schema_column_drop.rs",
+        "crates/jet3/src/schema_column_options.rs",
+        "crates/jet3/src/schema_properties.rs",
+        "oracle/windows-dao/scripts/schema_edit_structure.py",
+        "oracle/windows-dao/scripts/compare_schema_structure.py",
+        "oracle/windows-dao/scripts/prepare_schema_candidates.py",
+        "oracle/windows-dao/scripts/schema_candidate_observer.ps1",
+        "oracle/windows-dao/scripts/combine_schema_readbacks.py",
+        "oracle/windows-dao/scripts/compare_schema_candidates.py",
+        "oracle/windows-dao/scripts/candidate_continuations.ps1"
       ]
     },
     {
@@ -151,7 +174,19 @@
         "oracle/windows-dao/scripts/required_column_matrix.json",
         "oracle/windows-dao/scripts/required_column_prepare.py",
         "oracle/windows-dao/scripts/required_column_acceptance.py",
-        "oracle/windows-dao/scripts/required_column_acceptance.ps1"
+        "oracle/windows-dao/scripts/required_column_acceptance.ps1",
+        "crates/jet3/src/schema_edit.rs",
+        "crates/jet3/src/schema_table.rs",
+        "crates/jet3/src/schema_table_drop.rs",
+        "crates/jet3/src/schema_index_tests.rs",
+        "crates/jet3-cli/tests/schema.rs",
+        "oracle/windows-dao/scripts/schema_edit_structure.py",
+        "oracle/windows-dao/scripts/compare_schema_structure.py",
+        "oracle/windows-dao/scripts/prepare_schema_candidates.py",
+        "oracle/windows-dao/scripts/schema_candidate_observer.ps1",
+        "oracle/windows-dao/scripts/combine_schema_readbacks.py",
+        "oracle/windows-dao/scripts/compare_schema_candidates.py",
+        "oracle/windows-dao/scripts/candidate_continuations.ps1"
       ]
     },
     {
@@ -183,7 +218,9 @@
         "crates/jet3/src/row_wide_tests.rs",
         "crates/jet3/src/creation/wide_variable_tests.rs",
         "oracle/windows-dao/scripts/wide_row_lifecycle.py",
-        "oracle/windows-dao/scripts/wide_row_lifecycle_structure.py"
+        "oracle/windows-dao/scripts/wide_row_lifecycle_structure.py",
+        "crates/jet3/src/row_schema_gap_tests.rs",
+        "crates/jet3/src/row_writer_layout.rs"
       ]
     },
     {
@@ -361,7 +398,15 @@
         "crates/jet3/src/cascade_rows.rs",
         "crates/jet3/src/cascade_publish.rs",
         "crates/jet3/src/cascade_tests.rs",
-        "crates/jet3/src/relationship_component.rs"
+        "crates/jet3/src/relationship_component.rs",
+        "crates/jet3/src/row_schema_gap_tests.rs",
+        "oracle/windows-dao/scripts/schema_edit_structure.py",
+        "oracle/windows-dao/scripts/compare_schema_structure.py",
+        "oracle/windows-dao/scripts/prepare_schema_candidates.py",
+        "oracle/windows-dao/scripts/schema_candidate_observer.ps1",
+        "oracle/windows-dao/scripts/combine_schema_readbacks.py",
+        "oracle/windows-dao/scripts/compare_schema_candidates.py",
+        "oracle/windows-dao/scripts/candidate_continuations.ps1"
       ]
     },
     {
@@ -439,7 +484,16 @@
         "oracle/windows-dao/scripts/scalar_relationship_creation_acceptance.py",
         "oracle/windows-dao/scripts/scalar_relationship_lifecycle_acceptance.py",
         "crates/jet3/src/creation/composite_relationship_tests.rs",
-        "crates/jet3/src/cascade_tests.rs"
+        "crates/jet3/src/cascade_tests.rs",
+        "crates/jet3/src/schema_index.rs",
+        "crates/jet3/src/schema_index_tests.rs",
+        "oracle/windows-dao/scripts/schema_edit_structure.py",
+        "oracle/windows-dao/scripts/compare_schema_structure.py",
+        "oracle/windows-dao/scripts/prepare_schema_candidates.py",
+        "oracle/windows-dao/scripts/schema_candidate_observer.ps1",
+        "oracle/windows-dao/scripts/combine_schema_readbacks.py",
+        "oracle/windows-dao/scripts/compare_schema_candidates.py",
+        "oracle/windows-dao/scripts/candidate_continuations.ps1"
       ]
     },
     {
@@ -495,7 +549,17 @@
         "oracle/windows-dao/scripts/scalar_relationship_lifecycle_acceptance.py",
         "crates/jet3/src/creation/composite_relationship_tests.rs",
         "crates/jet3/src/relationship_flags.rs",
-        "crates/jet3/src/cascade_tests.rs"
+        "crates/jet3/src/cascade_tests.rs",
+        "crates/jet3/src/schema_relationship_create.rs",
+        "crates/jet3/src/schema_relationship_drop.rs",
+        "crates/jet3/src/schema_relationship_tests.rs",
+        "oracle/windows-dao/scripts/schema_edit_structure.py",
+        "oracle/windows-dao/scripts/compare_schema_structure.py",
+        "oracle/windows-dao/scripts/prepare_schema_candidates.py",
+        "oracle/windows-dao/scripts/schema_candidate_observer.ps1",
+        "oracle/windows-dao/scripts/combine_schema_readbacks.py",
+        "oracle/windows-dao/scripts/compare_schema_candidates.py",
+        "oracle/windows-dao/scripts/candidate_continuations.ps1"
       ]
     },
     {
@@ -508,7 +572,9 @@
         "crates/jet3/tests/atomic_publication.rs",
         "crates/jet3/src/page_edits_sequence.rs",
         "crates/jet3/src/cascade_publish.rs",
-        "crates/jet3/src/cascade_tests.rs"
+        "crates/jet3/src/cascade_tests.rs",
+        "crates/jet3/src/schema_publish.rs",
+        "crates/jet3-cli/tests/schema.rs"
       ]
     },
     {

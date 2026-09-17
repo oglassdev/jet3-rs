@@ -204,3 +204,72 @@ fn errors_report_context_and_preserve_sources() {
         assert_eq!(std::error::Error::source(error).is_some(), index == 6);
     }
 }
+
+#[test]
+fn unrelated_deleted_map_slots_keep_neighbor_bounds_and_selected_slots_are_refused()
+-> Result<(), Box<dyn std::error::Error>> {
+    // EXP-0297: middle and final native deleted map slots keep their prior start.
+    for entries in [
+        vec![2000, 0xc000 | 2000, 1900],
+        vec![2000, 1900, 0xc000 | 1900],
+    ] {
+        let raw = data_page(&entries);
+        let mut resources = budget();
+        let page = classify_page(PageNumber::new(1), &raw, &mut resources)?;
+        for (row, entry) in entries.iter().enumerate() {
+            let result = locate_usage_map(
+                page,
+                MapRowLocator::new(PageNumber::new(1), row as u8),
+                &mut resources,
+            );
+            if entry & 0xc000 != 0 {
+                assert!(matches!(
+                    result,
+                    Err(UsageMapError::FlaggedOrOutOfPageRow { .. })
+                ));
+            } else {
+                let expected = if row == 0 { 2000..2048 } else { 1900..2000 };
+                assert_eq!(result?.range(), expected);
+            }
+        }
+    }
+    let raw = data_page(&[0xc800, 2000]);
+    let mut resources = budget();
+    let page = classify_page(PageNumber::new(1), &raw, &mut resources)?;
+    assert_eq!(
+        locate_usage_map(
+            page,
+            MapRowLocator::new(PageNumber::new(1), 1),
+            &mut resources
+        )?
+        .range(),
+        2000..2048
+    );
+    Ok(())
+}
+
+#[test]
+fn unrelated_map_slots_still_reject_unknown_flags_and_invalid_deleted_bounds()
+-> Result<(), Box<dyn std::error::Error>> {
+    for entry in [
+        0x8000 | 2000,
+        0x4000 | 2000,
+        0xe000 | 2000,
+        0xc000 | 2049,
+        0xc000 | 1900,
+        0xc000 | 11,
+    ] {
+        let raw = data_page(&[2000, entry]);
+        let mut resources = budget();
+        let page = classify_page(PageNumber::new(1), &raw, &mut resources)?;
+        assert!(
+            locate_usage_map(
+                page,
+                MapRowLocator::new(PageNumber::new(1), 0),
+                &mut resources
+            )
+            .is_err()
+        );
+    }
+    Ok(())
+}

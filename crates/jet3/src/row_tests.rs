@@ -334,3 +334,6 @@ fn validates_row_trailers_ignores_unused_presence_bits_and_bounds_work()
     ));
     Ok(())
 }
+
+#[path = "row_schema_gap_tests.rs"]
+mod schema_gaps;
