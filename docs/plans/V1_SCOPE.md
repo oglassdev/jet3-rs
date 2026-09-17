@@ -239,14 +239,17 @@ set Required property. Removed index/payload pages are released without
 zeroing their contents, and unused map rows become tombstones.
 
 EXP-0297 records native layouts, dependency refusals and prospective property
-behavior. Independent review and complete candidate DAO acceptance for this
-batch are in progress. Defaults and validation expressions remain opaque and
+behavior. EXP-0298 accepts 44 native/candidate schema pairs (38 edits and six
+byte-atomic Rust refusals), complete DAO snapshots of all 88 outputs, raw checks
+of all 132 input/output images and five successful native continuation lineages.
+Independent review and `just ready` passed on the final production source.
+Defaults and validation expressions remain opaque and
 cannot be authored through this API. In-place column type/size and index-option
 assignments are refused by DAO; index options can be changed by atomic
 replacement, while column conversion is outside this API. Other code pages,
 unsupported relationship forms and wider preservation/release gates remain open.
-New catalog objects use the existing deterministic zero-date writer policy;
-existing object timestamps are retained by schema edits.
+New catalog objects, including replacement relationships, use the existing
+deterministic zero-date writer policy. Surviving object timestamps are retained.
 
 ### Updates
 

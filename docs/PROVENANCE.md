@@ -20250,3 +20250,102 @@ the affected ordinary index and Target data page change during the row rewrite;
 the TDEF and catalog/property pages stay exact. This bounds old-row decoding and
 rewrite against the row's actual stored fixed extent rather than the current
 schema's appended extent.
+### EXP-0298 — DAO differential acceptance of existing-schema edits
+
+Source revision `343166f5a07aeaeaee9ba27040064b6312892bda`
+was built from a clean detached worktree. The retained `jet3-cli` binary has SHA-256
+`2d03ca14b4b2ac3e6703638a1500fc805a67ad54b1e42ee3147287283e112e2f`.
+Microsoft DAO 3.6 was used as the black-box oracle under 32-bit Windows PowerShell
+on Windows `10.0.20348.0`, culture `en-US`, ANSI code page 1252. The loaded
+`dao360.dll` reports version `03.60.9765.0` and SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`.
+
+The retained manifest contains 44 populated-database cases: 38 accepted edits and
+six refused edits. It covers table create/rename/drop; column add/rename/drop and
+Required/AllowZeroLength changes; index add/rename/drop/replace; and relationship
+add/drop/replace. Boundaries include fixed and variable column gaps, Memo and OLE
+payload retirement, AutoNumber backfill, pre-existing NULL/empty values, ordinary
+and primary relationship-index aliases, logical selector zero, ordered composite
+relationships, self relationships, and cascade-flag replacement. Each baseline
+also carries unrelated user tables, a saved query, and large Memo/OLE sentinels
+where the source schema permits them.
+
+The complete DAO observer captured every user table, table/field/index/index-field
+property, every row value (large Memo/OLE values by length and SHA-256), every
+index traversal, relation and relation-field properties, and every saved query for
+all 88 native/candidate images. All 44 pairs compare equal after normalizing only
+`DateCreated` and `LastUpdated` on the affected tables explicitly named by each
+manifest case. No semantic value or other property is masked. The six refused
+candidate edits leave their input MDB byte-for-byte unchanged.
+
+An independent raw evaluator parsed all 132 input/candidate/native images. Every
+physical index tree had the exact expected live keys and row locators; every LOB
+descriptor was reachable through owned allocation; and every page received a
+complete, non-overlapping allocation classification. It checked 1,358 unrelated
+pages and 656 complete unrelated catalog rows exactly, including query-definition
+storage, unrelated object timestamps/properties, data pages, and LOB storage.
+Every populated physical-key slot compared exactly. Logical-definition comparison
+normalizes map/tree references only after independently validating their complete
+roles, keys and row locators. It also normalizes unused fixed-offset bytes 14..16
+in variable-column records and direction bytes in unused physical-key slots whose
+column ID is `0xffff`; every remaining definition byte compares exactly. Twelve
+cases have map/tree placement differences and 27 have unused variable fixed-offset
+differences. The complete raw differences are retained. New or replaced relationship objects use deterministic zero dates,
+while dates on surviving existing objects remain unchanged.
+
+Native DAO orphan-relationship refusal remains an explicit divergence. DAO exposes
+no relation but changes six bytes: database header byte 1538 increases by two,
+MSysObjects' count increases by one, MSysACEs' count increases by two, and three
+system-index distinct counts increase by one. The Rust candidate remains wholly
+unchanged on the refusal. The native residue is retained and checked separately before substituting
+those exact counter differences for the remaining structural comparison. Rust
+refusal preserves the complete input.
+
+Five DAO write continuations on candidate outputs also passed. Appending a row to
+the populated AutoNumber-column candidate generated value 4 after backfilled values
+1, 2, and 3. Existing NULL under newly Required and existing empty text under newly
+disallowed AllowZeroLength remained readable; prospective invalid inserts refused
+with DAO errors 3314 and 3315, and valid inserts succeeded. A follow-up insert into
+the dropped-column variable-gap schema succeeded with all values intact. On a new
+relationship, a referenced parent-key change refused with DAO 3200, a valid parent
+and child insert succeeded, and an orphan insert refused with DAO 3201. Complete
+after snapshots and independent raw checks confirmed all selected rows, physical
+keys/locators, payload reachability, allocation, and exact unrelated catalog,
+query, and page preservation.
+
+Primary retained results are
+`final-run-343166f-r4/FINAL-REPORT.json` (SHA-256
+`69bc8186f4be190756cd032a951a685f02254294765171faeeb6a247c2d197e5`),
+`FINAL-READBACK.json` (`9e2e56fd9503f506c64d26cce534d74731b067ac6b12ca1e2d072b31e2557a1e`),
+and `FINAL-COMPARISON.json`
+(`920594c00cb15532f00338b63b54d3421fbb58288af805e2e04873b089a02be5`).
+The independent DAO report is `evidence/root/ROOT-DAO-FINAL.json`; the independent
+raw reports are `evidence/root/root-structure/run7/STRUCTURE-RESULT.json` and
+`evidence/root/root-structure/comparison9.json`; and continuation evidence is under
+`evidence/continuations` and `evidence/root/root-continuation-checks`. Original
+inputs, native controls, source revision/diff capture, copied executable, requests,
+logs, provider receipts, full snapshots, structural summaries, and the portable
+preparer/observer/combiner/comparator are retained together outside the repository.
+MDB bytes and provider binaries remain outside the repository.
+
+Failed preparation revisions `r1`–`r3`, the oversized observer batch, and the first
+continuation attempt's PowerShell COM setter failure are retained at the paths named
+by `FINAL-REPORT.json`; none was overwritten or used as accepted evidence.
+
+An independent replay reproduced all 44 Rust candidates byte-for-byte with the
+frozen executable and reproduced the portable readback/comparison reports exactly.
+The complete archive at
+`/home/alex/development/jet3-local-work/schema-edits/oracle/final-run-343166f-r4`
+contains 1,277 files totaling 238,465,498 bytes. Every inventory path, size and
+SHA-256 was independently checked against `ARCHIVE-MANIFEST.json`, whose SHA-256 is
+`d35231f57a731a0b7fd5dd8ec992eaf0b71e32ddeaee8a1836760725eef3ae85`.
+The inventory excludes the manifest itself. The independent check is retained
+outside the immutable archive as `schema-edits/ROOT-ARCHIVE-CHECK.json`.
+
+GPT-5.6 Sol with high reasoning independently reviewed the production changes and
+the raw acceptance evaluators, with no unresolved substantive findings. The final
+production source passed `just ready`: 1,748 passing test executions, zero failures
+and ten ignored tests, plus formatting, clippy, documentation and quick acceptance.
+This establishes the finite existing-schema edit inventory above. Default and
+validation-expression authoring, other code pages, unsupported relationship forms,
+and broader preservation and release gates remain outside this acceptance.
