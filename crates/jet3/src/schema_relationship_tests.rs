@@ -61,6 +61,18 @@ fn relationship_lifecycle_shares_indexes_preserves_rows_and_drops_with_child() -
         );
         let child = crate::update::indexed_writable_table(&mut database, b"Children", &mut b)?;
         assert_eq!(child.physical_indexes().len(), 1);
+        edit_schema(
+            fixture.path(),
+            SchemaEdit::DropIndex {
+                table: b"Children",
+                index: b"ExistingForeign",
+            },
+            &mut budget(),
+        )?;
+        let mut database = DatabaseReader::open(fixture.path(), &mut b)?;
+        let retained = crate::update::indexed_writable_table(&mut database, b"Children", &mut b)?;
+        assert_eq!(retained.physical_indexes(), child.physical_indexes());
+        assert_eq!(retained.indexes().len(), 1);
         let before = fs::read(fixture.path())?;
         assert!(
             edit_schema(
@@ -98,6 +110,7 @@ fn relationship_lifecycle_shares_indexes_preserves_rows_and_drops_with_child() -
             },
             &mut budget(),
         )?;
+        vary_parent_spelling(&fixture)?;
         edit_schema(
             fixture.path(),
             SchemaEdit::RenameColumn {
@@ -200,5 +213,90 @@ fn self_relationship_add_drop_and_orphan_refusal_are_atomic() -> TestResult {
         .is_err()
     );
     assert_eq!(fs::read(fixture.path())?, before);
+    Ok(())
+}
+
+fn vary_parent_spelling(fixture: &Fixture) -> TestResult {
+    crate::schema_publish::run(&fixture.path(), &mut budget(), |file, journal, budget| {
+        crate::schema_publish::apply(file, journal, budget, |database, budget| {
+            let table = crate::schema_catalog::table(database, b"MSysRelationships", budget)?;
+            let object = crate::schema_catalog::column(&table, b"szReferencedObject")?;
+            let column = crate::schema_catalog::column(&table, b"szReferencedColumn")?;
+            let mut rows = database.rows(&table, budget)?;
+            let row = rows
+                .next_row()?
+                .ok_or(UpdateError::NotFound("relationship row"))?
+                .locator();
+            drop(rows);
+            let graph =
+                crate::row_mutation_graph::RowGraph::load(database, &table, Some(row), budget)?;
+            let edits = crate::field_update::plan_fields(
+                database,
+                &table,
+                graph,
+                row,
+                &[
+                    (object, RowValue::Text(b"iTeMs")),
+                    (column, RowValue::Text(b"iD")),
+                ],
+                budget,
+            )?;
+            Ok((edits, ()))
+        })?;
+        crate::schema_publish::apply(file, journal, budget, |database, budget| {
+            crate::relationship_catalog::validate(database, budget)?;
+            Ok((
+                crate::page_edits::PageEdits::new(database.geometry().page_count()),
+                (),
+            ))
+        })
+    })?;
+    Ok(())
+}
+
+#[test]
+fn relationships_reuse_zero_logical_identity_after_index_drop() -> TestResult {
+    let fixture = Fixture::new(&[&[RowValue::Long(7), RowValue::Null]])?;
+    fixture.create(b"Discard", IndexKind::Ordinary, IndexDirection::Ascending)?;
+    fixture.create(b"Retain", IndexKind::Unique, IndexDirection::Ascending)?;
+    fixture.drop_index(b"Discard")?;
+    edit_schema(
+        fixture.path(),
+        SchemaEdit::CreateTable {
+            table: TableSpec {
+                name: b"Child",
+                columns: &[ColumnSpec::new(b"ParentId", ColumnType::Long)],
+                indexes: &[],
+            },
+        },
+        &mut budget(),
+    )?;
+    let spec = RelationshipSpec {
+        name: b"Relation",
+        parent: TableRef::Name(b"Items"),
+        child: TableRef::Name(b"Child"),
+        fields: &[RelationshipField {
+            parent: ColumnRef::Ordinal(0),
+            child: ColumnRef::Ordinal(0),
+        }],
+        cascade_updates: false,
+        cascade_deletes: false,
+    };
+    edit_schema(
+        fixture.path(),
+        SchemaEdit::CreateRelationship { relationship: spec },
+        &mut budget(),
+    )?;
+    let parent = fixture.table()?;
+    let relation = parent.relationships().next().ok_or("relation")?;
+    assert_eq!(relation.name().raw_bytes(), b".r");
+    assert_eq!(relation.raw_selector(), 0);
+    assert_eq!(relation.raw_relation_ordinal(), 0);
+    edit_schema(
+        fixture.path(),
+        SchemaEdit::DropRelationship { name: b"Relation" },
+        &mut budget(),
+    )?;
+    assert_eq!(fixture.table()?.indexes()[0].name().raw_bytes(), b"Retain");
     Ok(())
 }

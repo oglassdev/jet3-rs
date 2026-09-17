@@ -55,8 +55,19 @@ pub(crate) fn rename(
             let mut rows = database.rows(&relationships, budget)?;
             while let Some(mut row) = rows.next_row()? {
                 for (object, field) in fields {
-                    if row.field(object).and_then(|field| field.raw_bytes()) == Some(table)
-                        && row.field(field).and_then(|field| field.raw_bytes()) == Some(old)
+                    row.budget_mut().charge_work_units(2048)?;
+                    if row
+                        .field(object)
+                        .and_then(|field| field.raw_bytes())
+                        .is_some_and(|name| {
+                            crate::catalog_name_key::catalog_names_equal(name, table)
+                        })
+                        && row
+                            .field(field)
+                            .and_then(|field| field.raw_bytes())
+                            .is_some_and(|name| {
+                                crate::catalog_name_key::catalog_names_equal(name, old)
+                            })
                     {
                         let locator = row.locator();
                         reserve(&mut updates, 1, row.budget_mut())?;

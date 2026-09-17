@@ -79,7 +79,12 @@ pub(crate) fn rename_table(
             let mut rows = database.rows(&relationships, budget)?;
             while let Some(mut row) = rows.next_row()? {
                 for field in fields {
-                    if row.field(field).and_then(|field| field.raw_bytes()) == Some(old) {
+                    row.budget_mut().charge_work_units(1024)?;
+                    if row
+                        .field(field)
+                        .and_then(|field| field.raw_bytes())
+                        .is_some_and(|name| crate::catalog_name_key::catalog_names_equal(name, old))
+                    {
                         let locator = row.locator();
                         reserve(&mut updates, 1, row.budget_mut())?;
                         updates.push((locator, field));
@@ -122,5 +127,8 @@ pub(crate) fn rename_table(
             Ok((edits, ()))
         })?;
     }
-    Ok(())
+    crate::schema_publish::apply(file, journal, budget, |database, budget| {
+        crate::relationship_catalog::validate(database, budget)?;
+        Ok((PageEdits::new(database.geometry().page_count()), ()))
+    })
 }

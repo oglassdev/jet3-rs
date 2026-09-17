@@ -336,9 +336,9 @@ fn drop_index(
     let ordinal = table.indexes()[position].physical_index();
     if table.indexes().iter().any(|index| {
         index.physical_index() == ordinal
-            && matches!(index.kind(), IndexDefinitionKind::Relationship(_))
+            && matches!(index.kind(), IndexDefinitionKind::Relationship(relation) if relation.side() == crate::RelationshipSide::PrimaryTable)
     }) {
-        return Err(UpdateError::Unsupported("index required by relationship"));
+        return Err(UpdateError::Unsupported("unique index required by relationship"));
     }
     remove_position(database, table, position, definition, edits, budget)
 }
