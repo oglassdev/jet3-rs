@@ -123,35 +123,38 @@ impl CreationProperties {
         let mut descriptions = Vec::new();
         for column in columns {
             let auto = column.column_type() == ColumnType::AutoIncrement;
-            if auto && !has_text(column) {
+            if auto {
+                // EXP-0299: an AutoIncrement block first appears with its later Description.
+                if let Some(value) = column.description() {
+                    crate::resource::reserve(&mut descriptions, 1, budget)?;
+                    descriptions.push((None, column.name(), value));
+                }
                 continue;
             }
             let mut block = Block::new(FIELD_BLOCK, column.name(), budget)?;
-            if !auto {
-                if has_zero_length_property(column.physical_type()) {
-                    boolean(
-                        &mut blob,
-                        &mut block,
-                        b"AllowZeroLength",
-                        column.allow_zero_length(),
-                        budget,
-                    )?;
-                }
+            if has_zero_length_property(column.physical_type()) {
                 boolean(
                     &mut blob,
                     &mut block,
-                    b"Required",
-                    column.required(),
+                    b"AllowZeroLength",
+                    column.allow_zero_length(),
                     budget,
                 )?;
             }
+            boolean(
+                &mut blob,
+                &mut block,
+                b"Required",
+                column.required(),
+                budget,
+            )?;
             for property in TextProperty::FIELD_ORDER {
                 let Some(value) = property.of(column) else {
                     continue;
                 };
                 if property == TextProperty::Description {
                     crate::resource::reserve(&mut descriptions, 1, budget)?;
-                    descriptions.push((blob.blocks().len(), value));
+                    descriptions.push((Some(blob.blocks().len()), column.name(), value));
                     continue;
                 }
                 let name = blob.intern(property.name(), budget)?;
@@ -176,9 +179,16 @@ impl CreationProperties {
             blob.push(block, budget)?;
         }
         // EXP-0299: Access-layer Description is appended after the table exists.
-        for (position, value) in descriptions {
+        for (position, column, value) in descriptions {
             let name = blob.intern(TextProperty::Description.name(), budget)?;
             let record = Record::new(0, TEXT, name, value, budget)?;
+            let position = match position {
+                Some(position) => position,
+                None => {
+                    blob.push(Block::new(FIELD_BLOCK, column, budget)?, budget)?;
+                    blob.blocks().len() - 1
+                }
+            };
             blob.block_at(position)?.set(record, budget)?;
         }
         Ok(Some(Self { blob }))
@@ -302,6 +312,28 @@ mod tests {
             ColumnSpec::new(b"Body", ColumnType::Memo).with_allow_zero_length(),
         ];
         assert_eq!(encoded(&columns)?, encoded(&columns[1..])?);
+        Ok(())
+    }
+
+    #[test]
+    fn described_auto_number_block_follows_the_table_block()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let columns = [
+            ColumnSpec::new(b"Id", ColumnType::AutoIncrement).with_description(b"key"),
+            ColumnSpec::new(b"Qty", ColumnType::Long).with_description(b"count"),
+        ];
+        let validation = TableValidation {
+            rule: None,
+            text: Some(b"message"),
+        };
+        let mut budget = ResourceBudget::new(crate::ResourceLimits::default());
+        let bytes = CreationProperties::new(&columns, validation, &mut budget)?
+            .ok_or("properties")?
+            .blob
+            .encode(&mut budget)?;
+        let blob = PropertyBlob::parse(&bytes, &mut budget)?;
+        let order: Vec<_> = blob.blocks().iter().map(|block| block.name()).collect();
+        assert_eq!(order, [b"Qty".as_slice(), b"", b"Id"]);
         Ok(())
     }
 }
