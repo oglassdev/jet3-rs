@@ -213,6 +213,20 @@ fn unenforced_relationships_are_catalog_only_and_follow_table_edits() -> TestRes
         },
         &mut budget(),
     )?;
+    let wide = [pair(b"Id", b"Id"); 11];
+    edit_schema(
+        fixture.path(),
+        SchemaEdit::CreateRelationship {
+            relationship: relation(b"Wide", b"Things", b"Children", &wide),
+        },
+        &mut budget(),
+    )?;
+    assert_eq!(catalog(&fixture)?[2].fields().len(), 11);
+    edit_schema(
+        fixture.path(),
+        SchemaEdit::DropRelationship { name: b"Wide" },
+        &mut budget(),
+    )?;
     let relations = catalog(&fixture)?;
     assert_eq!(relations.len(), 2);
     assert_eq!(relations[0].parent_table(), b"Things");

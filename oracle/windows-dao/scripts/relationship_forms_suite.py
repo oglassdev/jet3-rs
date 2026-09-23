@@ -260,6 +260,7 @@ def cases():
         case("p-rename-w2", "forms", [schema({"operation": "rename_table", "table": "W2", "name": "W3"})]),
         case("p-drop-w1", "forms", [schema({"operation": "drop_table", "table": "W1"})]),
         case("p-create-u", "forms", [create(rel("T", "P", "C", ["t"], ["t"], **U))]),
+        case("p-create-u-wide", "forms", [create(rel("R11b", "W2", "W1", WIDE, WIDE, **U))]),
         case("p-drop-memo-loose", "forms", [schema({"operation": "drop_relationship", "name": "MemoLoose"})]),
         case("p-insert-one-child", "forms", [mutate(*insert_c([6, None, None, None, None, 3]), expect=REFUSED)],
              kind="rust-only", note="one-to-one relationships are not interpreted"),

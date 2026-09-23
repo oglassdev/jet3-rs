@@ -335,7 +335,7 @@ the new definition fails:
 Relationship edits use the same definition as creation, including optional
 `cascade_updates`, `cascade_deletes`, and composite endpoint `columns`. They also
 accept `"enforce": false` for an unenforced relationship (no indexes, cascades or
-key checks; any key columns) and `"join"`: `inner` (default), `left`, `right` or
+key checks; any 1 to 255 key columns) and `"join"`: `inner` (default), `left`, `right` or
 `left_and_right`, the Access display join stored in the relationship attributes.
 Database creation accepts `join` but not unenforced relationships:
 

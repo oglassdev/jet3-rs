@@ -290,8 +290,8 @@ impl Endpoint {
     fn columns(&self) -> Result<&[Name], String> {
         match (&self.column, &self.columns) {
             (Some(column), None) => Ok(std::slice::from_ref(column)),
-            (None, Some(columns)) if (1..=10).contains(&columns.len()) => Ok(columns),
-            _ => Err("relationship endpoint requires column or columns (1..10)".into()),
+            (None, Some(columns)) if (1..=255).contains(&columns.len()) => Ok(columns),
+            _ => Err("relationship endpoint requires column or columns (1..255)".into()),
         }
     }
 }

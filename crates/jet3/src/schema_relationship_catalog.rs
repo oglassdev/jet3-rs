@@ -25,7 +25,9 @@ pub(crate) fn create_unenforced(
             crate::relationship_catalog::validate(database, budget)?;
             let parent = crate::update::indexed_writable_table(database, tables.0, budget)?;
             let child = crate::update::indexed_writable_table(database, tables.1, budget)?;
-            if !(1..=10).contains(&spec.fields.len()) {
+            // EXP-0301: unenforced relationships have no index and its ten-field
+            // limit; bound them by the 255-column table limit.
+            if !(1..=255).contains(&spec.fields.len()) {
                 return Err(UpdateError::Unsupported("relationship field count"));
             }
             let mut pairs: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();

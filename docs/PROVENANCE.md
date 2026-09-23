@@ -20563,7 +20563,9 @@ Windows 10.0.20348, en-US/ANSI 1252) ran
 sort-order database with tables P, C and Q, then called `CreateRelation` with
 `SRC-0023`/`SRC-0026` attributes, alone and combined, and lifecycle operations
 after a close/reopen. No MDB implementation source was consulted. The private
-bundle is `checks/20260923-relationship-forms-discovery` beneath the VM share.
+bundle is `checks/20260923-relationship-forms-discovery` beneath the VM share;
+its `SHA256SUMS` (296 files) has SHA-256
+`4e374bd867a7ca0f1011bbf66bdf7702c57b20220cd899eb78e2119a870b7ac1`.
 Replicas agree on every fact below.
 
 - **Accepted attributes and storage.** DAO accepts 0, 1, 2, 3, 256, 4096, 4352,
