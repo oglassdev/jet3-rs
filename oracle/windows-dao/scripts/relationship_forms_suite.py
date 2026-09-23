@@ -218,7 +218,8 @@ def cases():
         case("l-orphan-u-insert", "mixed", [mutate(*orphan_u)]),
         case("l-orphan-u-update", "mixed", [mutate({"operation": "update", "table": "C", "column": 5, "value": {"long": 77}},
                                                     "UPDATE C SET qid = 77 WHERE id = 3", locate={"table": "C", "id": 3})]),
-        case("l-orphan-e-insert", "mixed", [mutate(*orphan_e, expect=REFUSED)], kind="refused", dao_error=3201),
+        case("l-orphan-e-insert", "mixed", [mutate(*orphan_e, expect=REFUSED)], kind="residue", dao_error=3201,
+             note="DAO's refused insert raises the child primary index DistinctCount"),
         case("l-u-parent-delete", "mixed", [mutate({"operation": "delete", "table": "Q"}, "DELETE FROM Q WHERE id = 1",
                                                     locate={"table": "Q", "id": 1})]),
         case("l-e-parent-delete", "mixed", [mutate({"operation": "delete", "table": "P"}, "DELETE FROM P WHERE id = 1",
@@ -399,7 +400,16 @@ def reader(args) -> None:
         document = json.loads(path.read_text(encoding="utf-8-sig"))
         files += document["files"] if isinstance(document, dict) else document
     report, ok = [], True
+    def flat(value):
+        # PowerShell may wrap single collections in an extra array.
+        while isinstance(value, list) and len(value) == 1 and isinstance(value[0], list):
+            value = value[0]
+        return value
+
     for item in files:
+        item["relations"] = flat(item["relations"])
+        for relation in item["relations"]:
+            relation["fields"] = flat(relation["fields"])
         dao = sorted((r["name"], r["table"], r["foreign_table"], r["attributes"],
                       [(f["name"], f["foreign_name"]) for f in sorted(r["fields"], key=lambda f: f["ordinal"])])
                      for r in item["relations"])
