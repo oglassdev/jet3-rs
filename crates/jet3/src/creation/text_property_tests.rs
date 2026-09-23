@@ -392,3 +392,79 @@ fn rules_refuse_cascaded_updates_and_autoincrement_backfill() -> TestResult {
     assert_eq!(fs::read(&path)?, before);
     Ok(())
 }
+
+#[test]
+fn chained_property_blobs_grow_and_shrink_without_touching_rows() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let path = directory.target();
+    let columns = [
+        ColumnSpec::new(b"Id", ColumnType::Long),
+        ColumnSpec::new(b"Note", ColumnType::Memo),
+    ];
+    let plain = table(b"Items", &columns, TableValidation::NONE);
+    let memo = [b'm'; 3000];
+    create_database_with_rows(
+        &path,
+        &plain,
+        &[&[RowValue::Long(1), RowValue::Memo(&memo)]],
+        &mut budget(),
+    )?;
+    let user_pages = |bytes: &[u8]| -> Result<Vec<Vec<u8>>, Box<dyn std::error::Error>> {
+        let mut work = budget();
+        let mut db = DatabaseReader::open(&path, &mut work)?;
+        let table = crate::update::indexed_writable_table(&mut db, b"Items", &mut work)?;
+        Ok(table
+            .pages()
+            .iter()
+            .map(|page| {
+                let start = page.get() as usize * crate::PAGE_BYTES;
+                bytes[start..start + crate::PAGE_BYTES].to_vec()
+            })
+            .collect())
+    };
+    let before = user_pages(&fs::read(&path)?)?;
+    let [a, b, c, d] =
+        [b'a', b'b', b'c', b'd'].map(|byte| [byte; crate::column_properties::MAX_TEXT_PROPERTY]);
+    for edit in [
+        SchemaEdit::SetColumnProperties {
+            table: b"Items",
+            column: b"Note",
+            default_value: PropertyChange::Set(&a),
+            validation_rule: PropertyChange::Keep,
+            validation_text: PropertyChange::Set(&b),
+            description: PropertyChange::Set(&c),
+        },
+        SchemaEdit::SetTableProperties {
+            table: b"Items",
+            validation_rule: PropertyChange::Keep,
+            validation_text: PropertyChange::Set(&d),
+        },
+    ] {
+        edit_schema(&path, edit, &mut budget())?;
+    }
+    let stored = properties(&path, b"Items")?;
+    let note = &stored.columns()[1];
+    assert_eq!(note.default_value(), Some(a.as_slice()));
+    assert_eq!(note.validation_text(), Some(b.as_slice()));
+    assert_eq!(note.description(), Some(c.as_slice()));
+    assert_eq!(stored.validation_text(), Some(d.as_slice()));
+    assert_eq!(user_pages(&fs::read(&path)?)?, before);
+    edit_schema(
+        &path,
+        SchemaEdit::SetColumnProperties {
+            table: b"Items",
+            column: b"Note",
+            default_value: PropertyChange::Clear,
+            validation_rule: PropertyChange::Keep,
+            validation_text: PropertyChange::Clear,
+            description: PropertyChange::Set(b"short"),
+        },
+        &mut budget(),
+    )?;
+    let stored = properties(&path, b"Items")?;
+    assert_eq!(stored.columns()[1].default_value(), None);
+    assert_eq!(stored.columns()[1].description(), Some(b"short".as_slice()));
+    assert_eq!(stored.validation_text(), Some(d.as_slice()));
+    assert_eq!(user_pages(&fs::read(&path)?)?, before);
+    Ok(())
+}

@@ -13,6 +13,9 @@ use crate::{
 };
 
 #[cfg(all(test, any(unix, windows)))]
+#[path = "schema_index_matrix_tests.rs"]
+mod matrix_tests;
+#[cfg(all(test, any(unix, windows)))]
 #[path = "schema_index_tests.rs"]
 mod tests;
 
