@@ -98,6 +98,7 @@ fn text(
     property: TextProperty,
     budget: &mut ResourceBudget,
 ) -> Result<Option<Vec<u8>>, ColumnPropertyError> {
+    budget.charge_work_units(blob.names().len() as u64 + blob.blocks().len() as u64)?;
     let Some(ordinal) = blob.ordinal(property.name()) else {
         return Ok(None);
     };

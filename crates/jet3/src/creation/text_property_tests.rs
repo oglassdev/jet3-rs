@@ -164,6 +164,9 @@ fn table_rules_refuse_initial_and_later_rows() -> TestResult {
         validation_text: PropertyChange::Keep,
     };
     edit_schema(&path, clear, &mut budget())?;
+    let cleared = fs::read(&path)?;
+    edit_schema(&path, clear, &mut budget())?;
+    assert_eq!(fs::read(&path)?, cleared);
     insert_row(&path, b"Checked", &[RowValue::Long(1)], &mut budget())?;
     assert_eq!(
         properties(&path, b"Checked")?.validation_text(),

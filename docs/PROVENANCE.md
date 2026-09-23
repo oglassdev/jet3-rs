@@ -20349,3 +20349,93 @@ and ten ignored tests, plus formatting, clippy, documentation and quick acceptan
 This establishes the finite existing-schema edit inventory above. Default and
 validation-expression authoring, other code pages, unsupported relationship forms,
 and broader preservation and release gates remain outside this acceptance.
+
+## EXP-0299 — Native text properties, table properties and sort-order markers
+
+On 2026-09-22/23, local x86 `DAO.DBEngine.36` 3.6, DLL 03.60.9765.0 (SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`), Windows
+10.0.20348, en-US/ANSI 1252, created and edited fresh Jet 3 databases. The
+source context is `feat/schema-expressions` above main `06f53d2`. No MDB
+implementation source was consulted. This entry records native observations,
+not Rust compatibility.
+
+The durable private bundle is `checks/20260922-schema-expressions-discovery`
+beneath the local VM share. Its `SHA256SUMS` (277 files, SHA-256
+`4a6efa5faff5f1383cb9f3070fc7717652374fa84b4699370042d483b3ff25fc`) covers every
+staged producer, returned image and result. Accepted runs and result SHA-256
+values are `20260922T235500Z-textprops-abc`
+(`ef2c2efdc3ca9873af84aa1b2382c85db8746e6bb05b458cb3a225b620e386f2`),
+`20260923T001500Z-textprops-d`
+(`9a8a2a0138821d4650adf4f68e90113c792f7ebe106fc028166785e5d5c87d69`),
+`20260923T002000Z-textprops-rest2`
+(`a5ea837286176dc74897dfbc08a4ba9dc43ec98ae32475a7301bef7d39acd901`) and
+`20260923T020500Z-edit-placement`
+(`61321f7108d8ad1b32e7da51fd2a5eb860ac75b84acd0bba75fc73cb01715de7`). Their staged
+producer SHA-256 values are respectively
+`44994fd68cec528cc7a96ed22fa09d96feff875cfcf9f8c6ae922fe11193156e`,
+`3d9820a1040dc7bd5dcff7657c2651d2bb9e57952534e4ea1fcc8460fb8e0f1e`,
+`2f99af21b73332eea6b9f65151b6fe39a024c824d7de5e9a7ec839eede5d1dbe` and
+`2851b708fcc8adeaa4b41a1a1d3ab11d9972e886c5cbb2361dcca1d64b50a22e`. Two slow
+attempts stopped without results and one edit-placement attempt whose case filter
+selected nothing are retained and unused.
+
+Text records use the EXP-0266 record frame: 16-bit length, flag byte, type byte,
+16-bit dictionary ordinal, 16-bit value length and value. Engine properties have
+flag 1; `Description`, created through `CreateProperty`, has flag 0. Field
+`DefaultValue` and `ValidationRule` are type 12 (Memo); `ValidationText` and
+`Description` are type 10 (Text). Values are the CP1252 bytes without a
+terminator, except that a `ValidationRule` assigned to an already appended field
+stores one trailing NUL, which the DAO getter also returns. An embedded NUL in the
+assigned string truncates the stored value.
+
+Table properties occupy one block of kind 0 with an empty name (name frame 6,
+name length 0). A table `ValidationRule` assigned before `TableDefs.Append` is
+type 10, after append type 12; neither has a NUL. `ValidationText` is type 10. At
+creation the table block follows every field block. Fields appended later, and
+existing fields that first receive properties later, append their blocks after it.
+
+At creation every non-AutoIncrement field receives a block. Its records are
+AllowZeroLength (Text, Fixed Text and Memo), Required, ValidationRule,
+ValidationText and DefaultValue in that order, independent of assignment order
+(`b-text-all-forward`/`reverse` are identical). The dictionary lists names by
+first use across field blocks and then the table block. `Description` can only be
+created after append; it is appended to its block and to the dictionary.
+
+Later assignments append new names to the dictionary and new records to the end
+of their block in assignment order; changing a value replaces its record in place.
+Assigning an empty string removes the record and retains its dictionary name; a
+block left with no records is removed (table block, AutoIncrement field block).
+`Description` cannot be assigned empty (DAO 3385) but `Properties.Delete` removes
+it; built-in properties cannot be deleted (3384). Renaming a field renames its
+block and dropping one removes it. Eleven edit-placement lineages, each in two
+replicas, produce identical payloads per replica.
+
+DAO refuses `ValidationRule` and `ValidationText` on Binary, OLE and GUID fields
+with 3313, before and after append; `DefaultValue` is accepted on every kind. On a
+new AutoIncrement field, `DefaultValue`, `ValidationRule` and `ValidationText` are
+silently dropped (no payload, empty getters); after append all are stored in a
+block without a Required record. All four field properties and both table
+properties accept 254 to 4,000 bytes; payloads of 1,024 bytes and more are chained
+(for example 6,366 bytes over four pages and 24,222 bytes over twelve).
+
+DAO parses expressions on assignment: `((` fails with 3320, an unknown field
+reference with 3344, and `@@@` fails as a DefaultValue with 13 and as a table rule
+with 3320, while a field rule `@@@` is stored and later inserts fail with 3317.
+DAO enforces field and table rules on insertion (3317). Renaming or dropping a
+field referenced by the table rule succeeds, leaves the rule text unchanged, and
+later insertion fails with 3344. An explicit Null assigned to a field with a
+DefaultValue is stored as Null through SQL and recordsets; only an omitted field
+receives the default.
+
+Databases created with the General (LANGID 0x0409), Nordic (0x041D), Spanish
+(0x040A) and Dutch (0x0413) sort orders on code page 1252, Cyrillic (0x0419, 1251)
+and Greek (0x0408, 1253), two replicas each and both empty and with one indexed
+Text row, report DAO `CollatingOrder` 1033, 1053, 1034, 1043, 1049 and 1032. Page
+zero differs from General only at 0x3a (and 0x3c when the code page differs): the
+raw General bytes 0x3a..0x3e are `ed c7 9f 46`, and 0x3a is `f9`, `ee`, `f7`,
+`fd` and `ec` for the other orders, with 0x3c `98` (Cyrillic) and `9e` (Greek).
+Every column record, including system tables, carries the LANGID and code page
+little-endian at bytes 9..13: `09 04 e4 04`, `1d 04 e4 04`, `0a 04 e4 04`,
+`13 04 e4 04`, `19 04 e3 04` and `08 04 e5 04`. Catalog index keys differ as
+well. Replicas agree on all of these bytes. All 6,001 Jet 3 images in the local
+evidence archive carry the General page-zero bytes.

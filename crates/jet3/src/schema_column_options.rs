@@ -78,20 +78,25 @@ pub(crate) fn set(
                 PropertyBlob::parse(&bytes, budget)?
             };
             apply(&mut blob, edit, budget)?;
-            let bytes = if bytes.is_empty() && blob.blocks().is_empty() {
+            let edited = if bytes.is_empty() && blob.blocks().is_empty() {
                 Vec::new()
             } else {
                 crate::schema_properties::encode(&blob, budget)?
             };
-            if !bytes.is_empty() {
-                crate::column_property_reader::decode(&bytes, table.columns(), budget)?;
+            if !edited.is_empty() {
+                crate::column_property_reader::decode(&edited, table.columns(), budget)?;
             }
+            let changed = edited != bytes;
             Ok((
                 PageEdits::new(database.geometry().page_count()),
-                (catalog.root(), row, bytes),
+                (catalog.root(), row, changed.then_some(edited)),
             ))
         })?;
-    crate::schema_properties::store(file, journal, catalog, row, &bytes, budget)
+    match bytes {
+        Some(bytes) => crate::schema_properties::store(file, journal, catalog, row, &bytes, budget),
+        // Clearing an absent value leaves the payload and file unchanged.
+        None => Ok(()),
+    }
 }
 
 pub(crate) fn apply(
