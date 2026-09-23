@@ -22,7 +22,11 @@ available. Table entries include their catalog names. `--table` selects an exact
 Unicode table name for definition and row inspection; the page/catalog inventory
 still describes the file. Text values and metadata names use the selected code
 page (1252 by default, or 1251). Names containing undefined bytes retain their
-raw hexadecimal representation.
+raw hexadecimal representation. User tables also include `properties`:
+the table `validation_rule`/`validation_text` and, per column ordinal,
+`required`, `allow_zero_length`, `default_value`, `validation_rule`,
+`validation_text` and `description` exactly as stored (null when absent). DAO
+and Rust store a rule assigned to an existing field with one trailing NUL.
 `--page` cannot be combined with `--table` or `--rows`.
 
 A complete requested inspection returns `ok: true` and exit 0. If a table,
@@ -149,6 +153,15 @@ also fail this constraint. Boolean null inputs store false. AutoIncrement
 ignores Required and retains false; use `"auto_increment"` to generate a value.
 Required and AllowZeroLength are independent, so required Text/Memo can admit
 present-empty values when both options are true.
+
+Columns also accept `"default_value"`, `"validation_rule"`, `"validation_text"`
+and `"description"` strings, and tables accept `"validation_rule"` and
+`"validation_text"`. They are stored as opaque CP1252 text of 1 to 2,048 bytes
+without NUL; expressions are never parsed or evaluated. Defaults are not applied:
+rows store exactly the supplied values, including null. A table storing a
+rule refuses initial rows and later inserts/updates. Binary, OLE and GUID
+columns refuse validation properties, and AutoIncrement columns refuse
+expressions at creation; set those later with `set_column_properties`.
 
 An optional top-level `relationship` selects the two-table relationship API:
 
@@ -284,6 +297,22 @@ dropping a child table also removes its relationships. Remaining columns retain
 their storage ordinals, so use the current
 definition's ordinals for field updates and its live column order for row values.
 
+Set, change or clear text properties with (an omitted key keeps the stored
+value, `null` clears it):
+
+```json
+{"operation":"set_column_properties","table":"Notes","column":"Title","default_value":"\"untitled\"","validation_rule":"Is Not Null","validation_text":null,"description":"Heading"}
+```
+
+```json
+{"operation":"set_table_properties","table":"Notes","validation_rule":"[Title]<>\"\"","validation_text":"Title required"}
+```
+
+Existing rows are retained without evaluation. While a nonempty rule is stored,
+inserts and updates on the table are refused with the file unchanged; clear the
+rule to write rows. Renaming or dropping a column referenced by a table rule
+leaves the rule text unchanged, as DAO does.
+
 Change constraints for future writes with:
 
 ```json
@@ -319,6 +348,9 @@ Creation checks existing rows against the referenced unique key. Replacement
 atomically removes and recreates the relationship, allowing a new name, endpoints
 and cascade settings; refusal preserves the original relationship. Deletion
 retains ordinary indexes shared with the relationship.
+
+Databases created with a sort order other than General are readable, but
+`schema` and `mutate` refuse them with the file unchanged.
 
 Each request calls `edit_schema` once with the default library resource budget.
 Success returns `ok`, `operation` and `file` on stdout. Invalid JSON, unknown

@@ -276,8 +276,19 @@ def edits():
     ]
     # EXP-0297: a newly Required column retains old nulls, which validation reports.
     invalid = {"e05-column-after-table-block"}
+    # Independently allocated pages; the raw evaluator still checks their framing and capacity.
+    lvprop = ["MSysObjects/lval/LvProp/owned"]
+    placements = {
+        "e09-create-table": ["Props/table/owned", "Props/table/available", "Props/index/0/owned"],
+        "e15-native-chained": lvprop,
+        "e17-rust-chained": lvprop,
+        "e18-replace-ordinary-unique-required": ["KUniqueInclude/index/1/owned"],
+        "e19-replace-unique-ordinary-ignore": ["KUniqueInclude/index/1/owned"],
+        "e20-replace-required-unique-include": ["KUniqueRequired/index/1/owned"],
+        "e21-replace-ignore-primary": ["KUniqueIgnore/index/1/owned"],
+    }
     return [{"name": name, "input": source, "steps": steps, "normalize_table_dates": dates,
-             "validation_returncode": int(name in invalid)}
+             "validation_returncode": int(name in invalid), "placement_roles": placements.get(name, [])}
             for name, source, steps, dates in cases]
 
 

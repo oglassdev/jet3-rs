@@ -203,6 +203,10 @@ conversion!(crate::IndexTreeError, Index);
 /// A pre-publication failure preserves the original; a post-publication sync failure
 /// is distinguished by the publication error stage. Structural verification is not
 /// a DAO compatibility claim.
+/// Jet expressions are not evaluated: a table storing a field or table
+/// ValidationRule (EXP-0299) refuses with [`UpdateError::ValidationRule`], and a
+/// database whose sort order is not General with
+/// [`UpdateError::UnsupportedSortOrder`]. Both refusals preserve the file.
 pub fn update_field(
     path: impl AsRef<Path>,
     request: FieldUpdate<'_>,

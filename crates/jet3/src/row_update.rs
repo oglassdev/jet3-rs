@@ -61,6 +61,10 @@ pub struct RowUpdate<'a> {
 /// parent keys (EXP-0292). Cascades retain the selected row's explicit foreign-key
 /// assignments and update other matching rows, including null tuples (EXP-0295).
 /// All affected rows, payloads and indexes publish in one atomic replacement.
+/// Jet expressions are not evaluated: a table storing a field or table
+/// ValidationRule (EXP-0299) refuses with [`UpdateError::ValidationRule`], and a
+/// database whose sort order is not General with
+/// [`UpdateError::UnsupportedSortOrder`]. Both refusals preserve the file.
 pub fn update_row(
     path: impl AsRef<Path>,
     request: RowUpdate<'_>,

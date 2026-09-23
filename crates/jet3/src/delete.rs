@@ -52,6 +52,8 @@ pub struct RowDelete<'a> {
 /// component must occur in its parent table. Cascade selection includes exact
 /// partial-null and all-null tuples. All recursively affected rows, indexes and
 /// payload storage publish together; failure preserves the complete original.
+/// A database whose sort order is not General (EXP-0299) refuses with
+/// [`UpdateError::UnsupportedSortOrder`], preserving the file.
 pub fn delete_row(
     path: impl AsRef<Path>,
     request: RowDelete<'_>,

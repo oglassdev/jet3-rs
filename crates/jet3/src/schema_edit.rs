@@ -100,7 +100,7 @@ pub enum SchemaEdit<'a> {
     CreateColumn {
         /// Exact database-encoded table name.
         table: &'a [u8],
-        /// Name, type and Boolean properties of the new column.
+        /// Name, type, Boolean and text properties of the new column.
         column: crate::ColumnSpec<'a>,
     },
     /// Rename a column, retaining its values, options and index participation.
@@ -155,6 +155,8 @@ pub enum SchemaEdit<'a> {
 /// other column metadata edits retain row bytes. Invalid requests and
 /// failures before publication leave the original file unchanged. Callers must
 /// exclude concurrent writers for the entire operation.
+/// A database whose sort order is not General (EXP-0299) refuses with
+/// [`UpdateError::UnsupportedSortOrder`], preserving the file.
 pub fn edit_schema(
     path: impl AsRef<Path>,
     request: SchemaEdit<'_>,

@@ -52,6 +52,10 @@ use std::path::Path;
 /// component must occur in its parent table. A self-reference whose foreign physical
 /// index precedes its parent index requires that key before insertion (EXP-0286).
 /// Cascade options do not change insertion parent checks.
+/// Jet expressions are not evaluated: a table storing a field or table
+/// ValidationRule (EXP-0299) refuses with [`UpdateError::ValidationRule`], and a
+/// database whose sort order is not General with
+/// [`UpdateError::UnsupportedSortOrder`]. Both refusals preserve the file.
 pub fn insert_row(
     path: impl AsRef<Path>,
     table: &[u8],
