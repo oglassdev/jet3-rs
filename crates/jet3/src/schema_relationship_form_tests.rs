@@ -279,7 +279,7 @@ fn join_types_are_stored_in_the_attributes_only() -> TestResult {
 }
 
 #[test]
-fn database_creation_refuses_unenforced_relationships() -> TestResult {
+fn database_creation_stores_joins_and_refuses_unenforced_relationships() -> TestResult {
     let fixture = Fixture::new(&[])?;
     let target = fixture.0.join("created.mdb");
     let fields = [pair(b"Id", b"Id")];
@@ -309,5 +309,40 @@ fn database_creation_refuses_unenforced_relationships() -> TestResult {
         ))
     ));
     assert!(!target.exists());
+    let joined = RelationshipSpec {
+        enforce: true,
+        join: RelationshipJoin::LeftAndRight,
+        cascade_updates: true,
+        ..relation(b"Self", b"Items", b"Items", &fields)
+    };
+    let fields = [pair(b"Id", b"Parent")];
+    let tables = [TableRows {
+        table: TableSpec {
+            columns: &[
+                ColumnSpec::new(b"Id", ColumnType::Long),
+                ColumnSpec::new(b"Parent", ColumnType::Long),
+            ],
+            ..tables[0].table
+        },
+        rows: &[],
+    }];
+    create_database_with_relationships_and_rows(
+        &target,
+        &tables,
+        &[RelationshipSpec {
+            fields: &fields,
+            ..joined
+        }],
+        &mut budget(),
+    )?;
+    let mut b = budget();
+    let mut database = DatabaseReader::open(&target, &mut b)?;
+    let relations = database.relationship_catalog(&mut b)?;
+    assert_eq!(relations[0].raw_attributes(), 0x0300_0100);
+    assert!(relations[0].interpreted() && relations[0].cascade_updates());
+    assert_eq!(
+        crate::relationship_catalog::validate(&mut database, &mut b)?.verified,
+        1
+    );
     Ok(())
 }

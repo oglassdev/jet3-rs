@@ -117,7 +117,8 @@ collation for ordering and duplicate detection. Stored names retain their exact
 bytes, including accepted whitespace; the CLI converts Unicode names strictly
 to CP1252. Unsupported controls, leading ASCII spaces and `. ! [ ]` or backtick
 are refused. Relationship names share the 63-byte usable index-name limit.
-Other name encodings, index key types and relationship forms remain restricted.
+Other name encodings and index key types remain restricted; relationship
+forms are described under existing schema edits.
 Empty OLE payloads store null. Text/Memo columns can independently
 allow present-empty values, including later indexed tables and chained column
 properties. Required column constraints are encoded and enforced on initial rows,
@@ -180,7 +181,7 @@ Complete values, schema, traversal/Seek, physical keys, allocation and preserved
 system storage agree. Eight constraint refusals preserve the Rust inputs;
 57 CLI name refusals create no output. The seeded writers may choose different
 object IDs and catalog row locators while storing equal catalog key bytes.
-Other name encodings and relationship forms remain separate work.
+Other name encodings remain separate work.
 
 EXP-0279/0280 add later and nullable unique parent selection, existing child
 index reuse and native aliases sharing a physical tree. Forty creation pairs and
@@ -221,13 +222,29 @@ and relationship schema edits are outside those runs.
 
 `edit_schema` and `jet3-cli schema` apply one atomic operation to an existing
 file: table creation/rename/drop, column append/rename/drop, Required and
-AllowZeroLength changes, index creation/rename/drop/replacement, or enforced
+AllowZeroLength changes, index creation/rename/drop/replacement, or
 relationship creation/drop/replacement. Index and relationship replacement
-retain the original when the replacement fails. Relationship edits include
-ordered scalar/composite keys, shared indexes and cascade settings within the
-existing creation bounds. Referenced parent tables cannot be dropped; dropping
-a child removes its relationships. Indexed columns require their indexes to
-be dropped first.
+retain the original when the replacement fails. Enforced relationship edits
+include ordered scalar/composite keys, shared indexes and cascade settings
+within the existing creation bounds. Unenforced relationships (EXP-0301) are
+catalog rows only: any existing columns, no indexes, cascades or key checks,
+and row writes ignore them while enforced relationships on the same tables stay
+checked. Access join types (inner, left, right, both) are stored in the
+attributes of either form and never affect integrity; database creation accepts
+join types but not unenforced relationships. Parents referenced by an enforced
+relationship from another table cannot be dropped; dropping a table otherwise
+removes its relationships. Indexed columns and columns named by any
+relationship cannot be dropped.
+
+`DatabaseReader::relationship_catalog` lists every catalogued relationship with
+its raw and decoded attributes. One-to-one (`dbRelationUnique`) relationships,
+the undocumented attribute 65536 and other unknown bits are read, validated as
+uninterpreted and preserved, but row writes to their tables and dropping those
+tables refuse. DAO refuses enforced relationships over Memo/OLE keys,
+non-unique parents or mismatched types, cascades on unenforced relationships and
+the Inherited attribute on local tables; Rust refuses them too. DAO cannot
+rename a relationship or change its attributes after creation, so neither can
+Rust; replacement is the supported change.
 
 Column deletion retains the surviving storage IDs and existing row bytes.
 Public column ordinals remain dense positions in the live definition. Appended
@@ -245,8 +262,7 @@ of all 132 input/output images and five successful native continuation lineages.
 Independent review and `just ready` passed on the final production source.
 In-place column type/size and index-option assignments are refused by DAO;
 index options can be changed by atomic replacement, while column conversion is
-outside this API. Unsupported relationship forms and wider preservation/release
-gates remain open.
+outside this API. Wider preservation/release gates remain open.
 
 ### Column and table text properties
 
@@ -420,8 +436,9 @@ Enforced ordered scalar/composite relationships check reciprocal
 metadata and cascade options, parent uniqueness and every child key with a non-null component.
 Each composite relation has a complete, uniquely numbered central row per component. Self-references and
 multiple constraints are checked separately, including shared foreign indexes.
-Unsupported relationship catalog rows are counted explicitly; complete endpoint
-inventory is checked only when every central row is interpreted. Known endpoints
+Unenforced relationships must name existing tables and columns; their keys are
+not checked. Unsupported relationship catalog rows are counted explicitly;
+complete endpoint inventory is checked only when every central row is interpreted. Known endpoints
 must still occur exactly once when other forms are present.
 User-table catalog properties decode Required and AllowZeroLength records and
 reject malformed or unsupported framing. Other property values remain opaque.
@@ -537,8 +554,9 @@ rows use native FK/Memo field edits: DAO rejects a full-row edit that reassigns
 their unchanged primary key. That comparison exercises at most two constraints
 per database.
 
-- Extend creation to remaining schema/index-key combinations and relationship forms.
-- Extend updates to remaining index key types/collations, relationship forms,
+- Extend creation to remaining schema/index-key combinations and unenforced
+  relationships (available through schema edits).
+- Extend updates to remaining index key types/collations, one-to-one relationships,
   additional payload/schema combinations, broader
   data-page/live-slot reuse and multi-hop row growth.
 - Cover remaining DAO inventories, broader saved-query forms and

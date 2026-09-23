@@ -83,7 +83,36 @@ FORMS = BASE + [
     relation("MemoLoose", "P", "C", UNENFORCED, [("m", "m")]),
     relation("Both", "P", "D", LEFT | RIGHT, [("id", "cid")]),
 ]
-INPUTS = {"base": BASE, "mixed": MIXED, "forms": FORMS}
+# Database creation with join attributes: the Rust `create` request and DAO's equivalent.
+CREATE_TABLES = [
+    {"name": "P", "columns": [col("id", "long"), col("x", "long")], "indexes": [primary()],
+     "rows": [[{"long": 1}, {"long": 10}], [{"long": 2}, {"long": 10}]]},
+    {"name": "C", "columns": [col("id", "long"), col("pid", "long"), col("qid", "long")], "indexes": [primary()],
+     "rows": [[{"long": 1}, {"long": 1}, {"long": 1}], [{"long": 2}, None, {"long": 1}]]},
+    {"name": "Q", "columns": [col("id", "long")], "indexes": [primary()], "rows": [[{"long": 1}]]},
+]
+CREATE_RELATIONS = [
+    ("L", "P", "C", ("id", "pid"), {"join": "left", "cascade_deletes": True}, LEFT | 4096),
+    ("R", "Q", "C", ("id", "qid"), {"join": "right"}, RIGHT),
+    ("B", "C", "C", ("id", "pid"), {"join": "left_and_right", "cascade_updates": True}, LEFT | RIGHT | 256),
+]
+CREATE_REQUEST = {
+    "tables": CREATE_TABLES,
+    "relationships": [dict({"name": n, "parent": {"table": p, "column": k[0]}, "child": {"table": c, "column": k[1]}}, **o)
+                      for n, p, c, k, o, _ in CREATE_RELATIONS],
+}
+
+
+def literal(cell):
+    return "NULL" if cell is None else str(cell["long"])
+
+
+CREATE_NATIVE = [table(t["name"], t["columns"]) for t in CREATE_TABLES] + [
+    sql(f"INSERT INTO {t['name']} ({', '.join(c['name'] for c in t['columns'])}) "
+        f"VALUES ({', '.join(literal(v) for v in row)})")
+    for t in CREATE_TABLES for row in t["rows"]
+] + [relation(n, p, c, a, [k]) for n, p, c, k, _, a in CREATE_RELATIONS]
+INPUTS = {"base": BASE, "mixed": MIXED, "forms": FORMS, "create-join": CREATE_NATIVE}
 
 
 def rel(name, parent, child, pcols, ccols, **options):
@@ -140,6 +169,8 @@ PLACEMENT = {
 
 def cases():
     result = [
+        dict(case("create-join", "create-join", [], kind="creation"),
+             normalize_table_dates=[t["name"] for t in CREATE_TABLES]),
         case("c-u-unique", "base", [create(rel("R", "P", "C", ["id"], ["pid"], **U))]),
         case("c-u-nonunique", "base", [create(rel("R", "P", "C", ["x"], ["pid"], **U))]),
         case("c-u-memo", "base", [create(rel("R", "P", "C", ["m"], ["m"], **U))]),
@@ -270,10 +301,16 @@ def plan(args) -> None:
     all_cases = cases()
     jobs = {"inputs": [{"name": name, "ops": ops} for name, ops in INPUTS.items()], "edits": []}
     for item in all_cases:
+        if item["kind"] == "creation":
+            continue
         steps = [step.get("dao") or {"request": step["request"]} for step in item["steps"]]
         jobs["edits"].append({"name": item["name"], "input": item["input_name"], "steps": steps})
     write(args.out / "jobs.json", jobs)
+    (args.out / "creation").mkdir()
+    write(args.out / "creation" / "create-join.json", CREATE_REQUEST)
     for item in all_cases:
+        if item["kind"] == "creation":
+            continue
         item["normalize_table_dates"] = dated_tables(item)
         # New foreign-index trees are placed independently (as in EXP-0298).
         if item["name"] in PLACEMENT:
@@ -294,6 +331,9 @@ def manifest(args) -> None:
         value = copy.deepcopy(item)
         value["input"] = str(source)
         value["native"] = str(args.native / f"native-{item['name']}.mdb")
+        if item["kind"] == "creation":
+            value["input"] = str(args.creation / f"candidate-{item['name']}.mdb")
+            value["native"] = str(source)
         for step in value["steps"]:
             locate = step.pop("locate", None)
             step.pop("dao", None)
@@ -308,7 +348,7 @@ def manifest(args) -> None:
 
 def split(args) -> None:
     prepared = json.loads(args.manifest.read_text())
-    comparable = [c for c in prepared["cases"] if c["kind"] in ("accepted", "refused")]
+    comparable = [c for c in prepared["cases"] if c["kind"] in ("accepted", "refused", "creation")]
     write(args.out / "manifest-compare.json", {"cases": comparable})
     write(args.out / "manifest-structure.json", {"cases": [c for c in comparable if c["kind"] == "accepted"]})
     print(len(comparable), "comparable,", len(prepared["cases"]) - len(comparable), "separate")
@@ -320,7 +360,13 @@ def residue(args) -> None:
     native = json.loads(args.native_result.read_text(encoding="utf-8-sig"))
     outcomes = {e["name"]: e for e in native["edits"]}
     report, ok = [], True
+    inputs = {e["name"]: e for e in native["inputs"]}
     for item in prepared["cases"]:
+        if item["kind"] == "creation":
+            passed = inputs[item["input_name"]]["failure"] is None
+            ok &= passed
+            report.append({"name": item["name"], "kind": "creation", "dao_expectation_met": passed})
+            continue
         steps = outcomes[item["name"]]["steps"]
         failed = [s for s in steps if not s["ok"]]
         if item["kind"] in ("refused", "residue"):
@@ -382,6 +428,7 @@ def main() -> None:
     p.add_argument("--scripts", type=Path, required=True)
     p.add_argument("--template", type=Path, required=True)
     p.add_argument("--native", type=Path, required=True)
+    p.add_argument("--creation", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
     p.set_defaults(run=manifest)
     p = sub.add_parser("split")
