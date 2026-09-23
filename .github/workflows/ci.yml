@@ -150,9 +150,7 @@ jobs:
           toolchain: nightly-2026-07-20
       - uses: ./.github/actions/rust-cache
       - name: Install pinned cargo-fuzz for the native host
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-fuzz@0.13.2
+        run: cargo +nightly-2026-07-20 install cargo-fuzz --version 0.13.2 --locked
       - name: Compile all checked fuzz targets
         run: cargo +nightly-2026-07-20 fuzz build --fuzz-dir fuzz
       - name: Validate fuzz registry, seed manifest, and campaign reports

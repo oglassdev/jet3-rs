@@ -28,9 +28,15 @@ class WindowsDaoHostedWorkflowTests(unittest.TestCase):
         self.assertIn("timeout-minutes: 240", self.workflow)
 
     def test_third_party_actions_are_commit_pinned(self) -> None:
-        uses = re.findall(r"^\s*-?\s*uses:\s*([^\s#]+)", self.workflow, re.MULTILINE)
+        cache_action = "./.github/actions/rust-cache"
+        sources = self.workflow + "\n" + (ROOT / cache_action / "action.yml").read_text(
+            encoding="utf-8"
+        )
+        uses = re.findall(r"^\s*-?\s*uses:\s*([^\s#]+)", sources, re.MULTILINE)
         self.assertGreaterEqual(len(uses), 2)
         for action in uses:
+            if action == cache_action:
+                continue
             self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$")
         self.assertIn("persist-credentials: false", self.workflow)
 
