@@ -118,6 +118,7 @@ def affected(before, spec):
             if selected: tables.update((rel['szObject'], rel['szReferencedObject']))
             if kind in ('rename_table', 'rename_column') and table in (rel['szObject'], rel['szReferencedObject']):
                 relations.add(rel['szRelationship'])
+    tables.update(spec.get('affected_tables', []))
     objects.update(tables)
     return tables, objects, relations
 
@@ -177,7 +178,8 @@ def preserve(before, after, before_bytes, after_bytes, spec):
         if r['operation'] in ('update','replace','delete'): rewritten.add((r['table'],r['row']['page'],r['row']['slot']))
         if r['operation'] == 'create_column' and r['column']['type'] == 'auto_increment': auto_tables.add(r['table'])
     for name, old in before['tables'].items():
-        if name.startswith('MSys') or name in auto_tables: continue
+        # Cascaded rows are compared with the native image by semantics().
+        if name.startswith('MSys') or name in auto_tables or name in spec.get('affected_tables', []): continue
         new = after['tables'].get(renames.get(name,name))
         if new is None: continue
         indexed = {(r['locator']['page'],r['locator']['row']): r for r in new['rows']}

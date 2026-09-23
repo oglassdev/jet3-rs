@@ -54,7 +54,6 @@ pub(crate) fn drop_relationship(
             }
             let child_name = child;
             let child = crate::update::indexed_writable_table(database, &child_name, budget)?;
-            crate::relationship_catalog::load(database, &child, &child_name, budget)?;
             let catalog = crate::schema_catalog::table(database, b"MSysObjects", budget)?;
             let (object, id) = object(database, &catalog, name, budget)?;
             let flags = attributes
@@ -67,6 +66,7 @@ pub(crate) fn drop_relationship(
                     (None, catalog.root(), object, id, central.root(), records),
                 ));
             }
+            crate::relationship_catalog::load(database, &child, &child_name, budget)?;
             let foreign = child
                 .relationships()
                 .find(|relation| {
