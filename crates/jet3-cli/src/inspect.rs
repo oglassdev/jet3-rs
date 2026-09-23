@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 use jet3::{
     ByteCount, DatabaseReader, FileSource, PageKind, PageNumber, ReadLimits, ResourceBudget,
-    ResourceLimits, TableDefinition, TextCodePage, ValueKind,
+    ResourceLimits, TableDefinition, TableDefinitionKind, TableProperties, TextCodePage, ValueKind,
 };
 use serde_json::{Value, json};
 
@@ -224,6 +224,16 @@ fn inspect_database(
         let mut entry = definition_json(&definition, command.code_page);
         entry["name"] = name;
         entry["owned_pages"] = owned_pages_json(database, budget, root, &mut issues);
+        if definition.kind() == TableDefinitionKind::User {
+            match database.table_properties(&definition, budget) {
+                Ok(properties) => {
+                    entry["properties"] = properties_json(&properties, command.code_page);
+                }
+                Err(error) => issues.push(
+                    json!({"root": root, "operation": "properties", "error": error.to_string()}),
+                ),
+            }
+        }
         if command.rows {
             entry["rows"] = rows_json(
                 database,
@@ -274,6 +284,33 @@ fn hex_string(bytes: &[u8]) -> String {
     bytes.iter().fold(String::new(), |mut out, byte| {
         let _ = write!(out, "{byte:02x}");
         out
+    })
+}
+
+fn text_json(value: Option<&[u8]>, code_page: TextCodePage) -> Value {
+    value.map_or(Value::Null, |bytes| name_json(bytes, code_page))
+}
+
+fn properties_json(properties: &TableProperties, code_page: TextCodePage) -> Value {
+    let columns: Vec<Value> = properties
+        .columns()
+        .iter()
+        .map(|column| {
+            json!({
+                "ordinal": column.ordinal().get(),
+                "required": column.required(),
+                "allow_zero_length": column.allow_zero_length(),
+                "default_value": text_json(column.default_value(), code_page),
+                "validation_rule": text_json(column.validation_rule(), code_page),
+                "validation_text": text_json(column.validation_text(), code_page),
+                "description": text_json(column.description(), code_page),
+            })
+        })
+        .collect();
+    json!({
+        "validation_rule": text_json(properties.validation_rule(), code_page),
+        "validation_text": text_json(properties.validation_text(), code_page),
+        "columns": columns,
     })
 }
 

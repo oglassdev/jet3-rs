@@ -19,7 +19,7 @@ fn columns(name: &[u8]) -> [ColumnSpec<'_>; 2] {
 #[test]
 fn memo_property_encoder_matches_observed_named_block() -> Result<(), Box<dyn StdError>> {
     let fields = columns(b"M");
-    let property = crate::column_properties::ColumnProperties::new(
+    let property = crate::column_properties::CreationProperties::new(
         &fields,
         crate::TableValidation::NONE,
         &mut budget(),
@@ -48,7 +48,7 @@ fn memo_property_encoder_matches_observed_named_block() -> Result<(), Box<dyn St
     for invalid in [b"".as_slice(), &[b'x'; 65], &[0x81]] {
         let fields = columns(invalid);
         assert!(
-            crate::column_properties::ColumnProperties::new(
+            crate::column_properties::CreationProperties::new(
                 &fields,
                 crate::TableValidation::NONE,
                 &mut budget()

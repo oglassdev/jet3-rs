@@ -78,7 +78,7 @@ impl TextProperty {
 
 /// Complete creation-time payload of one table.
 #[derive(Debug, Clone)]
-pub(crate) struct ColumnProperties {
+pub(crate) struct CreationProperties {
     blob: PropertyBlob,
 }
 
@@ -88,7 +88,7 @@ fn has_text(column: &ColumnSpec<'_>) -> bool {
         .any(|property| property.of(column).is_some())
 }
 
-impl ColumnProperties {
+impl CreationProperties {
     /// Returns `None` when the table needs no payload or a name is outside the catalog grammar.
     pub(crate) fn new(
         columns: &[ColumnSpec<'_>],

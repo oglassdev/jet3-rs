@@ -44,7 +44,7 @@ pub(super) struct PlannedCreate<'a> {
     initial_autoincrement: Option<InitialAutoIncrement>,
     relationships: Vec<LogicalIndexSpec<'a>>,
     declared_indexes: usize,
-    properties: Option<crate::column_properties::ColumnProperties>,
+    properties: Option<crate::column_properties::CreationProperties>,
 }
 
 #[derive(Debug, Clone)]
@@ -149,9 +149,12 @@ impl<'a> PlannedCreate<'a> {
         crate::resource::reserve(&mut relationships, relations.len(), budget)?;
         relationships.extend_from_slice(relations);
         let long_value_count = long_value_columns(spec).count();
-        let properties =
-            crate::column_properties::ColumnProperties::new(spec.columns, spec.validation, budget)
-                .map_err(ComposeError::Properties)?;
+        let properties = crate::column_properties::CreationProperties::new(
+            spec.columns,
+            spec.validation,
+            budget,
+        )
+        .map_err(ComposeError::Properties)?;
         Ok(Self {
             spec,
             plan,
@@ -351,7 +354,7 @@ impl<'a> PlannedCreate<'a> {
             .transpose()
     }
 
-    fn column_properties(&self) -> Option<&crate::column_properties::ColumnProperties> {
+    fn column_properties(&self) -> Option<&crate::column_properties::CreationProperties> {
         self.properties.as_ref()
     }
 

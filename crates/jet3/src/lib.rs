@@ -105,6 +105,8 @@ pub mod page_image;
 pub mod page_kind;
 mod physical_index_definition;
 mod property_blob;
+#[cfg(test)]
+mod property_blob_tests;
 pub mod raw_page_stream;
 mod relationship_catalog;
 mod relationship_flags;
@@ -146,6 +148,7 @@ pub mod source;
 pub mod table_definition;
 mod table_definition_layout;
 pub mod table_definition_writer;
+mod table_properties;
 pub mod text;
 mod text_index_key;
 pub mod update;
@@ -206,7 +209,7 @@ pub use creation::{
 pub use database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 pub use database_header::{
     DATABASE_HEADER_PAGE_NUMBER, DatabaseFormatError, DatabaseHeaderPage, DatabaseHeaderPageError,
-    DatabaseProtection, DatabaseVersion, SupportedDatabaseFormat,
+    DatabaseProtection, DatabaseVersion, SortOrder, SupportedDatabaseFormat,
 };
 pub use definition_name::{DefinitionName, DefinitionNameEncoding};
 pub use delete::{RowDelete, delete_row};
@@ -249,6 +252,7 @@ pub use table_definition_writer::{
     LongValueMapSpec, PhysicalIndexFlagsSpec, TableDefinitionSpec, TableDefinitionWriteError,
     encode_table_definition, table_definition_len,
 };
+pub use table_properties::{ColumnProperties, TableProperties};
 pub use text::{DecodedText, TextCodePage, TextError};
 pub use update::{FieldUpdate, UpdateError, update_field};
 pub use usage_map::{UsageMapError, UsageMapRecord, locate_usage_map};

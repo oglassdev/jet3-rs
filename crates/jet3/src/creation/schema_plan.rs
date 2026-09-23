@@ -580,7 +580,7 @@ fn assign_pages(
     let map_pages = map_rows.div_ceil(MAP_ROWS_PER_PAGE);
     // EXP-0266: column properties also occur on later tables and can be chained.
     let property_pages =
-        crate::column_properties::ColumnProperties::new(spec.columns, spec.validation, budget)
+        crate::column_properties::CreationProperties::new(spec.columns, spec.validation, budget)
             .map_err(|error| match error {
                 crate::ColumnPropertyError::Resource(error) => {
                     TableSchemaPlanError::Resource(error)

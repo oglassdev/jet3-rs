@@ -28,7 +28,10 @@ pub(crate) fn set(
             let table = crate::update::indexed_writable_table(database, table, budget)?;
             if edit.required.is_none()
                 && edit.allow_zero_length.is_none()
-                && edit.text.iter().all(|change| matches!(change, PropertyChange::Keep))
+                && edit
+                    .text
+                    .iter()
+                    .all(|change| matches!(change, PropertyChange::Keep))
             {
                 return Err(UpdateError::Unsupported("no properties requested"));
             }
@@ -120,7 +123,10 @@ fn apply(
             PropertyChange::Clear => blob.ordinal(property.name()).map(|name| (name, None)),
             PropertyChange::Set(value) => {
                 let name = blob.intern(property.name(), budget)?;
-                Some((name, Some(text_record(property, kind, name, value, budget)?)))
+                Some((
+                    name,
+                    Some(text_record(property, kind, name, value, budget)?),
+                ))
             }
         };
     }
@@ -145,7 +151,10 @@ fn apply(
     // EXP-0297: an absent AllowZeroLength record is appended before Required.
     for (name, value) in [(allow, edit.allow_zero_length), (required, edit.required)] {
         if let (Some(name), Some(value)) = (name, value) {
-            block.set(crate::schema_properties::boolean(name, value, budget)?, budget)?;
+            block.set(
+                crate::schema_properties::boolean(name, value, budget)?,
+                budget,
+            )?;
         }
     }
     for (name, record) in records.into_iter().flatten() {
@@ -181,7 +190,13 @@ fn text_record(
         let mut terminated = crate::property_blob::owned(value, budget)?;
         crate::resource::reserve(&mut terminated, 1, budget)?;
         terminated.push(0);
-        Record::new(property.flag(), property.field_kind(), name, &terminated, budget)?
+        Record::new(
+            property.flag(),
+            property.field_kind(),
+            name,
+            &terminated,
+            budget,
+        )?
     } else {
         Record::new(property.flag(), property.field_kind(), name, value, budget)?
     };

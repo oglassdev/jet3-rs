@@ -2,7 +2,7 @@
 use std::{ffi::OsString, path::PathBuf};
 
 use crate::names::Name;
-use crate::schema_input::{Column, Index, Relation};
+use crate::schema_input::{Column, Index, Relation, validation};
 use crate::values::{self, Cell};
 use jet3::{
     RowValue, TableRows, TableSpec, create_database, create_database_with_relationship,
@@ -62,6 +62,8 @@ struct Table {
     indexes: Vec<Index>,
     #[serde(default)]
     rows: Vec<Vec<Option<Cell>>>,
+    validation_rule: Option<Name>,
+    validation_text: Option<Name>,
 }
 
 pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
@@ -118,7 +120,10 @@ pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
         .enumerate()
         .map(|(n, table)| TableRows {
             table: TableSpec {
-                validation: jet3::TableValidation::NONE,
+                validation: validation(
+                    table.validation_rule.as_ref(),
+                    table.validation_text.as_ref(),
+                ),
                 name: table.name.bytes(),
                 columns: &columns[n],
                 indexes: &indexes[n],

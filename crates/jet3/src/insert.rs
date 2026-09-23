@@ -75,6 +75,7 @@ where
     HE: StdError + Send + Sync + 'static,
 {
     let mut database = DatabaseReader::open(path, budget)?;
+    crate::update::require_general_sort_order(&database)?;
     let definition = crate::update::indexed_writable_table(&mut database, table, budget)?;
     let (edits, row) = plan(&mut database, &definition, table, values, true, budget)?;
     edits.publish(path, database, budget, hook)?;

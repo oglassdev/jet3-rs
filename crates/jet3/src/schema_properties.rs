@@ -79,7 +79,10 @@ fn parse(bytes: &[u8], budget: &mut ResourceBudget) -> Result<PropertyBlob, Upda
     }
 }
 
-pub(crate) fn encode(blob: &PropertyBlob, budget: &mut ResourceBudget) -> Result<Vec<u8>, UpdateError> {
+pub(crate) fn encode(
+    blob: &PropertyBlob,
+    budget: &mut ResourceBudget,
+) -> Result<Vec<u8>, UpdateError> {
     Ok(blob.encode(budget)?)
 }
 
@@ -152,7 +155,13 @@ pub(crate) fn boolean(
     value: bool,
     budget: &mut ResourceBudget,
 ) -> Result<Record, UpdateError> {
-    Ok(Record::new(1, BOOLEAN, name, &[if value { 0xff } else { 0 }], budget)?)
+    Ok(Record::new(
+        1,
+        BOOLEAN,
+        name,
+        &[if value { 0xff } else { 0 }],
+        budget,
+    )?)
 }
 
 /// Removes the column's field block; dictionary names are retained.

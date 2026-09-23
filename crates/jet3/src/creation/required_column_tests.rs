@@ -201,7 +201,7 @@ fn required_property_corruption_and_stored_nulls_are_reported() -> TestResult {
         indexes: &[],
     };
     create_database_with_rows(&path, &table, &[&[RowValue::Long(1)]], &mut budget())?;
-    let property = crate::column_properties::ColumnProperties::new(
+    let property = crate::column_properties::CreationProperties::new(
         &columns,
         crate::TableValidation::NONE,
         &mut budget(),
@@ -300,7 +300,7 @@ fn missing_zero_length_properties_do_not_disable_empty_strings() -> TestResult {
             let mut encoded = b"KKD\0\x06\0\0\0\x80\0".to_vec();
             if let Some(property_column) = property_column {
                 let property_columns = [property_column];
-                let properties = crate::column_properties::ColumnProperties::new(
+                let properties = crate::column_properties::CreationProperties::new(
                     &property_columns,
                     crate::TableValidation::NONE,
                     &mut budget(),

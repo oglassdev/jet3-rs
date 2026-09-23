@@ -4,8 +4,8 @@
 //! the generic Jet signature at offset `0x4` (`SRC-0004`), the 2 KiB page
 //! geometry (`SRC-0005`), and the raw commit slots in `[0x600, 0x800)`
 //! (`SRC-0013`). `EXP-0056` additionally supports the narrow, fail-closed
-//! opening discriminator implemented here. No other page-zero byte is
-//! interpreted.
+//! opening discriminator implemented here, and `EXP-0299` the raw
+//! sort-order marker. No other page-zero byte is interpreted.
 
 use std::fmt;
 
@@ -22,6 +22,23 @@ const PASSWORD_STATE_END: usize = 0x50;
 const JET3_NO_PASSWORD_STATE: [u8; PASSWORD_STATE_END - PASSWORD_STATE_START] = [
     0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
 ];
+
+const SORT_ORDER_START: usize = 0x3a;
+/// EXP-0299: raw page-zero bytes `0x3a..0x3e` of every observed General
+/// (LANGID 0x0409, code page 1252) database; other sort orders change them.
+const GENERAL_SORT_ORDER: [u8; 4] = [0xed, 0xc7, 0x9f, 0x46];
+
+/// Database sort order recorded on page zero (EXP-0299).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SortOrder {
+    /// The General (English-US, code page 1252) order that Rust writes.
+    General,
+    /// Any other raw page-zero marker. Reading is supported; writing is refused.
+    Other {
+        /// Raw page-zero bytes `0x3a..0x3e`.
+        raw: [u8; 4],
+    },
+}
 
 /// Physical page number of the documented database-header page.
 ///
@@ -154,6 +171,18 @@ impl DatabaseHeaderPage {
     #[must_use]
     pub const fn commit_region(&self) -> &CommitRegion {
         &self.commit_region
+    }
+
+    /// Returns the database sort order from its raw page-zero marker.
+    #[must_use]
+    pub fn sort_order(&self) -> SortOrder {
+        let mut raw = [0; 4];
+        raw.copy_from_slice(&self.raw[SORT_ORDER_START..SORT_ORDER_START + 4]);
+        if raw == GENERAL_SORT_ORDER {
+            SortOrder::General
+        } else {
+            SortOrder::Other { raw }
+        }
     }
 
     /// Validates the supported Jet 3, unencrypted, no-password opening state.
