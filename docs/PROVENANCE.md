@@ -20439,3 +20439,84 @@ little-endian at bytes 9..13: `09 04 e4 04`, `1d 04 e4 04`, `0a 04 e4 04`,
 `13 04 e4 04`, `19 04 e3 04` and `08 04 e5 04`. Catalog index keys differ as
 well. Replicas agree on all of these bytes. All 6,001 Jet 3 images in the local
 evidence archive carry the General page-zero bytes.
+
+## EXP-0300 — LvProp storage limit and text-property DAO acceptance
+
+On 2026-09-23 the same local x86 DAO 3.6 environment as EXP-0299 (DLL
+03.60.9765.0, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`, Windows
+10.0.20348, en-US/ANSI 1252) produced the native controls below. No MDB
+implementation source was consulted. The durable private bundle is
+`checks/20260923-schema-expressions-acceptance` beneath the local VM share; its
+`SHA256SUMS` (3,696 files) has SHA-256
+`015ab20d1a83b2f3dbef66551a98515c9e81e75c2ceba92a3fea7948468f4010`.
+
+### LvProp single-page limit
+
+Runs `20260923T042403Z-lvprop-threshold` and
+`20260923T042419Z-lvprop-threshold-fine` created one-table databases whose Memo field received a DefaultValue before
+append, a ValidationText after append, or a one-byte ValidationText later grown.
+In all three histories an `MSysObjects.LvProp` payload of up to 1,776 bytes is
+stored single-page (header flag `0x40000000`) and one of 1,777 bytes or more is
+chained, one fragment through 2,015 tested bytes and two at 2,065, with the
+EXP-0061 2,032-byte fragments. The fine run tested every payload from 1,765 to
+1,815 bytes. EXP-0299's statement that payloads from 1,024 bytes are chained was
+an extrapolation from its larger controls; 1,776 is the observed limit. User
+Memo/OLE storage is unchanged by this observation.
+
+### Differential acceptance
+
+Accepted run `acceptance-r5` froze source
+`d9ae0df07c3f8952a07bed964e6f3ee507e4f4be` (CLI SHA-256
+`9b83ab92bb15a887a11720fecc17aee7c1dba1245a760afdea8c1d3f8d08b6b8`). Native run
+`20260923T044405Z-textprops-native-r5` applied `text_property_suite.py`
+requests through `text_property_native.ps1`; six observer batches read all 135
+images back with `schema_candidate_observer.ps1`.
+
+- **Creation:** 21 schemas in two native replicas (42 pairs) cover field
+  DefaultValue/ValidationRule/ValidationText/Description on all 15 kinds, table
+  rules and messages, Required/AllowZeroLength mixes, CP1252 accents, chained and
+  boundary payloads (1,776/1,777 bytes), relationships, and all seven valid
+  index class x null-policy options over plain, AllowZeroLength, Required and
+  Required+AllowZeroLength keys with rows. Complete DAO property collections,
+  values and index traversals are equal for all 42 pairs; the raw LvProp payload,
+  header word and fragment lengths are equal for every table. 40 pairs also match
+  LvProp available-map membership. In both `c21-property-boundary` replicas DAO
+  wrote table `Single`'s 1,776-byte payload onto a bootstrap page holding three
+  deleted slots (254 free bytes) and left it unavailable; Rust places it on a
+  fresh page (260 free) and lists it available, as DAO does for the same
+  1,776-byte payload with 260 free bytes in `e24`. This placement-dependent
+  difference is retained as a failure of the strict comparison.
+- **Edits:** 28 set/change/clear, column add/rename/drop, table create, rule
+  edit and index-replacement cases run on native, Rust-created and #379 baseline
+  inputs, with and without rows and with chained payloads, including 1,776/1,777
+  boundaries through property edits, CreateColumn, CreateTable and a rename that
+  shrinks a chained payload to single-page. 24 succeed in both engines; four
+  are refused by both (DAO 3313 twice, 3022, 3058). Eight Rust-only refusals
+  cover rule-bearing tables (insert, field rule), Nordic sort order (edit and
+  insert), an AutoIncrement default at creation, an empty value, and 2,049-byte
+  field and table values that DAO would accept. All 36 pairs compare equal
+  after normalizing only the dates of the named affected tables, and every
+  refusal leaves its input byte-for-byte unchanged. Raw LvProp payloads and
+  storage of all 24 accepted cases match.
+- **Preservation:** the EXP-0298 raw evaluator passed all 34 General-sort-order
+  cases, checking 856 unrelated pages and 1,071 unrelated system rows exactly.
+  Its first comparison failed because the manifest omitted independently
+  allocated map roles for `e26`–`e28` (new Memo column maps and the LvProp
+  available map); after listing them the same observations pass. Both
+  comparisons are retained. The two Nordic inputs are excluded from that
+  evaluator, whose keys assume General collation; their refusals are byte-exact.
+- **Replay:** the frozen CLI reproduces all 44 EXP-0298 candidates and all 252
+  EXP-0285 presence mutations byte for byte. Of 208 EXP-0284 Required-column
+  outputs, 196 are identical; the 12 Boolean outputs differ exactly as main
+  `06f53d2` differs since #374 changed Boolean property payloads, and all 208
+  are identical to main's output.
+
+Retained superseded runs: r1 (wrong harness expectation), r2 (AutoIncrement
+Description placement, fixed), r3 (1,777–2,036-byte payloads stored
+single-page; readback stopped after three batches), and r4 (CreateColumn and
+rename LvProp writers lacked the limit). GPT-5.6 Sol high reviewed four rounds;
+all substantive findings were fixed, and the final round found none. This
+accepts the finite text-property inventory above; Jet expression evaluation,
+default application, non-General writes and the c21 available-map placement
+remain outside it.
