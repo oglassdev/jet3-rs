@@ -274,7 +274,10 @@ def edits():
             "index": {"name": "Needed", "kind": "ordinary", "null_policy": "required", "fields": [{"column": "K"}]}}),
             expected_returncode=1)], []),
     ]
-    return [{"name": name, "input": source, "steps": steps, "normalize_table_dates": dates}
+    # EXP-0297: a newly Required column retains old nulls, which validation reports.
+    invalid = {"e05-column-after-table-block"}
+    return [{"name": name, "input": source, "steps": steps, "normalize_table_dates": dates,
+             "validation_returncode": int(name in invalid)}
             for name, source, steps, dates in cases]
 
 

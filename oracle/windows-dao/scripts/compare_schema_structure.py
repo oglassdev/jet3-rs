@@ -220,7 +220,8 @@ def compare(before, candidate, native, before_bytes, candidate_bytes, native_byt
     for role, a in candidate['maps'].items():
         b = native['maps'][role]
         if a == b: continue
-        require(role=='global' or role in PLACEMENT_ROLES.get(spec['name'],set()), 'unlisted placement: '+role)
+        allowed = PLACEMENT_ROLES.get(spec['name'], set()) | set(spec.get('placement_roles', []))
+        require(role=='global' or role in allowed, 'unlisted placement: '+role)
         for key in ('kind','length','start','references'):
             require(a['record'][key]==b['record'][key], 'map framing: '+role+'/'+key)
         if role!='global': require(len(a['members'])==len(b['members']), 'same complete role capacity: '+role)

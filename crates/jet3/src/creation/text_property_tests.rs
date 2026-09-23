@@ -254,12 +254,28 @@ fn non_general_sort_orders_are_readable_but_not_writable() -> TestResult {
         &[table(b"T", &columns, TableValidation::NONE)],
         &mut budget(),
     )?;
-    let mut bytes = fs::read(&path)?;
-    // EXP-0299: the Nordic database differs from General only at 0x3a here.
-    bytes[0x3a] = 0xf9;
-    fs::write(&path, &bytes)?;
     let mut work = budget();
+    let root = {
+        let mut db = DatabaseReader::open(&path, &mut work)?;
+        crate::update::indexed_writable_table(&mut db, b"T", &mut work)?.root()
+    };
+    let mut bytes = fs::read(&path)?;
+    // EXP-0299: Nordic marks page zero at 0x3a and each column record's context.
+    bytes[0x3a] = 0xf9;
+    let definition = root.get() as usize * crate::PAGE_BYTES;
+    let page = &mut bytes[definition..definition + crate::PAGE_BYTES];
+    let context = page
+        .windows(4)
+        .position(|window| window == [0x09, 0x04, 0xe4, 0x04])
+        .ok_or("column context")?;
+    page[context] = 0x1d;
+    fs::write(&path, &bytes)?;
     let mut db = DatabaseReader::open(&path, &mut work)?;
+    let table = db.table_definition(root, &mut work)?;
+    assert_eq!(
+        table.columns()[0].raw_encoding_context(),
+        &[0x1d, 0x04, 0xe4, 0x04]
+    );
     assert_eq!(
         db.header().sort_order(),
         SortOrder::Other {
@@ -275,5 +291,13 @@ fn non_general_sort_orders_are_readable_but_not_writable() -> TestResult {
     };
     assert!(edit_schema(&path, edit, &mut budget()).is_err_and(refused));
     assert_eq!(fs::read(&path)?, bytes);
+    let mut unobserved = bytes.clone();
+    unobserved[definition + context + 2] = 0xe5;
+    fs::write(&path, &unobserved)?;
+    let mut db = DatabaseReader::open(&path, &mut work)?;
+    assert!(matches!(
+        db.table_definition(root, &mut work),
+        Err(crate::TableDefinitionError::InvalidColumnEncodingContext { .. })
+    ));
     Ok(())
 }
