@@ -20618,3 +20618,73 @@ relationships and join attributes are interpreted for writes; the one-to-one
 attribute, 65536 and other unknown bits are preserved and counted as
 uninterpreted; row writes to their tables and dropping those tables refuse.
 
+
+## EXP-0302 — Relationship-form DAO acceptance
+
+On 2026-09-23 the EXP-0301 DAO environment (DLL 03.60.9765.0, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`, Windows
+10.0.20348, en-US/ANSI 1252) ran `relationship_forms_suite.ps1` over the
+requests planned by `relationship_forms_suite.py` (native run
+`20260923T152930Z-relforms-native-acceptance-r1`). Accepted run
+`acceptance-r1` froze source `b02debc3e544a97e357cd766d61337fc4f31c363` (CLI
+SHA-256 `42699379ca3f5f94613fe884823a7ea38d39936c4033e9b862564ef299e9b8d9`).
+No MDB implementation source was consulted. The private bundle is
+`checks/20260923-relationship-forms-acceptance` beneath the VM share; its
+`SHA256SUMS` (2,398 files) has SHA-256
+`2d74f53caf46d3885fd89262428d09115ac6dcb94c6ad9478f67cfc5acfcf2a5`.
+
+DAO built three inputs: `base` (five populated tables with Memo/OLE payloads
+of up to 6,000 bytes and a saved query), `mixed` (base plus enforced,
+unenforced, unenforced left-join and right-join cascading relationships sharing
+tables) and `forms` (mixed forms plus an eleven-component unenforced
+relationship, a one-to-one relationship, attribute 65536 and both join bits).
+
+- **DAO pairs.** 50 native/candidate pairs compare equal through the complete
+  `schema_candidate_observer.ps1` readback (tables, properties, rows, index
+  traversals, relations and saved queries), normalizing only `DateCreated` and
+  `LastUpdated` of the edited tables and enforced-relationship endpoints named
+  in each manifest case. They are one database creation with join types and
+  cascades (Rust `create` against a DAO-built equivalent), 40 accepted edits
+  and nine refusals. The edits cover unenforced creation over unique,
+  non-unique, Memo, OLE, mismatched, composite, self and eleven-column keys;
+  each join type unenforced and enforced with cascades; a five-relationship
+  mixed graph; orphan inserts/updates and parent deletes permitted by
+  unenforced relationships while enforced checks and cascades on the same
+  tables stay active; drop and replacement across enforcement and join types;
+  table drops, table/column renames and an unrelated column drop with
+  unenforced endpoints; and unrelated writes in the `forms` database. The nine
+  refusals (unenforced cascade 3001, enforced Memo/OLE 3409, non-unique parent
+  3609, mismatched types 3368, duplicate name 3012, orphan parent delete 3200,
+  enforced parent table drops 3281) leave the Rust input byte-for-byte
+  unchanged; DAO's Memo/OLE/non-unique/mismatch refusals leave the six-byte
+  counter residue of EXP-0298.
+- **Separate refusals.** Three Rust refusals have DAO side effects checked
+  separately in `OUTCOMES.json`: an enforced orphan insert (DAO raises the child
+  primary index DistinctCount by one) and two relationship key-column drops
+  (DAO reports 3303 yet drops the column, EXP-0301). Two Rust-only refusals,
+  inserts into children of the one-to-one and 65536 relationships, succeed in
+  DAO. All five leave the Rust input unchanged.
+- **Raw preservation.** The EXP-0298 raw evaluator passed all 40 accepted
+  edits, checking 680 unrelated pages, 1,606 unrelated system rows and 594
+  unrelated catalog objects exactly. New foreign-index trees and relationship
+  catalog map rows are placed independently in seven cases, listed per case.
+- **Reader.** `DatabaseReader::relationship_catalog` agrees with the DAO
+  Relations getters (name, tables, attributes, ordered fields) for all 292
+  relationships in all 104 native, candidate and input images.
+- **Replay.** The frozen binaries reproduce, byte for byte, the accepted
+  outputs of EXP-0298 (44), EXP-0285 (252), EXP-0300 (57), #378 cascades (168),
+  #376 scalar keys (546), #377 composites (278), #375 descending parents (102),
+  #372 larger graphs (100) and #371 relationship indexes (112). EXP-0284
+  reproduces 196 of 208; the 12 Boolean outputs match main `b1a9278`, as in
+  EXP-0300.
+
+Final source `a96d5b3` changes only the CLI `inspect` join spelling, its test
+and README; it regenerates all 55 candidates of the accepted manifest and
+repeats the replay byte for byte. Superseded runs are retained: `dev5`
+(orphan-insert DistinctCount residue first classified as a pair failure, and a
+reader parsing crash) and four harness-development native runs. Rounds one
+and two of independent review used GPT-5.6 Sol high, rounds three and four
+GPT-6 Sol high; the fixed findings were the ten-column cap on unenforced
+creation and the inspect join spelling. This accepts the finite inventory
+above; one-to-one and unknown-attribute writes, the Inherited attribute
+(refused by DAO on local tables) and linked tables remain outside it.

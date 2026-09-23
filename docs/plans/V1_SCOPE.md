@@ -244,7 +244,11 @@ tables refuse. DAO refuses enforced relationships over Memo/OLE keys,
 non-unique parents or mismatched types, cascades on unenforced relationships and
 the Inherited attribute on local tables; Rust refuses them too. DAO cannot
 rename a relationship or change its attributes after creation, so neither can
-Rust; replacement is the supported change.
+Rust; replacement is the supported change. EXP-0302 accepts 50 DAO pairs (a join-type
+creation, 40 edits and nine byte-exact refusals) over these forms, five
+separately checked refusals, raw preservation of all accepted edits, reader
+agreement for 292 relationships and byte-identical replay of the accepted
+outputs of #371 through #381.
 
 Column deletion retains the surviving storage IDs and existing row bytes.
 Public column ordinals remain dense positions in the live definition. Appended
