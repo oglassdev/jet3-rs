@@ -265,7 +265,12 @@ fn inspect_database(
                     "enforced": relation.enforced(),
                     "cascade_updates": relation.cascade_updates(),
                     "cascade_deletes": relation.cascade_deletes(),
-                    "join": format!("{:?}", relation.join()),
+                    "join": match relation.join() {
+                        jet3::RelationshipJoin::Inner => "inner",
+                        jet3::RelationshipJoin::Left => "left",
+                        jet3::RelationshipJoin::Right => "right",
+                        jet3::RelationshipJoin::LeftAndRight => "left_and_right",
+                    },
                     "interpreted": relation.interpreted(),
                 })
             })

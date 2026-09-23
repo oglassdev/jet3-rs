@@ -29,7 +29,8 @@ the table `validation_rule`/`validation_text` and, per column ordinal,
 and Rust store a rule assigned to an existing field with one trailing NUL.
 `relationships` lists every `MSysRelationships` relationship, including
 unenforced ones without index records: names, ordered field pairs,
-`raw_attributes`, the decoded `enforced`, cascade and `join` values, and whether
+`raw_attributes`, the decoded `enforced`, cascade and `join` values (`join` uses
+the schema request spelling), and whether
 writes interpret it. `--page` cannot be combined with `--table` or `--rows`.
 
 A complete requested inspection returns `ok: true` and exit 0. If a table,
@@ -212,7 +213,8 @@ ordinary tables. Each array entry can set `"cascade_updates": true` and/or
 ```
 
 Place this array alongside the `tables` request. The singular `relationship`
-interface retains its non-cascading two-table bounds.
+interface retains its non-cascading, inner-join two-table bounds; use the array
+for cascades or join types.
 
 `schema` applies one public schema edit to an existing database:
 
