@@ -255,8 +255,9 @@ store column DefaultValue, ValidationRule, ValidationText and Description and
 table ValidationRule and ValidationText as opaque CP1252 text of 1 to 2,048 bytes
 without NUL. The library reads them through `DatabaseReader::table_properties`.
 One lossless LvProp model serves reads, creation and every property edit, retaining
-unknown blocks, records and dictionary names byte-for-byte. EXP-0299 records the
-native layouts; EXP-0300 records the DAO acceptance.
+unknown blocks, records and dictionary names byte-for-byte. Property payloads
+above 1,776 bytes are chained, as DAO stores them. EXP-0299 records the native
+layouts; EXP-0300 records the storage limit and the DAO acceptance.
 
 Jet expressions are not parsed or evaluated. DAO refuses malformed expressions on
 assignment; Rust stores what the caller supplies. Defaults are never applied: rows
