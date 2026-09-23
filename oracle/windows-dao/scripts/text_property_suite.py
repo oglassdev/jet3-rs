@@ -305,6 +305,9 @@ def rust_only():
         ("x05-autoincrement-default", "baseline", schema({"operation": "create_column", "table": "Target",
                                                            "column": column("Serial", "auto_increment", default_value="1")})),
         ("x06-empty-set", "baseline", props("Target", "Label", validation_text="")),
+        # DAO accepts up to 4,000 bytes (EXP-0299); Rust limits each value to 2,048.
+        ("x07-over-limit-field", "baseline", props("Target", "Label", description=long_text("o", 2049))),
+        ("x08-over-limit-table", "r-c09", table_props("Checked", validation_text=long_text("t", 2049))),
     ]
 
 
