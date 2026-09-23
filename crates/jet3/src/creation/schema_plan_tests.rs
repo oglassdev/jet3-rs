@@ -28,6 +28,7 @@ fn spec<'a>(
     indexes: &'a [IndexSpec<'a>],
 ) -> TableSpec<'a> {
     TableSpec {
+        validation: crate::TableValidation::NONE,
         name,
         columns,
         indexes,
@@ -704,4 +705,41 @@ fn schema_name_comparisons_charge_work_before_scanning() {
         ))
     ));
     assert_eq!(limited.total_work_units(), 0);
+}
+
+#[test]
+fn property_payloads_above_the_native_single_page_limit_are_chained() -> PlanResult {
+    // EXP-0300: DAO chains LvProp payloads above 1,776 bytes; fragments hold 2,032.
+    let text = [b'd'; 2048];
+    let len = |width: usize| -> Result<usize, TableSchemaPlanError> {
+        let columns = [ID, NOTE.with_description(&text[..width])];
+        crate::column_properties::CreationProperties::new(
+            &columns,
+            crate::TableValidation::NONE,
+            &mut budget(),
+        )
+        .ok()
+        .flatten()
+        .map(|properties| properties.len())
+        .ok_or(TableSchemaPlanError::InvalidTextProperty {
+            column: None,
+            property: b"",
+            detail: "test payload",
+        })
+    };
+    let base = len(100)? - 100;
+    for (payload, chained, pages) in [
+        (1776, false, 1),
+        (1777, true, 1),
+        (2032, true, 1),
+        (2033, true, 2),
+    ] {
+        let description = &text[..payload - base];
+        let columns = [ID, NOTE.with_description(description)];
+        assert_eq!(len(payload - base)?, payload);
+        let plan = plan_table_schema(&spec(b"Props", &columns, &[]), 23, false, &mut budget())?;
+        assert_eq!(plan.property_chained(), chained, "{payload}");
+        assert_eq!(plan.property_page_count(), pages, "{payload}");
+    }
+    Ok(())
 }

@@ -75,6 +75,7 @@ impl Fixture {
         crate::create_database_with_rows(
             &path,
             &TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Rows",
                 columns: &columns,
                 indexes: if indexed { &indexes } else { &[] },
@@ -527,6 +528,7 @@ fn boolean_zero_and_legacy_offsets_reach_public_row_replacement() -> TestResult 
     crate::create_database_with_rows(
         f.path(),
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Rows",
             columns: &columns,
             indexes: &[],

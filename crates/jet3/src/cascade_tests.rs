@@ -53,6 +53,7 @@ const INDEXES: &[IndexSpec<'_>] = &[
 ];
 fn table(name: &'static [u8], parent: bool) -> TableSpec<'static> {
     TableSpec {
+        validation: crate::TableValidation::NONE,
         name,
         columns: COLUMNS,
         indexes: if parent { INDEXES } else { &INDEXES[..1] },
@@ -350,6 +351,7 @@ fn cascade_self_replacement_preserves_the_explicit_foreign_key() -> TestResult {
             &path,
             &[TableRows {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"Node",
                     columns: &columns,
                     indexes: INDEXES,
@@ -458,6 +460,7 @@ fn cascade_composite_null_tuples_match_exactly_and_update_each_row_once() -> Tes
         &[
             TableRows {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"Parent",
                     columns: &columns,
                     indexes: &indexes,
@@ -466,6 +469,7 @@ fn cascade_composite_null_tuples_match_exactly_and_update_each_row_once() -> Tes
             },
             TableRows {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"Child",
                     columns: &columns,
                     indexes: &indexes[..1],

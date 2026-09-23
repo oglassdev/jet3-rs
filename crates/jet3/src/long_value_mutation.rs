@@ -2,8 +2,8 @@
 //! EXP-0234 separates single/chained pools; EXP-0235 permits empty deleted
 //! sibling slots. The inline cutoff and packing remain writer policies.
 use crate::long_value_writer::{
-    HEADER_LEN, MAX_CHAINED_FRAGMENT, MAX_SINGLE_PAGE_PAYLOAD, encode_chained_row,
-    encode_inline_long_value, external_long_value_header,
+    HEADER_LEN, MAX_CHAINED_FRAGMENT, MAX_SINGLE_PAGE_PAYLOAD, MAX_SINGLE_PAGE_PROPERTY_PAYLOAD,
+    encode_chained_row, encode_inline_long_value, external_long_value_header,
 };
 use crate::page_edits::{PageEdits, reserve};
 use crate::{
@@ -37,6 +37,8 @@ pub(crate) struct LongValues {
     pages: Vec<PayloadPage>,
     first_append: u64,
     append_count: u64,
+    /// The catalog `LvProp` column, stored under the `EXP-0300` single-page limit.
+    property_column: Option<usize>,
 }
 
 struct PayloadHeader {
@@ -182,7 +184,12 @@ impl LongValues {
                     .map_err(|_| UpdateError::Unsupported("inline long-value encoding"))?;
             } else {
                 // Validate the 24-bit declared length before reserving any fragments.
-                let storage = if payload.len() <= MAX_SINGLE_PAGE_PAYLOAD {
+                let limit = if self.property_column == Some(ordinal) {
+                    MAX_SINGLE_PAGE_PROPERTY_PAYLOAD
+                } else {
+                    MAX_SINGLE_PAGE_PAYLOAD
+                };
+                let storage = if payload.len() <= limit {
                     ExternalLongValueStorage::SinglePage
                 } else {
                     ExternalLongValueStorage::Chained

@@ -243,11 +243,40 @@ behavior. EXP-0298 accepts 44 native/candidate schema pairs (38 edits and six
 byte-atomic Rust refusals), complete DAO snapshots of all 88 outputs, raw checks
 of all 132 input/output images and five successful native continuation lineages.
 Independent review and `just ready` passed on the final production source.
-Defaults and validation expressions remain opaque and
-cannot be authored through this API. In-place column type/size and index-option
-assignments are refused by DAO; index options can be changed by atomic
-replacement, while column conversion is outside this API. Other code pages,
-unsupported relationship forms and wider preservation/release gates remain open.
+In-place column type/size and index-option assignments are refused by DAO;
+index options can be changed by atomic replacement, while column conversion is
+outside this API. Unsupported relationship forms and wider preservation/release
+gates remain open.
+
+### Column and table text properties
+
+Creation, `CreateColumn`/`CreateTable` and `SetColumnProperties`/`SetTableProperties`
+store column DefaultValue, ValidationRule, ValidationText and Description and
+table ValidationRule and ValidationText as opaque CP1252 text of 1 to 2,048 bytes
+without NUL. The library reads them through `DatabaseReader::table_properties`.
+One lossless LvProp model serves reads, creation and every property edit, retaining
+unknown blocks, records and dictionary names byte-for-byte. Property payloads
+above 1,776 bytes are chained, as DAO stores them. EXP-0299 records the native
+layouts; EXP-0300 records the storage limit and the DAO acceptance: 42 creation
+pairs, 36 edit/refusal pairs and byte-identical replay of the earlier schema-edit
+and property outputs. One placement-dependent LvProp available-map difference
+(`c21`) is retained.
+
+Jet expressions are not parsed or evaluated. DAO refuses malformed expressions on
+assignment; Rust stores what the caller supplies. Defaults are never applied: rows
+store the supplied values, including explicit nulls, as DAO does. While a table or
+any of its columns stores a nonempty ValidationRule, inserts, row replacements,
+field updates, cascaded child updates, AutoIncrement column backfills and
+creation with initial rows are refused with the file unchanged. Clearing the rule restores writes. Binary, OLE and GUID
+columns refuse validation properties, and new AutoIncrement columns refuse
+expressions that DAO would drop. Access-layer properties such as Format, Caption
+and InputMask are preserved but cannot be authored.
+
+Databases whose page-zero sort order is not General are readable, including the
+observed Nordic, Spanish, Dutch, Cyrillic and Greek column contexts; their text
+indexes remain uninterpreted. Every mutation and schema edit refuses them with the
+file unchanged. Other code pages, in-place type/size changes, and Memo/OLE indexes
+remain outside v1 writes.
 New catalog objects, including replacement relationships, use the existing
 deterministic zero-date writer policy. Surviving object timestamps are retained.
 

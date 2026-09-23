@@ -147,6 +147,7 @@ fn create(arm: &Value, output: &Path, replicas: u64) -> Result<()> {
     let requests = [
         TableRows {
             table: TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: b"Parent",
                 columns: &parent_columns,
                 indexes: &parent_indexes,
@@ -155,6 +156,7 @@ fn create(arm: &Value, output: &Path, replicas: u64) -> Result<()> {
         },
         TableRows {
             table: TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: b"Child",
                 columns: &columns,
                 indexes: &child_indexes,

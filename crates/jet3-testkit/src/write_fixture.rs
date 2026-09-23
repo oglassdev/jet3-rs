@@ -265,6 +265,7 @@ pub fn write_fixture(id: &str, output: &Path) -> Result<()> {
         .enumerate()
         .map(|(n, table)| TableRows {
             table: TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: table.name.as_bytes(),
                 columns: &columns[n],
                 indexes: &indexes[n],

@@ -2,7 +2,8 @@
 use crate::{
     ByteCount, ColumnOrdinal, ColumnPropertyError, DatabaseReader, InlineLongValue, LongValue,
     LongValueChunkValue, LongValueReference, PageNumber, ReadAt, ResourceBudget, TableDefinition,
-    TextCodePage, ValueKind, column_property_reader::ColumnOptions, mutation_map::MapBits,
+    TextCodePage, ValueKind, column_property_reader::PropertyOptions, mutation_map::MapBits,
+    property_blob::PropertyBlob,
 };
 
 enum Payload {
@@ -93,7 +94,20 @@ impl Properties {
         database: &mut DatabaseReader<S>,
         table: &TableDefinition,
         budget: &mut ResourceBudget,
-    ) -> Result<[ColumnOptions; 255], ColumnPropertyError> {
+    ) -> Result<PropertyOptions, ColumnPropertyError> {
+        match self.blob(database, table, budget)? {
+            Some(blob) => crate::column_property_reader::options(&blob, table.columns(), budget),
+            None => Ok(PropertyOptions::default()),
+        }
+    }
+
+    /// Parses the table's complete payload, or `None` when LvProp is null.
+    pub(crate) fn blob<S: ReadAt>(
+        &mut self,
+        database: &mut DatabaseReader<S>,
+        table: &TableDefinition,
+        budget: &mut ResourceBudget,
+    ) -> Result<Option<PropertyBlob>, ColumnPropertyError> {
         budget.charge_work_units(self.values.len() as u64)?;
         let payload = &self
             .values
@@ -102,10 +116,8 @@ impl Properties {
             .ok_or(ColumnPropertyError::Invalid("table column properties"))?
             .1;
         match payload {
-            Payload::Null => Ok([ColumnOptions::default(); 255]),
-            Payload::Inline(bytes) => {
-                crate::column_property_reader::decode(bytes, table.columns(), budget)
-            }
+            Payload::Null => Ok(None),
+            Payload::Inline(bytes) => Ok(Some(PropertyBlob::parse(bytes, budget)?)),
             Payload::External(reference) => {
                 let owned = match &self.owned {
                     Some(owned) => owned,
@@ -134,7 +146,8 @@ impl Properties {
                     }
                     bytes.extend_from_slice(source);
                 }
-                crate::column_property_reader::decode(&bytes, table.columns(), budget)
+                drop(rows);
+                Ok(Some(PropertyBlob::parse(&bytes, budget)?))
             }
         }
     }

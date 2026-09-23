@@ -37,6 +37,7 @@ fn keyed_from(
     create_database_with_rows(
         fixture.path(),
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &indexes,

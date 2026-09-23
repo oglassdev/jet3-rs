@@ -1,6 +1,6 @@
 //! JSON requests over the public atomic schema-edit API.
 use crate::names::Name;
-use crate::schema_input::{Column, Index, Relation};
+use crate::schema_input::{Change, Column, Index, Relation, validation};
 use crate::values::{self, Failure};
 use jet3::{SchemaEdit, TableSpec, edit_schema};
 use serde::Deserialize;
@@ -67,6 +67,25 @@ enum Request {
         required: Option<bool>,
         allow_zero_length: Option<bool>,
     },
+    SetColumnProperties {
+        table: Name,
+        column: Name,
+        #[serde(default)]
+        default_value: Change,
+        #[serde(default)]
+        validation_rule: Change,
+        #[serde(default)]
+        validation_text: Change,
+        #[serde(default)]
+        description: Change,
+    },
+    SetTableProperties {
+        table: Name,
+        #[serde(default)]
+        validation_rule: Change,
+        #[serde(default)]
+        validation_text: Change,
+    },
     DropTable {
         table: Name,
     },
@@ -112,6 +131,8 @@ struct Table {
     columns: Vec<Column>,
     #[serde(default)]
     indexes: Vec<Index>,
+    validation_rule: Option<Name>,
+    validation_text: Option<Name>,
 }
 
 pub(crate) fn run(command: &SchemaCommand) -> Result<String, Failure> {
@@ -174,6 +195,36 @@ pub(crate) fn run(command: &SchemaCommand) -> Result<String, Failure> {
                 allow_zero_length: *allow_zero_length,
             },
         ),
+        Request::SetColumnProperties {
+            table,
+            column,
+            default_value,
+            validation_rule,
+            validation_text,
+            description,
+        } => (
+            "set_column_properties",
+            SchemaEdit::SetColumnProperties {
+                table: table.bytes(),
+                column: column.bytes(),
+                default_value: default_value.edit(),
+                validation_rule: validation_rule.edit(),
+                validation_text: validation_text.edit(),
+                description: description.edit(),
+            },
+        ),
+        Request::SetTableProperties {
+            table,
+            validation_rule,
+            validation_text,
+        } => (
+            "set_table_properties",
+            SchemaEdit::SetTableProperties {
+                table: table.bytes(),
+                validation_rule: validation_rule.edit(),
+                validation_text: validation_text.edit(),
+            },
+        ),
         Request::DropTable { table } => (
             "drop_table",
             SchemaEdit::DropTable {
@@ -223,6 +274,10 @@ pub(crate) fn run(command: &SchemaCommand) -> Result<String, Failure> {
                 "create_table",
                 SchemaEdit::CreateTable {
                     table: TableSpec {
+                        validation: validation(
+                            table.validation_rule.as_ref(),
+                            table.validation_text.as_ref(),
+                        ),
                         name: table.name.bytes(),
                         columns: &columns,
                         indexes: &indexes,

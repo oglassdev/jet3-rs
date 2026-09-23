@@ -35,6 +35,7 @@ const IDX_TRI_INDEXES: [IndexSpec<'static>; 3] = [
     },
 ];
 const IDX_TRI: TableSpec<'static> = TableSpec {
+    validation: crate::TableValidation::NONE,
     name: b"IdxTri",
     columns: &IDX_TRI_COLUMNS,
     indexes: &IDX_TRI_INDEXES,
@@ -60,6 +61,7 @@ fn wide_candidate_bytes() -> CandidateResult<Vec<u8>> {
         .map(|name| ColumnSpec::new(name, ColumnType::Long))
         .collect::<Vec<_>>();
     let base = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"ContOneX",
         columns: &columns[..40],
         indexes: &[],
@@ -156,6 +158,7 @@ fn the_composer_reproduces_the_accepted_cont_one_x_candidate() -> TestResult {
     let mut budget = compose_budget();
     let composed = compose_table_database(
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"ContOneX",
             columns: &columns,
             indexes: &[],
@@ -318,21 +321,25 @@ const QUAD_DELTA_INDEXES: [IndexSpec<'static>; 1] = [IndexSpec {
 }];
 const QUAD_TABLES: [TableSpec<'static>; 4] = [
     TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Alpha",
         columns: &QUAD_ALPHA_COLUMNS,
         indexes: &[],
     },
     TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Beta",
         columns: &QUAD_BETA_COLUMNS,
         indexes: &[],
     },
     TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Gamma",
         columns: &QUAD_ALPHA_COLUMNS,
         indexes: &QUAD_GAMMA_INDEXES,
     },
     TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Delta",
         columns: &QUAD_DELTA_COLUMNS,
         indexes: &QUAD_DELTA_INDEXES,

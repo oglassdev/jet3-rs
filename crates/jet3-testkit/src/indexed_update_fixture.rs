@@ -69,6 +69,7 @@ fn generate(path: &Path, case: &Value) -> Result<()> {
     create_database_with_rows(
         path,
         &TableSpec {
+            validation: jet3::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &indexes,

@@ -47,16 +47,19 @@ const INDEXES: &[IndexSpec<'static>] = &[IndexSpec {
 }];
 const TABLES: [TableSpec<'static>; 3] = [
     TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Alpha",
         columns: COLUMNS,
         indexes: INDEXES,
     },
     TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Bravo",
         columns: COLUMNS,
         indexes: INDEXES,
     },
     TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Charlie",
         columns: COLUMNS,
         indexes: INDEXES,

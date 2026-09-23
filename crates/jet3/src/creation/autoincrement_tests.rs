@@ -7,6 +7,7 @@ const TAG: ColumnSpec<'static> = ColumnSpec::new(b"Tag", ColumnType::Long);
 
 fn auto_table() -> TableSpec<'static> {
     TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Generated",
         columns: &[AUTO, TAG],
         indexes: &[],
@@ -106,6 +107,7 @@ fn autoincrement_multi_table_indexed_and_empty_counters_are_independent() -> Tes
     let requests = [
         TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"First",
                 columns: &[AUTO],
                 indexes: &indexes,
@@ -114,6 +116,7 @@ fn autoincrement_multi_table_indexed_and_empty_counters_are_independent() -> Tes
         },
         TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Second",
                 columns: &[AUTO],
                 indexes: &[],
@@ -122,6 +125,7 @@ fn autoincrement_multi_table_indexed_and_empty_counters_are_independent() -> Tes
         },
         TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Empty",
                 columns: &[AUTO],
                 indexes: &[],

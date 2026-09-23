@@ -83,6 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "three-long.mdb"
             }),
             &TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: b"Rows",
                 columns: &columns,
                 indexes: &indexes,

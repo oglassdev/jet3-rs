@@ -31,6 +31,9 @@ pub(crate) const HEADER_LEN: usize = 12;
 const CHAIN_POINTER_LEN: usize = 4;
 /// Largest payload one single-page `LVAL` row holds.
 pub(crate) const MAX_SINGLE_PAGE_PAYLOAD: usize = MAX_STORED_ROW_LEN;
+/// Largest `MSysObjects.LvProp` payload DAO stores on a single page; longer
+/// property blobs are chained even when one page would hold them (`EXP-0300`).
+pub(crate) const MAX_SINGLE_PAGE_PROPERTY_PAYLOAD: usize = 1776;
 /// Largest fragment one chained `LVAL` row holds after its pointer.
 ///
 /// `EXP-0061` observed exactly this fragment size, 2,032 bytes, on every

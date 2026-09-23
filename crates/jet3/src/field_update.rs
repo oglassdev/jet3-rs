@@ -66,7 +66,7 @@ pub(crate) fn plan_fields(
             ordinal.get(),
             column.physical_type(),
             column.storage(),
-            options[index],
+            options.columns[index],
             value,
         )?;
     }

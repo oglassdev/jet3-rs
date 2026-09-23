@@ -38,6 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         directory.join("primary.mdb"),
         &[TableRows {
             table: TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: b"Rows",
                 columns: &COLUMNS,
                 indexes: &PRIMARY,
@@ -78,6 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &[
             TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: b"Empty",
                     columns: &COLUMNS,
                     indexes: &[],
@@ -86,6 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: b"Rows",
                     columns: &columns,
                     indexes: &indexes,
@@ -109,6 +112,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &[
             TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: b"Parents",
                     columns: &COLUMNS,
                     indexes: &PRIMARY,
@@ -117,6 +121,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: b"Children",
                     columns: &COLUMNS,
                     indexes: &[],

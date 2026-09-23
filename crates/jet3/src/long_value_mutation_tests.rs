@@ -101,6 +101,7 @@ impl Fixture {
             &[
                 TableRows {
                     table: TableSpec {
+                        validation: crate::TableValidation::NONE,
                         name: b"Rows",
                         columns: &columns,
                         indexes: if indexes { &INDEXES } else { &[] },
@@ -109,6 +110,7 @@ impl Fixture {
                 },
                 TableRows {
                     table: TableSpec {
+                        validation: crate::TableValidation::NONE,
                         name: b"Notes",
                         columns: &[COLUMNS[0], COLUMNS[2]],
                         indexes: &[],

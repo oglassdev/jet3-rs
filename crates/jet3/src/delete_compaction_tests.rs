@@ -75,6 +75,7 @@ fn first_middle_and_tail_unequal_rows_preserve_slots_and_vacated_slack() -> Resu
     crate::create_database_with_rows(
         f.path(),
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Rows",
             columns: &columns,
             indexes: &[],

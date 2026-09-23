@@ -28,6 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect::<Vec<_>>();
     let empty = TableRows {
         table: TableSpec {
+            validation: jet3::TableValidation::NONE,
             name: b"Empty",
             columns: &id,
             indexes: &[],
@@ -41,6 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &[
                 TableRows {
                     table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
                         name: b"Numbers",
                         columns: &id,
                         indexes: &[],
@@ -49,6 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
                 TableRows {
                     table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
                         name: b"Keys",
                         columns: &id,
                         indexes: &indexes,
@@ -61,6 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
                 TableRows {
                     table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
                         name: b"Notes",
                         columns: &[ColumnSpec::new(b"Payload", ColumnType::Memo)],
                         indexes: &[],
@@ -77,6 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 empty,
                 TableRows {
                     table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
                         name: b"Binary",
                         columns: &[ColumnSpec::new(b"Payload", ColumnType::LongBinary)],
                         indexes: &[],

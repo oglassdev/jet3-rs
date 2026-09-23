@@ -18,6 +18,8 @@ pub(super) fn load(
         pages: Vec::new(),
         first_append: database.geometry().page_count(),
         append_count: 0,
+        property_column: (0..table.columns().len())
+            .find(|&ordinal| reserved_property(table, ColumnOrdinal::new(ordinal as u16))),
     };
     if table.long_value_maps().is_empty() {
         return Ok(result);

@@ -21,6 +21,7 @@ fn deleting_the_only_null_self_reference_removes_its_child_reference() -> TestRe
         },
     ];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Node",
         columns: &columns,
         indexes: &indexes,
@@ -95,6 +96,7 @@ fn parent_tree_after_foreign_requires_existing_self_keys() -> TestResult {
         },
     ];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Node",
         columns: &columns,
         indexes: &indexes,
@@ -236,11 +238,13 @@ fn self_key_checks_follow_physical_order_for_generated_and_declared_parents() ->
             ]
         };
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Node",
             columns: &columns,
             indexes: &indexes,
         };
         let child = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Child",
             columns: PAIR_COLUMNS,
             indexes: &[],

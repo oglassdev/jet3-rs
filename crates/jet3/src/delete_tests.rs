@@ -38,6 +38,7 @@ impl Fixture {
         crate::create_database_with_rows(
             &path,
             &TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Rows",
                 columns: &columns,
                 indexes: &[],

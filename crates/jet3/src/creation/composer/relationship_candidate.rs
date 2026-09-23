@@ -36,6 +36,7 @@ const CHILD_COLUMNS: [ColumnSpec<'static>; 2] = [
 ];
 const TABLES: [TableSpec<'static>; 2] = [
     TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Parent",
         columns: &PARENT_COLUMNS,
         indexes: &[
@@ -58,6 +59,7 @@ const TABLES: [TableSpec<'static>; 2] = [
         ],
     },
     TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Child",
         columns: &CHILD_COLUMNS,
         indexes: &[],

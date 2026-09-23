@@ -311,7 +311,7 @@ impl<S: ReadAt> DatabaseReader<S> {
                             .options(self, &definition, budget)
                             .map_err(TableValidationError::ColumnProperties)?
                     } else {
-                        [crate::column_property_reader::ColumnOptions::default(); 255]
+                        crate::column_property_reader::PropertyOptions::default()
                     };
                     validate_table(
                         self,
@@ -320,7 +320,7 @@ impl<S: ReadAt> DatabaseReader<S> {
                         budget,
                         &mut report,
                         empty_payload_column,
-                        &options,
+                        &options.columns,
                     )
                 });
             if let Err(source) = result {

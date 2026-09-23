@@ -55,6 +55,7 @@ fn three_separate_trees_counts_and_maps_precede_a_later_table() -> TestResult {
     let requests = [
         crate::TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Items",
                 columns: &columns,
                 indexes: &indexes,
@@ -63,6 +64,7 @@ fn three_separate_trees_counts_and_maps_precede_a_later_table() -> TestResult {
         },
         crate::TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Later",
                 columns: &[ID],
                 indexes: &later_indexes,
@@ -149,6 +151,7 @@ fn independent_null_policies_generated_ids_and_empty_trees() -> TestResult {
     ];
     let columns = [ColumnSpec::new(b"Id", ColumnType::AutoIncrement), GROUP];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &columns,
         indexes: &indexes,
@@ -197,6 +200,7 @@ fn later_index_corruption_and_publication_failures_are_detected() -> TestResult 
     let indexes = indexes();
     let columns = [ID, GROUP];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &columns,
         indexes: &indexes,
@@ -254,6 +258,7 @@ fn second_unique_index_refuses_duplicates_on_first_and_later_tables() -> TestRes
     let mut indexes = indexes();
     indexes[1].kind = IndexKind::Unique;
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[ID, GROUP],
         indexes: &indexes[..2],
@@ -271,6 +276,7 @@ fn second_unique_index_refuses_duplicates_on_first_and_later_tables() -> TestRes
     let requests = [
         crate::TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"First",
                 columns: &[ID],
                 indexes: &[],
@@ -299,6 +305,7 @@ fn aggregate_index_pages_extend_independent_maps() -> TestResult {
         fields: &fields,
     });
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[ID],
         indexes: &indexes,

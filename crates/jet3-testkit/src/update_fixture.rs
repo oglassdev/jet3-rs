@@ -91,6 +91,7 @@ fn generate_before(id: &str, path: &Path) -> Result<()> {
     if id == "DAO-UPDATE-LATER-TABLE" {
         tables.push(TableRows {
             table: TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: b"Prefix",
                 columns: &prefix_columns,
                 indexes: &[],
@@ -100,6 +101,7 @@ fn generate_before(id: &str, path: &Path) -> Result<()> {
     }
     tables.push(TableRows {
         table: TableSpec {
+            validation: jet3::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &[],
@@ -108,6 +110,7 @@ fn generate_before(id: &str, path: &Path) -> Result<()> {
     });
     tables.push(TableRows {
         table: TableSpec {
+            validation: jet3::TableValidation::NONE,
             name: b"Notes",
             columns: &memo_columns,
             indexes: &[],

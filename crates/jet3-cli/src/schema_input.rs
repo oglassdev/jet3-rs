@@ -2,7 +2,7 @@
 use crate::names::Name;
 use jet3::{
     ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexNullPolicy,
-    IndexSpec, RelationshipField, RelationshipSpec, TableRef,
+    IndexSpec, PropertyChange, RelationshipField, RelationshipSpec, TableRef, TableValidation,
 };
 use serde::Deserialize;
 use std::num::NonZeroU8;
@@ -18,6 +18,46 @@ pub(crate) struct Column {
     allow_zero_length: bool,
     #[serde(default)]
     required: bool,
+    default_value: Option<Name>,
+    validation_rule: Option<Name>,
+    validation_text: Option<Name>,
+    description: Option<Name>,
+}
+
+/// A text property edit: absent keeps, `null` clears and a string sets.
+#[derive(Default)]
+pub(crate) enum Change {
+    #[default]
+    Keep,
+    Clear,
+    Set(Name),
+}
+
+impl<'de> Deserialize<'de> for Change {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(Option::<Name>::deserialize(deserializer)?.map_or(Self::Clear, Self::Set))
+    }
+}
+
+impl Change {
+    pub(crate) fn edit(&self) -> PropertyChange<'_> {
+        match self {
+            Self::Keep => PropertyChange::Keep,
+            Self::Clear => PropertyChange::Clear,
+            Self::Set(value) => PropertyChange::Set(value.bytes()),
+        }
+    }
+}
+
+/// Table-level ValidationRule and ValidationText for creation.
+pub(crate) fn validation<'a>(
+    rule: Option<&'a Name>,
+    text: Option<&'a Name>,
+) -> TableValidation<'a> {
+    TableValidation {
+        rule: rule.map(Name::bytes),
+        text: text.map(Name::bytes),
+    }
 }
 
 #[derive(Deserialize)]
@@ -80,6 +120,18 @@ impl Column {
         }
         if self.required {
             spec = spec.with_required();
+        }
+        if let Some(value) = &self.default_value {
+            spec = spec.with_default_value(value.bytes());
+        }
+        if let Some(value) = &self.validation_rule {
+            spec = spec.with_validation_rule(value.bytes());
+        }
+        if let Some(value) = &self.validation_text {
+            spec = spec.with_validation_text(value.bytes());
+        }
+        if let Some(value) = &self.description {
+            spec = spec.with_description(value.bytes());
         }
         Ok(spec)
     }

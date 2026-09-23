@@ -73,6 +73,19 @@ pub(crate) fn prepare<'a>(
         }
     }
     propagate(&mut rows, &constraints, selected, budget)?;
+    // EXP-0299: cascaded child assignments cannot be checked against stored rules.
+    for constraint in &constraints {
+        budget.charge_work_units(rows.len() as u64)?;
+        if rows.iter().enumerate().any(|(position, row)| {
+            position != selected
+                && row.table == constraint.child.root()
+                && !row.deleted
+                && row.fields.iter().any(|field| field.after.is_some())
+        }) {
+            let options = crate::column_value_policy::options(database, &constraint.child, budget)?;
+            crate::column_value_policy::refuse_rules(&options, &constraint.child)?;
+        }
+    }
     guards(&rows, &constraints, selected, change, budget)?;
     validate(&rows, &constraints, true, budget)?;
     Ok(Some(Plan {

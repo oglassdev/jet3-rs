@@ -86,21 +86,7 @@ pub(crate) fn rename(
             ))
         })?;
     if let Some((catalog, row, bytes)) = properties {
-        crate::schema_publish::apply(file, journal, budget, |database, budget| {
-            let catalog = database.table_definition(catalog, budget)?;
-            let column = crate::schema_catalog::column(&catalog, b"LvProp")?;
-            let graph =
-                crate::row_mutation_graph::RowGraph::load(database, &catalog, Some(row), budget)?;
-            let edits = crate::field_update::plan_fields(
-                database,
-                &catalog,
-                graph,
-                row,
-                &[(column, RowValue::LongBinary(&bytes))],
-                budget,
-            )?;
-            Ok((edits, ()))
-        })?;
+        crate::schema_properties::store(file, journal, catalog, row, &bytes, budget)?;
     }
     for (row, column) in updates {
         crate::schema_publish::apply(file, journal, budget, |database, budget| {

@@ -69,6 +69,17 @@ pub enum UpdateError {
         /// Definition page of the referencing child table.
         child: crate::PageNumber,
     },
+    /// The database uses a sort order other than General; Rust writes only
+    /// General collation keys (EXP-0299). Reading remains supported.
+    UnsupportedSortOrder {
+        /// Raw page-zero sort-order marker.
+        raw: [u8; 4],
+    },
+    /// The table or column stores a ValidationRule; Jet expressions are not evaluated.
+    ValidationRule {
+        /// The column whose rule applies, or `None` for the table rule.
+        column: Option<ColumnOrdinal>,
+    },
     /// Resource policy or raw input failure.
     Resource(crate::Error),
     /// File operation failed.
@@ -131,7 +142,9 @@ impl StdError for UpdateError {
             | Self::Mismatch(_)
             | Self::RelationshipConstraint { .. }
             | Self::ScalarRelationshipConstraint { .. }
-            | Self::NullRelationshipConstraint { .. } => None,
+            | Self::NullRelationshipConstraint { .. }
+            | Self::ValidationRule { .. }
+            | Self::UnsupportedSortOrder { .. } => None,
         }
     }
 }
@@ -190,6 +203,10 @@ conversion!(crate::IndexTreeError, Index);
 /// A pre-publication failure preserves the original; a post-publication sync failure
 /// is distinguished by the publication error stage. Structural verification is not
 /// a DAO compatibility claim.
+/// Jet expressions are not evaluated: a table storing a field or table
+/// ValidationRule (EXP-0299) refuses with [`UpdateError::ValidationRule`], and a
+/// database whose sort order is not General with
+/// [`UpdateError::UnsupportedSortOrder`]. Both refusals preserve the file.
 pub fn update_field(
     path: impl AsRef<Path>,
     request: FieldUpdate<'_>,
@@ -209,7 +226,10 @@ where
     HE: StdError + Send + Sync + 'static,
 {
     let mut database = DatabaseReader::open(path, budget)?;
+    crate::update::require_general_sort_order(&database)?;
     let definition = guarded_table(&mut database, request.table, true, budget)?;
+    let options = crate::column_value_policy::options(&mut database, &definition, budget)?;
+    crate::column_value_policy::refuse_rules(&options, &definition)?;
     if let Some(cascade) = crate::cascade::prepare(
         &mut database,
         &definition,
@@ -401,3 +421,13 @@ fn guarded_table(
 #[cfg(all(test, any(unix, windows)))]
 #[path = "update_tests.rs"]
 mod tests;
+
+/// Refuses writes to databases whose sort order Rust cannot maintain (EXP-0299).
+pub(crate) fn require_general_sort_order<S: crate::ReadAt>(
+    database: &DatabaseReader<S>,
+) -> Result<(), UpdateError> {
+    match database.header().sort_order() {
+        crate::SortOrder::General => Ok(()),
+        crate::SortOrder::Other { raw } => Err(UpdateError::UnsupportedSortOrder { raw }),
+    }
+}

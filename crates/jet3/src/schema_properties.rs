@@ -1,5 +1,7 @@
-//! Lossless LvProp field-name edits using EXP-0208/0266/0283/0297 framing.
+//! Lossless LvProp field-block edits using EXP-0208/0266/0283/0297 framing and EXP-0299 text records.
+use crate::column_properties::TextProperty;
 use crate::page_edits::reserve;
+use crate::property_blob::{BOOLEAN, Block, FIELD_BLOCK, PropertyBlob, Record};
 use crate::{
     DatabaseReader, FileSource, InlineLongValue, LongValue, LongValueChunkValue, ResourceBudget,
     RowLocator, TableDefinition, TextCodePage, UpdateError, ValueKind,
@@ -69,204 +71,112 @@ pub(crate) fn load(
     Ok((catalog, locator, bytes))
 }
 
+fn parse(bytes: &[u8], budget: &mut ResourceBudget) -> Result<PropertyBlob, UpdateError> {
+    if bytes.is_empty() {
+        Ok(PropertyBlob::empty())
+    } else {
+        Ok(PropertyBlob::parse(bytes, budget)?)
+    }
+}
+
+pub(crate) fn encode(
+    blob: &PropertyBlob,
+    budget: &mut ResourceBudget,
+) -> Result<Vec<u8>, UpdateError> {
+    Ok(blob.encode(budget)?)
+}
+
+/// Renames the column's field block, retaining every record byte (EXP-0297).
 pub(crate) fn rename(
     bytes: &[u8],
     old: &[u8],
     new: &[u8],
     budget: &mut ResourceBudget,
 ) -> Result<Vec<u8>, UpdateError> {
-    let mut output = Vec::new();
     if bytes.is_empty() {
-        return Ok(output);
+        return Ok(Vec::new());
     }
-    let dictionary_end = 4 + u32_at(bytes, 4)? as usize;
-    append(
-        &mut output,
-        bytes
-            .get(..dictionary_end)
-            .ok_or(UpdateError::Mismatch("property dictionary length"))?,
-        budget,
-    )?;
-    let mut position = dictionary_end;
-    while position < bytes.len() {
-        let end = position
-            .checked_add(u32_at(bytes, position)? as usize)
-            .filter(|end| *end <= bytes.len())
-            .ok_or(UpdateError::Mismatch("property block length"))?;
-        let block = &bytes[position..end];
-        let length = u16::from_le_bytes([
-            *block
-                .get(10)
-                .ok_or(UpdateError::Mismatch("property field length"))?,
-            *block
-                .get(11)
-                .ok_or(UpdateError::Mismatch("property field length"))?,
-        ]) as usize;
-        let field = block
-            .get(12..12 + length)
-            .ok_or(UpdateError::Mismatch("property field name"))?;
-        if field == old {
-            let new_length = block.len() - length + new.len();
-            append(&mut output, &(new_length as u32).to_le_bytes(), budget)?;
-            append(&mut output, &block[4..6], budget)?;
-            append(&mut output, &(6 + new.len() as u32).to_le_bytes(), budget)?;
-            append(&mut output, &(new.len() as u16).to_le_bytes(), budget)?;
-            append(&mut output, new, budget)?;
-            append(&mut output, &block[12 + length..], budget)?;
-        } else {
-            append(&mut output, block, budget)?;
-        }
-        position = end;
+    let mut blob = parse(bytes, budget)?;
+    if let Some(block) = blob.block_mut(FIELD_BLOCK, old) {
+        block.rename(new, budget)?;
     }
-    Ok(output)
+    encode(&blob, budget)
 }
 
-fn u32_at(bytes: &[u8], offset: usize) -> Result<u32, UpdateError> {
-    Ok(u32::from_le_bytes(
-        bytes
-            .get(offset..offset + 4)
-            .and_then(|bytes| bytes.try_into().ok())
-            .ok_or(UpdateError::Mismatch("property length word"))?,
-    ))
-}
-
-fn append(
-    output: &mut Vec<u8>,
-    bytes: &[u8],
-    budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
-    reserve(output, bytes.len(), budget)?;
-    budget.charge_work_units(bytes.len() as u64)?;
-    output.extend_from_slice(bytes);
-    Ok(())
-}
-
+/// Appends the new column's block after existing blocks, as for EXP-0297 appends.
 pub(crate) fn add(
     bytes: &[u8],
     column: crate::ColumnSpec<'_>,
     budget: &mut ResourceBudget,
 ) -> Result<Vec<u8>, UpdateError> {
-    let mut dictionary = Vec::new();
-    let mut names = Vec::new();
-    let end = if bytes.is_empty() {
-        0
+    let auto = column.column_type() == crate::ColumnType::AutoIncrement;
+    if auto
+        && TextProperty::FIELD_ORDER
+            .iter()
+            .all(|property| property.of(&column).is_none())
+    {
+        // EXP-0283: AutoIncrement has no Boolean block.
+        return Ok(crate::property_blob::owned(bytes, budget)?);
+    }
+    let mut blob = parse(bytes, budget)?;
+    let eligible = crate::column_properties::has_zero_length_property(column.physical_type());
+    // EXP-0299: absent dictionary names are appended in record order.
+    let allow = if eligible && !auto {
+        Some(blob.intern(b"AllowZeroLength", budget)?)
     } else {
-        4 + u32_at(bytes, 4)? as usize
+        None
     };
-    if end > 0 {
-        append(
-            &mut dictionary,
-            bytes
-                .get(10..end)
-                .ok_or(UpdateError::Mismatch("property dictionary"))?,
-            budget,
-        )?;
-        let mut position = 10;
-        while position < end {
-            let length = bytes
-                .get(position..position + 2)
-                .ok_or(UpdateError::Mismatch("property dictionary name"))?;
-            let length = u16::from_le_bytes([length[0], length[1]]) as usize;
-            let name = bytes
-                .get(position + 2..position + 2 + length)
-                .filter(|_| position + 2 + length <= end)
-                .ok_or(UpdateError::Mismatch("property dictionary name"))?;
-            reserve(&mut names, 1, budget)?;
-            names.push(name);
-            position += 2 + length;
+    let required = if auto {
+        None
+    } else {
+        Some(blob.intern(b"Required", budget)?)
+    };
+    let mut block = Block::new(FIELD_BLOCK, column.name(), budget)?;
+    if let Some(name) = allow {
+        block.set(boolean(name, column.allow_zero_length(), budget)?, budget)?;
+    }
+    if let Some(name) = required {
+        block.set(boolean(name, column.required(), budget)?, budget)?;
+    }
+    for property in TextProperty::FIELD_ORDER {
+        if let Some(value) = property.of(&column) {
+            let name = blob.intern(property.name(), budget)?;
+            let record = Record::new(property.flag(), property.field_kind(), name, value, budget)?;
+            block.set(record, budget)?;
         }
     }
-    let mut ordinals = [0_u16; 2];
-    let requested = [b"Required".as_slice(), b"AllowZeroLength"];
-    let property_count = 1 + usize::from(crate::column_properties::has_zero_length_property(
-        column.physical_type(),
-    ));
-    for (property, &name) in requested[..property_count].iter().enumerate() {
-        let ordinal = if let Some(ordinal) = names.iter().position(|&existing| existing == name) {
-            ordinal
-        } else {
-            append(&mut dictionary, &(name.len() as u16).to_le_bytes(), budget)?;
-            append(&mut dictionary, name, budget)?;
-            reserve(&mut names, 1, budget)?;
-            names.push(name);
-            names.len() - 1
-        };
-        ordinals[property] = u16::try_from(ordinal)
-            .map_err(|_| UpdateError::Unsupported("property dictionary capacity"))?;
+    if !block.records().is_empty() {
+        blob.push(block, budget)?;
     }
-    let mut output = Vec::new();
-    append(&mut output, b"KKD\0", budget)?;
-    let length = u32::try_from(dictionary.len() + 6)
-        .map_err(|_| UpdateError::Unsupported("property dictionary length"))?;
-    append(&mut output, &length.to_le_bytes(), budget)?;
-    append(&mut output, &[0x80, 0], budget)?;
-    append(&mut output, &dictionary, budget)?;
-    append(&mut output, &bytes[end..], budget)?;
-    let length = 12 + column.name().len() + 9 * property_count;
-    append(&mut output, &(length as u32).to_le_bytes(), budget)?;
-    append(&mut output, &[1, 0], budget)?;
-    append(
-        &mut output,
-        &(6 + column.name().len() as u32).to_le_bytes(),
-        budget,
-    )?;
-    append(
-        &mut output,
-        &(column.name().len() as u16).to_le_bytes(),
-        budget,
-    )?;
-    append(&mut output, column.name(), budget)?;
-    let values = [column.required(), column.allow_zero_length()];
-    for at in (0..property_count).rev() {
-        append(&mut output, &[9, 0, 1, 1], budget)?;
-        append(&mut output, &ordinals[at].to_le_bytes(), budget)?;
-        append(
-            &mut output,
-            &[1, 0, if values[at] { 0xff } else { 0 }],
-            budget,
-        )?;
-    }
-    Ok(output)
+    encode(&blob, budget)
 }
 
+pub(crate) fn boolean(
+    name: u16,
+    value: bool,
+    budget: &mut ResourceBudget,
+) -> Result<Record, UpdateError> {
+    Ok(Record::new(
+        1,
+        BOOLEAN,
+        name,
+        &[if value { 0xff } else { 0 }],
+        budget,
+    )?)
+}
+
+/// Removes the column's field block; dictionary names are retained.
 pub(crate) fn remove(
     bytes: &[u8],
     selected: &[u8],
     budget: &mut ResourceBudget,
 ) -> Result<Vec<u8>, UpdateError> {
-    let mut output = Vec::new();
     if bytes.is_empty() {
-        return Ok(output);
+        return Ok(Vec::new());
     }
-    let end = 4 + u32_at(bytes, 4)? as usize;
-    append(
-        &mut output,
-        bytes
-            .get(..end)
-            .ok_or(UpdateError::Mismatch("property dictionary length"))?,
-        budget,
-    )?;
-    let mut position = end;
-    while position < bytes.len() {
-        let end = position
-            .checked_add(u32_at(bytes, position)? as usize)
-            .filter(|end| *end <= bytes.len())
-            .ok_or(UpdateError::Mismatch("property block length"))?;
-        let block = &bytes[position..end];
-        let length = block
-            .get(10..12)
-            .ok_or(UpdateError::Mismatch("property name length"))?;
-        let length = u16::from_le_bytes([length[0], length[1]]) as usize;
-        if block
-            .get(12..12 + length)
-            .ok_or(UpdateError::Mismatch("property name"))?
-            != selected
-        {
-            append(&mut output, block, budget)?;
-        }
-        position = end;
-    }
-    Ok(output)
+    let mut blob = parse(bytes, budget)?;
+    blob.retain_blocks(|block| block.kind() != FIELD_BLOCK || block.name() != selected);
+    encode(&blob, budget)
 }
 
 pub(crate) fn store(

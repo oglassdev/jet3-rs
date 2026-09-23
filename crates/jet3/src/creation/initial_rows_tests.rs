@@ -3,6 +3,7 @@ use crate::{RowValue, RowWriteError, create_database_with_rows};
 
 fn scalar_table() -> TableSpec<'static> {
     TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[ID, CODE],
         indexes: &[],
@@ -71,6 +72,7 @@ fn unsupported_initial_row_schemas_leave_no_file() -> TestResult {
     {
         let columns = [ColumnSpec::new(b"Value", ColumnType::AutoIncrement)];
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &[],
@@ -164,6 +166,7 @@ fn page_rows(bytes: &[u8], page: usize) -> u16 {
 fn exhausted_row_slots_spill_to_the_next_page() -> TestResult {
     let directory = TestDirectory::create()?;
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Bits",
         columns: &[ColumnSpec::new(b"Bit", ColumnType::Boolean)],
         indexes: &[],
@@ -190,6 +193,7 @@ fn initial_rows_create_and_reopen_a_continued_definition() -> TestResult {
         .map(|name| ColumnSpec::new(name, ColumnType::Long))
         .collect::<Vec<_>>();
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Wide",
         columns: &columns,
         indexes: &[],
@@ -220,6 +224,7 @@ fn initial_rows_create_and_reopen_a_continued_definition() -> TestResult {
 fn packed_pages_track_ownership_availability_and_total_rows() -> TestResult {
     let directory = TestDirectory::create()?;
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Numbers",
         columns: &[ID],
         indexes: &[],
@@ -255,6 +260,7 @@ fn packed_pages_track_ownership_availability_and_total_rows() -> TestResult {
 fn spilling_a_large_row_keeps_space_for_smaller_rows_available() -> TestResult {
     let directory = TestDirectory::create()?;
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"TextRows",
         columns: &[
             ID,
@@ -278,6 +284,7 @@ fn spilling_a_large_row_keeps_space_for_smaller_rows_available() -> TestResult {
 fn later_page_corruption_and_missing_owned_pages_are_detected() -> TestResult {
     let directory = TestDirectory::create()?;
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Numbers",
         columns: &[ID],
         indexes: &[],
@@ -318,6 +325,7 @@ fn initial_rows_extend_past_inline_maps_and_preserve_existing_destinations() -> 
         .map(|name| ColumnSpec::new(name.as_bytes(), ColumnType::Double))
         .collect::<Vec<_>>();
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"WideRows",
         columns: &columns,
         indexes: &[],
@@ -344,6 +352,7 @@ fn oversized_rows_and_page_storage_budget_fail_before_publication() -> TestResul
     let columns = [b"A", b"B", b"C", b"D", b"E", b"F", b"G", b"H", b"I"]
         .map(|name| ColumnSpec::new(name, ColumnType::Text { max_len: nz(255) }));
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"WideRows",
         columns: &columns,
         indexes: &[],

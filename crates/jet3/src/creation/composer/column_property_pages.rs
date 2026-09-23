@@ -1,8 +1,47 @@
-//! EXP-0266: named column properties use ordinary single/chained LVAL storage.
+//! EXP-0266: named column properties use ordinary single/chained LVAL storage;
+//! EXP-0300 fixes the single-page limit for property payloads.
 use super::*;
 use crate::long_value_writer::{chained_fragments, encode_chained_row};
 
 impl PlannedCreate<'_> {
+    pub(in crate::creation) fn property_header(&self) -> Result<Option<[u8; 12]>, ComposeError> {
+        self.column_properties()
+            .map(|property| {
+                let page = self
+                    .plan
+                    .property_page()
+                    .ok_or(ComposeError::UnsupportedMemoOption)?;
+                crate::long_value_writer::external_long_value_header(
+                    property.len(),
+                    if self.plan.property_chained() {
+                        crate::ExternalLongValueStorage::Chained
+                    } else {
+                        crate::ExternalLongValueStorage::SinglePage
+                    },
+                    crate::RowLocator::new(page, 0),
+                )
+                .map_err(|_| ComposeError::UnsupportedMemoOption)
+            })
+            .transpose()
+    }
+
+    pub(super) fn column_properties(
+        &self,
+    ) -> Option<&crate::column_properties::CreationProperties> {
+        self.properties.as_ref()
+    }
+
+    pub(in crate::creation) fn property_pages(
+        &self,
+        available: bool,
+    ) -> impl Iterator<Item = u64> + Clone {
+        self.plan
+            .property_page()
+            .filter(|_| !available || !self.plan.property_chained())
+            .into_iter()
+            .flat_map(|page| page.get()..page.get() + self.plan.property_page_count() as u64)
+    }
+
     pub(super) fn append_property_pages(
         &self,
         plan: &mut WholeFileImagePlan,
@@ -30,7 +69,7 @@ impl PlannedCreate<'_> {
             })?;
         payload.resize(property.len(), 0);
         property.encode(&mut payload, budget)?;
-        if count == 1 {
+        if !self.plan.property_chained() {
             let mut page = DataPageBuilder::new_long_value(budget)?;
             page.append_row(&payload, budget)?;
             plan.append_image(finish_data_builder(page, budget)?, budget)?;

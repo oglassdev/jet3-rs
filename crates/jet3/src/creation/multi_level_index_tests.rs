@@ -5,6 +5,7 @@ use crate::{IndexNodeKind, TableRows, create_database_with_table_rows};
 fn branch_fanout_builds_another_level_and_preserves_complete_separators() -> TestResult {
     let indexes = one_index(IndexKind::Primary);
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[ID],
         indexes: &indexes,
@@ -62,6 +63,7 @@ fn composite_duplicates_cross_leaves_and_later_tables_keep_roots_and_locators() 
         ..one_index(IndexKind::Ordinary)[0]
     }];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"First",
         columns: &[ID, SEQUENCE],
         indexes: &indexes,
@@ -136,6 +138,7 @@ fn branched_corruption_and_resource_limits_preserve_publication() -> TestResult 
     let directory = TestDirectory::create()?;
     let indexes = one_index(IndexKind::Ordinary);
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[ID],
         indexes: &indexes,
@@ -182,6 +185,7 @@ fn data_and_index_levels_extend_past_inline_map_capacity() -> TestResult {
     let directory = TestDirectory::create()?;
     let indexes = one_index(IndexKind::Ordinary);
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[ID],
         indexes: &indexes,
@@ -203,6 +207,7 @@ fn generated_keys_keep_their_counter_and_locators_across_index_leaves() -> TestR
     let directory = TestDirectory::create()?;
     let indexes = one_index(IndexKind::Primary);
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[ColumnSpec::new(b"Id", ColumnType::AutoIncrement)],
         indexes: &indexes,

@@ -9,6 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nth(1)
         .ok_or("usage: multi_page_row_candidate OUTPUT.mdb")?;
     let table = TableSpec {
+        validation: jet3::TableValidation::NONE,
         name: b"Rows",
         columns: &[ColumnSpec::new(b"Id", ColumnType::Long)],
         indexes: &[],

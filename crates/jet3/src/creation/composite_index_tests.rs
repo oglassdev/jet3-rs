@@ -8,6 +8,7 @@ fn descending_signed_boundaries_encode_and_sort_with_original_locators() -> Test
         ..one_index(IndexKind::Unique)[0]
     }];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[ID],
         indexes: &indexes,
@@ -58,6 +59,7 @@ fn mixed_components_respect_declared_order_and_count_complete_duplicate_keys() -
             ..one_index(IndexKind::Ordinary)[0]
         }];
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &[ID, SEQUENCE],
             indexes: &indexes,
@@ -119,6 +121,7 @@ fn composite_capacity_and_multiple_row_pages_preserve_locators_and_destination()
         ..one_index(IndexKind::Unique)[0]
     }];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[
             ID,
@@ -185,6 +188,7 @@ fn required_null_second_component_is_refused_without_publication() -> TestResult
         ..one_index(IndexKind::Ordinary.with_null_policy(crate::IndexNullPolicy::Required))[0]
     }];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[ID, SEQUENCE],
         indexes: &indexes,

@@ -91,6 +91,7 @@ fn fixture(edges: &[Edge]) -> Result<Fixture> {
     let fixture = Fixture(directory);
     let requests = NAMES.map(|name| TableRows {
         table: TableSpec {
+            validation: crate::TableValidation::NONE,
             name,
             columns: &COLUMNS,
             indexes: &INDEXES,

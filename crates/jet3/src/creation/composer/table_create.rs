@@ -44,6 +44,7 @@ pub(super) struct PlannedCreate<'a> {
     initial_autoincrement: Option<InitialAutoIncrement>,
     relationships: Vec<LogicalIndexSpec<'a>>,
     declared_indexes: usize,
+    properties: Option<crate::column_properties::CreationProperties>,
 }
 
 #[derive(Debug, Clone)]
@@ -148,6 +149,12 @@ impl<'a> PlannedCreate<'a> {
         crate::resource::reserve(&mut relationships, relations.len(), budget)?;
         relationships.extend_from_slice(relations);
         let long_value_count = long_value_columns(spec).count();
+        let properties = crate::column_properties::CreationProperties::new(
+            spec.columns,
+            spec.validation,
+            budget,
+        )
+        .map_err(ComposeError::Properties)?;
         Ok(Self {
             spec,
             plan,
@@ -159,6 +166,7 @@ impl<'a> PlannedCreate<'a> {
             initial_autoincrement: None,
             relationships,
             declared_indexes,
+            properties,
         })
     }
 
@@ -217,6 +225,16 @@ impl<'a> PlannedCreate<'a> {
         self.initial_indexes = InitialLongIndex::for_table(self.spec, rows.len(), budget)?;
         if rows.is_empty() {
             return Ok(self);
+        }
+        // EXP-0299 expressions are not evaluated, so rows cannot be checked against them.
+        if self.spec.validation.rule.is_some()
+            || self
+                .spec
+                .columns
+                .iter()
+                .any(|column| column.validation_rule().is_some())
+        {
+            return Err(ComposeError::ValidationRuleRows);
         }
         self.initial_row_count =
             u32::try_from(rows.len()).map_err(|_| Error::IntegerConversion {
@@ -313,39 +331,6 @@ impl<'a> PlannedCreate<'a> {
             available,
         });
         Ok(())
-    }
-
-    pub(super) fn property_header(&self) -> Result<Option<[u8; 12]>, ComposeError> {
-        self.column_properties()
-            .map(|property| {
-                let page = self
-                    .plan
-                    .property_page()
-                    .ok_or(ComposeError::UnsupportedMemoOption)?;
-                crate::long_value_writer::external_long_value_header(
-                    property.len(),
-                    if self.plan.property_page_count() == 1 {
-                        crate::ExternalLongValueStorage::SinglePage
-                    } else {
-                        crate::ExternalLongValueStorage::Chained
-                    },
-                    crate::RowLocator::new(page, 0),
-                )
-                .map_err(|_| ComposeError::UnsupportedMemoOption)
-            })
-            .transpose()
-    }
-
-    fn column_properties(&self) -> Option<crate::column_properties::ColumnProperties<'a>> {
-        crate::column_properties::ColumnProperties::new(self.spec.columns)
-    }
-
-    pub(super) fn property_pages(&self, available: bool) -> impl Iterator<Item = u64> + Clone {
-        self.plan
-            .property_page()
-            .filter(|_| !available || self.plan.property_page_count() == 1)
-            .into_iter()
-            .flat_map(|page| page.get()..page.get() + self.plan.property_page_count() as u64)
     }
 
     /// Returns the page count once every appended page is in place.

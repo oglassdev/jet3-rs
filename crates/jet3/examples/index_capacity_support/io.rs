@@ -149,6 +149,7 @@ pub(super) fn create(path: &Path, case: &Case, model: &BTreeMap<i32, Row>) -> Re
         &[
             TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: b"Items",
                     columns: &case.columns(),
                     indexes: &case.indexes(&index_fields),
@@ -157,6 +158,7 @@ pub(super) fn create(path: &Path, case: &Case, model: &BTreeMap<i32, Row>) -> Re
             },
             TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: b"Notes",
                     columns: &[
                         ColumnSpec::new(b"Id", ColumnType::Long),

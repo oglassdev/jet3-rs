@@ -20,6 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ),
     ];
     let table = TableSpec {
+        validation: jet3::TableValidation::NONE,
         name: b"Rows",
         columns: &columns,
         indexes: &[],

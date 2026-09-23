@@ -23,6 +23,17 @@ const USER_CLASSES: [u8; 3] = [VARIABLE_CLASS, FIXED_CLASS, AUTO_INCREMENT_CLASS
 const SYSTEM_CLASSES: [u8; 3] = [0x12, 0x13, 0x32];
 /// `EXP-0059`: sourced value 1 at `[7,9)`; `EXP-0073`: zero in system tables.
 const USER_COLUMN_CONSTANT: u16 = 1;
+/// Sort-order LCID then code page, both little-endian: `EXP-0059` General
+/// (0x0409, 1252) and the `EXP-0299` Nordic, Spanish, Dutch, Cyrillic (1251)
+/// and Greek (1253) databases. Only General text keys are interpreted.
+const ENCODING_CONTEXTS: [[u8; 4]; 6] = [
+    [0x09, 0x04, 0xe4, 0x04],
+    [0x1d, 0x04, 0xe4, 0x04],
+    [0x0a, 0x04, 0xe4, 0x04],
+    [0x13, 0x04, 0xe4, 0x04],
+    [0x19, 0x04, 0xe3, 0x04],
+    [0x08, 0x04, 0xe5, 0x04],
+];
 const SYSTEM_COLUMN_CONSTANT: u16 = 0;
 
 /// A zero-based position in the table's live column definitions.
@@ -255,7 +266,7 @@ pub(crate) fn decode_columns(
             });
         }
         let encoding_context = array_at::<4>(&raw_record, 9)?;
-        if encoding_context != [0x09, 0x04, 0xe4, 0x04] {
+        if !ENCODING_CONTEXTS.contains(&encoding_context) {
             return Err(TableDefinitionError::InvalidColumnEncodingContext {
                 ordinal: record_ordinal,
                 raw: encoding_context,

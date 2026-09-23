@@ -30,6 +30,7 @@ fn six_tables_preserve_independent_index_roots_and_initial_rows() -> TestResult 
             .iter()
             .enumerate()
             .map(|(n, name)| TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: name.as_bytes(),
                 columns: &COLUMNS,
                 indexes: &INDEXES[..[3, 0, 1, 2, 3, 3][n]],
@@ -96,6 +97,7 @@ fn creation_counter_overflow_is_refused_before_allocating_or_writing() -> TestRe
     let directory = TestDirectory::create()?;
     let tables = vec![
         TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"T",
             columns: &[ID],
             indexes: &[],
@@ -139,6 +141,7 @@ fn catalog_data_and_index_pages_grow_with_complete_row_locators() -> TestResult 
         let tables = names
             .iter()
             .map(|name| TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: name.as_bytes(),
                 columns: &[ID],
                 indexes: &[],
@@ -267,6 +270,7 @@ fn catalog_spill_extends_maps_without_overwriting_existing_destination() -> Test
         .enumerate()
         .map(|(n, name)| TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: name.as_bytes(),
                 columns: &columns,
                 indexes: &[],

@@ -214,6 +214,7 @@ fn create(path: &Path, case: Case) -> Result<()> {
     let rows = values.iter().map(Vec::as_slice).collect::<Vec<_>>();
     let items = TableRows {
         table: TableSpec {
+            validation: jet3::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &indexes[..case.indexes],
@@ -227,6 +228,7 @@ fn create(path: &Path, case: Case) -> Result<()> {
     let note_body = [b'n'; 4096];
     let notes = TableRows {
         table: TableSpec {
+            validation: jet3::TableValidation::NONE,
             name: b"Notes",
             columns: &note_columns,
             indexes: &[],

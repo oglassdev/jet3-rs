@@ -17,6 +17,7 @@ fn mixed_tables_assign_later_roots_maps_indexes_and_payloads() -> TestResult {
     let requests = [
         TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Numbers",
                 columns: &[ID],
                 indexes: &[],
@@ -25,6 +26,7 @@ fn mixed_tables_assign_later_roots_maps_indexes_and_payloads() -> TestResult {
         },
         TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Keys",
                 columns: &[ID],
                 indexes: &indexes,
@@ -37,6 +39,7 @@ fn mixed_tables_assign_later_roots_maps_indexes_and_payloads() -> TestResult {
         },
         TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Notes",
                 columns: &[NOTE],
                 indexes: &[],
@@ -45,6 +48,7 @@ fn mixed_tables_assign_later_roots_maps_indexes_and_payloads() -> TestResult {
         },
         TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Empty",
                 columns: &[ID],
                 indexes: &[],
@@ -116,6 +120,7 @@ fn empty_requests_and_empty_first_table_keep_first_create_placement() -> TestRes
     let requests = [
         TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Empty",
                 columns: &[ID],
                 indexes: &[],
@@ -124,6 +129,7 @@ fn empty_requests_and_empty_first_table_keep_first_create_placement() -> TestRes
         },
         TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Binary",
                 columns: &[ColumnSpec::new(b"Payload", ColumnType::LongBinary)],
                 indexes: &[],
@@ -145,6 +151,7 @@ fn table_limit_duplicate_names_and_later_failure_preserve_destination() -> TestR
     let directory = TestDirectory::create()?;
     let first = TableRows {
         table: TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"First",
             columns: &[ID],
             indexes: &[],
@@ -218,6 +225,7 @@ fn later_table_pages_share_the_same_inline_allocation_limit() -> TestResult {
     let rows = vec![row.as_slice(); 3000];
     let first = TableRows {
         table: TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"WideRows",
             columns: &columns,
             indexes: &[],
@@ -226,6 +234,7 @@ fn later_table_pages_share_the_same_inline_allocation_limit() -> TestResult {
     };
     let later = TableRows {
         table: TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Later",
             columns: &[ID],
             indexes: &[],

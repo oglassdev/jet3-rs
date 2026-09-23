@@ -61,6 +61,10 @@ pub struct RowUpdate<'a> {
 /// parent keys (EXP-0292). Cascades retain the selected row's explicit foreign-key
 /// assignments and update other matching rows, including null tuples (EXP-0295).
 /// All affected rows, payloads and indexes publish in one atomic replacement.
+/// Jet expressions are not evaluated: a table storing a field or table
+/// ValidationRule (EXP-0299) refuses with [`UpdateError::ValidationRule`], and a
+/// database whose sort order is not General with
+/// [`UpdateError::UnsupportedSortOrder`]. Both refusals preserve the file.
 pub fn update_row(
     path: impl AsRef<Path>,
     request: RowUpdate<'_>,
@@ -80,7 +84,10 @@ where
     HE: StdError + Send + Sync + 'static,
 {
     let mut database = DatabaseReader::open(path, budget)?;
+    crate::update::require_general_sort_order(&database)?;
     let definition = crate::update::indexed_writable_table(&mut database, request.table, budget)?;
+    let options = crate::column_value_policy::options(&mut database, &definition, budget)?;
+    crate::column_value_policy::refuse_rules(&options, &definition)?;
     if let Some(cascade) = crate::cascade::prepare(
         &mut database,
         &definition,

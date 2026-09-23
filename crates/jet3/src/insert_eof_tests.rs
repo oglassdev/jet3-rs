@@ -290,6 +290,7 @@ fn later_table_ownership_and_minimum_row_availability() -> TestResult {
         &[
             crate::TableRows {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"First",
                     columns: &first_columns,
                     indexes: &[],
@@ -298,6 +299,7 @@ fn later_table_ownership_and_minimum_row_availability() -> TestResult {
             },
             crate::TableRows {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"Rows",
                     columns: &columns,
                     indexes: &[],

@@ -24,6 +24,7 @@ impl Fixture {
         create_database_with_rows(
             fixture.path(),
             &TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Items",
                 columns,
                 indexes: &[],
@@ -286,6 +287,7 @@ fn nonunique_index_keys_are_updated() -> TestResult {
     create_database_with_rows(
         fixture.path(),
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &indexes,
@@ -385,6 +387,7 @@ fn a_valid_locator_from_another_table_is_rejected() -> TestResult {
     let tables = [
         crate::TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Items",
                 columns: &columns,
                 indexes: &[],
@@ -393,6 +396,7 @@ fn a_valid_locator_from_another_table_is_rejected() -> TestResult {
         },
         crate::TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Other",
                 columns: &columns,
                 indexes: &[],

@@ -45,6 +45,7 @@ pub fn create(path: &Path, count: i32) -> Result<()> {
         &[
             TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: b"Items",
                     columns: &columns,
                     indexes: &indexes,
@@ -53,6 +54,7 @@ pub fn create(path: &Path, count: i32) -> Result<()> {
             },
             TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: b"Notes",
                     columns: &[
                         ColumnSpec::new(b"Id", ColumnType::Long),

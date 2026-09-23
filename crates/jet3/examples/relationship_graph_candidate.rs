@@ -284,6 +284,7 @@ fn create(case: &Value, output: &Path, replicas: u64) -> Result<()> {
         .map(|(((table, columns), indexes), rows)| {
             Ok(TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: text(table, "name")?.as_bytes(),
                     columns,
                     indexes,

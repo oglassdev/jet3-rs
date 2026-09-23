@@ -17,6 +17,7 @@ fn fixture(path: &Path) -> TestResult {
     let requests = [
         TableRows {
             table: TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: b"Items",
                 columns: &[ColumnSpec::new(b"Id", ColumnType::Long)],
                 indexes: &[IndexSpec {
@@ -29,6 +30,7 @@ fn fixture(path: &Path) -> TestResult {
         },
         TableRows {
             table: TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: b"Notes",
                 columns: &[ColumnSpec::new(b"Body", ColumnType::Memo)],
                 indexes: &[],

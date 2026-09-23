@@ -43,6 +43,7 @@ pub(crate) fn create(
             columns.push(column);
             crate::creation::schema_plan::plan_table_schema(
                 &TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: table,
                     columns: &columns,
                     indexes: &[],
@@ -53,11 +54,7 @@ pub(crate) fn create(
             )?;
             let (catalog, row, properties) =
                 crate::schema_properties::load(database, &definition, budget)?;
-            let properties = if column.column_type() == ColumnType::AutoIncrement {
-                properties
-            } else {
-                crate::schema_properties::add(&properties, column, budget)?
-            };
+            let properties = crate::schema_properties::add(&properties, column, budget)?;
             let mut edited = crate::schema_definition::DefinitionEdit::new(&definition, budget)?;
             let mut fixed = fixed_offset(&definition, column, budget)?;
             let mut variables = u16::from_le_bytes([edited.header[23], edited.header[24]]);
@@ -154,21 +151,7 @@ pub(crate) fn create(
         Ok((PageEdits::new(database.geometry().page_count()), ()))
     })?;
     if !properties.is_empty() {
-        crate::schema_publish::apply(file, journal, budget, |database, budget| {
-            let catalog = database.table_definition(catalog_root, budget)?;
-            let column = crate::schema_catalog::column(&catalog, b"LvProp")?;
-            let graph =
-                crate::row_mutation_graph::RowGraph::load(database, &catalog, Some(row), budget)?;
-            let edits = crate::field_update::plan_fields(
-                database,
-                &catalog,
-                graph,
-                row,
-                &[(column, RowValue::LongBinary(&properties))],
-                budget,
-            )?;
-            Ok((edits, ()))
-        })?;
+        crate::schema_properties::store(file, journal, catalog_root, row, &properties, budget)?;
     }
     if let Some(record) = auto_record {
         backfill_auto(file, journal, root, ordinal, record, budget)?;
@@ -193,6 +176,11 @@ fn backfill_auto(
             locators.push(row.locator());
         }
         drop(rows);
+        // EXP-0299: backfilled rows cannot be checked against a stored rule.
+        if !locators.is_empty() {
+            let options = crate::column_value_policy::options(database, &table, budget)?;
+            crate::column_value_policy::refuse_rules(&options, &table)?;
+        }
         Ok((PageEdits::new(database.geometry().page_count()), locators))
     })?;
     let mut state = crate::auto_number_state::AutoNumberState::default();

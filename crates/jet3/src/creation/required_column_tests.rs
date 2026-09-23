@@ -25,6 +25,7 @@ fn required_columns_enforce_nulls_without_indexes_and_keep_scalar_exceptions() -
     ];
     assert!(!columns[3].required());
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Rows",
         columns: &columns,
         indexes: &[],
@@ -100,8 +101,8 @@ fn required_columns_enforce_nulls_without_indexes_and_keep_scalar_exceptions() -
     db.validate(TextCodePage::Windows1252, &mut work)?;
     let definition = crate::update::indexed_writable_table(&mut db, b"Rows", &mut work)?;
     let options = crate::column_value_policy::options(&mut db, &definition, &mut work)?;
-    assert!(options[0].required && options[2].required);
-    assert!(!options[1].required && !options[3].required);
+    assert!(options.columns[0].required && options.columns[2].required);
+    assert!(!options.columns[1].required && !options.columns[3].required);
     let mut rows = db.rows(&definition, &mut work)?;
     let mut ids = Vec::new();
     while let Some(mut row) = rows.next_row()? {
@@ -146,6 +147,7 @@ fn required_payloads_distinguish_empty_strings_from_storage_nulls() -> TestResul
     create_database_with_rows(
         &path,
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Rows",
             columns: &columns,
             indexes: &[],
@@ -193,12 +195,18 @@ fn required_property_corruption_and_stored_nulls_are_reported() -> TestResult {
     let path = directory.target();
     let columns = [ColumnSpec::new(b"Key", ColumnType::Long).with_required()];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Rows",
         columns: &columns,
         indexes: &[],
     };
     create_database_with_rows(&path, &table, &[&[RowValue::Long(1)]], &mut budget())?;
-    let property = crate::column_properties::ColumnProperties::new(&columns).ok_or("properties")?;
+    let property = crate::column_properties::CreationProperties::new(
+        &columns,
+        crate::TableValidation::NONE,
+        &mut budget(),
+    )?
+    .ok_or("properties")?;
     let mut encoded = vec![0; property.len()];
     property.encode(&mut encoded, &mut budget())?;
     let original = fs::read(&path)?;
@@ -249,9 +257,7 @@ fn required_property_corruption_and_stored_nulls_are_reported() -> TestResult {
     encoded[field_block..field_block + 4].copy_from_slice(&(block_len + 9).to_le_bytes());
     assert!(matches!(
         crate::column_property_reader::decode(&encoded, definition.columns(), &mut budget()),
-        Err(ColumnPropertyError::Invalid(
-            "named Boolean property record"
-        ))
+        Err(ColumnPropertyError::Invalid("duplicate property record"))
     ));
     Ok(())
 }
@@ -269,6 +275,7 @@ fn missing_zero_length_properties_do_not_disable_empty_strings() -> TestResult {
         create_database(
             &path,
             &[TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Rows",
                 columns: &columns,
                 indexes: &[],
@@ -293,8 +300,12 @@ fn missing_zero_length_properties_do_not_disable_empty_strings() -> TestResult {
             let mut encoded = b"KKD\0\x06\0\0\0\x80\0".to_vec();
             if let Some(property_column) = property_column {
                 let property_columns = [property_column];
-                let properties = crate::column_properties::ColumnProperties::new(&property_columns)
-                    .ok_or("property block")?;
+                let properties = crate::column_properties::CreationProperties::new(
+                    &property_columns,
+                    crate::TableValidation::NONE,
+                    &mut budget(),
+                )?
+                .ok_or("property block")?;
                 encoded.resize(properties.len(), 0);
                 properties.encode(&mut encoded, &mut budget())?;
             }
@@ -302,7 +313,8 @@ fn missing_zero_length_properties_do_not_disable_empty_strings() -> TestResult {
                 &encoded,
                 definition.columns(),
                 &mut budget(),
-            )?[1];
+            )?
+            .columns[1];
             assert_eq!(options.required, required);
             assert_eq!(options.allow_zero_length, allow_zero_length);
             let empty = if kind == ColumnType::Memo {

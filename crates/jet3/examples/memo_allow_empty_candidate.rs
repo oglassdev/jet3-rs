@@ -32,6 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         create_database_with_rows(
             directory.join(file),
             &TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: table,
                 columns: &columns,
                 indexes: &[],

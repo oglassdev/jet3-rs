@@ -161,6 +161,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         create_database_with_rows(
             directory.join(format!("{name}.mdb")),
             &TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: b"Rows",
                 columns: &columns,
                 indexes: &indexes,

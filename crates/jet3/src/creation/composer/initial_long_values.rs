@@ -108,10 +108,12 @@ pub(crate) fn encode_initial_row(
             crate::column_property_reader::ColumnOptions {
                 required: false,
                 allow_zero_length: Some(false),
+                validation_rule: false,
             },
             |column| crate::column_property_reader::ColumnOptions {
                 required: column.required(),
                 allow_zero_length: Some(column.allow_zero_length()),
+                validation_rule: false,
             },
         );
         crate::column_value_policy::check_value(

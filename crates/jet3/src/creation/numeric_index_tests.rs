@@ -87,6 +87,7 @@ fn observed_numeric_bytes_directions_and_locators_survive_publication() -> TestR
                 ..one_index(IndexKind::Unique)[0]
             }];
             let table = TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Items",
                 columns: &[ColumnSpec::new(b"Value", column)],
                 indexes: &indexes,
@@ -151,6 +152,7 @@ fn nullable_numeric_composites_reuse_full_key_policy_and_scalar_duplicate_error(
             fields: &fields,
         }];
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &indexes,
@@ -210,6 +212,7 @@ fn wide_numeric_components_pack_across_leaf_boundaries() -> TestResult {
         fields: &fields,
     }];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[
             ColumnSpec::new(b"A", ColumnType::Currency),
@@ -251,6 +254,7 @@ fn excluded_scalar_values_and_types_never_publish() -> TestResult {
     ] {
         let directory = TestDirectory::create()?;
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &[ColumnSpec::new(b"Value", column)],
             indexes: &one_index(IndexKind::Ordinary),

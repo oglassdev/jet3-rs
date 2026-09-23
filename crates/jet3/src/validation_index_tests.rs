@@ -81,6 +81,7 @@ fn unsupported_key_schemas_report_coverage_and_still_check_membership() -> TestR
     let plan = compose_database_with_table_rows(
         &[TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Items",
                 columns: &[
                     ColumnSpec::new(b"Id", ColumnType::Long),
@@ -217,6 +218,7 @@ fn composite_text_binary_guid_null_policies_and_branch_bounds_are_checked() -> T
     let plan = compose_database_with_table_rows(
         &[TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Items",
                 columns: &columns,
                 indexes: &indexes,
@@ -262,6 +264,7 @@ fn all_null_omission_and_repeated_nullable_unique_keys_have_complete_coverage() 
         let plan = compose_database_with_table_rows(
             &[TableRows {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"Items",
                     columns: &[
                         ColumnSpec::new(b"Id", ColumnType::Long),
@@ -374,6 +377,7 @@ fn numeric_and_text_index_decoding_keep_resource_errors_structured() -> TestResu
         let plan = compose_database_with_table_rows(
             &[TableRows {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"Items",
                     columns: &[ColumnSpec::new(b"Value", kind)],
                     indexes: &[IndexSpec {

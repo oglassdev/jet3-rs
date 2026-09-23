@@ -76,6 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         create_database_with_rows(
             &original,
             &TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: b"Items",
                 columns: &columns,
                 indexes: &indexes,

@@ -1,208 +1,209 @@
-//! EXP-0297 field Boolean edits affect future writes, preserving existing rows and other properties.
-use crate::page_edits::{PageEdits, reserve};
-use crate::{ResourceBudget, UpdateError};
+//! EXP-0297 Boolean and EXP-0299 text property edits. They affect future writes
+//! only, preserving existing rows and every unrelated LvProp byte.
+use crate::column_properties::TextProperty;
+use crate::page_edits::PageEdits;
+use crate::property_blob::{Block, FIELD_BLOCK, MEMO, PropertyBlob, Record, TABLE_BLOCK, TEXT};
+use crate::{PropertyChange, ResourceBudget, UpdateError};
 use std::fs::File;
+
+/// Requested changes to one field or, when `column` is `None`, the table.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PropertyEdit<'a> {
+    pub column: Option<&'a [u8]>,
+    pub required: Option<bool>,
+    pub allow_zero_length: Option<bool>,
+    /// Changes in [`TextProperty::FIELD_ORDER`].
+    pub text: [PropertyChange<'a>; 4],
+}
 
 pub(crate) fn set(
     file: &mut File,
     journal: &mut PageEdits,
     table: &[u8],
-    column: &[u8],
-    required: Option<bool>,
-    allow_zero_length: Option<bool>,
+    edit: PropertyEdit<'_>,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
     let (catalog, row, bytes) =
         crate::schema_publish::apply(file, journal, budget, |database, budget| {
             let table = crate::update::indexed_writable_table(database, table, budget)?;
-            let selected = table
-                .columns()
-                .iter()
-                .find(|field| field.name().raw_bytes() == column)
-                .ok_or(UpdateError::NotFound("column"))?;
-            if allow_zero_length.is_some()
-                && !crate::column_properties::has_zero_length_property(selected.physical_type())
+            if edit.required.is_none()
+                && edit.allow_zero_length.is_none()
+                && edit
+                    .text
+                    .iter()
+                    .all(|change| matches!(change, PropertyChange::Keep))
             {
-                return Err(UpdateError::Unsupported("AllowZeroLength column type"));
+                return Err(UpdateError::Unsupported("no properties requested"));
             }
-            if required.is_none() && allow_zero_length.is_none() {
-                return Err(UpdateError::Unsupported("no column options requested"));
+            for (property, change) in TextProperty::FIELD_ORDER.into_iter().zip(edit.text) {
+                if let PropertyChange::Set(value) = change {
+                    crate::column_properties::check_value(value)
+                        .map_err(UpdateError::Unsupported)?;
+                    if edit.column.is_none()
+                        && !matches!(
+                            property,
+                            TextProperty::ValidationRule | TextProperty::ValidationText
+                        )
+                    {
+                        return Err(UpdateError::Unsupported("table property name"));
+                    }
+                }
+            }
+            if let Some(column) = edit.column {
+                let selected = table
+                    .columns()
+                    .iter()
+                    .find(|field| field.name().raw_bytes() == column)
+                    .ok_or(UpdateError::NotFound("column"))?;
+                let kind = selected.physical_type();
+                if edit.allow_zero_length.is_some()
+                    && !crate::column_properties::has_zero_length_property(kind)
+                {
+                    return Err(UpdateError::Unsupported("AllowZeroLength column type"));
+                }
+                if TextProperty::FIELD_ORDER
+                    .into_iter()
+                    .zip(edit.text)
+                    .any(|(property, change)| {
+                        matches!(change, PropertyChange::Set(_)) && !property.eligible(kind)
+                    })
+                {
+                    return Err(UpdateError::Unsupported("validation property column type"));
+                }
             }
             let (catalog, row, bytes) = crate::schema_properties::load(database, &table, budget)?;
-            let bytes = encode(&bytes, column, [required, allow_zero_length], budget)?;
-            crate::column_property_reader::decode(&bytes, table.columns(), budget)?;
+            let mut blob = if bytes.is_empty() {
+                PropertyBlob::empty()
+            } else {
+                PropertyBlob::parse(&bytes, budget)?
+            };
+            apply(&mut blob, edit, budget)?;
+            let edited = if bytes.is_empty() && blob.blocks().is_empty() {
+                Vec::new()
+            } else {
+                crate::schema_properties::encode(&blob, budget)?
+            };
+            if !edited.is_empty() {
+                crate::column_property_reader::decode(&edited, table.columns(), budget)?;
+            }
+            let changed = edited != bytes;
             Ok((
                 PageEdits::new(database.geometry().page_count()),
-                (catalog.root(), row, bytes),
+                (catalog.root(), row, changed.then_some(edited)),
             ))
         })?;
-    crate::schema_properties::store(file, journal, catalog, row, &bytes, budget)
+    match bytes {
+        Some(bytes) => crate::schema_properties::store(file, journal, catalog, row, &bytes, budget),
+        // Clearing an absent value leaves the payload and file unchanged.
+        None => Ok(()),
+    }
 }
 
-fn word(bytes: &[u8], offset: usize) -> Result<usize, UpdateError> {
-    let value = bytes
-        .get(offset..offset + 2)
-        .ok_or(UpdateError::Mismatch("property word"))?;
-    Ok(u16::from_le_bytes([value[0], value[1]]) as usize)
-}
-fn length(bytes: &[u8], offset: usize) -> Result<usize, UpdateError> {
-    let value = bytes
-        .get(offset..offset + 4)
-        .and_then(|v| v.try_into().ok())
-        .ok_or(UpdateError::Mismatch("property length"))?;
-    Ok(u32::from_le_bytes(value) as usize)
-}
-fn append(out: &mut Vec<u8>, bytes: &[u8], budget: &mut ResourceBudget) -> Result<(), UpdateError> {
-    reserve(out, bytes.len(), budget)?;
-    budget.charge_work_units(bytes.len() as u64)?;
-    out.extend_from_slice(bytes);
-    Ok(())
-}
-
-fn encode(
-    bytes: &[u8],
-    column: &[u8],
-    values: [Option<bool>; 2],
+pub(crate) fn apply(
+    blob: &mut PropertyBlob,
+    edit: PropertyEdit<'_>,
     budget: &mut ResourceBudget,
-) -> Result<Vec<u8>, UpdateError> {
-    let end = if bytes.is_empty() {
-        0
-    } else {
-        4 + length(bytes, 4)?
+) -> Result<(), UpdateError> {
+    let (kind, name) = match edit.column {
+        Some(column) => (FIELD_BLOCK, column),
+        None => (TABLE_BLOCK, b"".as_slice()),
     };
-    let mut dictionary = Vec::new();
-    let mut count = 0_u16;
-    let mut ordinals = [None; 2];
-    let names = [b"Required".as_slice(), b"AllowZeroLength"];
-    if end != 0 {
-        append(
-            &mut dictionary,
-            bytes
-                .get(10..end)
-                .ok_or(UpdateError::Mismatch("property dictionary bounds"))?,
-            budget,
-        )?;
-        let mut position = 10;
-        while position < end {
-            let len = word(bytes, position)?;
-            let name = bytes
-                .get(position + 2..position + 2 + len)
-                .ok_or(UpdateError::Mismatch("property name"))?;
-            if let Some(at) = names.iter().position(|&known| known == name) {
-                ordinals[at] = Some(count);
+    // EXP-0297: new Boolean names append Required before AllowZeroLength.
+    let required = match edit.required {
+        Some(_) => Some(blob.intern(b"Required", budget)?),
+        None => None,
+    };
+    let allow = match edit.allow_zero_length {
+        Some(_) => Some(blob.intern(b"AllowZeroLength", budget)?),
+        None => None,
+    };
+    let mut records = [None, None, None, None];
+    for ((property, change), slot) in TextProperty::FIELD_ORDER
+        .into_iter()
+        .zip(edit.text)
+        .zip(&mut records)
+    {
+        *slot = match change {
+            PropertyChange::Keep => None,
+            PropertyChange::Clear => blob.ordinal(property.name()).map(|name| (name, None)),
+            PropertyChange::Set(value) => {
+                let name = blob.intern(property.name(), budget)?;
+                Some((
+                    name,
+                    Some(text_record(property, kind, name, value, budget)?),
+                ))
             }
-            count = count
-                .checked_add(1)
-                .ok_or(UpdateError::Unsupported("property dictionary capacity"))?;
-            position += 2 + len;
-        }
+        };
     }
-    for (at, name) in names.iter().enumerate() {
-        if values[at].is_some() && ordinals[at].is_none() {
-            append(&mut dictionary, &(name.len() as u16).to_le_bytes(), budget)?;
-            append(&mut dictionary, name, budget)?;
-            ordinals[at] = Some(count);
-            count = count
-                .checked_add(1)
-                .ok_or(UpdateError::Unsupported("property dictionary capacity"))?;
+    let position = match blob
+        .blocks()
+        .iter()
+        .position(|block| block.kind() == kind && block.name() == name)
+    {
+        Some(position) => position,
+        None => {
+            if records.iter().flatten().all(|(_, record)| record.is_none())
+                && required.is_none()
+                && allow.is_none()
+            {
+                return Ok(());
+            }
+            blob.push(Block::new(kind, name, budget)?, budget)?;
+            blob.blocks().len() - 1
         }
-    }
-    let mut output = Vec::new();
-    append(&mut output, b"KKD\0", budget)?;
-    append(
-        &mut output,
-        &(dictionary.len() as u32 + 6).to_le_bytes(),
-        budget,
-    )?;
-    append(&mut output, &[0x80, 0], budget)?;
-    append(&mut output, &dictionary, budget)?;
-    let mut position = end;
-    let mut found = false;
-    while position < bytes.len() {
-        let block_end = position
-            .checked_add(length(bytes, position)?)
-            .filter(|end| *end <= bytes.len())
-            .ok_or(UpdateError::Mismatch("property block bounds"))?;
-        let block = &bytes[position..block_end];
-        let len = word(block, 10)?;
-        let name = block
-            .get(12..12 + len)
-            .ok_or(UpdateError::Mismatch("property field name"))?;
-        if name == column {
-            write_block(
-                &mut output,
-                column,
-                &block[12 + len..],
-                values,
-                ordinals,
+    };
+    let block = blob.block_at(position)?;
+    // EXP-0297: an absent AllowZeroLength record is appended before Required.
+    for (name, value) in [(allow, edit.allow_zero_length), (required, edit.required)] {
+        if let (Some(name), Some(value)) = (name, value) {
+            block.set(
+                crate::schema_properties::boolean(name, value, budget)?,
                 budget,
             )?;
-            found = true;
-        } else {
-            append(&mut output, block, budget)?;
-        }
-        position = block_end;
-    }
-    if !found {
-        write_block(&mut output, column, &[], values, ordinals, budget)?;
-    }
-    Ok(output)
-}
-
-fn write_block(
-    output: &mut Vec<u8>,
-    column: &[u8],
-    existing: &[u8],
-    values: [Option<bool>; 2],
-    ordinals: [Option<u16>; 2],
-    budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
-    let start = output.len();
-    append(output, &[0; 4], budget)?;
-    append(output, &[1, 0], budget)?;
-    append(output, &(column.len() as u32 + 6).to_le_bytes(), budget)?;
-    append(output, &(column.len() as u16).to_le_bytes(), budget)?;
-    append(output, column, budget)?;
-    let mut position = 0;
-    let mut written = [false; 2];
-    while position < existing.len() {
-        let len = word(existing, position)?;
-        let record = existing
-            .get(position..position + len)
-            .filter(|record| record.len() >= 8)
-            .ok_or(UpdateError::Mismatch("property record bounds"))?;
-        let ordinal = word(record, 4)? as u16;
-        if let Some(at) = ordinals
-            .iter()
-            .position(|&selected| selected == Some(ordinal))
-            && let Some(value) = values[at]
-        {
-            boolean(output, ordinal, value, budget)?;
-            written[at] = true;
-        } else {
-            append(output, record, budget)?;
-        }
-        position += len;
-    }
-    for at in [1, 0] {
-        if !written[at]
-            && let (Some(ordinal), Some(value)) = (ordinals[at], values[at])
-        {
-            boolean(output, ordinal, value, budget)?;
         }
     }
-    let len = u32::try_from(output.len() - start)
-        .map_err(|_| UpdateError::Unsupported("property block size"))?;
-    output[start..start + 4].copy_from_slice(&len.to_le_bytes());
+    for (name, record) in records.into_iter().flatten() {
+        match record {
+            Some(record) => block.set(record, budget)?,
+            // EXP-0299: assigning an empty value removes the record.
+            None => block.remove(name),
+        }
+    }
+    if block.records().is_empty() {
+        // EXP-0299: clearing the last table property removes its block.
+        blob.retain_blocks(|block| !(block.kind() == kind && block.name() == name));
+    }
     Ok(())
 }
-fn boolean(
-    output: &mut Vec<u8>,
-    ordinal: u16,
-    value: bool,
+
+/// EXP-0299 existing-object assignments: field rules gain one NUL and table rules are Memo.
+fn text_record(
+    property: TextProperty,
+    block: u16,
+    name: u16,
+    value: &[u8],
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
-    append(output, &[9, 0, 1, 1], budget)?;
-    append(output, &ordinal.to_le_bytes(), budget)?;
-    append(output, &[1, 0, if value { 0xff } else { 0 }], budget)
+) -> Result<Record, UpdateError> {
+    let record = if block == TABLE_BLOCK {
+        let kind = if property == TextProperty::ValidationRule {
+            MEMO
+        } else {
+            TEXT
+        };
+        Record::new(property.flag(), kind, name, value, budget)?
+    } else if property == TextProperty::ValidationRule {
+        let mut terminated = crate::property_blob::owned(value, budget)?;
+        crate::resource::reserve(&mut terminated, 1, budget)?;
+        terminated.push(0);
+        Record::new(
+            property.flag(),
+            property.field_kind(),
+            name,
+            &terminated,
+            budget,
+        )?
+    } else {
+        Record::new(property.flag(), property.field_kind(), name, value, budget)?
+    };
+    Ok(record)
 }

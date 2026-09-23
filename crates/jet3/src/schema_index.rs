@@ -13,6 +13,9 @@ use crate::{
 };
 
 #[cfg(all(test, any(unix, windows)))]
+#[path = "schema_index_matrix_tests.rs"]
+mod matrix_tests;
+#[cfg(all(test, any(unix, windows)))]
 #[path = "schema_index_tests.rs"]
 mod tests;
 
@@ -37,6 +40,8 @@ pub(crate) fn plan(
         | SchemaEdit::DropTable { .. }
         | SchemaEdit::DropColumn { .. }
         | SchemaEdit::SetColumnOptions { .. }
+        | SchemaEdit::SetColumnProperties { .. }
+        | SchemaEdit::SetTableProperties { .. }
         | SchemaEdit::DropRelationship { .. }
         | SchemaEdit::CreateRelationship { .. }
         | SchemaEdit::ReplaceRelationship { .. } => {

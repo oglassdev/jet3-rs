@@ -47,6 +47,7 @@ fn catalog_property_payloads_are_traversed_and_owned() -> TestResult {
     let plan = compose_database_with_table_rows(
         &[TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Items",
                 columns: &columns,
                 indexes: &[],

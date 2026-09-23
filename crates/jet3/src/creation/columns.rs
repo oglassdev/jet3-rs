@@ -123,6 +123,10 @@ pub struct ColumnSpec<'a> {
     column_type: ColumnType,
     allow_zero_length: bool,
     required: bool,
+    default_value: Option<&'a [u8]>,
+    validation_rule: Option<&'a [u8]>,
+    validation_text: Option<&'a [u8]>,
+    description: Option<&'a [u8]>,
 }
 
 impl<'a> ColumnSpec<'a> {
@@ -134,7 +138,77 @@ impl<'a> ColumnSpec<'a> {
             column_type,
             allow_zero_length: false,
             required: false,
+            default_value: None,
+            validation_rule: None,
+            validation_text: None,
+            description: None,
         }
+    }
+
+    /// Stores a DefaultValue expression as opaque database-code-page bytes.
+    ///
+    /// Rust neither checks the expression's syntax nor applies it: writes store
+    /// the supplied row values, including explicit nulls, as DAO does
+    /// (EXP-0299). DAO rejects malformed expressions, so callers must supply
+    /// valid ones. Text properties hold 1 to 2,048 bytes without NUL or
+    /// undefined CP1252 bytes. DAO drops DefaultValue, ValidationRule and
+    /// ValidationText requested for a new AutoIncrement field, so creation
+    /// refuses them there; set them afterwards with
+    /// [`crate::SchemaEdit::SetColumnProperties`].
+    #[must_use]
+    pub const fn with_default_value(mut self, expression: &'a [u8]) -> Self {
+        self.default_value = Some(expression);
+        self
+    }
+
+    /// Stores a ValidationRule expression as opaque database-code-page bytes.
+    ///
+    /// Rust never evaluates the rule: inserts and updates on a table storing a
+    /// rule fail with [`crate::UpdateError::ValidationRule`], and creation
+    /// with initial rows is refused. DAO refuses validation properties on
+    /// Binary, OLE and GUID columns (EXP-0299), so those are rejected.
+    #[must_use]
+    pub const fn with_validation_rule(mut self, rule: &'a [u8]) -> Self {
+        self.validation_rule = Some(rule);
+        self
+    }
+
+    /// Stores the message DAO reports when the ValidationRule fails.
+    #[must_use]
+    pub const fn with_validation_text(mut self, text: &'a [u8]) -> Self {
+        self.validation_text = Some(text);
+        self
+    }
+
+    /// Stores the Access Description property as opaque database-code-page bytes.
+    #[must_use]
+    pub const fn with_description(mut self, description: &'a [u8]) -> Self {
+        self.description = Some(description);
+        self
+    }
+
+    /// The requested DefaultValue expression.
+    #[must_use]
+    pub const fn default_value(&self) -> Option<&'a [u8]> {
+        self.default_value
+    }
+
+    /// The requested ValidationRule expression.
+    #[must_use]
+    pub const fn validation_rule(&self) -> Option<&'a [u8]> {
+        self.validation_rule
+    }
+
+    /// The requested ValidationText.
+    #[must_use]
+    pub const fn validation_text(&self) -> Option<&'a [u8]> {
+        self.validation_text
+    }
+
+    /// The requested Description.
+    #[must_use]
+    pub const fn description(&self) -> Option<&'a [u8]> {
+        self.description
     }
 
     /// Enables distinct empty-string values on this Text or Memo column.

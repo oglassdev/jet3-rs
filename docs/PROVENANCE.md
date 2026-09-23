@@ -20349,3 +20349,174 @@ and ten ignored tests, plus formatting, clippy, documentation and quick acceptan
 This establishes the finite existing-schema edit inventory above. Default and
 validation-expression authoring, other code pages, unsupported relationship forms,
 and broader preservation and release gates remain outside this acceptance.
+
+## EXP-0299 — Native text properties, table properties and sort-order markers
+
+On 2026-09-22/23, local x86 `DAO.DBEngine.36` 3.6, DLL 03.60.9765.0 (SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`), Windows
+10.0.20348, en-US/ANSI 1252, created and edited fresh Jet 3 databases. The
+source context is `feat/schema-expressions` above main `06f53d2`. No MDB
+implementation source was consulted. This entry records native observations,
+not Rust compatibility.
+
+The durable private bundle is `checks/20260922-schema-expressions-discovery`
+beneath the local VM share. Its `SHA256SUMS` (277 files, SHA-256
+`4a6efa5faff5f1383cb9f3070fc7717652374fa84b4699370042d483b3ff25fc`) covers every
+staged producer, returned image and result. Accepted runs and result SHA-256
+values are `20260922T235500Z-textprops-abc`
+(`ef2c2efdc3ca9873af84aa1b2382c85db8746e6bb05b458cb3a225b620e386f2`),
+`20260923T001500Z-textprops-d`
+(`9a8a2a0138821d4650adf4f68e90113c792f7ebe106fc028166785e5d5c87d69`),
+`20260923T002000Z-textprops-rest2`
+(`a5ea837286176dc74897dfbc08a4ba9dc43ec98ae32475a7301bef7d39acd901`) and
+`20260923T020500Z-edit-placement`
+(`61321f7108d8ad1b32e7da51fd2a5eb860ac75b84acd0bba75fc73cb01715de7`). Their staged
+producer SHA-256 values are respectively
+`44994fd68cec528cc7a96ed22fa09d96feff875cfcf9f8c6ae922fe11193156e`,
+`3d9820a1040dc7bd5dcff7657c2651d2bb9e57952534e4ea1fcc8460fb8e0f1e`,
+`2f99af21b73332eea6b9f65151b6fe39a024c824d7de5e9a7ec839eede5d1dbe` and
+`2851b708fcc8adeaa4b41a1a1d3ab11d9972e886c5cbb2361dcca1d64b50a22e`. Two slow
+attempts stopped without results and one edit-placement attempt whose case filter
+selected nothing are retained and unused.
+
+Text records use the EXP-0266 record frame: 16-bit length, flag byte, type byte,
+16-bit dictionary ordinal, 16-bit value length and value. Engine properties have
+flag 1; `Description`, created through `CreateProperty`, has flag 0. Field
+`DefaultValue` and `ValidationRule` are type 12 (Memo); `ValidationText` and
+`Description` are type 10 (Text). Values are the CP1252 bytes without a
+terminator, except that a `ValidationRule` assigned to an already appended field
+stores one trailing NUL, which the DAO getter also returns. An embedded NUL in the
+assigned string truncates the stored value.
+
+Table properties occupy one block of kind 0 with an empty name (name frame 6,
+name length 0). A table `ValidationRule` assigned before `TableDefs.Append` is
+type 10, after append type 12; neither has a NUL. `ValidationText` is type 10. At
+creation the table block follows every field block. Fields appended later, and
+existing fields that first receive properties later, append their blocks after it.
+
+At creation every non-AutoIncrement field receives a block. Its records are
+AllowZeroLength (Text, Fixed Text and Memo), Required, ValidationRule,
+ValidationText and DefaultValue in that order, independent of assignment order
+(`b-text-all-forward`/`reverse` are identical). The dictionary lists names by
+first use across field blocks and then the table block. `Description` can only be
+created after append; it is appended to its block and to the dictionary.
+
+Later assignments append new names to the dictionary and new records to the end
+of their block in assignment order; changing a value replaces its record in place.
+Assigning an empty string removes the record and retains its dictionary name; a
+block left with no records is removed (table block, AutoIncrement field block).
+`Description` cannot be assigned empty (DAO 3385) but `Properties.Delete` removes
+it; built-in properties cannot be deleted (3384). Renaming a field renames its
+block and dropping one removes it. Eleven edit-placement lineages, each in two
+replicas, produce identical payloads per replica.
+
+DAO refuses `ValidationRule` and `ValidationText` on Binary, OLE and GUID fields
+with 3313, before and after append; `DefaultValue` is accepted on every kind. On a
+new AutoIncrement field, `DefaultValue`, `ValidationRule` and `ValidationText` are
+silently dropped (no payload, empty getters); after append all are stored in a
+block without a Required record. All four field properties and both table
+properties accept 254 to 4,000 bytes; payloads of 1,024 bytes and more are chained
+(for example 6,366 bytes over four pages and 24,222 bytes over twelve).
+
+DAO parses expressions on assignment: `((` fails with 3320, an unknown field
+reference with 3344, and `@@@` fails as a DefaultValue with 13 and as a table rule
+with 3320, while a field rule `@@@` is stored and later inserts fail with 3317.
+DAO enforces field and table rules on insertion (3317). Renaming or dropping a
+field referenced by the table rule succeeds, leaves the rule text unchanged, and
+later insertion fails with 3344. An explicit Null assigned to a field with a
+DefaultValue is stored as Null through SQL and recordsets; only an omitted field
+receives the default.
+
+Databases created with the General (LANGID 0x0409), Nordic (0x041D), Spanish
+(0x040A) and Dutch (0x0413) sort orders on code page 1252, Cyrillic (0x0419, 1251)
+and Greek (0x0408, 1253), two replicas each and both empty and with one indexed
+Text row, report DAO `CollatingOrder` 1033, 1053, 1034, 1043, 1049 and 1032. Page
+zero differs from General only at 0x3a (and 0x3c when the code page differs): the
+raw General bytes 0x3a..0x3e are `ed c7 9f 46`, and 0x3a is `f9`, `ee`, `f7`,
+`fd` and `ec` for the other orders, with 0x3c `98` (Cyrillic) and `9e` (Greek).
+Every column record, including system tables, carries the LANGID and code page
+little-endian at bytes 9..13: `09 04 e4 04`, `1d 04 e4 04`, `0a 04 e4 04`,
+`13 04 e4 04`, `19 04 e3 04` and `08 04 e5 04`. Catalog index keys differ as
+well. Replicas agree on all of these bytes. All 6,001 Jet 3 images in the local
+evidence archive carry the General page-zero bytes.
+
+## EXP-0300 — LvProp storage limit and text-property DAO acceptance
+
+On 2026-09-23 the same local x86 DAO 3.6 environment as EXP-0299 (DLL
+03.60.9765.0, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`, Windows
+10.0.20348, en-US/ANSI 1252) produced the native controls below. No MDB
+implementation source was consulted. The durable private bundle is
+`checks/20260923-schema-expressions-acceptance` beneath the local VM share; its
+`SHA256SUMS` (3,696 files) has SHA-256
+`015ab20d1a83b2f3dbef66551a98515c9e81e75c2ceba92a3fea7948468f4010`.
+
+### LvProp single-page limit
+
+Runs `20260923T042403Z-lvprop-threshold` and
+`20260923T042419Z-lvprop-threshold-fine` created one-table databases whose Memo field received a DefaultValue before
+append, a ValidationText after append, or a one-byte ValidationText later grown.
+In all three histories an `MSysObjects.LvProp` payload of up to 1,776 bytes is
+stored single-page (header flag `0x40000000`) and one of 1,777 bytes or more is
+chained, one fragment through 2,015 tested bytes and two at 2,065, with the
+EXP-0061 2,032-byte fragments. The fine run tested every payload from 1,765 to
+1,815 bytes. EXP-0299's statement that payloads from 1,024 bytes are chained was
+an extrapolation from its larger controls; 1,776 is the observed limit. User
+Memo/OLE storage is unchanged by this observation.
+
+### Differential acceptance
+
+Accepted run `acceptance-r5` froze source
+`d9ae0df07c3f8952a07bed964e6f3ee507e4f4be` (CLI SHA-256
+`9b83ab92bb15a887a11720fecc17aee7c1dba1245a760afdea8c1d3f8d08b6b8`). Native run
+`20260923T044405Z-textprops-native-r5` applied `text_property_suite.py`
+requests through `text_property_native.ps1`; six observer batches read all 135
+images back with `schema_candidate_observer.ps1`.
+
+- **Creation:** 21 schemas in two native replicas (42 pairs) cover field
+  DefaultValue/ValidationRule/ValidationText/Description on all 15 kinds, table
+  rules and messages, Required/AllowZeroLength mixes, CP1252 accents, chained and
+  boundary payloads (1,776/1,777 bytes), relationships, and all seven valid
+  index class x null-policy options over plain, AllowZeroLength, Required and
+  Required+AllowZeroLength keys with rows. Complete DAO property collections,
+  values and index traversals are equal for all 42 pairs; the raw LvProp payload,
+  header word and fragment lengths are equal for every table. 40 pairs also match
+  LvProp available-map membership. In both `c21-property-boundary` replicas DAO
+  wrote table `Single`'s 1,776-byte payload onto a bootstrap page holding three
+  deleted slots (254 free bytes) and left it unavailable; Rust places it on a
+  fresh page (260 free) and lists it available, as DAO does for the same
+  1,776-byte payload with 260 free bytes in `e24`. This placement-dependent
+  difference is retained as a failure of the strict comparison.
+- **Edits:** 28 set/change/clear, column add/rename/drop, table create, rule
+  edit and index-replacement cases run on native, Rust-created and #379 baseline
+  inputs, with and without rows and with chained payloads, including 1,776/1,777
+  boundaries through property edits, CreateColumn, CreateTable and a rename that
+  shrinks a chained payload to single-page. 24 succeed in both engines; four
+  are refused by both (DAO 3313 twice, 3022, 3058). Eight Rust-only refusals
+  cover rule-bearing tables (insert, field rule), Nordic sort order (edit and
+  insert), an AutoIncrement default at creation, an empty value, and 2,049-byte
+  field and table values that DAO would accept. All 36 pairs compare equal
+  after normalizing only the dates of the named affected tables, and every
+  refusal leaves its input byte-for-byte unchanged. Raw LvProp payloads and
+  storage of all 24 accepted cases match.
+- **Preservation:** the EXP-0298 raw evaluator passed all 34 General-sort-order
+  cases, checking 856 unrelated pages and 1,071 unrelated system rows exactly.
+  Its first comparison failed because the manifest omitted independently
+  allocated map roles for `e26`–`e28` (new Memo column maps and the LvProp
+  available map); after listing them the same observations pass. Both
+  comparisons are retained. The two Nordic inputs are excluded from that
+  evaluator, whose keys assume General collation; their refusals are byte-exact.
+- **Replay:** the frozen CLI reproduces all 44 EXP-0298 candidates and all 252
+  EXP-0285 presence mutations byte for byte. Of 208 EXP-0284 Required-column
+  outputs, 196 are identical; the 12 Boolean outputs differ exactly as main
+  `06f53d2` differs since #374 changed Boolean property payloads, and all 208
+  are identical to main's output.
+
+Retained superseded runs: r1 (wrong harness expectation), r2 (AutoIncrement
+Description placement, fixed), r3 (1,777–2,036-byte payloads stored
+single-page; readback stopped after three batches), and r4 (CreateColumn and
+rename LvProp writers lacked the limit). GPT-5.6 Sol high reviewed four rounds;
+all substantive findings were fixed, and the final round found none. This
+accepts the finite text-property inventory above; Jet expression evaluation,
+default application, non-General writes and the c21 available-map placement
+remain outside it.

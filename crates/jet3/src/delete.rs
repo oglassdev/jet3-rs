@@ -52,6 +52,8 @@ pub struct RowDelete<'a> {
 /// component must occur in its parent table. Cascade selection includes exact
 /// partial-null and all-null tuples. All recursively affected rows, indexes and
 /// payload storage publish together; failure preserves the complete original.
+/// A database whose sort order is not General (EXP-0299) refuses with
+/// [`UpdateError::UnsupportedSortOrder`], preserving the file.
 pub fn delete_row(
     path: impl AsRef<Path>,
     request: RowDelete<'_>,
@@ -71,6 +73,7 @@ where
     HE: StdError + Send + Sync + 'static,
 {
     let mut database = DatabaseReader::open(path, budget)?;
+    crate::update::require_general_sort_order(&database)?;
     let definition = crate::update::indexed_writable_table(&mut database, request.table, budget)?;
     if let Some(cascade) = crate::cascade::prepare(
         &mut database,

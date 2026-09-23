@@ -77,6 +77,7 @@ const DATABASE_HEADER_FIXED_OPAQUE: [u8; 126] = [
 const ALPHA_COLUMNS: [ColumnSpec<'static>; 1] = [ColumnSpec::new(b"Id", ColumnType::Long)];
 #[cfg(test)]
 const ALPHA_SPEC: TableSpec<'static> = TableSpec {
+    validation: crate::TableValidation::NONE,
     name: b"Alpha",
     columns: &ALPHA_COLUMNS,
     indexes: &[],

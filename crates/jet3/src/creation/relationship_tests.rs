@@ -68,11 +68,13 @@ fn schema(two: bool) -> ([TableSpec<'static>; 2], RelationshipSpec<'static>) {
     (
         [
             TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Accounts7",
                 columns: PARENT_COLUMNS,
                 indexes: &INDEXES[..if two { 2 } else { 1 }],
             },
             TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Events9",
                 columns: CHILD_COLUMNS,
                 indexes: &[],
