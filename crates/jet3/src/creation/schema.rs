@@ -135,16 +135,36 @@ pub struct RelationshipField<'a> {
     pub child: ColumnRef<'a>,
 }
 
-/// One enforced relationship between two tables.
+/// Access's default join type for a relationship (SRC-0026).
+///
+/// Stored only in the relationship's attributes (EXP-0301); it is display
+/// metadata and never affects referential integrity.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum RelationshipJoin {
+    /// No join attribute: Access displays an inner join.
+    #[default]
+    Inner,
+    /// `dbRelationLeft`: include all parent rows.
+    Left,
+    /// `dbRelationRight`: include all child rows.
+    Right,
+    /// Both join attributes, which DAO accepts and stores unchanged.
+    LeftAndRight,
+}
+
+/// One relationship between two tables.
 ///
 /// Names are database-encoded bytes, subject to the bounded creation name
 /// encoder. See [`crate::create_database_with_relationships`] for scalar graph
 /// support and [`crate::create_database_with_relationship`] for singular API limits.
+/// Unenforced relationships are created through [`crate::SchemaEdit`].
 ///
 /// ```
-/// use jet3::{ColumnRef, RelationshipField, RelationshipSpec, TableRef};
+/// use jet3::{ColumnRef, RelationshipField, RelationshipJoin, RelationshipSpec, TableRef};
 ///
 /// let relationship = RelationshipSpec {
+///     enforce: true,
+///     join: RelationshipJoin::Inner,
 ///     cascade_updates: false,
 ///     cascade_deletes: false,
 ///     name: b"AccountsEvents",
@@ -158,6 +178,11 @@ pub struct RelationshipField<'a> {
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct RelationshipSpec<'a> {
+    /// Check referential integrity. Unenforced relationships (EXP-0301) have no
+    /// indexes, cascades or key checks; their keys may be any columns.
+    pub enforce: bool,
+    /// Default join type shown by Access; ignored for integrity.
+    pub join: RelationshipJoin,
     /// Update matching foreign keys when a parent key is assigned.
     pub cascade_updates: bool,
     /// Delete matching child rows when a parent row is deleted.

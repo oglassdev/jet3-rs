@@ -405,6 +405,20 @@ fn relationship_lifecycle_checks_rows_and_retains_shared_ordinary_indexes() -> R
         &json!({"operation":"delete","table":"Parent","row":row}),
     )?)?;
     assert_eq!(inspect_table(&path, "Child")?["rows"], retained["rows"]);
+
+    // An unenforced relationship over an orphan key; inspect reports it in request spelling.
+    let loose = json!({"name":"Loose","enforce":false,"join":"left_and_right",
+        "parent":{"table":"Parent","column":"Alternate"},"child":{"table":"Child","column":"ParentId"}});
+    success(&request(
+        "schema",
+        &path,
+        &json!({"operation":"create_relationship","relationship":loose}),
+    )?)?;
+    let relationships = &success(&cli().arg("inspect").arg(&path).output()?)?["relationships"];
+    assert_eq!(relationships[0]["join"], "left_and_right");
+    assert_eq!(relationships[0]["enforced"], false);
+    assert_eq!(relationships[0]["raw_attributes"], 0x0300_0002);
+    assert_eq!(inspect_table(&path, "Child")?["indexes"], child["indexes"]);
     Ok(())
 }
 

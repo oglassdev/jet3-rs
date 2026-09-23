@@ -97,6 +97,7 @@ pub fn run(command: &ValidateCommand) -> Result<String, String> {
             "indexes_with_verified_keys": report.indexes_with_verified_keys,
             "relationship_catalog_rows": report.relationship_catalog_rows,
             "relationships_with_verified_keys": report.relationships_with_verified_keys,
+            "unenforced_relationships": report.unenforced_relationships,
             "relationship_inventory_checked": report.relationship_inventory_checked,
             "long_values": report.long_values,
             "long_value_bytes": report.long_value_bytes,

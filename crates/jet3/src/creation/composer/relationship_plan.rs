@@ -28,8 +28,16 @@ impl<'a> RelationshipPlan<'a> {
         spec: &'a RelationshipSpec<'a>,
         budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
-        if spec.cascade_updates || spec.cascade_deletes {
-            return Err(invalid("cascades require the relationship graph API"));
+        if spec.cascade_updates
+            || spec.cascade_deletes
+            || spec.join != crate::RelationshipJoin::Inner
+        {
+            return Err(invalid(
+                "cascades and join types require the relationship graph API",
+            ));
+        }
+        if !spec.enforce {
+            return Err(invalid("unenforced relationships require edit_schema"));
         }
         if tables.len() != 2 {
             return Err(invalid("exactly two tables required"));

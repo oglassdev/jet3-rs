@@ -6,6 +6,7 @@ use crate::relationship_key::{self, Key, key_values};
 pub(crate) struct Summary {
     pub catalog_rows: u64,
     pub verified: u64,
+    pub unenforced: u64,
     pub uninterpreted: u64,
     pub inventory_checked: bool,
 }
@@ -31,8 +32,7 @@ pub(crate) fn validate<S: ReadAt>(
             .ok_or(UpdateError::Mismatch("empty relationship"))?;
         budget.charge_work_units(group.len() as u64 * 5 * 255)?;
         let supported = group.iter().any(|record| {
-            crate::relationship_flags::RelationshipFlags::decode(record.metadata[0]).is_some()
-                && (1..=crate::numeric_index_entry::MAX_FIELDS as i32).contains(&record.metadata[1])
+            interpreted(&record.metadata).is_some()
                 && record.name.len() <= 63
                 && [
                     &record.name,
@@ -55,6 +55,15 @@ pub(crate) fn validate<S: ReadAt>(
             ((parent.columns().len() + child.columns().len()) as u64)
                 .saturating_mul(512 * ordered.len() as u64),
         )?;
+        if !enforced(&ordered) {
+            // EXP-0301: only the named endpoints must exist.
+            for record in &ordered {
+                endpoint_column(&parent, &record.parent_column)?;
+                endpoint_column(&child, &record.child_column)?;
+            }
+            report.unenforced += 1;
+            continue;
+        }
         let mut supported = true;
         for record in &ordered {
             for (table, name) in [
@@ -90,6 +99,17 @@ pub(crate) fn validate<S: ReadAt>(
     report.inventory_checked = report.uninterpreted == 0;
     check_inventory(database, &endpoints, report.inventory_checked, budget)?;
     Ok(report)
+}
+
+fn endpoint_column(table: &TableDefinition, name: &[u8]) -> Result<(), UpdateError> {
+    let mut columns = table
+        .columns()
+        .iter()
+        .filter(|column| catalog_names_equal(column.name().raw_bytes(), name));
+    if columns.next().is_none() || columns.next().is_some() {
+        return Err(UpdateError::Mismatch("unresolved relationship column"));
+    }
+    Ok(())
 }
 
 fn check_keys<S: ReadAt>(

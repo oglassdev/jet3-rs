@@ -39,6 +39,8 @@ fn relationship_lifecycle_shares_indexes_preserves_rows_and_drops_with_child() -
             &mut budget(),
         )?;
         let spec = RelationshipSpec {
+            enforce: true,
+            join: crate::RelationshipJoin::Inner,
             name: b"Related",
             parent: TableRef::Name(b"Items"),
             child: TableRef::Name(b"Children"),
@@ -160,6 +162,8 @@ fn self_relationship_add_drop_and_orphan_refusal_are_atomic() -> TestResult {
         &mut budget(),
     )?;
     let spec = RelationshipSpec {
+        enforce: true,
+        join: crate::RelationshipJoin::Inner,
         name: b"SelfParent",
         parent: TableRef::Name(b"Items"),
         child: TableRef::Name(b"Items"),
@@ -274,6 +278,8 @@ fn relationships_reuse_zero_logical_identity_after_index_drop() -> TestResult {
         &mut budget(),
     )?;
     let spec = RelationshipSpec {
+        enforce: true,
+        join: crate::RelationshipJoin::Inner,
         name: b"Relation",
         parent: TableRef::Name(b"Items"),
         child: TableRef::Name(b"Child"),

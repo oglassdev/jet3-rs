@@ -10,24 +10,29 @@ pub(crate) fn drop_table(
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
     let relationships = crate::schema_publish::apply(file, journal, budget, |database, budget| {
-        let table = crate::update::indexed_writable_table(database, name, budget)?;
+        crate::update::indexed_writable_table(database, name, budget)?;
         crate::relationship_catalog::validate(database, budget)?;
+        // EXP-0297/0301: DAO removes the table's relationships with it, except
+        // that an enforced relationship referencing it from another table refuses.
         let mut names = Vec::new();
-        for relation in table.relationships() {
-            if relation.side() == crate::RelationshipSide::PrimaryTable
-                && relation.related_table() != table.root()
-            {
+        for relation in crate::relationship_catalog::catalog(database, budget)? {
+            budget.charge_work_units(1024)?;
+            let parent =
+                crate::catalog_name_key::catalog_names_equal(relation.parent_table(), name);
+            let child = crate::catalog_name_key::catalog_names_equal(relation.child_table(), name);
+            if !parent && !child {
+                continue;
+            }
+            if !relation.interpreted() {
+                return Err(UpdateError::Unsupported("relationship catalog flags"));
+            }
+            if relation.enforced() && parent && !child {
                 return Err(UpdateError::Unsupported(
                     "table is referenced by a relationship",
                 ));
             }
-            if relation.side() == crate::RelationshipSide::ForeignTable {
-                let mut name = Vec::new();
-                reserve(&mut name, relation.name().raw_bytes().len(), budget)?;
-                name.extend_from_slice(relation.name().raw_bytes());
-                reserve(&mut names, 1, budget)?;
-                names.push(name);
-            }
+            reserve(&mut names, 1, budget)?;
+            names.push(relation.name);
         }
         Ok((PageEdits::new(database.geometry().page_count()), names))
     })?;

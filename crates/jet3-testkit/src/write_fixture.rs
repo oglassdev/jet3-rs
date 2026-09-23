@@ -279,6 +279,8 @@ pub fn write_fixture(id: &str, output: &Path) -> Result<()> {
             output,
             &requests,
             &RelationshipSpec {
+                enforce: true,
+                join: jet3::RelationshipJoin::Inner,
                 cascade_updates: false,
                 cascade_deletes: false,
                 name: relation.name.as_bytes(),

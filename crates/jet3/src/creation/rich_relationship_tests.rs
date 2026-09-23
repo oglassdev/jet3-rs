@@ -12,6 +12,8 @@ const PRIMARY: &[IndexSpec<'static>] = &[IndexSpec {
     kind: IndexKind::Primary,
 }];
 const RELATION: crate::RelationshipSpec<'static> = crate::RelationshipSpec {
+    enforce: true,
+    join: crate::RelationshipJoin::Inner,
     cascade_updates: false,
     cascade_deletes: false,
     name: b"ParentChild",

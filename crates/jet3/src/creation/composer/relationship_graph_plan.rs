@@ -86,6 +86,9 @@ pub(super) fn resolve<'a>(
     }
     let mut result: Vec<GraphRelation<'a>> = Vec::new();
     for (position, relationship) in relationships.iter().enumerate() {
+        if !relationship.enforce {
+            return Err(invalid("unenforced relationships require edit_schema"));
+        }
         budget.charge_work_units((position as u64).saturating_mul(513))?;
         budget.charge_work_units(
             (requests.len() as u64).saturating_mul(128) + 2 * 255 * 64 + 32 * 512 + 1024,

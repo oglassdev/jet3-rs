@@ -15,11 +15,21 @@ pub(crate) fn drop_relationship(
             let central = crate::schema_catalog::table(database, b"MSysRelationships", budget)?;
             let relationship = crate::schema_catalog::column(&central, b"szRelationship")?;
             let child_name = crate::schema_catalog::column(&central, b"szObject")?;
+            let grbit = crate::schema_catalog::column(&central, b"grbit")?;
             let mut records = Vec::new();
             let mut child = Vec::new();
+            let mut attributes = None;
             let mut rows = database.rows(&central, budget)?;
             while let Some(mut row) = rows.next_row()? {
                 if row.field(relationship).and_then(|field| field.raw_bytes()) == Some(name) {
+                    if attributes.is_none() {
+                        let RowValue::Long(raw) =
+                            crate::numeric_row_values::read_column(&mut row, grbit)?
+                        else {
+                            return Err(UpdateError::Mismatch("relationship attributes"));
+                        };
+                        attributes = Some(raw);
+                    }
                     if child.is_empty() {
                         let mut saved = [0; 255];
                         let bytes = row
@@ -44,6 +54,18 @@ pub(crate) fn drop_relationship(
             }
             let child_name = child;
             let child = crate::update::indexed_writable_table(database, &child_name, budget)?;
+            let catalog = crate::schema_catalog::table(database, b"MSysObjects", budget)?;
+            let (object, id) = object(database, &catalog, name, budget)?;
+            let flags = attributes
+                .and_then(crate::relationship_flags::RelationshipFlags::decode)
+                .ok_or(UpdateError::Unsupported("relationship catalog flags"))?;
+            // EXP-0301: unenforced relationships have no index records to remove.
+            if !flags.enforced {
+                return Ok((
+                    PageEdits::new(database.geometry().page_count()),
+                    (None, catalog.root(), object, id, central.root(), records),
+                ));
+            }
             crate::relationship_catalog::load(database, &child, &child_name, budget)?;
             let foreign = child
                 .relationships()
@@ -66,12 +88,10 @@ pub(crate) fn drop_relationship(
                 (child.root(), foreign.raw_selector()),
                 (parent.root(), primary.raw_selector()),
             ];
-            let catalog = crate::schema_catalog::table(database, b"MSysObjects", budget)?;
-            let (object, id) = object(database, &catalog, name, budget)?;
             Ok((
                 PageEdits::new(database.geometry().page_count()),
                 (
-                    endpoints,
+                    Some(endpoints),
                     catalog.root(),
                     object,
                     id,
@@ -80,7 +100,7 @@ pub(crate) fn drop_relationship(
                 ),
             ))
         })?;
-    for (root, selector) in endpoints {
+    for (root, selector) in endpoints.into_iter().flatten() {
         let retired = crate::schema_publish::apply(file, journal, budget, |database, budget| {
             let table = database.table_definition(root, budget)?;
             crate::index_mutation::load(database, &table, budget)?;

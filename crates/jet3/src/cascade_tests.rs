@@ -67,6 +67,8 @@ fn relation(
     deletes: bool,
 ) -> RelationshipSpec<'static> {
     RelationshipSpec {
+        enforce: true,
+        join: crate::RelationshipJoin::Inner,
         name,
         parent: TableRef::Ordinal(parent),
         child: TableRef::Ordinal(child),

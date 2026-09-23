@@ -10,6 +10,7 @@ pub(crate) fn drop_column(
     name: &[u8],
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
+    let table_name = table;
     let (catalog, row, properties, retired) =
         crate::schema_publish::apply(file, journal, budget, |database, budget| {
             let table = crate::update::indexed_writable_table(database, table, budget)?;
@@ -30,6 +31,19 @@ pub(crate) fn drop_column(
                 return Err(UpdateError::Unsupported("drop indexes before their column"));
             }
             crate::relationship_catalog::validate(database, budget)?;
+            // EXP-0301: DAO refuses to drop any relationship key column (3303/3280).
+            for relation in crate::relationship_catalog::catalog(database, budget)? {
+                budget.charge_work_units(2048)?;
+                let equal = crate::catalog_name_key::catalog_names_equal;
+                if relation.fields().iter().any(|field| {
+                    (equal(relation.parent_table(), table_name) && equal(field.parent(), name))
+                        || (equal(relation.child_table(), table_name) && equal(field.child(), name))
+                }) {
+                    return Err(UpdateError::Unsupported(
+                        "drop relationships before their column",
+                    ));
+                }
+            }
             crate::row_mutation_graph::RowGraph::load(database, &table, None, budget)?;
             crate::long_value_mutation::LongValues::load(database, &table, None, budget)?;
             let (catalog, row, properties) =

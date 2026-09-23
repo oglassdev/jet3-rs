@@ -215,6 +215,10 @@ enum Direction {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Relation {
+    #[serde(default = "enforced")]
+    enforce: bool,
+    #[serde(default)]
+    join: Join,
     #[serde(default)]
     cascade_updates: bool,
     #[serde(default)]
@@ -222,6 +226,20 @@ pub(crate) struct Relation {
     name: Name,
     parent: Endpoint,
     child: Endpoint,
+}
+
+const fn enforced() -> bool {
+    true
+}
+
+#[derive(Clone, Copy, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Join {
+    #[default]
+    Inner,
+    Left,
+    Right,
+    LeftAndRight,
 }
 
 #[derive(Deserialize)]
@@ -251,6 +269,13 @@ impl Relation {
 
     pub(crate) fn spec<'a>(&'a self, fields: &'a [RelationshipField<'a>]) -> RelationshipSpec<'a> {
         RelationshipSpec {
+            enforce: self.enforce,
+            join: match self.join {
+                Join::Inner => jet3::RelationshipJoin::Inner,
+                Join::Left => jet3::RelationshipJoin::Left,
+                Join::Right => jet3::RelationshipJoin::Right,
+                Join::LeftAndRight => jet3::RelationshipJoin::LeftAndRight,
+            },
             cascade_updates: self.cascade_updates,
             cascade_deletes: self.cascade_deletes,
             name: self.name.bytes(),
@@ -265,8 +290,8 @@ impl Endpoint {
     fn columns(&self) -> Result<&[Name], String> {
         match (&self.column, &self.columns) {
             (Some(column), None) => Ok(std::slice::from_ref(column)),
-            (None, Some(columns)) if (1..=10).contains(&columns.len()) => Ok(columns),
-            _ => Err("relationship endpoint requires column or columns (1..10)".into()),
+            (None, Some(columns)) if (1..=255).contains(&columns.len()) => Ok(columns),
+            _ => Err("relationship endpoint requires column or columns (1..255)".into()),
         }
     }
 }

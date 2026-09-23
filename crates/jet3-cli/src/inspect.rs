@@ -248,6 +248,38 @@ fn inspect_database(
     if command.table.is_some() && !selected {
         return Err("table not found".to_owned());
     }
+    let relationships = match database.relationship_catalog(budget) {
+        Ok(relationships) => relationships
+            .iter()
+            .map(|relation| {
+                let name = |raw: &[u8]| name_json(raw, command.code_page);
+                json!({
+                    "name": name(relation.name()),
+                    "parent": name(relation.parent_table()),
+                    "child": name(relation.child_table()),
+                    "fields": relation.fields().iter().map(|field| json!({
+                        "parent": name(field.parent()),
+                        "child": name(field.child()),
+                    })).collect::<Vec<_>>(),
+                    "raw_attributes": relation.raw_attributes(),
+                    "enforced": relation.enforced(),
+                    "cascade_updates": relation.cascade_updates(),
+                    "cascade_deletes": relation.cascade_deletes(),
+                    "join": match relation.join() {
+                        jet3::RelationshipJoin::Inner => "inner",
+                        jet3::RelationshipJoin::Left => "left",
+                        jet3::RelationshipJoin::Right => "right",
+                        jet3::RelationshipJoin::LeftAndRight => "left_and_right",
+                    },
+                    "interpreted": relation.interpreted(),
+                })
+            })
+            .collect(),
+        Err(error) => {
+            issues.push(json!({"operation": "relationships", "error": error.to_string()}));
+            Vec::new()
+        }
+    };
     // Continuation pages share the definition tag, so these are listed, not decoded.
     let uncatalogued: Vec<u64> = definition_pages
         .into_iter()
@@ -262,6 +294,7 @@ fn inspect_database(
         "pages": pages,
         "catalog": catalog,
         "tables": tables,
+        "relationships": relationships,
         "uncatalogued_definition_pages": uncatalogued,
     }))
 }

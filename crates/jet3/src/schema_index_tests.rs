@@ -578,6 +578,9 @@ fn drop_table_removes_catalog_grants_and_releases_its_storage() -> TestResult {
 #[path = "schema_relationship_tests.rs"]
 mod relationships;
 
+#[path = "schema_relationship_form_tests.rs"]
+mod relationship_forms;
+
 #[test]
 fn field_rewrite_keeps_absent_appended_fixed_fields_null() -> TestResult {
     let fixture = Fixture::new(&[&[RowValue::Long(7), RowValue::Memo(b"old")]])?;

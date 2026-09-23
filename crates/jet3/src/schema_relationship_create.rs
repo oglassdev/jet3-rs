@@ -1,10 +1,9 @@
 //! Existing relationships compose EXP-0279/0286/0290/0294 indexes and EXP-0297 catalogs.
 use crate::page_edits::{PageEdits, reserve};
 use crate::{
-    ColumnOrdinal, ColumnRef, DatabaseReader, FileSource, IndexColumnSpec, IndexDirection,
-    IndexKind, IndexNullPolicy, IndexSpec, LogicalIndexKindSpec, LogicalIndexSpec, PageNumber,
-    RelationshipSide, RelationshipSpec, ResourceBudget, RowValue, TableDefinition, TableRef,
-    UpdateError,
+    ColumnOrdinal, ColumnRef, IndexColumnSpec, IndexDirection, IndexKind, IndexNullPolicy,
+    IndexSpec, LogicalIndexKindSpec, LogicalIndexSpec, PageNumber, RelationshipSide,
+    RelationshipSpec, ResourceBudget, TableDefinition, TableRef, UpdateError,
 };
 use std::fs::File;
 
@@ -23,6 +22,15 @@ pub(crate) fn create(
             ));
         }
     };
+    if !spec.enforce {
+        return crate::schema_relationship_catalog::create_unenforced(
+            file,
+            journal,
+            &spec,
+            (parent_name, child_name),
+            budget,
+        );
+    }
     let (
         parent,
         child,
@@ -91,7 +99,8 @@ pub(crate) fn create(
         );
         let child_id = selector(&child, None, budget)?;
         let parent_id = selector(&parent, same.then_some(child_id), budget)?;
-        let (object_id, folder) = object_identity(database, spec.name, budget)?;
+        let (object_id, folder) =
+            crate::schema_relationship_catalog::object_identity(database, spec.name, budget)?;
         Ok((
             PageEdits::new(database.geometry().page_count()),
             (
@@ -147,67 +156,23 @@ pub(crate) fn create(
         },
         budget,
     )?;
-    for (ordinal, (a, b)) in parent_columns.iter().zip(&child_columns).enumerate() {
-        crate::schema_table::insert(
-            file,
-            journal,
-            b"MSysRelationships",
-            &[
-                (b"szRelationship", RowValue::Text(spec.name)),
-                (b"grbit", RowValue::Long(spec.flags().raw())),
-                (b"ccolumn", RowValue::Long(spec.fields.len() as i32)),
-                (b"icolumn", RowValue::Long(ordinal as i32)),
-                (b"szObject", RowValue::Text(child_name)),
-                (
-                    b"szColumn",
-                    RowValue::Text(child.columns()[usize::from(b.get())].name().raw_bytes()),
-                ),
-                (b"szReferencedObject", RowValue::Text(parent_name)),
-                (
-                    b"szReferencedColumn",
-                    RowValue::Text(parent.columns()[usize::from(a.get())].name().raw_bytes()),
-                ),
-            ],
-            budget,
-        )?;
+    let mut pairs = Vec::new();
+    reserve(&mut pairs, parent_columns.len(), budget)?;
+    for (a, b) in parent_columns.iter().zip(&child_columns) {
+        pairs.push((
+            parent.columns()[usize::from(a.get())].name().raw_bytes(),
+            child.columns()[usize::from(b.get())].name().raw_bytes(),
+        ));
     }
-    crate::schema_table::insert(
+    crate::schema_relationship_catalog::publish(
         file,
         journal,
-        b"MSysObjects",
-        &[
-            (b"Id", RowValue::Long(object_id)),
-            (b"ParentId", RowValue::Long(folder)),
-            (b"Name", RowValue::Text(spec.name)),
-            (b"Type", RowValue::Integer(8)),
-            (b"Owner", RowValue::Binary(b"\x03\x01")),
-            (b"Flags", RowValue::Long(0)),
-            (b"DateCreate", RowValue::DateTime { days: 0.0 }),
-            (b"DateUpdate", RowValue::DateTime { days: 0.0 }),
-        ],
+        &spec,
+        (parent_name, child_name),
+        &pairs,
+        (object_id, folder),
         budget,
-    )?;
-    for (sid, access) in [
-        (b"\x03\x01".as_slice(), 983294),
-        (b"\x02\x01".as_slice(), 1048575),
-    ] {
-        crate::schema_table::insert(
-            file,
-            journal,
-            b"MSysACEs",
-            &[
-                (b"ObjectId", RowValue::Long(object_id)),
-                (b"SID", RowValue::Binary(sid)),
-                (b"ACM", RowValue::Long(access)),
-                (b"FInheritable", RowValue::Boolean(false)),
-            ],
-            budget,
-        )?;
-    }
-    crate::schema_publish::apply(file, journal, budget, |database, budget| {
-        crate::relationship_catalog::validate(database, budget)?;
-        Ok((PageEdits::new(database.geometry().page_count()), ()))
-    })
+    )
 }
 
 fn column<'a>(
@@ -387,41 +352,4 @@ fn add_endpoint(
         definition.stage(database, &table, &mut edits, budget)?;
         Ok((edits, ()))
     })
-}
-
-fn object_identity(
-    database: &mut DatabaseReader<FileSource>,
-    name: &[u8],
-    budget: &mut ResourceBudget,
-) -> Result<(i32, i32), UpdateError> {
-    let mut catalog = database.catalog(budget)?;
-    let mut folder = None;
-    let mut next = 0x8000_0000_u32;
-    while let Some(record) = catalog.next_record()? {
-        if record.id().get() >= 0x8000_0000 {
-            next = next.max(
-                record
-                    .id()
-                    .get()
-                    .checked_add(1)
-                    .ok_or(UpdateError::Unsupported(
-                        "relationship object identity capacity",
-                    ))?,
-            );
-        }
-        if record.kind().raw() == 3 && record.name().raw_bytes() == b"Relationships" {
-            folder = Some(record.id().get() as i32);
-        }
-        if record.kind().raw() == 8 {
-            crate::schema_edit::distinct(
-                name,
-                std::iter::once(record.name().raw_bytes()),
-                catalog.budget_mut(),
-            )?;
-        }
-    }
-    Ok((
-        next as i32,
-        folder.ok_or(UpdateError::NotFound("Relationships container"))?,
-    ))
 }
