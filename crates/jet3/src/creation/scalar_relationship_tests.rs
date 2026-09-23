@@ -60,6 +60,8 @@ fn schema(
             },
         ],
         &[RelationshipSpec {
+            enforce: true,
+            join: crate::RelationshipJoin::Inner,
             cascade_updates: false,
             cascade_deletes: false,
             name: b"ParentChild",

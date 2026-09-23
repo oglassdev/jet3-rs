@@ -175,6 +175,8 @@ fn empty_and_populated_relationship_metadata_repeat() -> TestResult {
         },
     ];
     let relationship = RelationshipSpec {
+        enforce: true,
+        join: crate::RelationshipJoin::Inner,
         cascade_updates: false,
         cascade_deletes: false,
         name: b"ParentChildren",

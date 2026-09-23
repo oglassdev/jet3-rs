@@ -31,6 +31,9 @@ pub(crate) fn component<S: ReadAt>(
             }) {
                 continue;
             }
+            if interpreted(&first.metadata).is_none() {
+                return Err(UpdateError::Unsupported("relationship catalog flags"));
+            }
             let ordered = ordered(group, budget)?;
             for record in &ordered {
                 if record.name.len() > 63
@@ -47,12 +50,15 @@ pub(crate) fn component<S: ReadAt>(
                     return Err(UpdateError::Unsupported("unresolved relationship name"));
                 }
             }
+            selected[position] = true;
+            if !enforced(&ordered) {
+                continue;
+            }
             let constraint = resolve(database, &ordered, budget)?;
             reserve(&mut constraints, 1, budget)?;
             constraints.push(constraint);
             reserve(&mut names, 2, budget)?;
             names.extend([first.parent.as_slice(), first.child.as_slice()]);
-            selected[position] = true;
             advanced = true;
         }
         if !advanced {

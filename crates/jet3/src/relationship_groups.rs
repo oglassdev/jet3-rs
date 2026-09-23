@@ -33,19 +33,14 @@ pub(super) fn ordered<'a>(
     let first = group
         .first()
         .ok_or(UpdateError::Mismatch("empty relationship catalog group"))?;
-    if crate::relationship_flags::RelationshipFlags::decode(first.metadata[0]).is_none()
-        || !(1..=crate::numeric_index_entry::MAX_FIELDS as i32).contains(&first.metadata[1])
-    {
-        return Err(UpdateError::Unsupported(
-            "relationship catalog flags or field count",
-        ));
-    }
-    if group.len() != first.metadata[1] as usize {
+    if usize::try_from(first.metadata[1]).ok() != Some(group.len()) {
         return Err(UpdateError::Mismatch(
             "relationship catalog component count",
         ));
     }
-    let mut slots = [None; crate::numeric_index_entry::MAX_FIELDS];
+    let mut slots = Vec::new();
+    reserve(&mut slots, group.len(), budget)?;
+    slots.resize(group.len(), None);
     for &record in group {
         budget.charge_work_units(1024)?;
         if record.metadata[..2] != first.metadata[..2]
@@ -58,7 +53,7 @@ pub(super) fn ordered<'a>(
         }
         let ordinal = usize::try_from(record.metadata[2])
             .map_err(|_| UpdateError::Mismatch("relationship component ordinal"))?;
-        let slot = slots[..group.len()]
+        let slot = slots
             .get_mut(ordinal)
             .ok_or(UpdateError::Mismatch("relationship component ordinal"))?;
         if slot.replace(record).is_some() {
@@ -69,7 +64,7 @@ pub(super) fn ordered<'a>(
     }
     let mut result = Vec::new();
     reserve(&mut result, group.len(), budget)?;
-    for record in &slots[..group.len()] {
+    for record in &slots {
         result.push(record.ok_or(UpdateError::Mismatch(
             "missing relationship component ordinal",
         ))?);
@@ -118,9 +113,18 @@ mod tests {
         bad.parent = b"Parent".to_vec();
         bad.metadata[0] = 0x100;
         assert!(ordered(&[&first, &bad], &mut budget()).is_err());
-        for count in [0, 11] {
+        let (mut unknown, mut next) = (record(2, 0), record(2, 1));
+        unknown.metadata[0] = 1;
+        next.metadata[0] = 1;
+        assert_eq!(ordered(&[&next, &unknown], &mut budget())?.len(), 2);
+        for count in [0, 2] {
             assert!(ordered(&[&record(count, 0)], &mut budget()).is_err());
         }
+        let wide: Vec<_> = (0..11).map(|ordinal| record(11, ordinal)).collect();
+        assert_eq!(
+            ordered(&wide.iter().collect::<Vec<_>>(), &mut budget())?.len(),
+            11
+        );
         Ok(())
     }
 }

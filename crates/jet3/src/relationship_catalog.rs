@@ -41,11 +41,32 @@ pub(crate) fn load<S: ReadAt>(
     reserve(&mut result, records.len(), budget)?;
     for group in groups(&records, budget)? {
         let ordered = ordered(&group, budget)?;
-        result.push(resolve(database, &ordered, budget)?);
+        // EXP-0301: unenforced relationships have no indexes and no integrity rules.
+        if enforced(&ordered) {
+            result.push(resolve(database, &ordered, budget)?);
+        }
     }
     check_target(target, &result, budget)?;
     incoming(database, target.root(), &result, budget)?;
     Ok(result)
+}
+
+/// EXP-0301: unenforced relationships may have more key fields than an index.
+fn interpreted(metadata: &[i32; 3]) -> Option<crate::relationship_flags::RelationshipFlags> {
+    let flags = crate::relationship_flags::RelationshipFlags::decode(metadata[0])?;
+    let limit = if flags.enforced {
+        crate::numeric_index_entry::MAX_FIELDS as i32
+    } else {
+        i32::MAX
+    };
+    (1..=limit).contains(&metadata[1]).then_some(flags)
+}
+
+fn enforced(records: &[&Record]) -> bool {
+    records.first().is_some_and(|record| {
+        crate::relationship_flags::RelationshipFlags::decode(record.metadata[0])
+            .is_some_and(|flags| flags.enforced)
+    })
 }
 
 fn resolve<S: ReadAt>(
@@ -459,9 +480,7 @@ fn read_records<S: ReadAt>(
             if !catalog_names_equal(child, target) && !catalog_names_equal(parent, target) {
                 continue;
             }
-            if crate::relationship_flags::RelationshipFlags::decode(metadata[0]).is_none()
-                || !(1..=crate::numeric_index_entry::MAX_FIELDS as i32).contains(&metadata[1])
-            {
+            if interpreted(&metadata).is_none() {
                 return Err(UpdateError::Unsupported(
                     "relationship requires enforced scalar keys",
                 ));
@@ -504,6 +523,38 @@ fn read_records<S: ReadAt>(
     }
     if count != definition.row_count() {
         return Err(UpdateError::Mismatch("relationship catalog row count"));
+    }
+    Ok(result)
+}
+
+pub(crate) fn catalog<S: ReadAt>(
+    database: &mut DatabaseReader<S>,
+    budget: &mut ResourceBudget,
+) -> Result<Vec<crate::CatalogRelationship>, UpdateError> {
+    let records = read_records(database, None, budget)?;
+    let groups = groups(&records, budget)?;
+    let mut result = Vec::new();
+    reserve(&mut result, groups.len(), budget)?;
+    for group in groups {
+        let ordered = ordered(&group, budget)?;
+        let first = ordered
+            .first()
+            .ok_or(UpdateError::Mismatch("empty relationship"))?;
+        let mut fields = Vec::new();
+        reserve(&mut fields, ordered.len(), budget)?;
+        for record in &ordered {
+            fields.push(crate::CatalogRelationshipField {
+                parent: copy_name(&record.parent_column, budget)?,
+                child: copy_name(&record.child_column, budget)?,
+            });
+        }
+        result.push(crate::CatalogRelationship {
+            name: copy_name(&first.name, budget)?,
+            parent: copy_name(&first.parent, budget)?,
+            child: copy_name(&first.child, budget)?,
+            fields,
+            raw_attributes: first.metadata[0],
+        });
     }
     Ok(result)
 }

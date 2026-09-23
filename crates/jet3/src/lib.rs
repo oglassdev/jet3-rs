@@ -139,6 +139,7 @@ mod schema_index;
 mod schema_map;
 mod schema_properties;
 mod schema_publish;
+mod schema_relationship_catalog;
 mod schema_relationship_create;
 mod schema_relationship_drop;
 mod schema_storage;
@@ -200,10 +201,11 @@ pub use commit_state::{
 pub use creation::{
     CandidateCheckError, ColumnRef, ColumnSpec, ColumnStorageKind, ColumnType, ComposeError,
     CreateDatabaseError, IndexColumnSpec, IndexKind, IndexNullPolicy, IndexSpec, RelationshipField,
-    RelationshipSpec, TableRef, TableRows, TableSchemaPlanError, TableSpec, TableValidation,
-    create_database, create_database_with_relationship, create_database_with_relationship_rows,
-    create_database_with_relationships, create_database_with_relationships_and_rows,
-    create_database_with_rows, create_database_with_table_rows,
+    RelationshipJoin, RelationshipSpec, TableRef, TableRows, TableSchemaPlanError, TableSpec,
+    TableValidation, create_database, create_database_with_relationship,
+    create_database_with_relationship_rows, create_database_with_relationships,
+    create_database_with_relationships_and_rows, create_database_with_rows,
+    create_database_with_table_rows,
 };
 
 pub use database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
@@ -239,7 +241,9 @@ pub use page_append_plan::AppendPageError;
 pub use page_image::{DataPageBuilder, PAGE_BYTES, PageImage, PageImageError, page_tag};
 pub use page_kind::{ClassifiedPage, PageClassificationError, PageKind, classify_page};
 pub use raw_page_stream::{RawPage, RawPageCursor};
-pub use relationships::{Relationship, Relationships};
+pub use relationships::{
+    CatalogRelationship, CatalogRelationshipField, Relationship, Relationships,
+};
 pub use resource::{ResourceBudget, ResourceLimits};
 pub use row::{RawField, RowCursor, RowError, RowView};
 pub use row_directory::{RowDirectoryError, RowLocator};

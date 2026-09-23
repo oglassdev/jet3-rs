@@ -81,6 +81,8 @@ fn schema(two: bool) -> ([TableSpec<'static>; 2], RelationshipSpec<'static>) {
             },
         ],
         RelationshipSpec {
+            enforce: true,
+            join: crate::RelationshipJoin::Inner,
             cascade_updates: false,
             cascade_deletes: false,
             name: b"Account7Events9",

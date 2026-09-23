@@ -34,7 +34,7 @@ pub use columns::{ColumnSpec, ColumnStorageKind, ColumnType};
 pub use composer::ComposeError;
 pub use index_options::{IndexKind, IndexNullPolicy};
 pub use schema::{
-    ColumnRef, IndexColumnSpec, IndexSpec, RelationshipField, RelationshipSpec, TableRef,
-    TableSpec, TableValidation,
+    ColumnRef, IndexColumnSpec, IndexSpec, RelationshipField, RelationshipJoin, RelationshipSpec,
+    TableRef, TableSpec, TableValidation,
 };
 pub use schema_plan::TableSchemaPlanError;

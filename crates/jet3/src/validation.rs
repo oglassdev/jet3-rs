@@ -62,6 +62,9 @@ pub struct ValidationReport {
     pub relationship_catalog_rows: u64,
     /// Enforced scalar/composite relationships whose metadata and key inclusion agree.
     pub relationships_with_verified_keys: u64,
+    /// Unenforced relationships whose endpoint tables and columns resolve;
+    /// their keys are not checked (EXP-0301).
+    pub unenforced_relationships: u64,
     /// Central rows whose relationship form or key schema is not interpreted.
     pub uninterpreted_relationship_rows: u64,
     /// Every logical endpoint exactly matches the interpreted central catalog.
@@ -346,6 +349,7 @@ impl<S: ReadAt> DatabaseReader<S> {
             .map_err(|source| ValidationError::Relationships(source.into()))?;
         report.relationship_catalog_rows = relationships.catalog_rows;
         report.relationships_with_verified_keys = relationships.verified;
+        report.unenforced_relationships = relationships.unenforced;
         report.uninterpreted_relationship_rows = relationships.uninterpreted;
         report.relationship_inventory_checked = relationships.inventory_checked;
         Ok(report)

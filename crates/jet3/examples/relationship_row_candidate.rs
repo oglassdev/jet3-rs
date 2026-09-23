@@ -41,6 +41,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         indexes: &[],
     };
     let relationship = RelationshipSpec {
+        enforce: true,
+        join: jet3::RelationshipJoin::Inner,
         cascade_updates: false,
         cascade_deletes: false,
         name: b"Account7Events9",

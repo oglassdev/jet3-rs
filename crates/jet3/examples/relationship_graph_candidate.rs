@@ -320,6 +320,8 @@ fn create(case: &Value, output: &Path, replicas: u64) -> Result<()> {
         .zip(&relationship_fields)
         .map(|(relation, fields)| {
             Ok(RelationshipSpec {
+                enforce: true,
+                join: jet3::RelationshipJoin::Inner,
                 cascade_updates: relation["attributes"].as_u64().unwrap_or(0) & 256 != 0,
                 cascade_deletes: relation["attributes"].as_u64().unwrap_or(0) & 4096 != 0,
                 name: text(relation, "name")?.as_bytes(),
