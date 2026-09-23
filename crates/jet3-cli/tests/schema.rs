@@ -670,3 +670,57 @@ fn replacing_index_is_atomic_when_new_keys_violate_constraints() -> Result {
     assert_eq!(entries(&path, &table, 0)?, 3);
     Ok(())
 }
+
+#[test]
+fn text_properties_are_created_edited_inspected_and_enforced() -> Result {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("properties.mdb");
+    success(&request(
+        "create",
+        &path,
+        &json!({"tables":[{
+            "name":"Items",
+            "columns":[
+                {"name":"Id","type":"long","description":"Clé"},
+                {"name":"Qty","type":"long","default_value":"0","validation_text":"no"}
+            ],
+            "validation_text":"table message"
+        }]}),
+    )?)?;
+    let properties = &inspect(&path)?["properties"];
+    assert_eq!(properties["validation_rule"], Value::Null);
+    assert_eq!(properties["validation_text"], "table message");
+    assert_eq!(properties["columns"][0]["description"], "Clé");
+    assert_eq!(properties["columns"][1]["default_value"], "0");
+    success(&request(
+        "mutate",
+        &path,
+        &json!({"operation":"insert","table":"Items","values":[{"long":1},null]}),
+    )?)?;
+    success(&request(
+        "schema",
+        &path,
+        &json!({"operation":"set_column_properties","table":"Items","column":"Qty",
+                "validation_rule":">=0","default_value":null}),
+    )?)?;
+    success(&request(
+        "schema",
+        &path,
+        &json!({"operation":"set_table_properties","table":"Items","validation_rule":"[Qty]<9"}),
+    )?)?;
+    let properties = &inspect(&path)?["properties"];
+    assert_eq!(properties["validation_rule"], "[Qty]<9");
+    assert_eq!(properties["columns"][1]["validation_rule"], ">=0\u{0}");
+    assert_eq!(properties["columns"][1]["default_value"], Value::Null);
+    assert_eq!(properties["columns"][1]["validation_text"], "no");
+    let before = fs::read(&path)?;
+    let refused = request(
+        "mutate",
+        &path,
+        &json!({"operation":"insert","table":"Items","values":[{"long":2},{"long":1}]}),
+    )?;
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("ValidationRule"));
+    assert_eq!(fs::read(&path)?, before);
+    Ok(())
+}
