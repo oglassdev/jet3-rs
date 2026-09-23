@@ -27,6 +27,7 @@ fn empty_options_are_per_column_on_later_indexed_tables() -> Result<(), Box<dyn 
         },
     ];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &columns,
         indexes: &indexes,
@@ -36,6 +37,7 @@ fn empty_options_are_per_column_on_later_indexed_tables() -> Result<(), Box<dyn 
         &[
             TableRows {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"Anchor",
                     columns: &[ColumnSpec::new(b"Id", ColumnType::Long)],
                     indexes: &[],
@@ -154,6 +156,7 @@ fn malformed_properties_and_disabled_empty_values_preserve_input() -> Result<(),
     create_database_with_rows(
         &path,
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Rows",
             columns: &fields,
             indexes: &[],
@@ -292,6 +295,7 @@ fn chained_properties_keep_options_independent() -> Result<(), Box<dyn StdError>
     create_database_with_rows(
         &path,
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Rows",
             columns: &fields,
             indexes: &[],
@@ -353,6 +357,7 @@ fn text_only_properties_are_checked_before_publication() -> Result<(), Box<dyn S
     )
     .with_allow_zero_length()];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Rows",
         columns: &columns,
         indexes: &[],
@@ -376,6 +381,7 @@ fn text_only_properties_are_checked_before_publication() -> Result<(), Box<dyn S
             TableRows { table, rows },
             TableRows {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"Other",
                     columns: &[ColumnSpec::new(b"Id", ColumnType::Long)],
                     indexes: &[],
@@ -421,6 +427,7 @@ fn text_only_properties_are_checked_before_publication() -> Result<(), Box<dyn S
         })
         .collect::<Vec<_>>();
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Chained",
         columns: &columns,
         indexes: &[],

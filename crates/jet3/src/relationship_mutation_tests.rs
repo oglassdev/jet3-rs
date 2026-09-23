@@ -12,6 +12,7 @@ fn fixture() -> Result<Fixture, Box<dyn StdError>> {
         &[
             TableRows {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"Parent",
                     columns: &[
                         ColumnSpec::new(b"Id", ColumnType::Long),
@@ -31,6 +32,7 @@ fn fixture() -> Result<Fixture, Box<dyn StdError>> {
             },
             TableRows {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"Child",
                     columns: &[
                         ColumnSpec::new(b"Id", ColumnType::Long),

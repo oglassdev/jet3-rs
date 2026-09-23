@@ -1,6 +1,20 @@
 //! Atomic edits of existing user schemas. Format layouts are sourced by the low-level planners.
+use crate::schema_column_options::PropertyEdit;
 use crate::{IndexSpec, ResourceBudget, UpdateError};
 use std::path::Path;
+
+/// A requested change to one stored text property.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PropertyChange<'a> {
+    /// Leave the stored value unchanged.
+    #[default]
+    Keep,
+    /// Store opaque database-code-page bytes: 1 to 2,048 bytes without NUL or
+    /// undefined CP1252 bytes. Expressions are not parsed or evaluated.
+    Set(&'a [u8]),
+    /// Remove the stored value, as DAO does when assigning an empty string.
+    Clear,
+}
 
 /// One schema change to apply to an existing database.
 #[derive(Debug, Clone, Copy)]
@@ -41,6 +55,34 @@ pub enum SchemaEdit<'a> {
         required: Option<bool>,
         /// Set AllowZeroLength when present; Text and Memo only.
         allow_zero_length: Option<bool>,
+    },
+    /// Change a column's text properties (EXP-0299); existing rows are unchanged.
+    ///
+    /// A stored nonempty ValidationRule makes later inserts and updates on the
+    /// table fail with [`UpdateError::ValidationRule`]. Binary, OLE and GUID
+    /// columns refuse validation properties, as DAO does.
+    SetColumnProperties {
+        /// Exact database-encoded table name.
+        table: &'a [u8],
+        /// Exact database-encoded column name.
+        column: &'a [u8],
+        /// DefaultValue expression; never applied by Rust writes.
+        default_value: PropertyChange<'a>,
+        /// ValidationRule expression.
+        validation_rule: PropertyChange<'a>,
+        /// ValidationText message.
+        validation_text: PropertyChange<'a>,
+        /// Access Description.
+        description: PropertyChange<'a>,
+    },
+    /// Change the table-level ValidationRule and ValidationText (EXP-0299).
+    SetTableProperties {
+        /// Exact database-encoded table name.
+        table: &'a [u8],
+        /// ValidationRule expression.
+        validation_rule: PropertyChange<'a>,
+        /// ValidationText message.
+        validation_text: PropertyChange<'a>,
     },
     /// Remove an unindexed column while retaining the other columns' storage identities.
     DropColumn {
@@ -164,9 +206,52 @@ pub fn edit_schema(
                 file,
                 journal,
                 table,
+                PropertyEdit {
+                    column: Some(column),
+                    required,
+                    allow_zero_length,
+                    text: [PropertyChange::Keep; 4],
+                },
+                budget,
+            ),
+            SchemaEdit::SetColumnProperties {
+                table,
                 column,
-                required,
-                allow_zero_length,
+                default_value,
+                validation_rule,
+                validation_text,
+                description,
+            } => crate::schema_column_options::set(
+                file,
+                journal,
+                table,
+                PropertyEdit {
+                    column: Some(column),
+                    required: None,
+                    allow_zero_length: None,
+                    text: [validation_rule, validation_text, default_value, description],
+                },
+                budget,
+            ),
+            SchemaEdit::SetTableProperties {
+                table,
+                validation_rule,
+                validation_text,
+            } => crate::schema_column_options::set(
+                file,
+                journal,
+                table,
+                PropertyEdit {
+                    column: None,
+                    required: None,
+                    allow_zero_length: None,
+                    text: [
+                        validation_rule,
+                        validation_text,
+                        PropertyChange::Keep,
+                        PropertyChange::Keep,
+                    ],
+                },
                 budget,
             ),
             SchemaEdit::DropColumn { table, column } => {

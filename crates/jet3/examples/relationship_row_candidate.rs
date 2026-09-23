@@ -29,11 +29,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         kind: IndexKind::Primary,
     }];
     let parent = TableSpec {
+        validation: jet3::TableValidation::NONE,
         name: b"Accounts7",
         columns: &parent_columns,
         indexes: &indexes,
     };
     let child = TableSpec {
+        validation: jet3::TableValidation::NONE,
         name: b"Events9",
         columns: &child_columns,
         indexes: &[],

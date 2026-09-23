@@ -330,6 +330,7 @@ mod lookup_tests {
     #[test]
     fn odd_length_lookup_charges_the_final_comparison() -> Result<(), ComposeError> {
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Keys",
             columns: &[ColumnSpec::new(b"Id", ColumnType::Long)],
             indexes: &[crate::IndexSpec {

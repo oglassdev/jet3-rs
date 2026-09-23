@@ -43,11 +43,13 @@ fn graph_selects_later_unique_parent_and_preserves_declared_foreign_indexes() ->
                 [primary, foreign]
             };
             let parent = TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Parent",
                 columns: &columns,
                 indexes: &parent_indexes,
             };
             let child = TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Child",
                 columns: &columns,
                 indexes: &child_indexes,

@@ -17,6 +17,7 @@ fn relationship_lifecycle_shares_indexes_preserves_rows_and_drops_with_child() -
             fixture.path(),
             SchemaEdit::CreateTable {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"Children",
                     columns: &[
                         ColumnSpec::new(b"Id", ColumnType::Long),
@@ -264,6 +265,7 @@ fn relationships_reuse_zero_logical_identity_after_index_drop() -> TestResult {
         fixture.path(),
         SchemaEdit::CreateTable {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Child",
                 columns: &[ColumnSpec::new(b"ParentId", ColumnType::Long)],
                 indexes: &[],

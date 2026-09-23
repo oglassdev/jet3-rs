@@ -9,7 +9,7 @@
 //!
 //! use jet3::{
 //!     ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, ResourceBudget,
-//!     ResourceLimits, TableSpec, create_database,
+//!     ResourceLimits, TableSpec, TableValidation, create_database,
 //! };
 //!
 //! const NAME_LEN: NonZeroU8 = NonZeroU8::new(50).unwrap();
@@ -26,6 +26,7 @@
 //!     name: b"People",
 //!     columns: &columns,
 //!     indexes: &indexes,
+//!     validation: TableValidation::NONE,
 //! };
 //! let mut budget = ResourceBudget::new(ResourceLimits::default());
 //! create_database("people.mdb", &[people], &mut budget)?;
@@ -103,6 +104,7 @@ mod page_edits;
 pub mod page_image;
 pub mod page_kind;
 mod physical_index_definition;
+mod property_blob;
 pub mod raw_page_stream;
 mod relationship_catalog;
 mod relationship_flags;
@@ -195,8 +197,8 @@ pub use commit_state::{
 pub use creation::{
     CandidateCheckError, ColumnRef, ColumnSpec, ColumnStorageKind, ColumnType, ComposeError,
     CreateDatabaseError, IndexColumnSpec, IndexKind, IndexNullPolicy, IndexSpec, RelationshipField,
-    RelationshipSpec, TableRef, TableRows, TableSchemaPlanError, TableSpec, create_database,
-    create_database_with_relationship, create_database_with_relationship_rows,
+    RelationshipSpec, TableRef, TableRows, TableSchemaPlanError, TableSpec, TableValidation,
+    create_database, create_database_with_relationship, create_database_with_relationship_rows,
     create_database_with_relationships, create_database_with_relationships_and_rows,
     create_database_with_rows, create_database_with_table_rows,
 };
@@ -240,7 +242,7 @@ pub use row::{RawField, RowCursor, RowError, RowView};
 pub use row_directory::{RowDirectoryError, RowLocator};
 pub use row_update::{RowUpdate, update_row};
 pub use row_writer::{RowColumnLayout, RowValue, RowWriteError, encode_row};
-pub use schema_edit::{SchemaEdit, edit_schema};
+pub use schema_edit::{PropertyChange, SchemaEdit, edit_schema};
 pub use source::{FileSource, ReadAt, SliceSource};
 pub use table_definition::{TableDefinition, TableDefinitionError, TableDefinitionKind};
 pub use table_definition_writer::{

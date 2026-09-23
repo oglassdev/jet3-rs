@@ -61,6 +61,7 @@ fn mixed_columns_indexes_and_generated_ids_keep_independent_payloads_and_maps() 
         ];
         let indexes = INDEXES;
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &indexes,
@@ -113,6 +114,7 @@ fn mixed_columns_indexes_and_generated_ids_keep_independent_payloads_and_maps() 
         if generated {
             requests.push(TableRows {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"First",
                     columns: &[ID],
                     indexes: &[],
@@ -266,6 +268,7 @@ fn long_value_maps_spill_after_the_last_index_map_slot() -> TestResult {
                     .map(|name| ColumnSpec::new(name, ColumnType::Memo)),
             );
             let table = TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Items",
                 columns: &columns,
                 indexes: &INDEXES[..index_count],
@@ -299,6 +302,7 @@ fn every_external_column_is_checked_and_refusals_preserve_the_destination() -> T
         ColumnSpec::new(b"Last", ColumnType::Memo),
     ];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &columns,
         indexes: &[],
@@ -392,6 +396,7 @@ fn every_external_column_is_checked_and_refusals_preserve_the_destination() -> T
 #[test]
 fn per_column_header_allocation_is_charged_before_row_encoding() -> TestResult {
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[NOTE, ColumnSpec::new(b"Blob", ColumnType::LongBinary)],
         indexes: &[],
@@ -428,6 +433,7 @@ fn combined_external_columns_extend_independent_maps() -> TestResult {
     let directory = TestDirectory::create()?;
     let columns = [NOTE, ColumnSpec::new(b"Blob", ColumnType::LongBinary)];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &columns,
         indexes: &[],

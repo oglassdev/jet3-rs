@@ -134,6 +134,16 @@ pub enum TableSchemaPlanError {
         /// Pages the run needs.
         needed: u64,
     },
+    /// A text property is not accepted for its column or its value is outside
+    /// the EXP-0299 limits: 1 to 2,048 bytes without NUL or undefined CP1252 bytes.
+    InvalidTextProperty {
+        /// Column position, or `None` for a table property.
+        column: Option<usize>,
+        /// Property name.
+        property: &'static [u8],
+        /// Reason for refusal.
+        detail: &'static str,
+    },
     /// The map page cannot be named by a three-byte usage-map locator.
     MapPageNotAddressable {
         /// The unaddressable map page.
@@ -380,7 +390,14 @@ pub(crate) fn plan_table_schema_with_generated_indexes(
     }
     let length = measure_definition(spec, extra_names)?;
     let index_fields = resolve_index_fields(spec)?;
-    let plan = assign_pages(spec, first_page, first_create, length, index_fields)?;
+    crate::column_properties::check(spec.columns, spec.validation).map_err(
+        |(column, property, detail)| TableSchemaPlanError::InvalidTextProperty {
+            column,
+            property,
+            detail,
+        },
+    )?;
+    let plan = assign_pages(spec, first_page, first_create, length, index_fields, budget)?;
     validate_indexes(spec, &plan, declared_indexes, budget)?;
     Ok(plan)
 }
@@ -551,6 +568,7 @@ fn assign_pages(
     first_create: bool,
     definition_len: usize,
     index_fields: Vec<Vec<IndexFieldSpec>>,
+    budget: &mut crate::ResourceBudget,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
     let map_rows = 2
         + spec.indexes.len()
@@ -561,18 +579,27 @@ fn assign_pages(
             .count();
     let map_pages = map_rows.div_ceil(MAP_ROWS_PER_PAGE);
     // EXP-0266: column properties also occur on later tables and can be chained.
-    let property_pages = crate::column_properties::ColumnProperties::new(spec.columns).map_or(
-        usize::from(first_create),
-        |properties| {
-            if properties.len() <= crate::long_value_writer::MAX_SINGLE_PAGE_PAYLOAD {
-                1
-            } else {
-                properties
-                    .len()
-                    .div_ceil(crate::long_value_writer::MAX_CHAINED_FRAGMENT)
-            }
-        },
-    );
+    let property_pages =
+        crate::column_properties::ColumnProperties::new(spec.columns, spec.validation, budget)
+            .map_err(|error| match error {
+                crate::ColumnPropertyError::Resource(error) => {
+                    TableSchemaPlanError::Resource(error)
+                }
+                _ => TableSchemaPlanError::InvalidTextProperty {
+                    column: None,
+                    property: b"",
+                    detail: "property payload",
+                },
+            })?
+            .map_or(usize::from(first_create), |properties| {
+                if properties.len() <= crate::long_value_writer::MAX_SINGLE_PAGE_PAYLOAD {
+                    1
+                } else {
+                    properties
+                        .len()
+                        .div_ceil(crate::long_value_writer::MAX_CHAINED_FRAGMENT)
+                }
+            });
     let needed = 1
         + map_pages as u64
         + property_pages as u64

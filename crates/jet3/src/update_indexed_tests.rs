@@ -20,6 +20,7 @@ pub(super) fn indexed() -> Result<Fixture, Box<dyn StdError>> {
     create_database_with_rows(
         fixture.path(),
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &indexes,

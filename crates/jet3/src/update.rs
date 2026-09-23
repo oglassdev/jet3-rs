@@ -69,6 +69,11 @@ pub enum UpdateError {
         /// Definition page of the referencing child table.
         child: crate::PageNumber,
     },
+    /// The table or column stores a ValidationRule; Jet expressions are not evaluated.
+    ValidationRule {
+        /// The column whose rule applies, or `None` for the table rule.
+        column: Option<ColumnOrdinal>,
+    },
     /// Resource policy or raw input failure.
     Resource(crate::Error),
     /// File operation failed.
@@ -131,7 +136,8 @@ impl StdError for UpdateError {
             | Self::Mismatch(_)
             | Self::RelationshipConstraint { .. }
             | Self::ScalarRelationshipConstraint { .. }
-            | Self::NullRelationshipConstraint { .. } => None,
+            | Self::NullRelationshipConstraint { .. }
+            | Self::ValidationRule { .. } => None,
         }
     }
 }

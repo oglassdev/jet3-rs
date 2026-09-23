@@ -66,6 +66,7 @@ fn create(
         .iter()
         .enumerate()
         .map(|(n, name)| TableSpec {
+            validation: jet3::TableValidation::NONE,
             name: name.as_bytes(),
             columns: &columns,
             indexes: &indexes[..if populated {

@@ -95,6 +95,11 @@ pub enum ComposeError {
     },
     /// A catalog name could not be encoded into an index key.
     NameKey(CatalogNameKeyError),
+    /// The table's property payload could not be encoded.
+    Properties(crate::ColumnPropertyError),
+    /// Initial rows were requested for a table with a ValidationRule, which
+    /// Rust does not evaluate.
+    ValidationRuleRows,
     /// The table could not be planned.
     Schema(TableSchemaPlanError),
     /// The table carries both an index and a long-value column, a map-page
@@ -145,11 +150,13 @@ impl std::error::Error for ComposeError {
             Self::WholeFile(source) => Some(source),
             Self::Encoding(source) => Some(source),
             Self::NameKey(source) => Some(source),
+            Self::Properties(source) => Some(source),
             Self::Schema(source) => Some(source),
             Self::UnsupportedRelationship { .. }
             | Self::UnsupportedInitialRowSchema
             | Self::InitialLongValue { .. }
             | Self::UnsupportedMemoOption
+            | Self::ValidationRuleRows
             | Self::InitialAutoIncrement { .. }
             | Self::OrphanInitialRelationshipKey { .. }
             | Self::OrphanInitialScalarRelationshipKey { .. }

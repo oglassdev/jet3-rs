@@ -22,6 +22,7 @@ fn ascending_long_keys_sort_signed_extremes_and_retain_row_locators() -> TestRes
     let directory = TestDirectory::create()?;
     let indexes = one_index(IndexKind::Primary);
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[ID],
         indexes: &indexes,
@@ -69,6 +70,7 @@ fn duplicate_keys_are_distinct_counted_for_ordinary_and_rejected_for_unique() ->
         let directory = TestDirectory::create()?;
         let indexes = one_index(kind);
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &[ID],
             indexes: &indexes,
@@ -112,6 +114,7 @@ fn indexed_payload_rows_can_reference_multiple_data_pages() -> TestResult {
     ];
     let indexes = one_index(IndexKind::Unique);
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &columns,
         indexes: &indexes,
@@ -140,6 +143,7 @@ fn leaf_capacity_spills_into_a_branch_root() -> TestResult {
     let directory = TestDirectory::create()?;
     let indexes = one_index(IndexKind::Primary);
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[ID],
         indexes: &indexes,
@@ -179,6 +183,7 @@ fn required_null_keys_fail_before_publication() -> TestResult {
     ] {
         let indexes = one_index(kind);
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &[ID],
             indexes: &indexes,
@@ -204,6 +209,7 @@ fn candidate_check_rejects_index_owner_and_key_corruption() -> TestResult {
     let directory = TestDirectory::create()?;
     let indexes = one_index(IndexKind::Primary);
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[ID],
         indexes: &indexes,
@@ -235,6 +241,7 @@ fn index_storage_budget_and_empty_index_are_handled() -> TestResult {
     let directory = TestDirectory::create()?;
     let indexes = one_index(IndexKind::Primary);
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &[ID],
         indexes: &indexes,

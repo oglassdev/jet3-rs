@@ -83,6 +83,26 @@ pub struct IndexSpec<'a> {
     pub kind: IndexKind,
 }
 
+/// Table-level validation stored in the table's EXP-0299 property block.
+///
+/// Values are opaque database-code-page bytes and are never evaluated. A
+/// stored nonempty rule makes Rust refuse inserts and updates on the table.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TableValidation<'a> {
+    /// ValidationRule expression: 1 to 2,048 bytes without NUL or undefined CP1252 bytes.
+    pub rule: Option<&'a [u8]>,
+    /// ValidationText message: 1 to 255 bytes without NUL or undefined CP1252 bytes.
+    pub text: Option<&'a [u8]>,
+}
+
+impl TableValidation<'_> {
+    /// No table-level validation properties.
+    pub const NONE: Self = Self {
+        rule: None,
+        text: None,
+    };
+}
+
 /// One user table to create.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableSpec<'a> {
@@ -92,6 +112,8 @@ pub struct TableSpec<'a> {
     pub columns: &'a [ColumnSpec<'a>],
     /// The table's indexes in physical (append) order; at most 32.
     pub indexes: &'a [IndexSpec<'a>],
+    /// Table ValidationRule and ValidationText.
+    pub validation: TableValidation<'a>,
 }
 
 /// A table in the ordered input to the relationship creation APIs.

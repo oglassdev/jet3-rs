@@ -179,6 +179,7 @@ fn create(path: &Path, case: &Case, model: &BTreeMap<i32, Row>) -> Result<()> {
     let rows = values.iter().map(Vec::as_slice).collect::<Vec<_>>();
     let items = TableRows {
         table: TableSpec {
+            validation: jet3::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &indexes,
@@ -187,6 +188,7 @@ fn create(path: &Path, case: &Case, model: &BTreeMap<i32, Row>) -> Result<()> {
     };
     let notes = TableRows {
         table: TableSpec {
+            validation: jet3::TableValidation::NONE,
             name: b"Notes",
             columns: &[
                 ColumnSpec::new(b"Id", ColumnType::Long),

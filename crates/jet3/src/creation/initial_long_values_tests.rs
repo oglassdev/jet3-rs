@@ -28,6 +28,7 @@ fn payload_boundaries_round_trip_with_separate_column_maps() -> TestResult {
             let directory = TestDirectory::create()?;
             let columns = [ID, ColumnSpec::new(b"Payload", kind)];
             let table = TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Items",
                 columns: &columns,
                 indexes: &[],
@@ -64,6 +65,7 @@ fn multiple_payloads_and_data_pages_keep_distinct_references() -> TestResult {
     let directory = TestDirectory::create()?;
     let columns = [ID, ColumnSpec::new(b"Payload", ColumnType::LongBinary)];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &columns,
         indexes: &[],
@@ -96,6 +98,7 @@ fn empty_ole_creation_has_the_same_storage_as_null() -> TestResult {
     let empty = TestDirectory::create()?;
     let columns = [ID, ColumnSpec::new(b"Payload", ColumnType::LongBinary)];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &columns,
         indexes: &[],
@@ -120,6 +123,7 @@ fn payload_refusals_and_resource_limits_preserve_destination() -> TestResult {
     let directory = TestDirectory::create()?;
     let columns = [ColumnSpec::new(b"Payload", ColumnType::LongBinary)];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &columns,
         indexes: &[],
@@ -176,6 +180,7 @@ fn candidate_check_rejects_long_value_owner_pointer_and_payload_corruption() -> 
     let directory = TestDirectory::create()?;
     let columns = [ColumnSpec::new(b"Payload", ColumnType::LongBinary)];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &columns,
         indexes: &[],
@@ -211,6 +216,7 @@ fn long_value_allocation_extends_maps_for_the_final_data_page() -> TestResult {
     let directory = TestDirectory::create()?;
     let columns = [ColumnSpec::new(b"Payload", ColumnType::LongBinary)];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &columns,
         indexes: &[],

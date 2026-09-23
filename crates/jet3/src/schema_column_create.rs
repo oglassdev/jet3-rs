@@ -43,6 +43,7 @@ pub(crate) fn create(
             columns.push(column);
             crate::creation::schema_plan::plan_table_schema(
                 &TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: table,
                     columns: &columns,
                     indexes: &[],
@@ -53,11 +54,7 @@ pub(crate) fn create(
             )?;
             let (catalog, row, properties) =
                 crate::schema_properties::load(database, &definition, budget)?;
-            let properties = if column.column_type() == ColumnType::AutoIncrement {
-                properties
-            } else {
-                crate::schema_properties::add(&properties, column, budget)?
-            };
+            let properties = crate::schema_properties::add(&properties, column, budget)?;
             let mut edited = crate::schema_definition::DefinitionEdit::new(&definition, budget)?;
             let mut fixed = fixed_offset(&definition, column, budget)?;
             let mut variables = u16::from_le_bytes([edited.header[23], edited.header[24]]);

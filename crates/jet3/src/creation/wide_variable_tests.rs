@@ -22,6 +22,7 @@ fn fixed_schema_capacity_includes_the_presence_map() -> TestResult {
         let mut values = vec![RowValue::Long(1)];
         values.extend(payloads.iter().map(|bytes| RowValue::Text(bytes)));
         let spec = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &[],
@@ -49,6 +50,7 @@ fn fixed_schema_capacity_includes_the_presence_map() -> TestResult {
             },
         );
         let invalid = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &[],
@@ -123,6 +125,7 @@ fn all_variable_rows_disambiguate_the_final_boundary_and_reject_bad_trailers() -
     create_database_with_rows(
         directory.target(),
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &[],

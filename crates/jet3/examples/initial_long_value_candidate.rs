@@ -19,6 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ColumnSpec::new(b"Payload", kind),
     ];
     let table = TableSpec {
+        validation: jet3::TableValidation::NONE,
         name: b"Rows",
         columns: &columns,
         indexes: &[],

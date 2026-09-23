@@ -123,6 +123,10 @@ pub struct ColumnSpec<'a> {
     column_type: ColumnType,
     allow_zero_length: bool,
     required: bool,
+    default_value: Option<&'a [u8]>,
+    validation_rule: Option<&'a [u8]>,
+    validation_text: Option<&'a [u8]>,
+    description: Option<&'a [u8]>,
 }
 
 impl<'a> ColumnSpec<'a> {
@@ -134,7 +138,76 @@ impl<'a> ColumnSpec<'a> {
             column_type,
             allow_zero_length: false,
             required: false,
+            default_value: None,
+            validation_rule: None,
+            validation_text: None,
+            description: None,
         }
+    }
+
+    /// Stores a DefaultValue expression as opaque database-code-page bytes.
+    ///
+    /// The expression is not parsed or applied: writes always store the
+    /// supplied row values (EXP-0299). Values are 1 to 255 bytes without NUL
+    /// or undefined CP1252 bytes.
+    #[must_use]
+    pub const fn with_default_value(mut self, expression: &'a [u8]) -> Self {
+        self.default_value = Some(expression);
+        self
+    }
+
+    /// Stores a ValidationRule expression as opaque database-code-page bytes.
+    ///
+    /// Rust never evaluates the rule: once stored, inserts and updates on the
+    /// table are refused with [`crate::UpdateError::ValidationRule`]. DAO
+    /// refuses rules on Binary, OLE and GUID columns (EXP-0299), so those are
+    /// rejected. Values are 1 to 2,048 bytes without NUL or undefined CP1252 bytes.
+    #[must_use]
+    pub const fn with_validation_rule(mut self, rule: &'a [u8]) -> Self {
+        self.validation_rule = Some(rule);
+        self
+    }
+
+    /// Stores the message DAO shows when the ValidationRule fails.
+    ///
+    /// Binary, OLE and GUID columns reject it as for the rule; values are 1 to
+    /// 255 bytes without NUL or undefined CP1252 bytes.
+    #[must_use]
+    pub const fn with_validation_text(mut self, text: &'a [u8]) -> Self {
+        self.validation_text = Some(text);
+        self
+    }
+
+    /// Stores the Access Description property as opaque database-code-page
+    /// bytes of 1 to 255 bytes without NUL or undefined CP1252 bytes.
+    #[must_use]
+    pub const fn with_description(mut self, description: &'a [u8]) -> Self {
+        self.description = Some(description);
+        self
+    }
+
+    /// The requested DefaultValue expression.
+    #[must_use]
+    pub const fn default_value(&self) -> Option<&'a [u8]> {
+        self.default_value
+    }
+
+    /// The requested ValidationRule expression.
+    #[must_use]
+    pub const fn validation_rule(&self) -> Option<&'a [u8]> {
+        self.validation_rule
+    }
+
+    /// The requested ValidationText.
+    #[must_use]
+    pub const fn validation_text(&self) -> Option<&'a [u8]> {
+        self.validation_text
+    }
+
+    /// The requested Description.
+    #[must_use]
+    pub const fn description(&self) -> Option<&'a [u8]> {
+        self.description
     }
 
     /// Enables distinct empty-string values on this Text or Memo column.

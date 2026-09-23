@@ -33,6 +33,7 @@ fn fixture() -> TestResult<Vec<u8>> {
     let requests = [
         TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Items",
                 columns: &[id],
                 indexes: &[index],
@@ -45,6 +46,7 @@ fn fixture() -> TestResult<Vec<u8>> {
         },
         TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Notes",
                 columns: &[id, ColumnSpec::new(b"Body", ColumnType::Memo)],
                 indexes: &[],
@@ -57,6 +59,7 @@ fn fixture() -> TestResult<Vec<u8>> {
         },
         TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Payload",
                 columns: &[ColumnSpec::new(b"Data", ColumnType::LongBinary)],
                 indexes: &[],

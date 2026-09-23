@@ -50,6 +50,7 @@ impl Fixture {
         let tables = [
             TableRows {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"Unrelated",
                     columns: &columns,
                     indexes: &[],
@@ -58,6 +59,7 @@ impl Fixture {
             },
             TableRows {
                 table: TableSpec {
+                    validation: crate::TableValidation::NONE,
                     name: b"Rows",
                     columns: &columns,
                     indexes: &indexes,
@@ -498,6 +500,7 @@ fn indexed_rows_no_available_page_appends_and_multiple_indexes_mutate() -> TestR
     crate::create_database_with_rows(
         f.path(),
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Rows",
             columns: &columns,
             indexes: &indexes,

@@ -40,11 +40,13 @@ fn renamed(two: bool) -> ([TableSpec<'static>; 2], RelationshipSpec<'static>) {
     (
         [
             TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: parent_name,
                 columns: &RENAMED_PARENT_COLUMNS,
                 indexes: &indexes[..if two { 2 } else { 1 }],
             },
             TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: child_name,
                 columns: &RENAMED_CHILD_COLUMNS,
                 indexes: &[],

@@ -92,6 +92,7 @@ fn a_mixed_table_with_three_indexes_is_created_and_reopens() -> TestResult {
         },
     ];
     let spec = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &columns,
         indexes: &indexes,
@@ -139,6 +140,7 @@ fn candidate_check_rejects_an_index_kind_mismatch() -> TestResult {
     create_database(
         &target,
         &[TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &unique_indexes,
@@ -155,6 +157,7 @@ fn candidate_check_rejects_an_index_kind_mismatch() -> TestResult {
     let error = check_candidate(
         &target,
         &[TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &ordinary_indexes,
@@ -179,6 +182,7 @@ fn a_memo_table_is_created_and_reopens() -> TestResult {
     let target = directory.target();
     let columns = [ID, NOTE];
     let spec = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Notes",
         columns: &columns,
         indexes: &[],
@@ -206,6 +210,7 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
     let cases: [(TableSpec<'_>, Accepts); 2] = [
         (
             TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Mixed",
                 columns: &indexed_memo,
                 indexes: &by_id,
@@ -219,6 +224,7 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
         ),
         (
             TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Accent",
                 columns: &undefined_byte,
                 indexes: &[],
@@ -251,6 +257,7 @@ fn an_existing_destination_is_refused_and_left_unchanged() -> TestResult {
     fs::write(&target, b"keep me")?;
     let columns = [ID];
     let spec = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Alpha",
         columns: &columns,
         indexes: &[],
@@ -280,6 +287,7 @@ fn a_definition_spanning_one_continuation_is_created_and_reopens() -> TestResult
         .map(|name| ColumnSpec::new(name, ColumnType::Long))
         .collect::<Vec<_>>();
     let spec = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Wide",
         columns: &columns,
         indexes: &[],
@@ -298,6 +306,7 @@ fn case_folded_duplicates_are_refused_before_writing() -> TestResult {
     let directory = TestDirectory::create()?;
     let target = directory.target();
     let table = |name: &'static [u8]| TableSpec {
+        validation: crate::TableValidation::NONE,
         name,
         columns: &[ID],
         indexes: &[],
@@ -325,11 +334,13 @@ fn two_tables_are_created_in_order_and_reopen() -> TestResult {
     }];
     let tables = [
         TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Alpha",
             columns: &[ID],
             indexes: &[],
         },
         TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Gamma",
             columns: &[ID, CODE],
             indexes: &indexes,

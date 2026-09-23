@@ -118,6 +118,7 @@ pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
         .enumerate()
         .map(|(n, table)| TableRows {
             table: TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: table.name.bytes(),
                 columns: &columns[n],
                 indexes: &indexes[n],

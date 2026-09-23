@@ -66,6 +66,7 @@ fn generate(path: &Path, case: &Value) -> Result<()> {
         .map(|(t, r)| {
             Ok(TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: t["name"].as_str().ok_or("name")?.as_bytes(),
                     columns: &columns,
                     indexes: &[],

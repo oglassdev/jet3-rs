@@ -590,6 +590,7 @@ fn the_planner_reproduces_the_accepted_alpha_page_assignment() -> TestResult {
     let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
     let plan = plan_table_schema(
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Alpha",
             columns: &columns,
             indexes: &[],

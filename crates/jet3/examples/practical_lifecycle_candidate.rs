@@ -173,6 +173,7 @@ fn create(path: &Path) -> Result<()> {
         &[
             TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: b"Items",
                     columns: &[
                         ColumnSpec::new(b"Id", ColumnType::Long),
@@ -190,6 +191,7 @@ fn create(path: &Path) -> Result<()> {
             },
             TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: b"Notes",
                     columns: &[
                         ColumnSpec::new(b"Id", ColumnType::Long),

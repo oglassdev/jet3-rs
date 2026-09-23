@@ -32,6 +32,7 @@ fn empty_creation_is_independent_of_destination_and_successful_budget() -> TestR
     repeats(|path, operation| create_database(path, &[], operation))?;
     repeats(|path, operation| create_database_with_table_rows(path, &[], operation))?;
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Empty",
         columns: &[ID, NOTE],
         indexes: &[],
@@ -123,6 +124,7 @@ fn populated_catalog_definitions_indexes_payloads_and_generated_ids_repeat() -> 
         .iter()
         .map(|name| TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name,
                 columns: &[ID],
                 indexes: &[],
@@ -132,6 +134,7 @@ fn populated_catalog_definitions_indexes_payloads_and_generated_ids_repeat() -> 
         .collect::<Vec<_>>();
     requests.push(TableRows {
         table: TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Wide",
             columns: &wide_columns,
             indexes: &[],
@@ -140,6 +143,7 @@ fn populated_catalog_definitions_indexes_payloads_and_generated_ids_repeat() -> 
     });
     requests.push(TableRows {
         table: TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &indexes,
@@ -158,11 +162,13 @@ fn empty_and_populated_relationship_metadata_repeat() -> TestResult {
     }];
     let tables = [
         TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Parents",
             columns: &[ID],
             indexes: &indexes,
         },
         TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Children",
             columns: &[CODE, ColumnSpec::new(b"ParentId", ColumnType::Long)],
             indexes: &[],

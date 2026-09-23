@@ -62,6 +62,7 @@ fn a_created_memo_table_carries_its_long_value_map_groups_on_its_map_page() -> T
     // page, and one EXP-0077 map group for the Memo column.
     let columns = [ID, NAME, NOTE];
     let bytes = create_bytes(&TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Beta",
         columns: &columns,
         indexes: &[],
@@ -130,6 +131,7 @@ fn a_three_index_first_create_follows_the_observed_page_and_record_order() -> Te
         },
     ];
     let bytes = create_bytes(&TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Three",
         columns: &columns,
         indexes: &indexes,
@@ -207,6 +209,7 @@ fn a_definition_needing_a_continuation_appends_it_after_the_property_page() -> T
     let names = wide_names(70);
     let columns = wide_columns(&names);
     let bytes = create_bytes(&TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Wide",
         columns: &columns,
         indexes: &[],
@@ -236,6 +239,7 @@ fn a_definition_needing_two_continuations_reopens_with_the_complete_column_inven
     let names = wide_names(140);
     let columns = wide_columns(&names);
     let bytes = create_bytes(&TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Wide",
         columns: &columns,
         indexes: &[],
@@ -264,6 +268,7 @@ fn a_long_value_map_pair_follows_the_index_map() -> TestResult {
         kind: IndexKind::Ordinary,
     }];
     let bytes = create_bytes(&TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Mixed",
         columns: &columns,
         indexes: &indexes,
@@ -290,6 +295,7 @@ fn a_create_that_cannot_be_planned_reports_the_schema_error() {
     assert!(matches!(
         compose_table_database(
             &TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"",
                 columns: &columns,
                 indexes: &[],
@@ -304,6 +310,7 @@ fn a_create_that_cannot_be_planned_reports_the_schema_error() {
 fn multiple_long_value_map_pairs_follow_column_order() -> TestResult {
     let columns = [ID, NOTE, ColumnSpec::new(b"Blob", ColumnType::LongBinary)];
     let bytes = create_bytes(&TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Wide",
         columns: &columns,
         indexes: &[],
@@ -335,21 +342,25 @@ fn exp_0087_tables<'a>(
 ) -> [TableSpec<'a>; 4] {
     [
         TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Alpha",
             columns: &[ID],
             indexes: &[],
         },
         TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Beta",
             columns: &[ID, NAME, NOTE],
             indexes: &[],
         },
         TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Gamma",
             columns: &[ID],
             indexes: gamma_indexes,
         },
         TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Delta",
             columns: label,
             indexes: delta_indexes,
@@ -446,16 +457,19 @@ fn a_case_folded_duplicate_name_is_refused() {
     let mut budget = compose_budget();
     let duplicate = [
         TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Alpha",
             columns: &[ID],
             indexes: &[],
         },
         TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Beta",
             columns: &[ID],
             indexes: &[],
         },
         TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"ALPHA",
             columns: &[ID],
             indexes: &[],

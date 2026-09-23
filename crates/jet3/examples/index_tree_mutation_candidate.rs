@@ -128,6 +128,7 @@ fn create(path: &Path, model: &BTreeMap<i32, Row>, descending: bool, deep: bool)
         &[
             TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: b"Items",
                     columns: &columns,
                     indexes: &indexes,
@@ -136,6 +137,7 @@ fn create(path: &Path, model: &BTreeMap<i32, Row>, descending: bool, deep: bool)
             },
             TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: b"Notes",
                     columns: &[
                         ColumnSpec::new(b"Id", ColumnType::Long),

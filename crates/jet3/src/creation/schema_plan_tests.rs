@@ -28,6 +28,7 @@ fn spec<'a>(
     indexes: &'a [IndexSpec<'a>],
 ) -> TableSpec<'a> {
     TableSpec {
+        validation: crate::TableValidation::NONE,
         name,
         columns,
         indexes,

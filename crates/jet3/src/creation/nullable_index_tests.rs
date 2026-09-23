@@ -43,6 +43,7 @@ fn nullable_components_uniqueness_omission_and_distinct_counts_match_policy() ->
             fields: &TWO,
         }];
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &COLUMNS,
             indexes: &indexes,
@@ -92,6 +93,7 @@ fn single_null_keys_and_empty_ignored_tree_keep_real_row_counts() -> TestResult 
                 fields: &fields,
             }];
             let table = TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Items",
                 columns: &[ID],
                 indexes: &indexes,
@@ -137,6 +139,7 @@ fn required_null_and_present_duplicate_refusals_preserve_destination() -> TestRe
             fields: &TWO,
         }];
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &COLUMNS,
             indexes: &indexes,
@@ -155,6 +158,7 @@ fn required_null_and_present_duplicate_refusals_preserve_destination() -> TestRe
         fields: &TWO,
     }];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &COLUMNS,
         indexes: &indexes,
@@ -213,6 +217,7 @@ fn variable_width_duplicate_runs_span_three_levels_and_later_table_maps() -> Tes
         fields: &TWO,
     }];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &COLUMNS,
         indexes: &indexes,
@@ -220,6 +225,7 @@ fn variable_width_duplicate_runs_span_three_levels_and_later_table_maps() -> Tes
     let requests = [
         crate::TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Empty",
                 columns: &[ID],
                 indexes: &[],
@@ -275,6 +281,7 @@ fn nullable_auto_components_and_corrupt_flags_or_keys_are_checked() -> TestResul
         fields: &TWO,
     }];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &columns,
         indexes: &indexes,

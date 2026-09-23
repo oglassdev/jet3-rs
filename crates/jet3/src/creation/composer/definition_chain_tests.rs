@@ -41,6 +41,7 @@ fn exact_definition_boundaries_reassemble_without_padding_or_missing_columns() -
         let names = names(length);
         let columns = columns(&names);
         let spec = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Wide",
             columns: &columns,
             indexes: &[],
@@ -121,6 +122,7 @@ fn later_generated_rows_and_payloads_follow_three_indexed_definition_continuatio
     let data = bytes(&[
         TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"First",
                 columns: &[ColumnSpec::new(b"Id", ColumnType::Long)],
                 indexes: &[],
@@ -129,6 +131,7 @@ fn later_generated_rows_and_payloads_follow_three_indexed_definition_continuatio
         },
         TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Wide",
                 columns: &columns,
                 indexes: &indexes,
@@ -141,6 +144,7 @@ fn later_generated_rows_and_payloads_follow_three_indexed_definition_continuatio
     let mut db = crate::DatabaseReader::from_source(source, &mut b)?;
     let definition = db.table_definition(PageNumber::new(23), &mut b)?;
     let spec = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Wide",
         columns: &columns,
         indexes: &indexes,
@@ -237,6 +241,7 @@ fn definition_chains_and_catalog_maps_extend_past_inline_capacity() -> TestResul
         .iter()
         .map(|name| TableRows {
             table: TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: name.as_bytes(),
                 columns: &columns,
                 indexes: &[],

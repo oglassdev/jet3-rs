@@ -63,6 +63,7 @@ fn descending_parents_generate_ascending_trees_with_the_same_null_policy() -> Te
                 },
             ];
             let parent = TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Parent",
                 columns: &columns,
                 indexes: &indexes,
@@ -73,6 +74,7 @@ fn descending_parents_generate_ascending_trees_with_the_same_null_policy() -> Te
                 kind: IndexKind::Primary,
             }];
             let child = TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Child",
                 columns: &columns,
                 indexes: &child_indexes,
@@ -174,6 +176,7 @@ fn generated_parent_is_shared_and_declared_ascending_parent_is_preferred() -> Te
             },
         ];
         let parent = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Parent",
             columns: PAIR_COLUMNS,
             indexes: &indexes[..if with_ascending { 2 } else { 1 }],
@@ -181,11 +184,13 @@ fn generated_parent_is_shared_and_declared_ascending_parent_is_preferred() -> Te
         let tables = [
             parent,
             TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"ChildA",
                 columns: PAIR_COLUMNS,
                 indexes: &[],
             },
             TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"ChildB",
                 columns: PAIR_COLUMNS,
                 indexes: &[],
@@ -222,12 +227,14 @@ fn generated_parent_capacity_and_hidden_names_remain_bounded() -> TestResult {
         })
         .collect::<Vec<_>>();
     let child = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Child",
         columns: PAIR_COLUMNS,
         indexes: &[],
     };
     for count in [31, 32] {
         let parent = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Parent",
             columns: PAIR_COLUMNS,
             indexes: &indexes[..count],
@@ -260,6 +267,7 @@ fn generated_parent_capacity_and_hidden_names_remain_bounded() -> TestResult {
         kind: IndexKind::Unique,
     }];
     let parent = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Parent",
         columns: PAIR_COLUMNS,
         indexes: &hidden,
@@ -294,11 +302,13 @@ fn generated_parent_assignments_and_deletes_clamp_only_its_retained_counters() -
     ];
     let tables = [
         TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Parent",
             columns: PAIR_COLUMNS,
             indexes: &indexes,
         },
         TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Child",
             columns: PAIR_COLUMNS,
             indexes: &indexes[..1],
@@ -413,11 +423,13 @@ fn descending_parent_source_uses_logical_name_order_before_primary_or_physical_o
     for indexes in [[nullable, required], [required, nullable]] {
         let tables = [
             TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Parent",
                 columns: PAIR_COLUMNS,
                 indexes: &indexes,
             },
             TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Child",
                 columns: PAIR_COLUMNS,
                 indexes: &[],
@@ -455,11 +467,13 @@ fn null_parent_mutations_require_no_remaining_null_children() -> TestResult {
                 ];
                 let tables = [
                     TableSpec {
+                        validation: crate::TableValidation::NONE,
                         name: b"Parent",
                         columns: PAIR_COLUMNS,
                         indexes: &indexes,
                     },
                     TableSpec {
+                        validation: crate::TableValidation::NONE,
                         name: b"Child",
                         columns: PAIR_COLUMNS,
                         indexes: &indexes[..1],

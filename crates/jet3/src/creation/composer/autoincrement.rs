@@ -101,6 +101,7 @@ mod tests {
     fn generated_wraps_explicit_resets_and_exact_state_preservation()
     -> Result<(), Box<dyn std::error::Error>> {
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"T",
             columns: &[crate::ColumnSpec::new(b"Id", ColumnType::AutoIncrement)],
             indexes: &[],

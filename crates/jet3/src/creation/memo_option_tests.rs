@@ -19,7 +19,12 @@ fn columns(name: &[u8]) -> [ColumnSpec<'_>; 2] {
 #[test]
 fn memo_property_encoder_matches_observed_named_block() -> Result<(), Box<dyn StdError>> {
     let fields = columns(b"M");
-    let property = crate::column_properties::ColumnProperties::new(&fields).ok_or("name")?;
+    let property = crate::column_properties::ColumnProperties::new(
+        &fields,
+        crate::TableValidation::NONE,
+        &mut budget(),
+    )?
+    .ok_or("name")?;
     let mut output = [0; 154];
     let n = property.encode(&mut output, &mut budget())?;
     let expected = "4b4b4400210000008000080052657175697265640f00416c6c6f775a65726f4c656e67746817000000010008000000020049640900010100000100001f00000001000700000001004d0900010101000100ff090001010000010000";
@@ -42,7 +47,14 @@ fn memo_property_encoder_matches_observed_named_block() -> Result<(), Box<dyn St
     );
     for invalid in [b"".as_slice(), &[b'x'; 65], &[0x81]] {
         let fields = columns(invalid);
-        assert!(crate::column_properties::ColumnProperties::new(&fields).is_none());
+        assert!(
+            crate::column_properties::ColumnProperties::new(
+                &fields,
+                crate::TableValidation::NONE,
+                &mut budget()
+            )?
+            .is_none()
+        );
     }
     Ok(())
 }
@@ -54,6 +66,7 @@ fn memo_option_publishes_distinct_empty_null_and_nonempty() -> Result<(), Box<dy
         let path = dir.path.join(std::str::from_utf8(name)?);
         let columns = columns(name);
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Rows",
             columns: &columns,
             indexes: &[],
@@ -149,6 +162,7 @@ fn memo_option_refuses_nontext_types_and_default_empty() -> Result<(), Box<dyn S
     for (n, columns) in invalids.iter().enumerate() {
         let path = dir.path.join(n.to_string());
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Rows",
             columns,
             indexes: &[],
@@ -166,6 +180,7 @@ fn memo_option_refuses_nontext_types_and_default_empty() -> Result<(), Box<dyn S
         ColumnSpec::new(b"M", ColumnType::Memo),
     ];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Rows",
         columns: &ordinary,
         indexes: &[],
@@ -181,6 +196,7 @@ fn memo_option_refuses_nontext_types_and_default_empty() -> Result<(), Box<dyn S
     );
     let opted = columns(b"M");
     let later = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Later",
         columns: &opted,
         indexes: &[],

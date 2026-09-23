@@ -20,6 +20,7 @@ fn cp1252_schema_names_preserve_bytes_and_order_logical_indexes() -> TestResult 
         ColumnSpec::new(b"m\xe9m\xf8", ColumnType::Memo).with_allow_zero_length(),
     ];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"T\xe2ble \xc6",
         columns: &columns,
         indexes: &indexes,
@@ -77,6 +78,7 @@ fn collation_equal_names_are_refused_before_publication() -> TestResult {
     ];
     for &(a, b) in pairs {
         let tables = [a, b].map(|name| TableSpec {
+            validation: crate::TableValidation::NONE,
             name,
             columns: &[ID],
             indexes: &[],
@@ -92,6 +94,7 @@ fn collation_equal_names_are_refused_before_publication() -> TestResult {
         ));
         let columns = [a, b].map(|name| ColumnSpec::new(name, ColumnType::Long));
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &[],
@@ -143,6 +146,7 @@ fn accented_relationship_endpoints_validate_and_enforce_mutations() -> TestResul
         kind: IndexKind::Primary,
     }];
     let tables = [b"P\xe4rent".as_slice(), b"Ch\xeeld"].map(|name| TableSpec {
+        validation: crate::TableValidation::NONE,
         name,
         columns: &columns,
         indexes: &indexes,

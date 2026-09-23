@@ -44,6 +44,7 @@ fn fixed_text_indexes_enforce_collisions_and_follow_public_mutations() -> TestRe
             },
         ];
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Items",
             columns: &columns,
             indexes: &indexes,

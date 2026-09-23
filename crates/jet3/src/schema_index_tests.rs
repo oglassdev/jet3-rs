@@ -19,6 +19,7 @@ impl Fixture {
         create_database_with_rows(
             fixture.path(),
             &TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Items",
                 columns: &[
                     ColumnSpec::new(b"Id", ColumnType::Long),
@@ -339,6 +340,7 @@ fn create_table_keeps_existing_storage_and_accepts_later_rows() -> TestResult {
         fields: &[IndexColumnSpec::ascending(0)],
     }];
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Added",
         columns: &columns,
         indexes: &indexes,

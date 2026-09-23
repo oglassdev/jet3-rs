@@ -28,6 +28,7 @@ fn fixture(kind: ColumnType, values: &[RowValue<'_>]) -> Result<Fixture, Box<dyn
     crate::create_database_with_rows(
         f.path(),
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Rows",
             columns: &columns,
             indexes: &indexes,

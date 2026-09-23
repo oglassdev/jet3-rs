@@ -72,6 +72,7 @@ fn generate(path: &Path) -> Result<()> {
         &[
             TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: b"Items",
                     columns: &columns,
                     indexes: &[],
@@ -80,6 +81,7 @@ fn generate(path: &Path) -> Result<()> {
             },
             TableRows {
                 table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
                     name: b"Later",
                     columns: &columns,
                     indexes: &[],

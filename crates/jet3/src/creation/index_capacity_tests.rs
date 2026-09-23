@@ -43,6 +43,7 @@ fn thirty_two_indexes_span_maps_and_validate_the_final_unique_index() -> TestRes
         })
         .collect::<Vec<_>>();
     let table = TableSpec {
+        validation: crate::TableValidation::NONE,
         name: b"Items",
         columns: &columns,
         indexes: &indexes,

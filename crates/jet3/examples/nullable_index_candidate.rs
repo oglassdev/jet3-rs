@@ -92,6 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let tables = [
         TableRows {
             table: TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: b"Empty",
                 columns: &empty_columns,
                 indexes: &[],
@@ -100,6 +101,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
         TableRows {
             table: TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: b"Rows",
                 columns: &columns,
                 indexes: &indexes,

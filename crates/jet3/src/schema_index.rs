@@ -37,6 +37,8 @@ pub(crate) fn plan(
         | SchemaEdit::DropTable { .. }
         | SchemaEdit::DropColumn { .. }
         | SchemaEdit::SetColumnOptions { .. }
+        | SchemaEdit::SetColumnProperties { .. }
+        | SchemaEdit::SetTableProperties { .. }
         | SchemaEdit::DropRelationship { .. }
         | SchemaEdit::CreateRelationship { .. }
         | SchemaEdit::ReplaceRelationship { .. } => {

@@ -2,7 +2,7 @@
 use crate::{
     ByteCount, ColumnOrdinal, ColumnPropertyError, DatabaseReader, InlineLongValue, LongValue,
     LongValueChunkValue, LongValueReference, PageNumber, ReadAt, ResourceBudget, TableDefinition,
-    TextCodePage, ValueKind, column_property_reader::ColumnOptions, mutation_map::MapBits,
+    TextCodePage, ValueKind, column_property_reader::PropertyOptions, mutation_map::MapBits,
 };
 
 enum Payload {
@@ -93,7 +93,7 @@ impl Properties {
         database: &mut DatabaseReader<S>,
         table: &TableDefinition,
         budget: &mut ResourceBudget,
-    ) -> Result<[ColumnOptions; 255], ColumnPropertyError> {
+    ) -> Result<PropertyOptions, ColumnPropertyError> {
         budget.charge_work_units(self.values.len() as u64)?;
         let payload = &self
             .values
@@ -102,7 +102,7 @@ impl Properties {
             .ok_or(ColumnPropertyError::Invalid("table column properties"))?
             .1;
         match payload {
-            Payload::Null => Ok([ColumnOptions::default(); 255]),
+            Payload::Null => Ok(PropertyOptions::default()),
             Payload::Inline(bytes) => {
                 crate::column_property_reader::decode(bytes, table.columns(), budget)
             }

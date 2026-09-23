@@ -1,10 +1,11 @@
 //! Named Boolean column constraints using the EXP-0266/0283 grammar and EXP-0285 presence semantics.
+//! Stored EXP-0299 validation rules are not evaluated, so writes to their tables are refused.
 use crate::{
     ColumnPhysicalType, ColumnPropertyError, ColumnStorageClass, DatabaseReader, ReadAt,
     ResourceBudget, RowValue, RowWriteError, TableDefinition, UpdateError,
 };
 
-use crate::column_property_reader::ColumnOptions;
+use crate::column_property_reader::{ColumnOptions, PropertyOptions};
 
 fn stores_null(kind: ColumnPhysicalType, value: RowValue<'_>) -> bool {
     kind != ColumnPhysicalType::Boolean
@@ -57,7 +58,7 @@ pub(crate) fn options<S: ReadAt>(
     database: &mut DatabaseReader<S>,
     table: &TableDefinition,
     budget: &mut ResourceBudget,
-) -> Result<[ColumnOptions; 255], ColumnPropertyError> {
+) -> Result<PropertyOptions, ColumnPropertyError> {
     let root = database.catalog(budget)?.root();
     crate::column_property_values::Properties::load(database, root, &[table.root()], budget)?
         .options(database, table, budget)
@@ -69,14 +70,9 @@ pub(crate) fn check<S: ReadAt>(
     values: &[RowValue<'_>],
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    if !table.columns().iter().zip(values).any(|(column, value)| {
-        stores_null(column.physical_type(), *value)
-            || empty_string(column.physical_type(), column.storage(), *value)
-    }) {
-        return Ok(());
-    }
     let options = options(database, table, budget)?;
-    for ((column, value), option) in table.columns().iter().zip(values).zip(options) {
+    refuse_rules(&options, table)?;
+    for ((column, value), option) in table.columns().iter().zip(values).zip(options.columns) {
         check_value(
             column.ordinal().get(),
             column.physical_type(),
@@ -86,4 +82,17 @@ pub(crate) fn check<S: ReadAt>(
         )?;
     }
     Ok(())
+}
+
+/// Refuses a write when the table or one of its columns stores a nonempty rule.
+pub(crate) fn refuse_rules(
+    options: &PropertyOptions,
+    table: &TableDefinition,
+) -> Result<(), UpdateError> {
+    match options.validation_rule(table.columns()) {
+        Some(column) => Err(UpdateError::ValidationRule {
+            column: column.map(crate::ColumnOrdinal::new),
+        }),
+        None => Ok(()),
+    }
 }

@@ -61,11 +61,13 @@ fn rich_relationship_rows_keep_primary_null_keys_payloads_and_generated_ids() ->
             }
         }
         let parent = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Parent",
             columns: &parent_columns,
             indexes: PRIMARY,
         };
         let child = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Child",
             columns: &columns,
             indexes: PRIMARY,
@@ -232,6 +234,7 @@ fn parent_relationship_record_at_definition_boundary_keeps_external_payload_star
                 )
             }));
             let parent = TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Parent",
                 columns: &columns,
                 indexes: PRIMARY,
@@ -265,6 +268,7 @@ fn parent_relationship_record_at_definition_boundary_keeps_external_payload_star
                 ColumnSpec::new(b"ParentId", ColumnType::Long),
             ];
             let child = TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Child",
                 columns: &child_columns,
                 indexes: PRIMARY,
@@ -311,11 +315,13 @@ fn relationship_names_cannot_replace_declared_primary_indexes() -> TestResult {
         }];
         let tables = [
             TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Parent",
                 columns: &parent_columns,
                 indexes: &parent_index,
             },
             TableSpec {
+                validation: crate::TableValidation::NONE,
                 name: b"Child",
                 columns: &child_columns,
                 indexes: PRIMARY,

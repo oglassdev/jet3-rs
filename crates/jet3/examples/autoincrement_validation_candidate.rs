@@ -38,6 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let second_rows = [second.as_slice()];
     let mut requests = vec![TableRows {
         table: TableSpec {
+            validation: jet3::TableValidation::NONE,
             name: b"Rows",
             columns: &columns,
             indexes: if args[2] == "indexed" { &indexes } else { &[] },
@@ -47,6 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args[2] == "multi" {
         requests.push(TableRows {
             table: TableSpec {
+                validation: jet3::TableValidation::NONE,
                 name: b"Later",
                 columns: &columns,
                 indexes: &indexes,

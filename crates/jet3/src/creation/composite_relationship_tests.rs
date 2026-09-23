@@ -499,6 +499,7 @@ fn full_self_replacement_excludes_only_its_own_child_from_parent_guards() -> Tes
             },
         ];
         let table = TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Alpha",
             columns: &columns,
             indexes: &indexes,

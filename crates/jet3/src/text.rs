@@ -226,7 +226,7 @@ pub(crate) fn decoded_text_length(
     ByteCount::from_usize(decoded_bytes).map_err(TextError::Resource)
 }
 
-fn mapped_character(code_page: TextCodePage, byte: u8) -> Option<char> {
+pub(crate) fn mapped_character(code_page: TextCodePage, byte: u8) -> Option<char> {
     if byte < 0x80 {
         return char::from_u32(u32::from(byte));
     }

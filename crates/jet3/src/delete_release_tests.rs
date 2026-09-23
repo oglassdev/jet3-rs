@@ -164,6 +164,7 @@ fn sole_row_on_later_page_releases_only_that_page_and_keeps_other_rows() -> Resu
     crate::create_database_with_rows(
         f.path(),
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Rows",
             columns: &columns,
             indexes: &[],
@@ -217,6 +218,7 @@ fn null_long_value_row_releases_only_its_data_page() -> ResultTest {
     crate::create_database_with_rows(
         f.path(),
         &TableSpec {
+            validation: crate::TableValidation::NONE,
             name: b"Rows",
             columns: &columns,
             indexes: &[],

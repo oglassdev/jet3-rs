@@ -223,6 +223,7 @@ pub(crate) fn run(command: &SchemaCommand) -> Result<String, Failure> {
                 "create_table",
                 SchemaEdit::CreateTable {
                     table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
                         name: table.name.bytes(),
                         columns: &columns,
                         indexes: &indexes,

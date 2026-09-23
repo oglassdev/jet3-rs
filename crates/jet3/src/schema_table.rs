@@ -78,7 +78,9 @@ pub(crate) fn create(
             Ok((edits, (root, parent)))
         })?;
     let mut properties = Vec::new();
-    if let Some(description) = crate::column_properties::ColumnProperties::new(spec.columns) {
+    if let Some(description) =
+        crate::column_properties::ColumnProperties::new(spec.columns, spec.validation, budget)?
+    {
         budget.check_decoded_value(ByteCount::new(description.len() as u64))?;
         reserve(&mut properties, description.len(), budget)?;
         properties.resize(description.len(), 0);
