@@ -91,8 +91,6 @@ fn relationship_lifecycle_shares_indexes_preserves_rows_and_drops_with_child() -
                 SchemaEdit::ReplaceRelationship {
                     name: b"Related",
                     relationship: RelationshipSpec {
-                        enforce: true,
-                        join: crate::RelationshipJoin::Inner,
                         child: TableRef::Name(b"Missing"),
                         ..spec
                     }
@@ -107,8 +105,6 @@ fn relationship_lifecycle_shares_indexes_preserves_rows_and_drops_with_child() -
             SchemaEdit::ReplaceRelationship {
                 name: b"Related",
                 relationship: RelationshipSpec {
-                    enforce: true,
-                    join: crate::RelationshipJoin::Inner,
                     name: b"Cascading",
                     cascade_updates: true,
                     cascade_deletes: true,

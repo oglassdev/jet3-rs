@@ -343,8 +343,6 @@ fn cascade_self_replacement_preserves_the_explicit_foreign_key() -> TestResult {
             [RowValue::Long(3), RowValue::Long(30), RowValue::Null],
         ];
         let relation = RelationshipSpec {
-            enforce: true,
-            join: crate::RelationshipJoin::Inner,
             fields: &[RelationshipField {
                 parent: ColumnRef::Ordinal(1),
                 child: ColumnRef::Ordinal(2),
@@ -447,8 +445,6 @@ fn cascade_composite_null_tuples_match_exactly_and_update_each_row_once() -> Tes
     ];
     let references = [&input[0][..], &input[1], &input[2]];
     let relationship = RelationshipSpec {
-        enforce: true,
-        join: crate::RelationshipJoin::Inner,
         fields: &[
             RelationshipField {
                 parent: ColumnRef::Ordinal(1),

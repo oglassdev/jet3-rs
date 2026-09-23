@@ -80,8 +80,6 @@ fn relationship_catalog_spans_pages_and_index_branches_with_complete_locators() 
         .iter()
         .enumerate()
         .map(|(n, name)| RelationshipSpec {
-            enforce: true,
-            join: crate::RelationshipJoin::Inner,
             cascade_updates: false,
             cascade_deletes: false,
             name: name.as_bytes(),
@@ -158,8 +156,6 @@ fn relationship_capacity_is_per_table_and_counts_both_self_sides() -> TestResult
             .iter()
             .enumerate()
             .map(|(n, name)| RelationshipSpec {
-                enforce: true,
-                join: crate::RelationshipJoin::Inner,
                 cascade_updates: false,
                 cascade_deletes: false,
                 name: name.as_bytes(),

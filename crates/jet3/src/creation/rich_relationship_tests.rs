@@ -330,8 +330,6 @@ fn relationship_names_cannot_replace_declared_primary_indexes() -> TestResult {
             },
         ];
         let relation = crate::RelationshipSpec {
-            enforce: true,
-            join: crate::RelationshipJoin::Inner,
             cascade_updates: false,
             cascade_deletes: false,
             name: if parent_name == b".rB" {
