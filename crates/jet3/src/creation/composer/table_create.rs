@@ -333,39 +333,6 @@ impl<'a> PlannedCreate<'a> {
         Ok(())
     }
 
-    pub(super) fn property_header(&self) -> Result<Option<[u8; 12]>, ComposeError> {
-        self.column_properties()
-            .map(|property| {
-                let page = self
-                    .plan
-                    .property_page()
-                    .ok_or(ComposeError::UnsupportedMemoOption)?;
-                crate::long_value_writer::external_long_value_header(
-                    property.len(),
-                    if self.plan.property_page_count() == 1 {
-                        crate::ExternalLongValueStorage::SinglePage
-                    } else {
-                        crate::ExternalLongValueStorage::Chained
-                    },
-                    crate::RowLocator::new(page, 0),
-                )
-                .map_err(|_| ComposeError::UnsupportedMemoOption)
-            })
-            .transpose()
-    }
-
-    fn column_properties(&self) -> Option<&crate::column_properties::CreationProperties> {
-        self.properties.as_ref()
-    }
-
-    pub(super) fn property_pages(&self, available: bool) -> impl Iterator<Item = u64> + Clone {
-        self.plan
-            .property_page()
-            .filter(|_| !available || self.plan.property_page_count() == 1)
-            .into_iter()
-            .flat_map(|page| page.get()..page.get() + self.plan.property_page_count() as u64)
-    }
-
     /// Returns the page count once every appended page is in place.
     pub(super) fn page_count(&self) -> u64 {
         self.data_end()

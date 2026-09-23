@@ -182,6 +182,8 @@ pub(crate) struct TableSchemaPlan {
     definition_root: PageNumber,
     /// Number of single or chained catalog property pages.
     property_pages: usize,
+    /// Whether the property payload uses chained storage (`EXP-0300`).
+    property_chained: bool,
     /// Exact logical length of the encoded definition.
     definition_len: usize,
     /// Table maps, index maps and independent long-value map pairs.
@@ -231,6 +233,10 @@ impl TableSchemaPlan {
 
     pub(crate) const fn property_page_count(&self) -> usize {
         self.property_pages
+    }
+
+    pub(crate) const fn property_chained(&self) -> bool {
+        self.property_chained
     }
 
     /// Returns the first page after the root, map, and any `LvProp` pages.
@@ -579,7 +585,7 @@ fn assign_pages(
             .count();
     let map_pages = map_rows.div_ceil(MAP_ROWS_PER_PAGE);
     // EXP-0266: column properties also occur on later tables and can be chained.
-    let property_pages =
+    let property_len =
         crate::column_properties::CreationProperties::new(spec.columns, spec.validation, budget)
             .map_err(|error| match error {
                 crate::ColumnPropertyError::Resource(error) => {
@@ -591,15 +597,16 @@ fn assign_pages(
                     detail: "property payload",
                 },
             })?
-            .map_or(usize::from(first_create), |properties| {
-                if properties.len() <= crate::long_value_writer::MAX_SINGLE_PAGE_PAYLOAD {
-                    1
-                } else {
-                    properties
-                        .len()
-                        .div_ceil(crate::long_value_writer::MAX_CHAINED_FRAGMENT)
-                }
-            });
+            .map(|properties| properties.len());
+    let property_chained = property_len
+        .is_some_and(|len| len > crate::long_value_writer::MAX_SINGLE_PAGE_PROPERTY_PAYLOAD);
+    let property_pages = match property_len {
+        None => usize::from(first_create),
+        Some(len) if property_chained => {
+            len.div_ceil(crate::long_value_writer::MAX_CHAINED_FRAGMENT)
+        }
+        Some(_) => 1,
+    };
     let needed = 1
         + map_pages as u64
         + property_pages as u64
@@ -625,6 +632,7 @@ fn assign_pages(
         object_id,
         definition_root: PageNumber::new(first_page),
         property_pages,
+        property_chained,
         definition_len,
         map_rows,
         index_fields,

@@ -4,7 +4,8 @@
 `plan` writes CLI creation requests, the DAO job list and the edit manifest template.
 `manifest` binds the template to retained inputs and native outputs for
 prepare_schema_candidates.py. `compare-creation` compares DAO readbacks and raw
-LvProp payloads of Rust creations with both native replicas.
+LvProp payloads and storage classes of Rust creations with both native replicas;
+`compare-edit-lvprop` does the raw comparison for accepted edits.
 """
 
 from __future__ import annotations
@@ -180,6 +181,10 @@ def creations():
             "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "Id", "direction": "descending"}]},
                         {"name": "ByCode", "kind": "unique", "null_policy": "required", "fields": [{"column": "Code"}]}],
             "rows": [[{"long": 1}, {"text": "x"}], [{"long": 2}, {"text": "y"}]]}]},
+        # EXP-0300: LvProp payloads of 1,776 bytes stay single-page; 1,777 chain.
+        "c21-property-boundary": {"tables": [
+            {"name": name, "columns": [column("Id", "long"), column("Note", "memo", description=long_text("d", size))],
+             "indexes": [primary()]} for name, size in (("Single", 1661), ("Chained", 1662))]},
     }
     return specs
 
@@ -269,6 +274,10 @@ def edits():
         ("e22-refuse-unique-duplicates", "n-c11", [dict(schema({
             "operation": "create_index", "table": "KOrdinaryInclude",
             "index": {"name": "Unique", "kind": "unique", "fields": [{"column": "K"}]}}), expected_returncode=1)], []),
+        ("e24-medium-property-single", "baseline", [props("Target", "Label", description=long_text("s", 1600))],
+         ["Target"]),
+        ("e25-medium-property-chained", "baseline", [props("Target", "Label", description=long_text("m", 1601))],
+         ["Target"]),
         ("e23-refuse-required-null", "n-c10", [dict(schema({
             "operation": "create_index", "table": "KOrdinaryInclude",
             "index": {"name": "Needed", "kind": "ordinary", "null_policy": "required", "fields": [{"column": "K"}]}}),
@@ -282,6 +291,8 @@ def edits():
         "e09-create-table": ["Props/table/owned", "Props/table/available", "Props/index/0/owned"],
         "e15-native-chained": lvprop,
         "e17-rust-chained": lvprop,
+        "e24-medium-property-single": lvprop,
+        "e25-medium-property-chained": lvprop,
         "e18-replace-ordinary-unique-required": ["KUniqueInclude/index/1/owned"],
         "e19-replace-unique-ordinary-ignore": ["KUniqueInclude/index/1/owned"],
         "e20-replace-required-unique-include": ["KUniqueRequired/index/1/owned"],
@@ -370,15 +381,22 @@ def compare_creation(args) -> None:
             native_name = f"native-{name}-r{replica}.mdb"
             native = observed[native_name]
             native_bytes = (args.dir / native_name).read_bytes()
+            for item, data in ((candidate, candidate_bytes), (native, native_bytes)):
+                if item["identity"] != {"size": len(data), "sha256": sha256(data)}:
+                    raise SystemExit(f"readback identity mismatch: {item['file']}")
             left = mask_dates({k: v for k, v in candidate.items() if k not in {"file", "identity"}}, tables)
             right = mask_dates({k: v for k, v in native.items() if k not in {"file", "identity"}}, tables)
             semantic = left == right
             payloads = []
             for table in sorted(tables):
-                ours, _ = cpc.property_payload(candidate_bytes, table)
-                theirs, _ = cpc.property_payload(native_bytes, table)
-                payloads.append({"table": table, "equal": ours == theirs, "candidate_sha256": sha256(ours),
-                                 "native_sha256": sha256(theirs), "length": len(ours)})
+                ours, our_header = cpc.property_payload(candidate_bytes, table)
+                theirs, their_header = cpc.property_payload(native_bytes, table)
+                # Length/flags word and fragment count; page locators are placement.
+                storage = [(h["raw_hex"][:8], len(h["chain"])) for h in (our_header, their_header)]
+                payloads.append({"table": table, "equal": ours == theirs and storage[0] == storage[1],
+                                 "candidate_sha256": sha256(ours), "native_sha256": sha256(theirs),
+                                 "length": len(ours), "candidate_storage": storage[0],
+                                 "native_storage": storage[1]})
             ok = semantic and all(item["equal"] for item in payloads)
             passed &= ok
             report["cases"].append({"name": name, "replica": replica, "passed": ok, "semantic_equal": semantic,
@@ -387,6 +405,36 @@ def compare_creation(args) -> None:
     write(args.out, report)
     print(json.dumps({"status": report["status"], "pairs": len(report["cases"]),
                       "failed": [(c["name"], c["replica"]) for c in report["cases"] if not c["passed"]]}))
+    if not passed:
+        raise SystemExit(1)
+
+
+def compare_edit_lvprop(args) -> None:
+    """Raw LvProp payload and storage class of each accepted edit's affected tables."""
+    sys.path.insert(0, str(args.scripts))
+    import column_property_checks as cpc
+
+    manifest = json.loads((args.prepared / "manifest.json").read_text(encoding="utf-8"))
+    report = {"document_type": "jet3_text_property_edit_lvprop", "cases": []}
+    passed = True
+    for case in manifest["cases"]:
+        if case.get("rust_only_refusal") or any(step.get("expected_returncode", 0) for step in case["steps"]):
+            continue
+        ours_bytes = (args.prepared / f"candidate-{case['name']}.mdb").read_bytes()
+        theirs_bytes = (args.prepared / f"native-{case['name']}.mdb").read_bytes()
+        for table in case["normalize_table_dates"]:
+            ours, our_header = cpc.property_payload(ours_bytes, table)
+            theirs, their_header = cpc.property_payload(theirs_bytes, table)
+            storage = [(h["raw_hex"][:8], len(h["chain"])) for h in (our_header, their_header)]
+            ok = ours == theirs and storage[0] == storage[1]
+            passed &= ok
+            report["cases"].append({"name": case["name"], "table": table, "passed": ok, "length": len(ours),
+                                    "candidate_sha256": sha256(ours), "native_sha256": sha256(theirs),
+                                    "candidate_storage": storage[0], "native_storage": storage[1]})
+    report["status"] = "pass" if passed else "fail"
+    write(args.out, report)
+    print(json.dumps({"status": report["status"], "compared": len(report["cases"]),
+                      "failed": [c["name"] for c in report["cases"] if not c["passed"]]}))
     if not passed:
         raise SystemExit(1)
 
@@ -409,6 +457,11 @@ def main() -> None:
     p.add_argument("--dir", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
     p.set_defaults(run=compare_creation)
+    p = commands.add_parser("compare-edit-lvprop")
+    p.add_argument("--scripts", type=Path, required=True)
+    p.add_argument("--prepared", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p.set_defaults(run=compare_edit_lvprop)
     args = parser.parse_args()
     args.run(args)
 

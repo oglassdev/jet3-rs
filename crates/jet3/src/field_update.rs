@@ -39,6 +39,28 @@ pub(crate) fn plan_fields(
     assignments: &[(crate::ColumnOrdinal, RowValue<'_>)],
     budget: &mut ResourceBudget,
 ) -> Result<crate::page_edits::PageEdits, UpdateError> {
+    plan_catalog_fields(
+        database,
+        definition,
+        graph,
+        selected_row,
+        assignments,
+        None,
+        budget,
+    )
+}
+
+/// `property_column` names the catalog `LvProp` column, stored under the
+/// `EXP-0300` property single-page limit.
+pub(crate) fn plan_catalog_fields(
+    database: &mut DatabaseReader<FileSource>,
+    definition: &TableDefinition,
+    graph: crate::row_mutation_graph::RowGraph,
+    selected_row: crate::RowLocator,
+    assignments: &[(crate::ColumnOrdinal, RowValue<'_>)],
+    property_column: Option<crate::ColumnOrdinal>,
+    budget: &mut ResourceBudget,
+) -> Result<crate::page_edits::PageEdits, UpdateError> {
     let columns = definition.columns();
     if columns.len() > usize::from(u8::MAX) || assignments.len() > columns.len() {
         return Err(UpdateError::Unsupported("row column count"));
@@ -91,6 +113,7 @@ pub(crate) fn plan_fields(
         selected_columns,
         budget,
     )?;
+    long_values.set_property_column(property_column);
     long_values.remove_selected(budget)?;
     let mut encoded = [0; PAGE_BYTES];
     let length = {

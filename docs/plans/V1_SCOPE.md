@@ -262,8 +262,8 @@ Jet expressions are not parsed or evaluated. DAO refuses malformed expressions o
 assignment; Rust stores what the caller supplies. Defaults are never applied: rows
 store the supplied values, including explicit nulls, as DAO does. While a table or
 any of its columns stores a nonempty ValidationRule, inserts, row replacements,
-field updates, cascaded child updates and creation with initial rows are refused
-with the file unchanged. Clearing the rule restores writes. Binary, OLE and GUID
+field updates, cascaded child updates, AutoIncrement column backfills and
+creation with initial rows are refused with the file unchanged. Clearing the rule restores writes. Binary, OLE and GUID
 columns refuse validation properties, and new AutoIncrement columns refuse
 expressions that DAO would drop. Access-layer properties such as Format, Caption
 and InputMask are preserved but cannot be authored.

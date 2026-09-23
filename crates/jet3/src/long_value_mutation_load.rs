@@ -18,6 +18,7 @@ pub(super) fn load(
         pages: Vec::new(),
         first_append: database.geometry().page_count(),
         append_count: 0,
+        property_column: None,
     };
     if table.long_value_maps().is_empty() {
         return Ok(result);
