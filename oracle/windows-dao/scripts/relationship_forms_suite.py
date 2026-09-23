@@ -343,6 +343,35 @@ def residue(args) -> None:
         raise SystemExit(1)
 
 
+def reader(args) -> None:
+    """Compares the Rust relationship catalog reader with DAO Relations getters."""
+    import subprocess
+
+    files = []
+    for path in args.readback:
+        document = json.loads(path.read_text(encoding="utf-8-sig"))
+        files += document["files"] if isinstance(document, dict) else document
+    report, ok = [], True
+    for item in files:
+        dao = sorted((r["name"], r["table"], r["foreign_table"], r["attributes"],
+                      [(f["name"], f["foreign_name"]) for f in sorted(r["fields"], key=lambda f: f["ordinal"])])
+                     for r in item["relations"])
+        output = subprocess.run([str(args.cli), "inspect", str(args.dir / item["file"])],
+                                capture_output=True, text=True, check=True)
+        rust = sorted((r["name"], r["parent"], r["child"], r["raw_attributes"],
+                       [(f["parent"], f["child"]) for f in r["fields"]])
+                      for r in json.loads(output.stdout)["relationships"])
+        equal = json.loads(json.dumps(dao)) == json.loads(json.dumps(rust))
+        ok &= equal
+        report.append({"file": item["file"], "relationships": len(dao), "equal": equal})
+    write(args.out, {"document_type": "jet3_relationship_reader_comparison", "status": "pass" if ok else "fail",
+                     "files": report})
+    print("pass" if ok else "fail", sum(r["equal"] for r in report), "/", len(report),
+          sum(r["relationships"] for r in report), "relationships")
+    if not ok:
+        raise SystemExit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -365,6 +394,12 @@ def main() -> None:
     p.add_argument("--prepared", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
     p.set_defaults(run=residue)
+    p = sub.add_parser("reader")
+    p.add_argument("--cli", type=Path, required=True)
+    p.add_argument("--readback", type=Path, action="append", required=True)
+    p.add_argument("--dir", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p.set_defaults(run=reader)
     args = parser.parse_args()
     args.run(args)
 
