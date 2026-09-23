@@ -511,8 +511,8 @@
       ]
     },
     {
-      "id": "relationships.create_drop_preserve_metadata",
-      "implementation": "partial",
+      "id": "relationships.enforced_create_drop_mutate",
+      "implementation": "implemented",
       "verification": "dao_differential",
       "evidence": [
         "docs/PROVENANCE.md",
@@ -574,6 +574,75 @@
         "oracle/windows-dao/scripts/combine_schema_readbacks.py",
         "oracle/windows-dao/scripts/compare_schema_candidates.py",
         "oracle/windows-dao/scripts/candidate_continuations.ps1"
+      ]
+    },
+    {
+      "id": "relationships.unenforced",
+      "implementation": "implemented",
+      "verification": "dao_differential",
+      "evidence": [
+        "docs/PROVENANCE.md",
+        "crates/jet3/src/relationship_flags.rs",
+        "crates/jet3/src/relationship_catalog.rs",
+        "crates/jet3/src/relationships.rs",
+        "crates/jet3/src/schema_relationship_form_tests.rs",
+        "oracle/windows-dao/scripts/relationship_forms_native.ps1",
+        "oracle/windows-dao/scripts/relationship_forms_cases.ps1",
+        "oracle/windows-dao/scripts/relationship_forms_suite.py",
+        "oracle/windows-dao/scripts/relationship_forms_suite.ps1",
+        "oracle/windows-dao/scripts/prepare_schema_candidates.py",
+        "oracle/windows-dao/scripts/schema_candidate_observer.ps1",
+        "oracle/windows-dao/scripts/compare_schema_candidates.py",
+        "oracle/windows-dao/scripts/compare_schema_structure.py",
+        "oracle/windows-dao/scripts/schema_edit_structure.py",
+        "crates/jet3/src/schema_relationship_catalog.rs",
+        "crates/jet3/src/schema_relationship_drop.rs",
+        "crates/jet3/src/schema_table_drop.rs",
+        "crates/jet3/src/schema_column_drop.rs",
+        "crates/jet3/src/relationship_validation.rs"
+      ]
+    },
+    {
+      "id": "relationships.join_attributes",
+      "implementation": "implemented",
+      "verification": "dao_differential",
+      "evidence": [
+        "docs/PROVENANCE.md",
+        "crates/jet3/src/relationship_flags.rs",
+        "crates/jet3/src/relationship_catalog.rs",
+        "crates/jet3/src/relationships.rs",
+        "crates/jet3/src/schema_relationship_form_tests.rs",
+        "oracle/windows-dao/scripts/relationship_forms_native.ps1",
+        "oracle/windows-dao/scripts/relationship_forms_cases.ps1",
+        "oracle/windows-dao/scripts/relationship_forms_suite.py",
+        "oracle/windows-dao/scripts/relationship_forms_suite.ps1",
+        "oracle/windows-dao/scripts/prepare_schema_candidates.py",
+        "oracle/windows-dao/scripts/schema_candidate_observer.ps1",
+        "oracle/windows-dao/scripts/compare_schema_candidates.py",
+        "oracle/windows-dao/scripts/compare_schema_structure.py",
+        "oracle/windows-dao/scripts/schema_edit_structure.py",
+        "crates/jet3/src/creation/schema.rs"
+      ]
+    },
+    {
+      "id": "relationships.one_to_one_and_unknown_attributes",
+      "implementation": "partial",
+      "verification": "dao_differential",
+      "evidence": [
+        "docs/PROVENANCE.md",
+        "crates/jet3/src/relationship_flags.rs",
+        "crates/jet3/src/relationship_catalog.rs",
+        "crates/jet3/src/relationships.rs",
+        "crates/jet3/src/schema_relationship_form_tests.rs",
+        "oracle/windows-dao/scripts/relationship_forms_native.ps1",
+        "oracle/windows-dao/scripts/relationship_forms_cases.ps1",
+        "oracle/windows-dao/scripts/relationship_forms_suite.py",
+        "oracle/windows-dao/scripts/relationship_forms_suite.ps1",
+        "oracle/windows-dao/scripts/prepare_schema_candidates.py",
+        "oracle/windows-dao/scripts/schema_candidate_observer.ps1",
+        "oracle/windows-dao/scripts/compare_schema_candidates.py",
+        "oracle/windows-dao/scripts/compare_schema_structure.py",
+        "oracle/windows-dao/scripts/schema_edit_structure.py"
       ]
     },
     {

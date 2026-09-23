@@ -28,19 +28,21 @@ pub enum SchemaEdit<'a> {
         /// Replacement index to build over the existing rows.
         replacement: IndexSpec<'a>,
     },
-    /// Add an enforced relationship between existing tables, checking their rows.
+    /// Add a relationship between existing tables. Enforced relationships check
+    /// existing rows; unenforced ones (EXP-0301) only record their catalog rows.
     CreateRelationship {
         /// Table references must use names; column references may use names or live ordinals.
         relationship: crate::RelationshipSpec<'a>,
     },
-    /// Atomically drop and recreate a relationship with new fields or cascade settings.
+    /// Atomically drop and recreate a relationship with new fields, enforcement,
+    /// join type or cascade settings.
     ReplaceRelationship {
         /// Exact database-encoded existing relationship name.
         name: &'a [u8],
         /// Replacement relationship; table references must use names.
         relationship: crate::RelationshipSpec<'a>,
     },
-    /// Drop an enforced relationship, retaining shared ordinary indexes.
+    /// Drop a relationship, retaining shared ordinary indexes.
     DropRelationship {
         /// Exact database-encoded relationship name.
         name: &'a [u8],
@@ -84,16 +86,18 @@ pub enum SchemaEdit<'a> {
         /// ValidationText message.
         validation_text: PropertyChange<'a>,
     },
-    /// Remove an unindexed column while retaining the other columns' storage identities.
+    /// Remove an unindexed column that no relationship names, retaining the other
+    /// columns' storage identities.
     DropColumn {
         /// Exact database-encoded table name.
         table: &'a [u8],
         /// Exact database-encoded column name.
         column: &'a [u8],
     },
-    /// Drop a table and its rows, indexes, payloads, properties and grants.
+    /// Drop a table and its rows, indexes, payloads, properties, grants and
+    /// relationships. Enforced references from other tables must be dropped first.
     DropTable {
-        /// Exact database-encoded table name; references from other tables must be dropped first.
+        /// Exact database-encoded table name.
         table: &'a [u8],
     },
     /// Append a column. Existing rows read its absent value as null (false for Boolean).

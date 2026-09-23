@@ -1051,6 +1051,37 @@ Use `not applicable` explicitly rather than omitting a field.
   redistributed
 - Review: pending independent review
 
+### SRC-0026 — Remaining DAO relation attribute inputs
+
+- Recorded: 2026-09-23, Claude Code
+- Kind: public source
+- Question: Which remaining `RelationAttributeEnum` values may relationship
+  discovery pass to DAO?
+- Origin: the same pinned “RelationAttributeEnum enumeration (DAO)” document
+  as `SRC-0023` (MicrosoftDocs `office-developer-client-docs` commit
+  `eedbd61ca40689e7cfed5e1cfd9440a9dc3ab7a5`), retrieved again 2026-09-23 from
+  https://raw.githubusercontent.com/MicrosoftDocs/office-developer-client-docs/eedbd61ca40689e7cfed5e1cfd9440a9dc3ab7a5/docs/access/desktop-database-reference/relationattributeenum-enumeration-dao.md
+- Environment: documentation retrieval; not applicable otherwise
+- Protocol: read the complete seven-row table.
+- Artifacts: the retrieved file has SHA-256
+  `cb41bbb0830949517eee12f9412b3e4e506877a84d23ff2b4791aad24b91da82`. This
+  differs from the digest recorded in `SRC-0023` for the same pinned path; that
+  earlier digest is retained unchanged. The document is not redistributed.
+- Observation: besides 256 (`dbRelationUpdateCascade`) and 4096
+  (`dbRelationDeleteCascade`), the table lists 1 (`dbRelationUnique`,
+  one-to-one), 2 (`dbRelationDontEnforce`, no referential integrity), 4
+  (`dbRelationInherited`, relationship exists in the database containing two
+  linked tables), 16777216 (`dbRelationLeft`, Access-only default LEFT JOIN
+  display) and 33554432 (`dbRelationRight`, Access-only default RIGHT JOIN
+  display).
+- Interpretation: bounded DAO inputs only. They assign no meaning to MDB bytes;
+  `EXP-0301` records what Jet 3 stores for each.
+- Usage: `file:oracle/windows-dao/scripts/relationship_forms_native.ps1`;
+  `file:crates/jet3/src/relationship_flags.rs`;
+  `file:crates/jet3/src/relationships.rs`
+- Rights: citation of public Microsoft documentation; no content redistributed
+- Review: pending independent review
+
 ## Observed behavior
 
 ### OBS-0001 — Donated-corpus identity and header bytes
@@ -20520,3 +20551,68 @@ all substantive findings were fixed, and the final round found none. This
 accepts the finite text-property inventory above; Jet expression evaluation,
 default application, non-General writes and the c21 available-map placement
 remain outside it.
+
+## EXP-0301 — Native relationship attributes and unenforced relationships
+
+On 2026-09-23 the local x86 DAO 3.6 environment of EXP-0300 (DLL 03.60.9765.0,
+SHA-256 `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`,
+Windows 10.0.20348, en-US/ANSI 1252) ran
+`relationship_forms_native.ps1` with `relationship_forms_cases.ps1` (runs
+`20260923T064545Z-relforms-d1`, two replicas per case, and
+`20260923T065602Z-relforms-d2`, one replica). Each case created a General
+sort-order database with tables P, C and Q, then called `CreateRelation` with
+`SRC-0023`/`SRC-0026` attributes, alone and combined, and lifecycle operations
+after a close/reopen. No MDB implementation source was consulted. The private
+bundle is `checks/20260923-relationship-forms-discovery` beneath the VM share.
+Replicas agree on every fact below.
+
+- **Accepted attributes and storage.** DAO accepts 0, 1, 2, 3, 256, 4096, 4352,
+  257, 4097, 16777216, 33554432, 50331648 (both join bits), each join bit with
+  256/4096/4352, each join bit with 2, and the undocumented 65536. The stored
+  `MSysRelationships.grbit` equals the requested value and the Relations getter
+  returns it. Join bits and 65536 leave the table-definition relationship
+  records identical to the unflagged form (context bytes still encode only the
+  cascades, as EXP-0294). Attribute 8 is accepted in-session but nothing is
+  persisted: the closed file has no relationship row or object.
+- **Refused attributes.** 4 (Inherited) fails with 3300 on local tables. 16,
+  512, and 2 combined with 256 and/or 4096 fail with 3001; the 16 and 512
+  refusals increment the MSysObjects row count without a row, as in EXP-0298.
+- **Unenforced (2).** An unenforced relationship is an MSysObjects type-8 object,
+  its two MSysACEs rows and one MSysRelationships row per component. No logical
+  or physical index is added to either table, and an existing ordinary or
+  unique child index is not referenced. DAO accepts unenforced relationships
+  over a non-unique or unindexed parent column, Memo, OLE, mismatched types
+  (Long to Text), composite keys, self references, the same column on both
+  sides, repeated columns, eleven components, and a name equal to an index
+  name. Two unenforced relationships may share the same columns alongside an
+  enforced one. Creating it over existing orphan rows succeeds; an enforced one
+  over the same rows fails with 3201.
+- **Enforced refusals.** Enforced relationships over a non-unique parent (and a
+  two-column parent without a unique index) fail with 3609, Memo/OLE keys with
+  3409, and Long-to-Text keys with 3368. A second relationship object with an
+  existing relationship name fails with 3012.
+- **One-to-one (1).** An enforced relationship with the Unique attribute makes
+  the child foreign physical index unique; if a unique index on the child key
+  already exists, DAO reuses it. Without the attribute, DAO does not reuse a
+  unique child index and adds a separate ordinary index.
+- **Unenforced lifecycle.** Orphan inserts, orphan updates, and parent updates
+  and deletions all succeed, including with left-join attributes; the enforced
+  relationship on the same child still refuses orphans (3201) and referenced
+  parent deletions (3200). Dropping either table removes the unenforced
+  relationship (rows, object and grants), while dropping the parent of an
+  enforced one fails with 3281. Dropping the parent's primary key succeeds.
+  Renaming either table or key column updates the MSysRelationships names.
+  `Relation.Name` and `Relation.Attributes` cannot be assigned after append
+  (3219); `Relations.Delete` removes an unenforced relationship. Dropping an
+  unrelated column succeeds.
+- **Key-column drops.** Dropping the parent key column fails with 3280 (it is
+  indexed). Dropping the child key column of an unenforced relationship reports
+  3303 but DAO leaves the column dropped and the MSysRelationships row naming
+  it, in both replicas and with a join attribute. Rust validation reports such
+  a row as an unresolved relationship column.
+
+Rust therefore reads, validates and preserves every accepted form. Unenforced
+relationships and join attributes are interpreted for writes; the one-to-one
+attribute, 65536 and other unknown bits are preserved and counted as
+uninterpreted; row writes to their tables and dropping those tables refuse.
+

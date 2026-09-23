@@ -27,7 +27,10 @@ the table `validation_rule`/`validation_text` and, per column ordinal,
 `required`, `allow_zero_length`, `default_value`, `validation_rule`,
 `validation_text` and `description` exactly as stored (null when absent). DAO
 and Rust store a rule assigned to an existing field with one trailing NUL.
-`--page` cannot be combined with `--table` or `--rows`.
+`relationships` lists every `MSysRelationships` relationship, including
+unenforced ones without index records: names, ordered field pairs,
+`raw_attributes`, the decoded `enforced`, cascade and `join` values, and whether
+writes interpret it. `--page` cannot be combined with `--table` or `--rows`.
 
 A complete requested inspection returns `ok: true` and exit 0. If a table,
 allocation map, row or field cannot be decoded, available diagnostic output is
@@ -330,7 +333,11 @@ the new definition fails:
 ```
 
 Relationship edits use the same definition as creation, including optional
-`cascade_updates`, `cascade_deletes`, and composite endpoint `columns`:
+`cascade_updates`, `cascade_deletes`, and composite endpoint `columns`. They also
+accept `"enforce": false` for an unenforced relationship (no indexes, cascades or
+key checks; any key columns) and `"join"`: `inner` (default), `left`, `right` or
+`left_and_right`, the Access display join stored in the relationship attributes.
+Database creation accepts `join` but not unenforced relationships:
 
 ```json
 {"operation":"create_relationship","relationship":{"name":"ParentChild","parent":{"table":"Parent","column":"Id"},"child":{"table":"Child","column":"ParentId"}}}
@@ -344,10 +351,17 @@ Relationship edits use the same definition as creation, including optional
 {"operation":"drop_relationship","name":"ParentChildCascading"}
 ```
 
-Creation checks existing rows against the referenced unique key. Replacement
-atomically removes and recreates the relationship, allowing a new name, endpoints
-and cascade settings; refusal preserves the original relationship. Deletion
-retains ordinary indexes shared with the relationship.
+```json
+{"operation":"create_relationship","relationship":{"name":"Loose","enforce":false,"join":"left","parent":{"table":"Parent","column":"Code"},"child":{"table":"Child","column":"Note"}}}
+```
+
+Enforced creation checks existing rows against the referenced unique key. Replacement
+atomically removes and recreates the relationship, allowing a new name, endpoints,
+enforcement, join type and cascade settings; refusal preserves the original
+relationship. Deletion retains ordinary indexes shared with the relationship.
+Dropping a table also drops its relationships unless an enforced relationship
+from another table references it; columns named by any relationship cannot be
+dropped.
 
 Databases created with a sort order other than General are readable, but
 `schema` and `mutate` refuse them with the file unchanged.
