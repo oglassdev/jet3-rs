@@ -278,6 +278,15 @@ def edits():
          ["Target"]),
         ("e25-medium-property-chained", "baseline", [props("Target", "Label", description=long_text("m", 1601))],
          ["Target"]),
+        ("e26-create-column-chained", "baseline", [schema({"operation": "create_column", "table": "Target",
+                                                            "column": column("Extra", "memo", description=long_text("x", 1566))})],
+         ["Target"]),
+        ("e27-create-table-chained", "baseline", [schema({"operation": "create_table", "table": {
+            "name": "Props2", "columns": [column("Id", "long"), column("Note", "memo", description=long_text("d", 1662))],
+            "indexes": [primary()]}})], ["Props2"]),
+        ("e28-rename-shrinks-property", "baseline", [
+            props("Target", "Label", description=long_text("m", 1601)),
+            schema({"operation": "rename_column", "table": "Target", "column": "Label", "name": "Lab"})], ["Target"]),
         ("e23-refuse-required-null", "n-c10", [dict(schema({
             "operation": "create_index", "table": "KOrdinaryInclude",
             "index": {"name": "Needed", "kind": "ordinary", "null_policy": "required", "fields": [{"column": "K"}]}}),
@@ -293,6 +302,9 @@ def edits():
         "e17-rust-chained": lvprop,
         "e24-medium-property-single": lvprop,
         "e25-medium-property-chained": lvprop,
+        "e26-create-column-chained": lvprop,
+        "e27-create-table-chained": lvprop + ["Props2/table/owned", "Props2/table/available", "Props2/index/0/owned"],
+        "e28-rename-shrinks-property": lvprop,
         "e18-replace-ordinary-unique-required": ["KUniqueInclude/index/1/owned"],
         "e19-replace-unique-ordinary-ignore": ["KUniqueInclude/index/1/owned"],
         "e20-replace-required-unique-include": ["KUniqueRequired/index/1/owned"],
@@ -364,6 +376,19 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def lvprop_storage(cpc, data: bytes, header) -> dict:
+    """Header word, fragment lengths and LvProp available-map membership; locators are placement."""
+    definition, _, _ = cpc.catalog._discover_catalog(data)
+    lvprop = cpc.catalog._ordinal(definition, "LvProp")
+    group = next(g for g in definition["long_value_maps"] if g["column"] == lvprop)
+    _, available = cpc.map_record(data, group["available"], "catalog LvProp available")
+    fragments = []
+    for page, slot in header["chain"]:
+        entry = cpc.catalog._row_directory(cpc.catalog._page(data, page, "long value"), page)[slot]
+        fragments.append([entry["end"] - entry["start"], page in available])
+    return {"word": header["raw_hex"][:8], "fragments": fragments}
+
+
 def compare_creation(args) -> None:
     sys.path.insert(0, str(args.scripts))
     import column_property_checks as cpc
@@ -391,8 +416,7 @@ def compare_creation(args) -> None:
             for table in sorted(tables):
                 ours, our_header = cpc.property_payload(candidate_bytes, table)
                 theirs, their_header = cpc.property_payload(native_bytes, table)
-                # Length/flags word and fragment count; page locators are placement.
-                storage = [(h["raw_hex"][:8], len(h["chain"])) for h in (our_header, their_header)]
+                storage = [lvprop_storage(cpc, candidate_bytes, our_header), lvprop_storage(cpc, native_bytes, their_header)]
                 payloads.append({"table": table, "equal": ours == theirs and storage[0] == storage[1],
                                  "candidate_sha256": sha256(ours), "native_sha256": sha256(theirs),
                                  "length": len(ours), "candidate_storage": storage[0],
@@ -425,7 +449,7 @@ def compare_edit_lvprop(args) -> None:
         for table in case["normalize_table_dates"]:
             ours, our_header = cpc.property_payload(ours_bytes, table)
             theirs, their_header = cpc.property_payload(theirs_bytes, table)
-            storage = [(h["raw_hex"][:8], len(h["chain"])) for h in (our_header, their_header)]
+            storage = [lvprop_storage(cpc, ours_bytes, our_header), lvprop_storage(cpc, theirs_bytes, their_header)]
             ok = ours == theirs and storage[0] == storage[1]
             passed &= ok
             report["cases"].append({"name": case["name"], "table": table, "passed": ok, "length": len(ours),

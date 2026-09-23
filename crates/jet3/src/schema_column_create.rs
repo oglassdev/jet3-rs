@@ -151,21 +151,7 @@ pub(crate) fn create(
         Ok((PageEdits::new(database.geometry().page_count()), ()))
     })?;
     if !properties.is_empty() {
-        crate::schema_publish::apply(file, journal, budget, |database, budget| {
-            let catalog = database.table_definition(catalog_root, budget)?;
-            let column = crate::schema_catalog::column(&catalog, b"LvProp")?;
-            let graph =
-                crate::row_mutation_graph::RowGraph::load(database, &catalog, Some(row), budget)?;
-            let edits = crate::field_update::plan_fields(
-                database,
-                &catalog,
-                graph,
-                row,
-                &[(column, RowValue::LongBinary(&properties))],
-                budget,
-            )?;
-            Ok((edits, ()))
-        })?;
+        crate::schema_properties::store(file, journal, catalog_root, row, &properties, budget)?;
     }
     if let Some(record) = auto_record {
         backfill_auto(file, journal, root, ordinal, record, budget)?;

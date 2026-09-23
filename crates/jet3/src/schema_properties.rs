@@ -197,13 +197,12 @@ pub(crate) fn store(
         } else {
             crate::RowValue::LongBinary(bytes)
         };
-        let edits = crate::field_update::plan_catalog_fields(
+        let edits = crate::field_update::plan_fields(
             database,
             &catalog,
             graph,
             row,
             &[(column, value)],
-            Some(column),
             budget,
         )?;
         Ok((edits, ()))

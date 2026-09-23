@@ -37,6 +37,7 @@ pub(crate) struct LongValues {
     pages: Vec<PayloadPage>,
     first_append: u64,
     append_count: u64,
+    /// The catalog `LvProp` column, stored under the `EXP-0300` single-page limit.
     property_column: Option<usize>,
 }
 
@@ -68,10 +69,6 @@ impl LongValues {
         budget: &mut ResourceBudget,
     ) -> Result<Self, UpdateError> {
         load::load(database, table, Some((row, Some(columns))), budget)
-    }
-
-    pub fn set_property_column(&mut self, column: Option<ColumnOrdinal>) {
-        self.property_column = column.map(|column| usize::from(column.get()));
     }
 
     pub fn remove_selected(&mut self, budget: &mut ResourceBudget) -> Result<(), UpdateError> {
