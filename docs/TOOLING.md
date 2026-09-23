@@ -23,6 +23,7 @@ not activated in the current shell.
 | jq | 1.8.2 | Benchmark metadata capture and shell contract tests |
 | cargo-deny | 0.20.2 | Dependency license, source, ban, and advisory policy |
 | cargo-fuzz | 0.13.2 | Registered fuzz targets and campaigns |
+| kache | 0.26.3 | Shared Rust compiler cache across checkouts |
 
 The stable Rust installation includes `clippy` and `rustfmt`. A mise
 post-install hook provisions the separately pinned nightly toolchain with
@@ -30,6 +31,32 @@ post-install hook provisions the separately pinned nightly toolchain with
 unambiguous default while `cargo +nightly-2026-07-20 ...` remains available.
 These pins mirror CI; `rust-toolchain.toml` remains the toolchain contract for
 Rust-native tooling outside mise.
+
+## Rust compiler cache
+
+Mise sets `RUSTC_WRAPPER=kache`, so ordinary Cargo commands use the shared
+compiler cache in an activated shell or through `mise exec --`. Plain Cargo
+outside mise remains usable without kache. CI uses the same pinned release
+and persists its store with GitHub Actions cache, with a 2 GiB retention
+budget per job instead of retaining each job's Cargo target directory.
+
+Keep separate target directories for concurrent worktrees. Place the kache
+store on the same filesystem as those targets to allow copy-on-write sharing.
+The local store uses kache's automatic size budget and garbage collection;
+override the budget with `KACHE_MAX_SIZE` or your user kache configuration.
+Build outputs can retain shared blocks beyond the store budget, so remove
+stale targets too:
+
+```sh
+mise exec -- kache report --last-build
+mise exec -- kache clean --tracked --stale 14d --dry-run
+mise exec -- kache gc
+```
+
+Review the cleanup preview before rerunning it with `--yes`. To bypass the
+cache for one build, run `mise exec -- env KACHE_DISABLED=1 cargo build`.
+Miri manages its own compiler wrapper. Fuzz evidence campaigns keep their
+controlled build environment; ordinary fuzz compilation uses kache.
 
 ## Host prerequisites
 

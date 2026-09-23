@@ -283,6 +283,8 @@ jobs:
           "artifacts/dao-hosted-probe/environment-stock.json"
           -Destination "artifacts/dao-hosted-probe/environment.json"
 
+      - uses: ./.github/actions/rust-cache
+        if: inputs.run_acquisition
       - name: Build the Rust snapshot producer
         if: inputs.run_acquisition
         shell: powershell

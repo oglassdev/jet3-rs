@@ -30,6 +30,7 @@ jobs:
         run: |
           test "$GITHUB_RUN_ATTEMPT" = 1
           python3 oracle/windows-dao/scripts/dao_row_update_diff.py plan "$PLAN_SHA256"
+      - uses: ./.github/actions/rust-cache
       - name: Build public fixture and snapshot producers
         run: cargo build --locked --release -p jet3-cli -p jet3-testkit --bin jet3-cli --bin jet3-row-update-fixture
       - name: Create requested fixtures on supported publication platform
@@ -73,6 +74,8 @@ jobs:
         with:
           name: generated-row-update-${{ github.sha }}
           path: artifacts/dao-row-update-v1_2
+      - uses: ./.github/actions/rust-cache
+        if: inputs.run_acquisition
       - name: Build the read-only Rust snapshot producer
         if: inputs.run_acquisition
         shell: powershell

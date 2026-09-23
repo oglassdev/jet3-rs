@@ -5,6 +5,10 @@ just = "1.46.0"
 jq = "1.8.2"
 "cargo:cargo-deny" = "0.20.2"
 "cargo:cargo-fuzz" = "0.13.2"
+"github:kunobi-ninja/kache" = "0.26.3"
+
+[env]
+RUSTC_WRAPPER = "kache"
 
 [hooks.postinstall]
 run = "rustup toolchain install nightly-2026-07-20 --profile minimal --component miri"

@@ -1,0 +1,13 @@
+name: Rust compiler cache
+description: Share Rust compilation outputs through kache.
+runs:
+  using: composite
+  steps:
+    - uses: kunobi-ninja/kache-action@cc1c9a8b07879bb477f580397d14ee669da26899 # v1
+      with:
+        version: "0.26.3"
+        cache-dir: ${{ runner.temp }}/kache
+        cache-key-prefix: kache-${{ github.workflow }}-${{ github.job }}
+        cache-executables: ${{ runner.os != 'Windows' }}
+        max-size: 2GiB
+        pr-comment: false
