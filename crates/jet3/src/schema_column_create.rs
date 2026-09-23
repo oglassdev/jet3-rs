@@ -190,6 +190,11 @@ fn backfill_auto(
             locators.push(row.locator());
         }
         drop(rows);
+        // EXP-0299: backfilled rows cannot be checked against a stored rule.
+        if !locators.is_empty() {
+            let options = crate::column_value_policy::options(database, &table, budget)?;
+            crate::column_value_policy::refuse_rules(&options, &table)?;
+        }
         Ok((PageEdits::new(database.geometry().page_count()), locators))
     })?;
     let mut state = crate::auto_number_state::AutoNumberState::default();

@@ -304,3 +304,91 @@ fn non_general_sort_orders_are_readable_but_not_writable() -> TestResult {
     ));
     Ok(())
 }
+
+#[test]
+fn rules_refuse_cascaded_updates_and_autoincrement_backfill() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let path = directory.target();
+    let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
+    let key = [crate::IndexColumnSpec::ascending(b"Id")];
+    let indexes = [crate::IndexSpec {
+        name: b"PrimaryKey",
+        fields: &key,
+        kind: crate::IndexKind::Primary,
+    }];
+    let child_columns = [ColumnSpec::new(b"ParentId", ColumnType::Long)];
+    let tables = [
+        crate::TableRows {
+            table: TableSpec {
+                name: b"Parent",
+                columns: &columns,
+                indexes: &indexes,
+                validation: TableValidation::NONE,
+            },
+            rows: &[&[RowValue::Long(1)]],
+        },
+        crate::TableRows {
+            table: table(b"Child", &child_columns, TableValidation::NONE),
+            rows: &[&[RowValue::Long(1)]],
+        },
+    ];
+    let relationship = crate::RelationshipSpec {
+        cascade_updates: true,
+        cascade_deletes: false,
+        name: b"ParentChild",
+        parent: crate::TableRef::Name(b"Parent"),
+        child: crate::TableRef::Name(b"Child"),
+        fields: &[crate::RelationshipField {
+            parent: crate::ColumnRef::Name(b"Id"),
+            child: crate::ColumnRef::Name(b"ParentId"),
+        }],
+    };
+    crate::create_database_with_relationships_and_rows(
+        &path,
+        &tables,
+        &[relationship],
+        &mut budget(),
+    )?;
+    let row = first_row(&path, b"Parent")?;
+    for table in [b"Parent".as_slice(), b"Child"] {
+        let rule = SchemaEdit::SetTableProperties {
+            table,
+            validation_rule: PropertyChange::Set(b"True"),
+            validation_text: PropertyChange::Keep,
+        };
+        edit_schema(&path, rule, &mut budget())?;
+    }
+    let before = fs::read(&path)?;
+    let request = RowUpdate {
+        table: b"Parent",
+        row,
+        values: &[RowValue::Long(2)],
+    };
+    assert!(matches!(
+        update_row(&path, request, &mut budget()),
+        Err(UpdateError::ValidationRule { column: None })
+    ));
+    let edit = SchemaEdit::CreateColumn {
+        table: b"Child",
+        column: ColumnSpec::new(b"Serial", ColumnType::AutoIncrement),
+    };
+    assert!(edit_schema(&path, edit, &mut budget()).is_err());
+    assert_eq!(fs::read(&path)?, before);
+    // Only the child's rule remains: the parent write is refused for its cascade.
+    let clear = SchemaEdit::SetTableProperties {
+        table: b"Parent",
+        validation_rule: PropertyChange::Clear,
+        validation_text: PropertyChange::Keep,
+    };
+    edit_schema(&path, clear, &mut budget())?;
+    let before = fs::read(&path)?;
+    let row = first_row(&path, b"Parent")?;
+    let request = RowUpdate {
+        table: b"Parent",
+        row,
+        values: &[RowValue::Long(2)],
+    };
+    assert!(update_row(&path, request, &mut budget()).is_err());
+    assert_eq!(fs::read(&path)?, before);
+    Ok(())
+}
