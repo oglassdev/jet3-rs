@@ -89,9 +89,10 @@ pub struct IndexSpec<'a> {
 /// stored nonempty rule makes Rust refuse inserts and updates on the table.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableValidation<'a> {
-    /// ValidationRule expression: 1 to 2,048 bytes without NUL or undefined CP1252 bytes.
+    /// ValidationRule expression, subject to the limits of
+    /// [`crate::ColumnSpec::with_default_value`].
     pub rule: Option<&'a [u8]>,
-    /// ValidationText message: 1 to 255 bytes without NUL or undefined CP1252 bytes.
+    /// ValidationText message.
     pub text: Option<&'a [u8]>,
 }
 

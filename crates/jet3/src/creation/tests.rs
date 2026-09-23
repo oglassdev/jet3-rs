@@ -376,3 +376,9 @@ mod schema_names;
 
 #[path = "required_column_tests.rs"]
 mod required_columns;
+
+#[path = "text_property_tests.rs"]
+mod text_properties;
+
+#[path = "text_property_edit_tests.rs"]
+mod text_property_edits;

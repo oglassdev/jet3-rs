@@ -147,9 +147,14 @@ impl<'a> ColumnSpec<'a> {
 
     /// Stores a DefaultValue expression as opaque database-code-page bytes.
     ///
-    /// The expression is not parsed or applied: writes always store the
-    /// supplied row values (EXP-0299). Values are 1 to 255 bytes without NUL
-    /// or undefined CP1252 bytes.
+    /// Rust neither checks the expression's syntax nor applies it: writes store
+    /// the supplied row values, including explicit nulls, as DAO does
+    /// (EXP-0299). DAO rejects malformed expressions, so callers must supply
+    /// valid ones. Text properties hold 1 to 2,048 bytes without NUL or
+    /// undefined CP1252 bytes. DAO drops DefaultValue, ValidationRule and
+    /// ValidationText requested for a new AutoIncrement field, so creation
+    /// refuses them there; set them afterwards with
+    /// [`crate::SchemaEdit::SetColumnProperties`].
     #[must_use]
     pub const fn with_default_value(mut self, expression: &'a [u8]) -> Self {
         self.default_value = Some(expression);
@@ -158,28 +163,24 @@ impl<'a> ColumnSpec<'a> {
 
     /// Stores a ValidationRule expression as opaque database-code-page bytes.
     ///
-    /// Rust never evaluates the rule: once stored, inserts and updates on the
-    /// table are refused with [`crate::UpdateError::ValidationRule`]. DAO
-    /// refuses rules on Binary, OLE and GUID columns (EXP-0299), so those are
-    /// rejected. Values are 1 to 2,048 bytes without NUL or undefined CP1252 bytes.
+    /// Rust never evaluates the rule: inserts and updates on a table storing a
+    /// rule fail with [`crate::UpdateError::ValidationRule`], and creation
+    /// with initial rows is refused. DAO refuses validation properties on
+    /// Binary, OLE and GUID columns (EXP-0299), so those are rejected.
     #[must_use]
     pub const fn with_validation_rule(mut self, rule: &'a [u8]) -> Self {
         self.validation_rule = Some(rule);
         self
     }
 
-    /// Stores the message DAO shows when the ValidationRule fails.
-    ///
-    /// Binary, OLE and GUID columns reject it as for the rule; values are 1 to
-    /// 255 bytes without NUL or undefined CP1252 bytes.
+    /// Stores the message DAO reports when the ValidationRule fails.
     #[must_use]
     pub const fn with_validation_text(mut self, text: &'a [u8]) -> Self {
         self.validation_text = Some(text);
         self
     }
 
-    /// Stores the Access Description property as opaque database-code-page
-    /// bytes of 1 to 255 bytes without NUL or undefined CP1252 bytes.
+    /// Stores the Access Description property as opaque database-code-page bytes.
     #[must_use]
     pub const fn with_description(mut self, description: &'a [u8]) -> Self {
         self.description = Some(description);

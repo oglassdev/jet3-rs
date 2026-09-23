@@ -1,4 +1,4 @@
-use super::property_blob::{FIELD_BLOCK, PropertyBlob, Record, TABLE_BLOCK, TEXT};
+use super::property_blob::{Block, FIELD_BLOCK, PropertyBlob, Record, TABLE_BLOCK, TEXT};
 use crate::{ColumnPropertyError, ResourceBudget, ResourceLimits};
 
 fn budget() -> ResourceBudget {
@@ -34,7 +34,8 @@ fn unknown_kinds_flags_types_and_trailing_bytes_are_retained()
     let mut blob = PropertyBlob::empty();
     let name = blob.intern(b"Odd", &mut budget())?;
     blob.intern(b"Unused", &mut budget())?;
-    let block = blob.ensure_block(7, b"Other", &mut budget())?;
+    blob.push(Block::new(7, b"Other", &mut budget())?, &mut budget())?;
+    let block = blob.block_at(0)?;
     block.set(
         Record::new(9, 99, name, b"v", &mut budget())?,
         &mut budget(),
@@ -61,7 +62,8 @@ fn edits_replace_in_place_append_and_remove() -> Result<(), Box<dyn std::error::
     let first = blob.intern(b"A", &mut budget())?;
     let second = blob.intern(b"B", &mut budget())?;
     assert_eq!(blob.intern(b"A", &mut budget())?, first);
-    let block = blob.ensure_block(FIELD_BLOCK, b"X", &mut budget())?;
+    blob.push(Block::new(FIELD_BLOCK, b"X", &mut budget())?, &mut budget())?;
+    let block = blob.block_at(0)?;
     block.set(
         Record::new(1, TEXT, first, b"1", &mut budget())?,
         &mut budget(),

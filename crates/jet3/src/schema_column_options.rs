@@ -94,7 +94,7 @@ pub(crate) fn set(
     crate::schema_properties::store(file, journal, catalog, row, &bytes, budget)
 }
 
-fn apply(
+pub(crate) fn apply(
     blob: &mut PropertyBlob,
     edit: PropertyEdit<'_>,
     budget: &mut ResourceBudget,

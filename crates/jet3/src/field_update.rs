@@ -51,7 +51,6 @@ pub(crate) fn plan_fields(
     let mut assigned = [false; u8::MAX as usize];
     let mut selected_columns = [crate::ColumnOrdinal::new(0); u8::MAX as usize];
     let options = crate::column_value_policy::options(database, definition, budget)?;
-    crate::column_value_policy::refuse_rules(&options, definition)?;
     for (position, &(ordinal, value)) in assignments.iter().enumerate() {
         let index = usize::from(ordinal.get());
         let column = columns.get(index).ok_or(UpdateError::NotFound("column"))?;

@@ -120,15 +120,16 @@ pub(crate) fn add(
     }
     let mut blob = parse(bytes, budget)?;
     let eligible = crate::column_properties::has_zero_length_property(column.physical_type());
-    let required = if auto {
-        None
-    } else {
-        Some(blob.intern(b"Required", budget)?)
-    };
+    // EXP-0299: absent dictionary names are appended in record order.
     let allow = if eligible && !auto {
         Some(blob.intern(b"AllowZeroLength", budget)?)
     } else {
         None
+    };
+    let required = if auto {
+        None
+    } else {
+        Some(blob.intern(b"Required", budget)?)
     };
     let mut block = Block::new(FIELD_BLOCK, column.name(), budget)?;
     if let Some(name) = allow {

@@ -307,28 +307,6 @@ impl PropertyBlob {
             .find(|block| block.kind == kind && block.name == name)
     }
 
-    /// Returns the named block, appending an empty one when absent.
-    pub(crate) fn ensure_block(
-        &mut self,
-        kind: u16,
-        name: &[u8],
-        budget: &mut ResourceBudget,
-    ) -> Result<&mut Block, ColumnPropertyError> {
-        let position = match self
-            .blocks
-            .iter()
-            .position(|block| block.kind == kind && block.name == name)
-        {
-            Some(position) => position,
-            None => {
-                let block = Block::new(kind, name, budget)?;
-                self.push(block, budget)?;
-                self.blocks.len() - 1
-            }
-        };
-        Ok(&mut self.blocks[position])
-    }
-
     pub(crate) fn push(
         &mut self,
         block: Block,
@@ -337,21 +315,6 @@ impl PropertyBlob {
         reserve(&mut self.blocks, 1, budget)?;
         self.blocks.push(block);
         Ok(())
-    }
-
-    pub(crate) fn insert(
-        &mut self,
-        position: usize,
-        block: Block,
-        budget: &mut ResourceBudget,
-    ) -> Result<(), ColumnPropertyError> {
-        reserve(&mut self.blocks, 1, budget)?;
-        self.blocks.insert(position.min(self.blocks.len()), block);
-        Ok(())
-    }
-
-    pub(crate) fn blocks_mut(&mut self) -> impl Iterator<Item = &mut Block> {
-        self.blocks.iter_mut()
     }
 
     pub(crate) fn retain_blocks(&mut self, keep: impl FnMut(&Block) -> bool) {

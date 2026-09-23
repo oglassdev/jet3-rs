@@ -244,6 +244,12 @@ pub(crate) fn check(
                 if !property.eligible(column.physical_type()) {
                     return Err((Some(ordinal), property.name(), "column type"));
                 }
+                // EXP-0299: DAO silently drops these when an AutoIncrement field is appended.
+                if column.column_type() == ColumnType::AutoIncrement
+                    && property != TextProperty::Description
+                {
+                    return Err((Some(ordinal), property.name(), "AutoIncrement column"));
+                }
                 check_value(value).map_err(|detail| (Some(ordinal), property.name(), detail))?;
             }
         }
@@ -257,4 +263,45 @@ pub(crate) fn check(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn encoded(columns: &[ColumnSpec<'_>]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let mut budget = ResourceBudget::new(crate::ResourceLimits::default());
+        let properties = CreationProperties::new(columns, TableValidation::NONE, &mut budget)?
+            .ok_or("properties")?;
+        let mut bytes = vec![0; properties.len()];
+        properties.encode(&mut bytes, &mut budget)?;
+        Ok(bytes)
+    }
+
+    #[test]
+    fn disabled_empty_values_have_an_explicit_property() -> Result<(), Box<dyn std::error::Error>> {
+        let width = std::num::NonZeroU8::new(4).ok_or("width")?;
+        for kind in [
+            ColumnType::Text { max_len: width },
+            ColumnType::FixedText { len: width },
+            ColumnType::Memo,
+        ] {
+            let bytes = encoded(&[ColumnSpec::new(b"Payload", kind)])?;
+            assert_eq!(
+                &bytes[bytes.len() - 18..bytes.len() - 9],
+                &[9, 0, 1, 1, 1, 0, 1, 0, 0]
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn auto_number_omits_its_default_property_block() -> Result<(), Box<dyn std::error::Error>> {
+        let columns = [
+            ColumnSpec::new(b"Id", ColumnType::AutoIncrement),
+            ColumnSpec::new(b"Body", ColumnType::Memo).with_allow_zero_length(),
+        ];
+        assert_eq!(encoded(&columns)?, encoded(&columns[1..])?);
+        Ok(())
+    }
 }
