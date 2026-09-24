@@ -181,30 +181,3 @@ fn composite_capacity_and_multiple_row_pages_preserve_locators_and_destination()
     );
     Ok(())
 }
-
-#[test]
-fn required_null_second_component_is_refused_without_publication() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let indexes = [IndexSpec {
-        fields: &[
-            field(0, IndexDirection::Ascending),
-            field(1, IndexDirection::Descending),
-        ],
-        ..one_index(IndexKind::Ordinary.with_null_policy(crate::IndexNullPolicy::Required))[0]
-    }];
-    let table = table(b"Items", &[ID, SEQUENCE], &indexes);
-    assert!(matches!(
-        create(
-            directory.target(),
-            &[TableRows {
-                table,
-                rows: &[&[RowValue::Long(0), RowValue::Null]]
-            }]
-        ),
-        Err(WriteError::Compose(ComposeError::NullInitialIndexKey {
-            row: 0
-        }))
-    ));
-    assert!(directory.entries()?.is_empty());
-    Ok(())
-}

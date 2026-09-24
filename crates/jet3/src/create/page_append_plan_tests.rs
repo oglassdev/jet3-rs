@@ -41,11 +41,6 @@ fn existing_page_boundaries_preserve_complete_images() -> TestResult {
         assert_eq!(planned_image, image);
         assert_eq!(planned_image.as_bytes(), &bytes);
     }
-    Ok(())
-}
-
-#[test]
-fn existing_page_rejects_the_first_append_slot() {
     assert_eq!(
         plan_existing_page(
             PageNumber::new(20),
@@ -55,6 +50,7 @@ fn existing_page_rejects_the_first_append_slot() {
             page: PageNumber::new(20),
         })
     );
+    Ok(())
 }
 
 #[test]
@@ -98,75 +94,41 @@ fn q2_append_sequence_numbers_complete_images_and_marks_global_in_use() -> TestR
 }
 
 #[test]
-fn append_preserves_arbitrary_complete_page_bytes() -> TestResult {
-    let mut plan = AppendPagePlan::after_empty_database();
-    let mut map = global_map(4)?;
-    free_pages(&mut map, [20])?;
-    let mut bytes = [0xab; crate::PAGE_BYTES];
-    bytes[0] = 0xfe;
-    bytes[crate::PAGE_BYTES - 1] = 0x11;
-    let image = PageImage::from_bytes(bytes);
-
-    let (number, planned_image) = plan.append(image.clone(), &mut map)?.into_parts();
-    assert_eq!(number, PageNumber::new(20));
-    assert_eq!(planned_image, image);
-    assert_eq!(planned_image.as_bytes(), &bytes);
-    Ok(())
-}
-
-#[test]
-fn already_in_use_rejection_is_atomic() -> TestResult {
-    let mut plan = AppendPagePlan::after_empty_database();
-    let mut map = global_map(4)?;
-    let map_before = map.clone();
-
-    assert_eq!(
-        plan.append(PageImage::new(PageKind::Data), &mut map),
-        Err(AppendPageError::PageAlreadyInUse {
-            page: PageNumber::new(20),
-        })
-    );
-    assert_eq!(plan.page_count(), 20);
-    assert_eq!(map, map_before);
-    Ok(())
-}
-
-#[test]
-fn out_of_map_rejection_is_atomic() -> TestResult {
-    let mut plan = AppendPagePlan::after_empty_database();
-    let mut map = global_map(2)?;
-    let map_before = map.clone();
-
-    assert_eq!(
-        plan.append(PageImage::new(PageKind::Data), &mut map),
-        Err(AppendPageError::GlobalMap(
-            UsageMapWriteError::PageOutOfMap {
+fn append_rejections_leave_the_plan_and_global_map_unchanged() -> TestResult {
+    for (page_count, bitmap_bytes, expected) in [
+        (
+            20,
+            4,
+            AppendPageError::PageAlreadyInUse {
+                page: PageNumber::new(20),
+            },
+        ),
+        (
+            20,
+            2,
+            AppendPageError::GlobalMap(UsageMapWriteError::PageOutOfMap {
                 page: PageNumber::new(20),
                 first: PageNumber::new(0),
                 page_count: 16,
-            }
-        ))
-    );
-    assert_eq!(plan.page_count(), 20);
-    assert_eq!(map, map_before);
-    Ok(())
-}
-
-#[test]
-fn page_count_overflow_is_atomic() -> TestResult {
-    let mut plan = AppendPagePlan {
-        page_count: u64::MAX,
-    };
-    let mut map = global_map(1)?;
-    let map_before = map.clone();
-
-    assert_eq!(
-        plan.append(PageImage::new(PageKind::Data), &mut map),
-        Err(AppendPageError::PageCountOverflow {
-            page_count: u64::MAX,
-        })
-    );
-    assert_eq!(plan.page_count(), u64::MAX);
-    assert_eq!(map, map_before);
+            }),
+        ),
+        (
+            u64::MAX,
+            1,
+            AppendPageError::PageCountOverflow {
+                page_count: u64::MAX,
+            },
+        ),
+    ] {
+        let mut plan = AppendPagePlan { page_count };
+        let mut map = global_map(bitmap_bytes)?;
+        let map_before = map.clone();
+        assert_eq!(
+            plan.append(PageImage::new(PageKind::Data), &mut map),
+            Err(expected)
+        );
+        assert_eq!(plan.page_count(), page_count);
+        assert_eq!(map, map_before);
+    }
     Ok(())
 }

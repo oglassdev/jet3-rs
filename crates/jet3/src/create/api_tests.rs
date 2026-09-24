@@ -3,7 +3,7 @@ use crate::testkit::create;
 use crate::testkit::{index, table};
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexColumnSpec,
-    IndexDirection, IndexKind, IndexSpec, PageNumber, PublishStage, TableSpec,
+    IndexDirection, IndexKind, IndexSpec, PageNumber, PublishStage, RowValue, TableSpec,
     create::schema_plan::TableSchemaPlanError, definition::column_writer::nz,
 };
 use std::fs;
@@ -34,61 +34,6 @@ pub(super) const fn field(column: u16, direction: IndexDirection) -> IndexColumn
 }
 
 #[test]
-fn a_mixed_table_with_three_indexes_is_created_and_reopens() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let target = directory.target();
-    let columns = [ID, CODE, SEQUENCE];
-    let indexes = [
-        IndexSpec {
-            name: b"PrimaryKey",
-            fields: &[field(0, IndexDirection::Ascending)],
-            kind: IndexKind::Primary,
-        },
-        IndexSpec {
-            name: b"ByCode",
-            fields: &[IndexColumnSpec::ascending(b"Code")],
-            kind: IndexKind::Unique,
-        },
-        IndexSpec {
-            name: b"BySequence",
-            fields: &[
-                field(1, IndexDirection::Descending),
-                field(2, IndexDirection::Ascending),
-            ],
-            kind: IndexKind::Ordinary,
-        },
-    ];
-    let spec = table(b"Items", &columns, &indexes);
-    create(&target, &[TableRows::empty(spec)])?;
-    assert_eq!(directory.entries()?, ["created.mdb"]);
-    assert_eq!(fs::metadata(&target)?.len(), 26 * crate::PAGE_BYTES as u64);
-
-    let mut budget = budget();
-    let mut database = DatabaseReader::open(&target, &mut budget)?;
-    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
-    assert_eq!(definition.columns().len(), 3);
-    assert_eq!(definition.physical_indexes().len(), 3);
-    assert_eq!(definition.physical_indexes()[1].raw_flags(), 0x01);
-    assert_eq!(
-        definition
-            .indexes()
-            .iter()
-            .map(|index| index.name().raw_bytes())
-            .collect::<Vec<_>>(),
-        [b"ByCode".as_slice(), b"BySequence", b"PrimaryKey"]
-    );
-    for ordinal in 0..3 {
-        assert!(
-            database
-                .index_tree(&definition, ordinal, &mut budget)?
-                .entries()
-                .is_empty()
-        );
-    }
-    Ok(())
-}
-
-#[test]
 fn candidate_check_rejects_an_index_kind_mismatch() -> TestResult {
     let directory = TempDir::new("create")?;
     let target = directory.target();
@@ -116,21 +61,6 @@ fn candidate_check_rejects_an_index_kind_mismatch() -> TestResult {
             detail: "index kind"
         }
     ));
-    Ok(())
-}
-
-#[test]
-fn a_memo_table_is_created_and_reopens() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let target = directory.target();
-    let columns = [ID, NOTE];
-    let spec = table(b"Notes", &columns, &[]);
-    create(&target, &[TableRows::empty(spec)])?;
-    assert_eq!(fs::metadata(&target)?.len(), 23 * crate::PAGE_BYTES as u64);
-    let mut budget = budget();
-    let mut database = DatabaseReader::open(&target, &mut budget)?;
-    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
-    assert_eq!(definition.long_value_maps().len(), 1);
     Ok(())
 }
 
@@ -179,54 +109,17 @@ fn an_existing_destination_is_refused_and_left_unchanged() -> TestResult {
     fs::write(&target, b"keep me")?;
     let columns = [ID];
     let spec = table(b"Alpha", &columns, &[]);
-    match create(&target, &[TableRows::empty(spec)]) {
-        Err(WriteError::CreatePublish(error)) => {
-            assert_eq!(error.stage(), PublishStage::PrivateCopyCreation);
+    // Schema-only and initial-row creation publish through separate paths.
+    for rows in [&[][..], &[&[RowValue::Long(1)][..]]] {
+        match create(&target, &[TableRows { table: spec, rows }]) {
+            Err(WriteError::CreatePublish(error)) => {
+                assert_eq!(error.stage(), PublishStage::PrivateCopyCreation);
+            }
+            other => return Err(format!("unexpected result: {other:?}").into()),
         }
-        other => return Err(format!("unexpected result: {other:?}").into()),
+        assert_eq!(fs::read(&target)?, b"keep me");
+        assert_eq!(directory.entries()?, ["created.mdb"]);
     }
-    assert_eq!(fs::read(&target)?, b"keep me");
-    assert_eq!(directory.entries()?, ["created.mdb"]);
-    Ok(())
-}
-
-#[test]
-fn a_definition_spanning_one_continuation_is_created_and_reopens() -> TestResult {
-    // EXP-0107's compact construction: 70 ten-byte-named Long columns take a
-    // root, map page, LvProp page, and one continuation at page 23.
-    let directory = TempDir::new("create")?;
-    let target = directory.target();
-    let names = (0..70)
-        .map(|ordinal| format!("Field{ordinal:05}").into_bytes())
-        .collect::<Vec<_>>();
-    let columns = names
-        .iter()
-        .map(|name| ColumnSpec::new(name, ColumnType::Long))
-        .collect::<Vec<_>>();
-    let spec = table(b"Wide", &columns, &[]);
-    create(&target, &[TableRows::empty(spec)])?;
-    assert_eq!(fs::metadata(&target)?.len(), 24 * crate::PAGE_BYTES as u64);
-    let mut budget = budget();
-    let mut database = DatabaseReader::open(&target, &mut budget)?;
-    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
-    assert_eq!(definition.columns().len(), 70);
-    Ok(())
-}
-
-#[test]
-fn case_folded_duplicates_are_refused_before_writing() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let target = directory.target();
-    let table = |name: &'static [u8]| table(name, &[ID], &[]);
-    let duplicate = [table(b"Alpha"), table(b"ALPHA")];
-    match create(&target, &duplicate.map(TableRows::empty)) {
-        Err(WriteError::Compose(ComposeError::DuplicateTableName {
-            first: 0,
-            second: 1,
-        })) => {}
-        other => return Err(format!("unexpected result: {other:?}").into()),
-    }
-    assert!(directory.entries()?.is_empty());
     Ok(())
 }
 

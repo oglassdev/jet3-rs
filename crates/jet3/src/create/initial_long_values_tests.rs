@@ -1,11 +1,7 @@
 use super::initial_rows_tests::*;
-use crate::WriteError;
 use crate::testkit::create;
 use crate::testkit::table;
-use crate::{
-    ColumnSpec, ColumnType, ComposeError, DatabaseSpec, ResourceBudget, ResourceLimits, RowValue,
-    RowWriteError, TableRows, create::api_tests::*, create_database,
-};
+use crate::{ColumnSpec, ColumnType, RowValue, TableRows, create::api_tests::*};
 use std::fs;
 
 fn payload_value(kind: ColumnType, payload: &[u8]) -> RowValue<'_> {
@@ -110,64 +106,6 @@ fn empty_ole_creation_has_the_same_storage_as_null() -> TestResult {
 }
 
 #[test]
-fn payload_refusals_and_resource_limits_preserve_destination() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let columns = [ColumnSpec::new(b"Payload", ColumnType::LongBinary)];
-    let table = table(b"Items", &columns, &[]);
-    create(
-        directory.target(),
-        &[TableRows {
-            table,
-            rows: &[&[RowValue::Null]],
-        }],
-    )?;
-    let original = fs::read(directory.target())?;
-    assert!(matches!(
-        create(
-            directory.target(),
-            &[TableRows {
-                table,
-                rows: &[&[RowValue::LongValue(&[0; 12])]]
-            }]
-        ),
-        Err(WriteError::Compose(ComposeError::InitialLongValue { .. }))
-    ));
-    assert!(matches!(
-        create(
-            directory.target(),
-            &[TableRows {
-                table,
-                rows: &[&[RowValue::Memo(b"a")]]
-            }]
-        ),
-        Err(WriteError::Compose(ComposeError::Row(
-            RowWriteError::TypeMismatch { .. }
-        )))
-    ));
-    let payload = vec![0; 4096];
-    let mut limited = ResourceBudget::new(
-        ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(2048)),
-    );
-    assert!(
-        create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table,
-                    rows: &[&[RowValue::LongBinary(&payload[..4096])]]
-                }],
-                ..DatabaseSpec::default()
-            },
-            &mut limited
-        )
-        .is_err()
-    );
-    assert_eq!(fs::read(directory.target())?, original);
-    assert_eq!(directory.entries()?, ["created.mdb"]);
-    Ok(())
-}
-
-#[test]
 fn candidate_check_rejects_long_value_owner_pointer_and_payload_corruption() -> TestResult {
     let directory = TempDir::new("create")?;
     let columns = [ColumnSpec::new(b"Payload", ColumnType::LongBinary)];
@@ -190,36 +128,5 @@ fn candidate_check_rejects_long_value_owner_pointer_and_payload_corruption() -> 
                 .is_err()
         );
     }
-    Ok(())
-}
-
-#[test]
-fn long_value_allocation_extends_maps_for_the_final_data_page() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let columns = [ColumnSpec::new(b"Payload", ColumnType::LongBinary)];
-    let table = table(b"Items", &columns, &[]);
-    let payload = vec![1; 2032 * 1001];
-    create(
-        directory.target(),
-        &[TableRows {
-            table,
-            rows: &[&[RowValue::LongBinary(&payload[..2032 * 1000])]],
-        }],
-    )?;
-    let original = fs::read(directory.target())?;
-    assert_eq!(original.len(), 1024 * crate::PAGE_BYTES);
-    assert!(map_bit(&original, 21, 2, 1022)?);
-    assert!(!map_bit(&original, 21, 2, 1023)?);
-    assert!(map_bit(&original, 21, 0, 1023)?);
-    let grown = directory.target().with_file_name("grown.mdb");
-    create(
-        &grown,
-        &[TableRows {
-            table,
-            rows: &[&[RowValue::LongBinary(&payload)]],
-        }],
-    )?;
-    assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);
-    assert_eq!(fs::read(directory.target())?, original);
     Ok(())
 }

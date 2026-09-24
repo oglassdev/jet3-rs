@@ -6,7 +6,7 @@ use crate::{
     ByteCount, ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, ComposeError, DatabaseReader,
     DatabaseSpec, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec, InlineLongValue,
     LongValue, LongValueChunkValue, MapRowLocator, PageNumber, ResourceBudget, ResourceLimits,
-    RowValue, TableRows, TableSpec, TextCodePage, ValueKind,
+    RowValue, RowWriteError, TableRows, TableSpec, TextCodePage, ValueKind,
     create::{api::create_database, api_tests::*, check::ImageCheckError, initial_rows_tests::*},
 };
 use std::fs;
@@ -343,22 +343,33 @@ fn every_external_column_is_checked_and_refusals_preserve_the_destination() -> T
         ));
     }
     fs::write(directory.target(), &original)?;
-    for rejected in [
-        RowValue::Memo(b""),
-        RowValue::LongValue(&[0; 12]),
-        RowValue::LongBinary(b"wrong type"),
-    ] {
+    type Accepts = fn(&ComposeError) -> bool;
+    let cases: [(RowValue<'_>, Accepts); 3] = [
+        (RowValue::Memo(b""), |error| {
+            matches!(
+                error,
+                ComposeError::Row(RowWriteError::ZeroLengthNotAllowed { .. })
+            )
+        }),
+        (RowValue::LongValue(&[0; 12]), |error| {
+            matches!(error, ComposeError::InitialLongValue { .. })
+        }),
+        (RowValue::LongBinary(b"wrong type"), |error| {
+            matches!(error, ComposeError::Row(RowWriteError::TypeMismatch { .. }))
+        }),
+    ];
+    for (rejected, accepts) in cases {
         let row = [rows[0][0], rows[0][1], rejected];
-        assert!(matches!(
-            create(
-                directory.target(),
-                &[TableRows {
-                    table,
-                    rows: &[&row]
-                }]
-            ),
-            Err(WriteError::Compose(_))
-        ));
+        match create(
+            directory.target(),
+            &[TableRows {
+                table,
+                rows: &[&row],
+            }],
+        ) {
+            Err(WriteError::Compose(error)) if accepts(&error) => {}
+            other => return Err(format!("{rejected:?}: {other:?}").into()),
+        }
     }
     let invalid_option = [NOTE, columns[1].with_allow_zero_length(), columns[2]];
     assert!(matches!(

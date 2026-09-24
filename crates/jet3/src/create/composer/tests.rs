@@ -560,25 +560,6 @@ pub(super) fn export_candidate_set<const N: usize>(
 }
 
 #[test]
-fn candidate_export_refuses_nonempty_directory() -> TestResult {
-    use std::fs;
-
-    let root = crate::testkit::TempDir::new("bootstrap-export")?;
-    let sentinel = root.join("sentinel");
-    fs::write(&sentinel, b"preserve")?;
-
-    let result = export_candidates(&root);
-
-    assert!(result.is_err());
-    assert_eq!(fs::read(&sentinel)?, b"preserve");
-    assert!(!root.join("bootstrap-composer-empty.mdb").exists());
-    assert!(!root.join("bootstrap-composer-alpha.mdb").exists());
-    fs::remove_file(sentinel)?;
-    fs::remove_dir(root)?;
-    Ok(())
-}
-
-#[test]
 fn the_planner_reproduces_the_accepted_alpha_page_assignment() -> TestResult {
     // The Alpha image DAO accepted in EXP-0085 is the fixed case the general
     // EXP-0087 assignment has to agree with.

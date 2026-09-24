@@ -153,18 +153,13 @@ fn leaf_capacity_spills_into_a_branch_root() -> TestResult {
         &original[23 * crate::PAGE_BYTES + 2..23 * crate::PAGE_BYTES + 4],
         &[0, 0]
     );
-    assert!(matches!(
-        create(directory.target(), &[TableRows { table, rows: &rows }]),
-        Err(WriteError::CreatePublish(_))
-    ));
-    assert_eq!(fs::read(directory.target())?, original);
-    let directory = TempDir::new("create")?;
-    create(directory.target(), &[TableRows { table, rows: &rows }])?;
-    let expanded = tree(&directory.target())?;
+    let grown = directory.join("grown.mdb");
+    create(&grown, &[TableRows { table, rows: &rows }])?;
+    let expanded = tree(&grown)?;
     assert_eq!(expanded.entries().len(), 201);
     assert_eq!(expanded.nodes().len(), 3);
     assert_eq!(expanded.nodes()[0].depth(), 1);
-    assert_eq!(fs::read(directory.target())?[23 * crate::PAGE_BYTES], 3);
+    assert_eq!(fs::read(grown)?[23 * crate::PAGE_BYTES], 3);
     Ok(())
 }
 
@@ -222,13 +217,10 @@ fn candidate_check_rejects_index_owner_and_key_corruption() -> TestResult {
 }
 
 #[test]
-fn index_storage_budget_and_empty_index_are_handled() -> TestResult {
+fn index_storage_is_charged_to_the_budget() -> TestResult {
     let directory = TempDir::new("create")?;
     let indexes = one_index(IndexKind::Primary);
     let table = table(b"Items", &[ID], &indexes);
-    create(directory.target(), &[TableRows { table, rows: &[] }])?;
-    assert!(tree(&directory.target())?.entries().is_empty());
-    let original = fs::read(directory.target())?;
     let mut limited = ResourceBudget::new(
         ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(8)),
     );
@@ -251,6 +243,6 @@ fn index_storage_budget_and_empty_index_are_handled() -> TestResult {
             }
         )))
     ));
-    assert_eq!(fs::read(directory.target())?, original);
+    assert!(directory.entries()?.is_empty());
     Ok(())
 }

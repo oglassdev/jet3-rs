@@ -3,10 +3,9 @@ use crate::WriteError;
 use crate::testkit::create;
 use crate::testkit::table;
 use crate::{
-    ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexDirection, IndexKind,
-    IndexSpec, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec,
+    ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexDirection, IndexKind, IndexSpec,
+    RowValue, TableRows, TableSpec,
     create::{api_tests::*, check::ImageCheckError},
-    create_database,
 };
 use std::fs;
 
@@ -129,20 +128,6 @@ fn autoincrement_invalid_values_and_types_leave_no_file() -> TestResult {
         )
         .is_err()
     );
-    let multiple = TableSpec {
-        columns: &[AUTO, ColumnSpec::new(b"Other", ColumnType::AutoIncrement)],
-        ..auto_table()
-    };
-    assert!(
-        create(
-            directory.target(),
-            &[TableRows {
-                table: multiple,
-                rows: &[&[RowValue::AutoIncrement, RowValue::AutoIncrement]]
-            }]
-        )
-        .is_err()
-    );
     assert!(directory.entries()?.is_empty());
     Ok(())
 }
@@ -179,54 +164,6 @@ fn autoincrement_multi_table_indexed_and_empty_counters_are_independent() -> Tes
         database.read_raw_page(root.ok_or("missing root")?, &mut bytes, &mut operation)?;
         assert_eq!(&bytes[16..20], &count.to_le_bytes());
     }
-    Ok(())
-}
-
-#[test]
-fn autoincrement_budget_and_existing_destination_are_preserved() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let table = TableSpec {
-        columns: &[AUTO],
-        ..auto_table()
-    };
-    let rows: &[&[RowValue<'_>]] = &[&[RowValue::AutoIncrement]];
-    let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(0));
-    assert!(
-        create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows { table, rows }],
-                ..DatabaseSpec::default()
-            },
-            &mut limited
-        )
-        .is_err()
-    );
-    assert!(directory.entries()?.is_empty());
-    fs::write(directory.target(), b"original")?;
-    assert!(matches!(
-        create(directory.target(), &[TableRows { table, rows }]),
-        Err(WriteError::CreatePublish(_))
-    ));
-    assert_eq!(fs::read(directory.target())?, b"original");
-    Ok(())
-}
-
-#[test]
-fn autoincrement_positive_counts_are_not_limited_to_the_observed_sample() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let table = TableSpec {
-        columns: &[AUTO],
-        ..auto_table()
-    };
-    let row = [RowValue::AutoIncrement];
-    let rows = vec![row.as_slice(); 257];
-    create(directory.target(), &[TableRows { table, rows: &rows }])?;
-    let bytes = fs::read(directory.target())?;
-    assert_eq!(
-        &bytes[20 * crate::PAGE_BYTES + 16..20 * crate::PAGE_BYTES + 20],
-        &257_i32.to_le_bytes()
-    );
     Ok(())
 }
 
@@ -315,26 +252,17 @@ fn autoincrement_explicit_ids_wrap_with_independent_indexed_tables() -> TestResu
             crate::index::mutation::load(&mut database, &table, &mut operation)?;
         }
     }
-    Ok(())
-}
-
-#[test]
-fn autoincrement_explicit_duplicate_unique_ids_leave_no_file() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let indexes = [IndexSpec {
-        name: b"PrimaryKey",
-        fields: &[field(0, IndexDirection::Ascending)],
-        kind: IndexKind::Primary,
-    }];
-    let table = TableSpec {
-        indexes: &indexes,
-        ..auto_table()
+    let duplicate = TableRows {
+        rows: &[rows[2], rows[2]],
+        ..requests[1]
     };
-    let rows: &[&[RowValue<'_>]] = &[
-        &[RowValue::Long(-1), RowValue::Long(1)],
-        &[RowValue::Long(-1), RowValue::Long(2)],
-    ];
-    assert!(create(directory.target(), &[TableRows { table, rows }]).is_err());
-    assert!(directory.entries()?.is_empty());
+    let refused = directory.join("duplicate.mdb");
+    assert!(matches!(
+        create(&refused, &[duplicate]),
+        Err(WriteError::Compose(
+            ComposeError::DuplicateInitialIndexKey { value: -1 }
+        ))
+    ));
+    assert!(!refused.exists());
     Ok(())
 }

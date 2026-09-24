@@ -319,8 +319,12 @@ const QUAD_TABLES: [TableSpec<'static>; 4] = [
 ];
 
 fn quad_candidate_bytes() -> Result<Vec<u8>, ComposeError> {
+    quad_prefix_bytes(QUAD_TABLES.len())
+}
+
+fn quad_prefix_bytes(count: usize) -> Result<Vec<u8>, ComposeError> {
     let mut budget = compose_budget();
-    let plan = compose_database(&QUAD_TABLES, &mut budget)?;
+    let plan = compose_database(&QUAD_TABLES[..count], &mut budget)?;
     Ok(plan
         .pages()
         .iter()
@@ -331,6 +335,11 @@ fn quad_candidate_bytes() -> Result<Vec<u8>, ComposeError> {
 #[test]
 fn the_quad_candidate_preserves_schema_with_explicit_text_properties() -> TestResult {
     // EXP-0087 schema and EXP-0284 explicit properties on both text tables.
+    for (count, pages) in [(1, 23), (2, 26), (3, 29)] {
+        let prefix = quad_prefix_bytes(count)?;
+        assert_eq!(prefix.len(), pages * crate::PAGE_BYTES, "{count} tables");
+        assert_eq!(prefix[1538], 2 * count as u8);
+    }
     let quad = quad_candidate_bytes()?;
     assert_eq!(quad.len(), 33 * crate::PAGE_BYTES);
     assert_eq!(quad[1538], 8);
@@ -338,6 +347,13 @@ fn the_quad_candidate_preserves_schema_with_explicit_text_properties() -> TestRe
         &quad[22 * crate::PAGE_BYTES..22 * crate::PAGE_BYTES + 10],
         b"\x01\x01\xf6\x07LVAL\0\0"
     );
+    for root in [20, 23, 26, 29] {
+        assert_eq!(quad[root * crate::PAGE_BYTES], 2, "definition root {root}");
+        assert_eq!(quad[(root + 1) * crate::PAGE_BYTES], 1, "map after {root}");
+    }
+    for root in [28, 32] {
+        assert_eq!(quad[root * crate::PAGE_BYTES], 4, "index root {root}");
+    }
     let mut budget = read_budget(quad.len());
     let source = SliceSource::new(&quad, budget.read_budget())?;
     let mut database = DatabaseReader::from_source(source, &mut budget)?;
@@ -348,6 +364,7 @@ fn the_quad_candidate_preserves_schema_with_explicit_text_properties() -> TestRe
             if record.class() == CatalogObjectClass::User {
                 user_tables.push((
                     record.name().raw_bytes().to_vec(),
+                    record.id().get(),
                     record.table_definition(),
                 ));
             }
@@ -356,12 +373,20 @@ fn the_quad_candidate_preserves_schema_with_explicit_text_properties() -> TestRe
     assert_eq!(
         user_tables,
         [
-            (b"Alpha".to_vec(), Some(PageNumber::new(20))),
-            (b"Beta".to_vec(), Some(PageNumber::new(23))),
-            (b"Gamma".to_vec(), Some(PageNumber::new(26))),
-            (b"Delta".to_vec(), Some(PageNumber::new(29))),
+            (b"Alpha".to_vec(), 20, Some(PageNumber::new(20))),
+            (b"Beta".to_vec(), 23, Some(PageNumber::new(23))),
+            (b"Gamma".to_vec(), 26, Some(PageNumber::new(26))),
+            (b"Delta".to_vec(), 29, Some(PageNumber::new(29))),
         ]
     );
+    let aces = database.table_definition(PageNumber::new(3), &mut budget)?;
+    let mut ace_rows = 0;
+    let mut rows = database.rows(&aces, &mut budget)?;
+    while rows.next_row()?.is_some() {
+        ace_rows += 1;
+    }
+    drop(rows);
+    assert_eq!(ace_rows, 16 + 2 * 4);
     let objects = database.table_definition(PageNumber::new(2), &mut budget)?;
     let mut rows = database.rows(&objects, &mut budget)?;
     let mut null_properties = 0;
@@ -389,6 +414,10 @@ fn the_quad_candidate_preserves_schema_with_explicit_text_properties() -> TestRe
     }
     let gamma = database.table_definition(PageNumber::new(26), &mut budget)?;
     assert_eq!(gamma.physical_indexes()[0].root(), PageNumber::new(28));
+    assert_eq!(
+        gamma.physical_indexes()[0].usage_map().page(),
+        PageNumber::new(27)
+    );
     let delta = database.table_definition(PageNumber::new(29), &mut budget)?;
     assert_eq!(delta.physical_indexes()[0].root(), PageNumber::new(32));
     Ok(())

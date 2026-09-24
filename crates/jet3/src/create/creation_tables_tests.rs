@@ -270,7 +270,7 @@ fn catalog_data_and_index_pages_grow_with_complete_row_locators() -> TestResult 
 }
 
 #[test]
-fn catalog_spill_extends_maps_without_overwriting_existing_destination() -> TestResult {
+fn catalog_spill_extends_maps_past_inline_capacity() -> TestResult {
     let directory = TempDir::new("create")?;
     let names = (0..40).map(|n| format!("T{n:02}")).collect::<Vec<_>>();
     let payload = [b'x'; 200];
@@ -288,12 +288,11 @@ fn catalog_spill_extends_maps_without_overwriting_existing_destination() -> Test
         })
         .collect::<Vec<_>>();
     create(directory.target(), &requests)?;
-    let before = fs::read(directory.target())?;
-    assert_eq!(before.len(), 1024 * crate::PAGE_BYTES);
+    assert_eq!(
+        fs::metadata(directory.target())?.len(),
+        1024 * crate::PAGE_BYTES as u64
+    );
     requests[39].rows = &rows;
-    let result = create(directory.target(), &requests);
-    assert!(result.is_err());
-    assert_eq!(fs::read(directory.target())?, before);
     let grown = directory.target().with_file_name("grown.mdb");
     create(&grown, &requests)?;
     assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);

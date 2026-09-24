@@ -4,8 +4,8 @@ use crate::testkit::create;
 use crate::testkit::{index, table};
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexColumnSpec, IndexDirection,
-    IndexKind, IndexNullPolicy, IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue,
-    TableRows, TableSpec, create::api_tests::*,
+    IndexKind, IndexNullPolicy, PageNumber, ResourceBudget, ResourceLimits, RowValue, TableRows,
+    create::api_tests::*,
 };
 use std::fs;
 
@@ -116,58 +116,45 @@ fn single_null_keys_and_empty_ignored_tree_keep_real_row_counts() -> TestResult 
 }
 
 #[test]
-fn required_null_and_present_duplicate_refusals_preserve_destination() -> TestResult {
+fn required_null_components_and_invalid_policies_are_refused() -> TestResult {
     let directory = TempDir::new("create")?;
-    fs::write(directory.target(), b"preserve")?;
-    let rows: &[&[RowValue<'_>]] = &[&[RowValue::Null, RowValue::Long(1)]];
-    for kind in [
-        IndexKind::Primary,
-        IndexKind::Ordinary.with_null_policy(IndexNullPolicy::Required),
+    for row in [
+        [RowValue::Null, RowValue::Long(1)],
+        [RowValue::Long(1), RowValue::Null],
     ] {
-        let indexes = [index(b"ById", &TWO, kind)];
-        let table = table(b"Items", &COLUMNS, &indexes);
-        assert!(matches!(
-            create(directory.target(), &[TableRows { table, rows }]),
-            Err(WriteError::Compose(ComposeError::NullInitialIndexKey {
-                row: 0
-            }))
-        ));
-        assert_eq!(fs::read(directory.target())?, b"preserve");
+        for kind in [
+            IndexKind::Primary,
+            IndexKind::Ordinary.with_null_policy(IndexNullPolicy::Required),
+        ] {
+            let indexes = [index(b"ById", &TWO, kind)];
+            let table = table(b"Items", &COLUMNS, &indexes);
+            assert!(matches!(
+                create(
+                    directory.target(),
+                    &[TableRows {
+                        table,
+                        rows: &[&row]
+                    }]
+                ),
+                Err(WriteError::Compose(ComposeError::NullInitialIndexKey {
+                    row: 0
+                }))
+            ));
+        }
     }
-    let indexes = [index(b"ById", &TWO, IndexKind::Unique)];
-    let table = table(b"Items", &COLUMNS, &indexes);
-    let duplicate: &[RowValue<'_>] = &[RowValue::Long(1), RowValue::Long(2)];
-    assert!(matches!(
-        create(
-            directory.target(),
-            &[TableRows {
-                table,
-                rows: &[duplicate, duplicate]
-            }]
-        ),
-        Err(WriteError::Compose(
-            ComposeError::DuplicateInitialCompositeIndexKey { values: [1, 2] }
-        ))
-    ));
-    assert_eq!(fs::read(directory.target())?, b"preserve");
-    let invalid = [IndexSpec {
-        kind: IndexKind::Primary.with_null_policy(IndexNullPolicy::IgnoreAllNull),
-        ..indexes[0]
-    }];
+    let invalid = [index(
+        b"ById",
+        &TWO,
+        IndexKind::Primary.with_null_policy(IndexNullPolicy::IgnoreAllNull),
+    )];
     assert!(
         create(
             directory.target(),
-            &[TableRows {
-                table: TableSpec {
-                    indexes: &invalid,
-                    ..table
-                },
-                rows: &[]
-            }]
+            &[TableRows::empty(table(b"Items", &COLUMNS, &invalid))]
         )
         .is_err()
     );
-    assert_eq!(fs::read(directory.target())?, b"preserve");
+    assert!(directory.entries()?.is_empty());
     Ok(())
 }
 

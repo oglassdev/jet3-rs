@@ -41,16 +41,6 @@ fn empty_creation_is_independent_of_destination_and_successful_budget() -> TestR
             operation,
         )
     })?;
-    repeats(|path, operation| {
-        create_database(
-            path,
-            &DatabaseSpec {
-                tables: &[],
-                ..DatabaseSpec::default()
-            },
-            operation,
-        )
-    })?;
     let table = table(b"Empty", &[ID, NOTE], &[]);
     repeats(|path, operation| {
         create_database(

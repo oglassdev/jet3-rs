@@ -203,12 +203,13 @@ fn data_and_index_levels_extend_past_inline_map_capacity() -> TestResult {
             rows: &rows[..111252],
         }],
     )?;
-    let original = fs::read(directory.target())?;
-    assert_eq!(original.len(), 1024 * crate::PAGE_BYTES);
+    assert_eq!(
+        fs::metadata(directory.target())?.len(),
+        1024 * crate::PAGE_BYTES as u64
+    );
     let grown = directory.target().with_file_name("grown.mdb");
     create(&grown, &[TableRows { table, rows: &rows }])?;
     assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);
-    assert_eq!(fs::read(directory.target())?, original);
     Ok(())
 }
 

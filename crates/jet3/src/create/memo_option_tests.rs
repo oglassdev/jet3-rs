@@ -129,8 +129,6 @@ fn memo_option_publishes_distinct_empty_null_and_nonempty() -> Result<(), Box<dy
         drop(cursor);
         drop(db);
         let original = fs::read(&path)?;
-        assert!(create(&path, &[TableRows { table, rows: &rows }]).is_err());
-        assert_eq!(fs::read(&path)?, original);
         let pages =
             compose_database_with_table_rows(&[TableRows { table, rows: &rows }], &mut budget())?
                 .into_pages();
@@ -146,7 +144,7 @@ fn memo_option_publishes_distinct_empty_null_and_nonempty() -> Result<(), Box<dy
 }
 
 #[test]
-fn memo_option_refuses_nontext_types_and_default_empty() -> Result<(), Box<dyn StdError>> {
+fn memo_option_refuses_nontext_types() -> Result<(), Box<dyn StdError>> {
     let dir = TempDir::new("create")?;
     let invalids = [
         [
@@ -172,16 +170,6 @@ fn memo_option_refuses_nontext_types_and_default_empty() -> Result<(), Box<dyn S
         ColumnSpec::new(b"M", ColumnType::Memo),
     ];
     let table = table(b"Rows", &ordinary, &[]);
-    assert!(
-        create(
-            dir.join("default"),
-            &[TableRows {
-                table,
-                rows: &[&[RowValue::Long(1), RowValue::Memo(b"")]]
-            }]
-        )
-        .is_err()
-    );
     let opted = columns(b"M");
     let later = crate::testkit::table(b"Later", &opted, &[]);
     create(

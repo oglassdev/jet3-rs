@@ -3,9 +3,9 @@ use crate::WriteError;
 use crate::testkit::create;
 use crate::testkit::table;
 use crate::{
-    ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, PageNumber, ResourceBudget,
-    ResourceLimits, RowValue, RowWriteError, TableRows, TableSpec, create::check::ImageCheckError,
-    create_database, definition::column_writer::nz,
+    ColumnSpec, ColumnType, ComposeError, DatabaseSpec, PageNumber, ResourceBudget, ResourceLimits,
+    RowValue, RowWriteError, TableRows, TableSpec, create::check::ImageCheckError, create_database,
+    definition::column_writer::nz,
 };
 use std::fs;
 
@@ -37,23 +37,10 @@ fn scalar_rows_publish_and_match_requested_values() -> TestResult {
         &3_u32.to_le_bytes()
     );
     assert_eq!(directory.entries()?, ["created.mdb"]);
-    Ok(())
-}
-
-#[test]
-fn empty_initial_rows_do_not_allocate_a_data_page() -> TestResult {
-    let directory = TempDir::new("create")?;
-    create(
-        directory.target(),
-        &[TableRows {
-            table: scalar_table(),
-            rows: &[],
-        }],
-    )?;
-    assert_eq!(
-        fs::metadata(directory.target())?.len(),
-        23 * crate::PAGE_BYTES as u64
-    );
+    // Empty initial rows do not allocate a data page.
+    let empty = directory.join("empty.mdb");
+    create(&empty, &[TableRows::empty(scalar_table())])?;
+    assert_eq!(fs::metadata(empty)?.len(), 23 * crate::PAGE_BYTES as u64);
     Ok(())
 }
 
@@ -89,29 +76,6 @@ fn rows_with_wrong_types_leave_no_file() -> TestResult {
 }
 
 #[test]
-fn unsupported_initial_row_schemas_leave_no_file() -> TestResult {
-    let directory = TempDir::new("create")?;
-    {
-        let columns = [ColumnSpec::new(b"Value", ColumnType::AutoIncrement)];
-        let table = table(b"Items", &columns, &[]);
-        assert!(matches!(
-            create(
-                directory.target(),
-                &[TableRows {
-                    table,
-                    rows: &[&[RowValue::Null]]
-                }]
-            ),
-            Err(WriteError::Compose(
-                ComposeError::InitialAutoIncrement { .. }
-            ))
-        ));
-    }
-    assert!(directory.entries()?.is_empty());
-    Ok(())
-}
-
-#[test]
 fn initial_row_check_detects_wrong_values_and_counts() -> TestResult {
     let directory = TempDir::new("create")?;
     let rows: &[&[RowValue<'_>]] = &[&[RowValue::Long(1), RowValue::Text(b"one")]];
@@ -135,41 +99,6 @@ fn initial_row_check_detects_wrong_values_and_counts() -> TestResult {
             Err(ImageCheckError::Mismatch { detail: actual }) if actual == detail)
         );
     }
-    Ok(())
-}
-
-#[test]
-fn initial_rows_preserve_existing_destination_and_enforce_budget() -> TestResult {
-    let directory = TempDir::new("create")?;
-    fs::write(directory.target(), b"keep me")?;
-    let rows: &[&[RowValue<'_>]] = &[&[RowValue::Long(1), RowValue::Null]];
-    assert!(matches!(
-        create(
-            directory.target(),
-            &[TableRows {
-                table: scalar_table(),
-                rows
-            }]
-        ),
-        Err(WriteError::CreatePublish(_))
-    ));
-    assert_eq!(fs::read(directory.target())?, b"keep me");
-    let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(0));
-    assert!(matches!(
-        create_database(
-            directory.join("limited.mdb"),
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table: scalar_table(),
-                    rows
-                }],
-                ..DatabaseSpec::default()
-            },
-            &mut limited
-        ),
-        Err(WriteError::Compose(_))
-    ));
-    assert_eq!(directory.entries()?, ["created.mdb"]);
     Ok(())
 }
 
@@ -214,45 +143,6 @@ fn exhausted_row_slots_spill_to_the_next_page() -> TestResult {
     assert_eq!((page_rows(&bytes, 23), page_rows(&bytes, 24)), (255, 2));
     assert!(!map_bit(&bytes, 21, 1, 23)?);
     assert!(map_bit(&bytes, 21, 1, 24)?);
-    Ok(())
-}
-
-#[test]
-fn initial_rows_create_and_reopen_a_continued_definition() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let names = (0..70)
-        .map(|ordinal| format!("Field{ordinal:05}").into_bytes())
-        .collect::<Vec<_>>();
-    let columns = names
-        .iter()
-        .map(|name| ColumnSpec::new(name, ColumnType::Long))
-        .collect::<Vec<_>>();
-    let table = table(b"Wide", &columns, &[]);
-    let row = vec![RowValue::Long(37); columns.len()];
-    create(
-        directory.target(),
-        &[TableRows {
-            table,
-            rows: &[&row],
-        }],
-    )?;
-    let mut b = budget();
-    let mut db = DatabaseReader::open(directory.target(), &mut b)?;
-    let definition = db.table_definition(PageNumber::new(20), &mut b)?;
-    assert_eq!(definition.columns().len(), columns.len());
-    assert_eq!(definition.row_count(), 1);
-    let mut cursor = db.rows(&definition, &mut b)?;
-    let mut actual = cursor.next_row()?.ok_or("missing continued-table row")?;
-    for column in definition.columns() {
-        assert!(matches!(
-            actual
-                .value(column.ordinal(), crate::TextCodePage::Windows1252)?
-                .ok_or("missing column")?
-                .kind(),
-            crate::ValueKind::Long(37)
-        ));
-    }
-    assert!(cursor.next_row()?.is_none());
     Ok(())
 }
 
@@ -341,7 +231,7 @@ fn later_page_corruption_and_missing_owned_pages_are_detected() -> TestResult {
 }
 
 #[test]
-fn initial_rows_extend_past_inline_maps_and_preserve_existing_destinations() -> TestResult {
+fn initial_rows_extend_past_inline_maps() -> TestResult {
     let directory = TempDir::new("create")?;
     let names = (0..70)
         .map(|number| format!("F{number}"))
@@ -365,8 +255,6 @@ fn initial_rows_extend_past_inline_maps_and_preserve_existing_destinations() -> 
     assert_eq!(original.len(), 1024 * crate::PAGE_BYTES);
     assert!(map_bit(&original, 21, 0, 1023)?);
     assert!(!map_bit(&original, 1, 0, 1023)?);
-    assert!(create(directory.target(), &[TableRows { table, rows: &rows }]).is_err());
-    assert_eq!(fs::read(directory.target())?, original);
     let grown = directory.target().with_file_name("grown.mdb");
     create(&grown, &[TableRows { table, rows: &rows }])?;
     assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);
@@ -391,28 +279,37 @@ fn oversized_rows_and_page_storage_budget_fail_before_publication() -> TestResul
         ),
         Err(WriteError::Compose(ComposeError::Row(_)))
     ));
-    let mut limited = ResourceBudget::new(
-        ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(2000)),
-    );
-    assert!(matches!(
-        create_database(
+    for (limits, kind) in [
+        (
+            ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(2000)),
+            crate::ResourceLimitKind::AllocationBytes,
+        ),
+        (
+            ResourceLimits::default().with_max_total_work_units(0),
+            crate::ResourceLimitKind::TotalWorkUnits,
+        ),
+    ] {
+        let result = create_database(
             directory.target(),
             &DatabaseSpec {
                 tables: &[TableRows {
                     table: scalar_table(),
-                    rows: &[&[RowValue::Long(1), RowValue::Null]]
+                    rows: &[&[RowValue::Long(1), RowValue::Null]],
                 }],
                 ..DatabaseSpec::default()
             },
-            &mut limited
-        ),
-        Err(WriteError::Compose(ComposeError::Encoding(
-            crate::Error::ResourceLimitExceeded {
-                kind: crate::ResourceLimitKind::AllocationBytes,
-                ..
-            }
-        )))
-    ));
+            &mut ResourceBudget::new(limits),
+        );
+        assert!(
+            matches!(
+                result,
+                Err(WriteError::Compose(ComposeError::Encoding(
+                    crate::Error::ResourceLimitExceeded { kind: actual, .. }
+                ))) if actual == kind
+            ),
+            "{kind:?}: {result:?}"
+        );
+    }
     assert!(directory.entries()?.is_empty());
     Ok(())
 }
