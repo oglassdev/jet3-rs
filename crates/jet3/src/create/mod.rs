@@ -100,12 +100,11 @@ mod whole_file_plan_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod wide_variable_tests;
 
-pub use crate::RowValue;
 pub use api::{
-    CandidateCheckError, CreateDatabaseError, TableRows, create_database,
-    create_database_with_relationship, create_database_with_relationship_rows,
-    create_database_with_relationships, create_database_with_relationships_and_rows,
-    create_database_with_rows, create_database_with_table_rows,
+    CreateDatabaseError, TableRows, create_database, create_database_with_relationship,
+    create_database_with_relationship_rows, create_database_with_relationships,
+    create_database_with_relationships_and_rows, create_database_with_rows,
+    create_database_with_table_rows,
 };
 pub use columns::{ColumnSpec, ColumnStorageKind, ColumnType};
 pub use composer::ComposeError;

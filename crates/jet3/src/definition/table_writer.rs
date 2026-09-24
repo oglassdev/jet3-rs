@@ -9,13 +9,13 @@
 use std::fmt;
 
 use crate::{
-    BinaryWriter, ByteCount, ColumnPhysicalType, Error, MapRowLocator, PageNumber, ResourceBudget,
-    TableDefinitionKind,
+    BinaryWriter, ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageKind, Error,
+    MapRowLocator, PageNumber, ResourceBudget, TableDefinitionKind,
     definition::{
         column_writer::{
-            ColumnSpec, ColumnStorageKind, LogicalIndexKindSpec, LogicalIndexSpec,
-            PhysicalIndexSpec, SystemColumnClassSpec, physical_flags, resolve_column,
-            validate_physical_index, write_logical_record, write_name, write_physical_record,
+            LogicalIndexKindSpec, LogicalIndexSpec, PhysicalIndexSpec, SystemColumnClassSpec,
+            physical_flags, resolve_column, validate_physical_index, write_logical_record,
+            write_name, write_physical_record,
         },
         table_layout::{definition_len, validate_column_layout, validate_name},
     },

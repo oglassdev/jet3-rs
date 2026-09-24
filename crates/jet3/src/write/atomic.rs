@@ -169,6 +169,7 @@ impl StdError for PublishError {
     }
 }
 
+#[cfg(test)]
 /// Updates an existing file through a validated same-directory private copy.
 ///
 /// `mutate` receives the private file positioned at byte zero. `validate`

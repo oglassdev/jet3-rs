@@ -78,14 +78,8 @@ pub enum CandidateCheckError {
     Read(crate::Error),
     /// The candidate index tree could not be read.
     Index(crate::IndexTreeError),
-    /// A candidate index usage-map record could not be located.
-    UsageMap(crate::UsageMapError),
-    /// A candidate index allocation map could not be traversed.
-    Allocation(crate::AllocationMapError),
     /// The candidate fails the catalogued allocation and user-table validator.
     Validation(Box<crate::ValidationError>),
-    /// The candidate relationship catalog or reciprocal records are malformed.
-    Relationships(crate::UpdateError),
     /// A candidate allocation inventory is malformed.
     AllocationState(crate::UpdateError),
     /// A candidate long-value field could not be decoded.
@@ -114,14 +108,7 @@ impl fmt::Display for CandidateCheckError {
         match self {
             Self::Read(source) => write!(formatter, "candidate page comparison failed: {source}"),
             Self::Index(source) => write!(formatter, "candidate index scan failed: {source}"),
-            Self::UsageMap(source) => write!(formatter, "candidate usage map failed: {source}"),
-            Self::Allocation(source) => {
-                write!(formatter, "candidate allocation map failed: {source}")
-            }
             Self::Validation(source) => write!(formatter, "candidate validation failed: {source}"),
-            Self::Relationships(source) => {
-                write!(formatter, "candidate relationships failed: {source}")
-            }
             Self::AllocationState(source) => {
                 write!(formatter, "candidate allocation state failed: {source}")
             }
@@ -148,10 +135,7 @@ impl StdError for CandidateCheckError {
         match self {
             Self::Read(source) => Some(source),
             Self::Index(source) => Some(source),
-            Self::UsageMap(source) => Some(source),
-            Self::Allocation(source) => Some(source),
             Self::Validation(source) => Some(source),
-            Self::Relationships(source) => Some(source),
             Self::AllocationState(source) => Some(source),
             Self::Value(source) => Some(source),
             Self::LongValue(source) => Some(source),

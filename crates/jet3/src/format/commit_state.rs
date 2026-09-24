@@ -20,6 +20,7 @@ pub const COMMIT_REGION_OFFSET: ByteOffset = ByteOffset::new(0x600);
 pub const COMMIT_REGION_LENGTH: ByteCount = ByteCount::new(0x200);
 /// Number of two-byte slots in the documented commit region.
 pub const COMMIT_SLOT_COUNT: usize = 256;
+#[cfg(test)]
 /// Number of slots associated with shared connections.
 pub const SHARED_COMMIT_SLOT_COUNT: usize = COMMIT_SLOT_COUNT - 1;
 

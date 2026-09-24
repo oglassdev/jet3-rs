@@ -7,7 +7,7 @@ mod mutation_load;
 mod mutation_map;
 #[cfg(all(test, any(unix, windows)))]
 mod mutation_tests;
-pub mod reader;
+pub(crate) mod reader;
 #[cfg(test)]
 mod reader_tests;
 pub(crate) mod writer;

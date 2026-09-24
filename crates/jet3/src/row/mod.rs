@@ -1,5 +1,5 @@
 pub(crate) mod delete_page;
-pub mod directory;
+pub(crate) mod directory;
 #[cfg(test)]
 mod directory_tests;
 pub(crate) mod insert_eof;
@@ -8,7 +8,7 @@ pub(crate) mod mutation_graph;
 pub(crate) mod mutation_pages;
 pub(crate) mod mutation_place;
 pub(crate) mod offsets;
-pub mod reader;
+pub(crate) mod reader;
 mod reader_layout;
 #[cfg(test)]
 mod reader_schema_gap_tests;
@@ -18,10 +18,10 @@ pub(crate) mod reuse_page;
 pub(crate) mod scalar_values;
 pub(crate) mod slot;
 pub(crate) mod update_page;
-pub mod value;
+pub(crate) mod value;
 #[cfg(test)]
 mod value_tests;
-pub mod writer;
+pub(crate) mod writer;
 #[cfg(test)]
 mod writer_binary_tests;
 mod writer_layout;

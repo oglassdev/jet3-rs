@@ -15,11 +15,12 @@ use crate::{
         column::{ColumnDefinition, ColumnPhysicalType, decode_columns},
         index::{
             DecodedIndexes, IndexDecodeContext, IndexDefinition, IndexDefinitionError,
-            IndexDefinitionKind, PhysicalIndexDefinition, decode_indexes,
+            IndexDefinitionKind, decode_indexes,
         },
         long_value_map::{LongValueMapDefinition, LongValueMapError, decode_long_value_maps},
         physical_index::{
-            SYSTEM_PRIMARY_FLAGS, SYSTEM_SUPPORTED_FLAGS, USER_PRIMARY_FLAGS, USER_SUPPORTED_FLAGS,
+            PhysicalIndexDefinition, SYSTEM_PRIMARY_FLAGS, SYSTEM_SUPPORTED_FLAGS,
+            USER_PRIMARY_FLAGS, USER_SUPPORTED_FLAGS,
         },
     },
     locate_usage_map,

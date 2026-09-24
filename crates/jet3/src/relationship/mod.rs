@@ -7,7 +7,7 @@ pub(crate) mod catalog;
 mod component;
 pub(crate) mod flags;
 mod groups;
-pub mod inventory;
+pub(crate) mod inventory;
 pub(crate) mod key;
 pub(crate) mod mutation;
 mod validation;

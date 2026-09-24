@@ -71,6 +71,7 @@ impl PageImage {
         Self { bytes }
     }
 
+    #[cfg(test)]
     /// Returns the byte-zero tag.
     #[must_use]
     pub const fn tag(&self) -> u8 {
@@ -98,6 +99,7 @@ impl PageImage {
         &self.bytes
     }
 
+    #[cfg(test)]
     /// Consumes the builder and returns the complete page bytes.
     #[must_use]
     pub const fn into_bytes(self) -> [u8; PAGE_BYTES] {
@@ -280,6 +282,7 @@ impl DataPageBuilder {
         Ok(slot)
     }
 
+    #[cfg(test)]
     /// Returns the page built so far.
     #[must_use]
     pub const fn image(&self) -> &PageImage {

@@ -1,4 +1,5 @@
 use super::{ComposeError, compose_alpha_database, compose_empty_database};
+use crate::format::page_image::page_tag;
 use crate::{
     ByteCount, CatalogObjectClass, ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader,
     JET3_PAGE_SIZE, MapRowLocator, PageKind, PageNumber, ReadLimits, ResourceBudget,
@@ -8,7 +9,7 @@ use crate::{
         page_append_plan::EMPTY_DATABASE_PAGE_COUNT,
         schema_plan::{TableSpec, plan_table_schema},
     },
-    locate_usage_map, page_tag,
+    locate_usage_map,
 };
 
 // EXP-0073/EXP-0085: the accepted Alpha image's appended page numbers.

@@ -213,7 +213,6 @@ impl InlineUsageMapEncoder {
 /// regardless of which physical page eventually stores it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtendedUsageMapEncoder {
-    slot: u64,
     first: PageNumber,
     image: PageImage,
 }
@@ -229,15 +228,10 @@ impl ExtendedUsageMapEncoder {
             })?;
         let mut image = PageImage::new(PageKind::ExtendedUsageBitmap);
         image.write_at(PageOffset::new(0), &EXTENDED_HEADER, budget)?;
-        Ok(Self { slot, first, image })
+        Ok(Self { first, image })
     }
 
-    /// Returns the zero-based type-1 slot ordinal.
-    #[must_use]
-    pub const fn slot(&self) -> u64 {
-        self.slot
-    }
-
+    #[cfg(test)]
     /// Returns the page represented by bit zero.
     #[must_use]
     pub const fn first_page(&self) -> PageNumber {
@@ -253,6 +247,7 @@ impl ExtendedUsageMapEncoder {
         self.update(page, true, budget)
     }
 
+    #[cfg(test)]
     /// Clears the bit for `page`, charging the one-byte image update to `budget`.
     pub fn clear_page(
         &mut self,
@@ -263,6 +258,7 @@ impl ExtendedUsageMapEncoder {
     }
 
     /// Returns whether the bit for `page` is set.
+    #[cfg(test)]
     pub fn is_set(&self, page: PageNumber) -> Result<bool, UsageMapWriteError> {
         let index = self.locate(page)?;
         Ok(self
@@ -272,6 +268,7 @@ impl ExtendedUsageMapEncoder {
             .is_some_and(|value| value & index.1 != 0))
     }
 
+    #[cfg(test)]
     /// Returns the complete page image.
     #[must_use]
     pub const fn image(&self) -> &PageImage {

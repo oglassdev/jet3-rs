@@ -10,8 +10,8 @@
 use std::num::NonZeroU8;
 
 use crate::{
-    BinaryWriter, ColumnPhysicalType, ColumnStorageClass, Error, IndexDirection, PageNumber,
-    RelationshipSide, TableDefinitionKind,
+    BinaryWriter, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnStorageKind,
+    ColumnType, Error, IndexDirection, PageNumber, RelationshipSide, TableDefinitionKind,
     definition::table_writer::{PhysicalIndexFlagsSpec, TableDefinitionWriteError},
 };
 
@@ -65,8 +65,6 @@ pub enum SystemColumnClassSpec {
     /// Class `0x32`, used only by the observed special Binary columns.
     Binary,
 }
-
-pub use crate::create::{ColumnSpec, ColumnStorageKind, ColumnType};
 
 /// One key field of a physical index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

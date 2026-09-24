@@ -6,5 +6,5 @@ pub(crate) mod key;
 pub(crate) mod mutation;
 mod mutation_load;
 pub(crate) mod mutation_structure;
-pub mod tree;
+pub(crate) mod tree;
 pub(crate) mod update_key;

@@ -1,11 +1,11 @@
-pub mod atomic;
+pub(crate) mod atomic;
 #[cfg(all(test, any(unix, windows)))]
 mod atomic_tests;
 #[cfg(windows)]
 mod atomic_windows;
 pub(crate) mod auto_number_mutation;
 pub(crate) mod auto_number_state;
-pub mod delete;
+pub(crate) mod delete;
 #[cfg(all(test, any(unix, windows)))]
 mod delete_compaction_tests;
 #[cfg(all(test, any(unix, windows)))]
@@ -13,7 +13,7 @@ mod delete_release_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod delete_tests;
 pub(crate) mod field_update;
-pub mod insert;
+pub(crate) mod insert;
 #[cfg(all(test, any(unix, windows)))]
 mod insert_eof_tests;
 #[cfg(all(test, any(unix, windows)))]
@@ -28,12 +28,12 @@ mod insert_tests;
 mod insert_text_guid_tests;
 pub(crate) mod page_edits;
 mod page_edits_sequence;
-pub mod row_update;
+pub(crate) mod row_update;
 #[cfg(all(test, any(unix, windows)))]
 mod row_update_overflow_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod row_update_tests;
-pub mod update;
+pub(crate) mod update;
 #[cfg(all(test, any(unix, windows)))]
 mod update_field_rewrite_tests;
 #[cfg(all(test, any(unix, windows)))]

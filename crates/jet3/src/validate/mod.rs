@@ -1,22 +1,5 @@
 //! Read-only composition of the catalog (`EXP-0058`), definition (`EXP-0059`),
 //! row (`EXP-0060`), long-value (`EXP-0061`) and index (`EXP-0062`) readers.
-//!
-//! Success covers catalogued allocation roles and user/system table contents.
-//! Non-table object contents are skipped.
-//! Unreferenced file pages, allocation slack, unsupported relationship forms,
-//! and application compatibility are outside this check. Index references must
-//! name distinct live logical rows. Supported scalar schemas additionally check
-//! key values, null policies, uniqueness, complete row coverage and branch bounds.
-//! Unsupported key schemas remain explicitly uninterpreted; their framing and
-//! live-row membership are still checked. No index key-count prefix is compared
-//! with the live row count: `EXP-0219` permits retained counts after deletion.
-//! Catalogued allocation roles must be disjoint from incompatible owners and
-//! globally free pages. Row storage and every live payload fragment must
-//! be uniquely reachable through the owning table or column. Enforced, non-cascading
-//! ordered scalar/composite relationships check reciprocal records and child
-//! keys with at least one non-null component against their parent. Other forms
-//! are counted as uninterpreted. Complete endpoint inventory is checked only
-//! when every central record is interpreted.
 
 use std::fmt;
 
@@ -241,8 +224,24 @@ impl<S: ReadAt> DatabaseReader<S> {
     /// Values are streamed; relationship checks retain both endpoint definitions
     /// and sorted parent keys. Exclude concurrent writes to the source.
     ///
-    /// `code_page` controls text decoding, not index collation. See the
-    /// [module coverage limits](crate::validate) before interpreting success.
+    /// `code_page` controls text decoding, not index collation.
+    ///
+    /// Success covers catalogued allocation roles and user/system table contents.
+    /// Non-table object contents are skipped.
+    /// Unreferenced file pages, allocation slack, unsupported relationship forms,
+    /// and application compatibility are outside this check. Index references must
+    /// name distinct live logical rows. Supported scalar schemas additionally check
+    /// key values, null policies, uniqueness, complete row coverage and branch bounds.
+    /// Unsupported key schemas remain explicitly uninterpreted; their framing and
+    /// live-row membership are still checked. No index key-count prefix is compared
+    /// with the live row count: `EXP-0219` permits retained counts after deletion.
+    /// Catalogued allocation roles must be disjoint from incompatible owners and
+    /// globally free pages. Row storage and every live payload fragment must
+    /// be uniquely reachable through the owning table or column. Enforced, non-cascading
+    /// ordered scalar/composite relationships check reciprocal records and child
+    /// keys with at least one non-null component against their parent. Other forms
+    /// are counted as uninterpreted. Complete endpoint inventory is checked only
+    /// when every central record is interpreted.
     #[allow(
         clippy::result_large_err,
         reason = "Keep the catalog identity and source inline so budget failures need no allocation."

@@ -8,15 +8,13 @@
 use std::fmt;
 use std::mem::size_of;
 
-pub use crate::definition::physical_index::{
-    IndexDirection, IndexField, IndexUsageMapReference, PhysicalIndexDefinition,
-};
 use crate::{
     ByteCount, Error, PageGeometry, PageNumber, ResourceBudget,
     definition::{
         name::{DefinitionName, contains_name},
         physical_index::{
-            KEY_SLOT_COUNT, PHYSICAL_PREFIX_LEN, PHYSICAL_RECORD_LEN, decode_physical,
+            KEY_SLOT_COUNT, PHYSICAL_PREFIX_LEN, PHYSICAL_RECORD_LEN, PhysicalIndexDefinition,
+            decode_physical,
         },
     },
 };

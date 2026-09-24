@@ -5,10 +5,10 @@
 //! carrying its own copy of the rules.
 
 use crate::{
-    Error, LONG_VALUE_MAP_GROUP_LEN, TableDefinitionKind,
+    ColumnSpec, Error, LONG_VALUE_MAP_GROUP_LEN, TableDefinitionKind,
     definition::{
         column_writer::{
-            COLUMN_RECORD_LEN, ColumnSpec, LOGICAL_RECORD_LEN, MAX_NAME_LEN, PHYSICAL_PREFIX_LEN,
+            COLUMN_RECORD_LEN, LOGICAL_RECORD_LEN, MAX_NAME_LEN, PHYSICAL_PREFIX_LEN,
             PHYSICAL_RECORD_LEN, SystemColumnClassSpec, resolve_column,
         },
         table_writer::TableDefinitionWriteError,

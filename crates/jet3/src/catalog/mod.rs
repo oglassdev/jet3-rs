@@ -1,4 +1,4 @@
-pub mod cursor;
+pub(crate) mod cursor;
 #[cfg(test)]
 mod cursor_tests;
 pub(crate) mod name_key;
@@ -7,9 +7,9 @@ mod name_key_tests;
 pub(crate) mod overflow;
 #[cfg(test)]
 mod overflow_tests;
-pub mod record;
+pub(crate) mod record;
 #[cfg(test)]
 mod record_tests;
-pub mod record_writer;
+pub(crate) mod record_writer;
 #[cfg(test)]
 mod record_writer_tests;

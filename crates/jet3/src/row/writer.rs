@@ -54,12 +54,6 @@ impl RowColumnLayout {
     pub const fn storage(self) -> ColumnStorageClass {
         self.storage
     }
-
-    /// Returns the declared fixed or maximum size.
-    #[must_use]
-    pub const fn size(self) -> u16 {
-        self.size
-    }
 }
 
 impl From<&ColumnDefinition> for RowColumnLayout {
