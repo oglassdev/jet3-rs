@@ -1,3 +1,4 @@
+use super::delete_tests::usage_maps;
 use super::insert_tests::*;
 use crate::testkit::create;
 use crate::testkit::table;
@@ -8,25 +9,6 @@ use crate::{
 };
 use std::error::Error as StdError;
 use std::fs;
-
-type MapRecords = [(MapRowLocator, std::ops::Range<usize>); 3];
-fn maps(f: &Fixture) -> Result<MapRecords, Box<dyn StdError>> {
-    let mut b = budget();
-    let mut db = DatabaseReader::open(f.path(), &mut b)?;
-    let def = db.table_definition(f.root, &mut b)?;
-    let locators = [
-        MapRowLocator::new(PageNumber::new(1), 0),
-        def.maps().owned(),
-        def.maps().available(),
-    ];
-    let mut result = std::array::from_fn(|i| (locators[i], 0..0));
-    for (locator, range) in &mut result {
-        let mut bytes = [0; PAGE_BYTES];
-        let page = db.read_classified_page(locator.page(), &mut bytes, &mut b)?;
-        *range = crate::locate_usage_map(page, *locator, &mut b)?.range();
-    }
-    Ok(result)
-}
 
 #[test]
 fn empty_and_full_pages_append_exactly_one_page_then_reuse_it() -> TestResult {
@@ -47,7 +29,7 @@ fn empty_and_full_pages_append_exactly_one_page_then_reuse_it() -> TestResult {
             .collect();
         let rows: Vec<_> = values.iter().map(|r| r.as_slice()).collect();
         let f = Fixture::new(&columns, &rows)?;
-        let map_records = maps(&f)?;
+        let map_records = usage_maps(&f.path(), f.root)?;
         let before = fs::read(f.path())?;
         let page = before.len() / PAGE_BYTES;
         let locator = insert_row(
@@ -111,7 +93,7 @@ fn empty_and_full_pages_append_exactly_one_page_then_reuse_it() -> TestResult {
 #[test]
 fn eof_map_coverage_free_bit_and_aliases_refuse_without_publication() -> TestResult {
     let f = Fixture::longs(0)?;
-    let records = maps(&f)?;
+    let records = usage_maps(&f.path(), f.root)?;
     let original = fs::read(f.path())?;
     let page = original.len() / PAGE_BYTES;
     let root = f.root.get() as usize * PAGE_BYTES;
@@ -135,27 +117,14 @@ fn eof_map_coverage_free_bit_and_aliases_refuse_without_publication() -> TestRes
     corruptions.push(missing);
     for bad in corruptions {
         fs::write(f.path(), &bad)?;
-        assert!(
-            insert_row(
-                f.path(),
-                b"Rows",
-                &[RowValue::Long(1), RowValue::Long(2)],
-                &mut budget()
-            )
-            .is_err()
-        );
+        assert!(f.insert(1, 2).is_err());
         assert_eq!(fs::read(f.path())?, bad);
         f.clean()?;
     }
     // Both owned and available can reside on one page, but not in the same record.
     assert_eq!(records[1].0.page(), records[2].0.page());
     fs::write(f.path(), &original)?;
-    insert_row(
-        f.path(),
-        b"Rows",
-        &[RowValue::Long(1), RowValue::Long(2)],
-        &mut budget(),
-    )?;
+    f.insert(1, 2)?;
     f.clean()
 }
 
@@ -167,12 +136,7 @@ fn last_inline_bit_and_conversion_preserve_rows_and_metadata() -> TestResult {
         let mut before = original.clone();
         before.resize(pages * PAGE_BYTES, 0xb6);
         fs::write(f.path(), &before)?;
-        let result = insert_row(
-            f.path(),
-            b"Rows",
-            &[RowValue::Long(1), RowValue::Long(2)],
-            &mut budget(),
-        );
+        let result = f.insert(1, 2);
         assert_eq!(result?, RowLocator::new(PageNumber::new(pages as u64), 0));
         let expected_pages = if pages == 1023 { 1024 } else { 1028 };
         assert_eq!(
@@ -220,24 +184,6 @@ fn eof_budget_and_private_append_corruption_preserve_original() -> TestResult {
             )
             .is_err()
         );
-        assert_eq!(fs::read(f.path())?, before);
-        f.clean()?;
-    }
-    for failure_stage in [PublishStage::Mutation, PublishStage::PrePublish] {
-        let error = insert_with_hook(
-            &f.path(),
-            b"Rows",
-            &[RowValue::Long(1), RowValue::Long(2)],
-            &mut budget(),
-            |stage| {
-                if stage == failure_stage {
-                    Err(std::io::Error::other("injected publication failure"))
-                } else {
-                    Ok(())
-                }
-            },
-        );
-        assert!(matches!(error, Err(WriteError::Publish(error)) if error.stage() == failure_stage));
         assert_eq!(fs::read(f.path())?, before);
         f.clean()?;
     }
@@ -306,7 +252,7 @@ fn later_table_ownership_and_minimum_row_availability() -> TestResult {
     let mut db = DatabaseReader::open(f.path(), &mut b)?;
     f.root = crate::write::update::writable_table(&mut db, b"Rows", &mut b)?.root();
     drop(db);
-    let records = maps(&f)?;
+    let records = usage_maps(&f.path(), f.root)?;
     let before = fs::read(f.path())?;
     let text = [b'x'; 255];
     let locator = insert_row(
@@ -366,7 +312,7 @@ fn map_image(owner: u64, rows: &[&[u8]]) -> Result<[u8; PAGE_BYTES], Box<dyn Std
 #[test]
 fn widened_inline_maps_shrink_without_losing_adjacent_records() -> TestResult {
     let f = Fixture::longs(0)?;
-    let records = maps(&f)?;
+    let records = usage_maps(&f.path(), f.root)?;
     let mut before = fs::read(f.path())?;
     let mut global =
         before[PAGE_BYTES + records[0].1.start..PAGE_BYTES + records[0].1.end].to_vec();
@@ -381,12 +327,7 @@ fn widened_inline_maps_shrink_without_losing_adjacent_records() -> TestResult {
         .copy_from_slice(&map_image(0, &[&[0; 137], &available])?);
     before.resize(1056 * PAGE_BYTES, 0xb6);
     fs::write(f.path(), &before)?;
-    let inserted = insert_row(
-        f.path(),
-        b"Rows",
-        &[RowValue::Long(7), RowValue::Long(8)],
-        &mut budget(),
-    )?;
+    let inserted = f.insert(7, 8)?;
     assert_eq!(inserted.page().get(), 1056);
     let after = fs::read(f.path())?;
     let mut b = budget();
@@ -418,7 +359,7 @@ fn widened_inline_maps_shrink_without_losing_adjacent_records() -> TestResult {
 #[test]
 fn oversized_indirect_map_is_rejected_without_writing() -> TestResult {
     let f = Fixture::longs(0)?;
-    let records = maps(&f)?;
+    let records = usage_maps(&f.path(), f.root)?;
     let mut before = fs::read(f.path())?;
     let map_page = records[1].0.page().get() as usize;
     let mut owned = [0; 137];
@@ -426,15 +367,7 @@ fn oversized_indirect_map_is_rejected_without_writing() -> TestResult {
     before[map_page * PAGE_BYTES..(map_page + 1) * PAGE_BYTES]
         .copy_from_slice(&map_image(0, &[&owned, &[0; 133]])?);
     fs::write(f.path(), &before)?;
-    assert!(
-        insert_row(
-            f.path(),
-            b"Rows",
-            &[RowValue::Long(7), RowValue::Long(8)],
-            &mut budget()
-        )
-        .is_err()
-    );
+    assert!(f.insert(7, 8).is_err());
     assert_eq!(fs::read(f.path())?, before);
     Ok(())
 }

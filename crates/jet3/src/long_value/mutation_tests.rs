@@ -99,6 +99,13 @@ impl Fixture {
     pub(super) fn path(&self) -> PathBuf {
         self.directory.join("data.mdb")
     }
+    pub(super) fn delete(&self, row: RowLocator) -> Result<(), WriteError> {
+        let request = RowDelete {
+            table: b"Rows",
+            row,
+        };
+        delete_row(self.path(), request, &mut budget())
+    }
     pub(super) fn definition(&self) -> Result<TableDefinition, Box<dyn std::error::Error>> {
         let mut b = budget();
         let mut db = DatabaseReader::open(self.path(), &mut b)?;
@@ -219,14 +226,7 @@ fn complete_payload_lifecycles_preserve_neighbors_and_reuse_released_storage() -
             inserted[&3].payloads,
             [Some(vec![b'c'; 512]), Some(vec![0x33; 512])]
         );
-        delete_row(
-            fixture.path(),
-            RowDelete {
-                table: b"Rows",
-                row: initial[&1].locator,
-            },
-            &mut budget(),
-        )?;
+        fixture.delete(initial[&1].locator)?;
         assert_eq!(fixture.snapshot()?[&3], inserted[&3]);
         let grown = [
             RowValue::Long(30),
@@ -252,14 +252,7 @@ fn complete_payload_lifecycles_preserve_neighbors_and_reuse_released_storage() -
         );
         let peak = fs::metadata(fixture.path())?.len();
         for row in changed.values() {
-            delete_row(
-                fixture.path(),
-                RowDelete {
-                    table: b"Rows",
-                    row: row.locator,
-                },
-                &mut budget(),
-            )?;
+            fixture.delete(row.locator)?;
         }
         assert!(fixture.snapshot()?.is_empty());
         insert_row(fixture.path(), b"Rows", &grown, &mut budget())?;
@@ -300,71 +293,14 @@ fn map_offset(bytes: &[u8], locator: MapRowLocator, member: PageNumber) -> usize
 }
 
 #[test]
-fn malformed_long_value_ownership_and_chains_preserve_exact_input() -> TestResult {
+fn malformed_ownership_aliases_fragments_and_chains_preserve_exact_input() -> TestResult {
     let fixture = Fixture::new(true)?;
     let table = fixture.definition()?;
     let original = fs::read(fixture.path())?;
     let mut b = budget();
     let mut db = DatabaseReader::open(fixture.path(), &mut b)?;
     let mut rows = db.rows(&table, &mut b)?;
-    let mut first = rows.next_row()?.ok_or("first")?;
-    let locator = first.locator();
-    let reference = match first
-        .value(ColumnOrdinal::new(2), TextCodePage::Windows1252)?
-        .ok_or("memo")?
-        .kind()
-    {
-        ValueKind::LongValue(LongValue::External(reference)) => *reference,
-        _ => return Err("external".into()),
-    };
-    drop(rows);
-    drop(db);
-    let target = reference.target().page();
-    let page = target.get() as usize * PAGE_BYTES;
-    let maps = table.long_value_maps();
-    for case in 0..6 {
-        let mut damaged = original.clone();
-        match case {
-            0 => damaged[page + 4] ^= 1,
-            1 => {
-                damaged[map_offset(&original, MapRowLocator::new(PageNumber::new(1), 0), target)] |=
-                    1 << (target.get() % 8)
-            }
-            2 => {
-                damaged[map_offset(&original, maps[0].owned(), target)] &=
-                    !(1 << (target.get() % 8))
-            }
-            3 => damaged[map_offset(&original, maps[1].owned(), target)] |= 1 << (target.get() % 8),
-            4 => damaged[page + 2] ^= 1,
-            5 => damaged[page + 11] |= 0x20,
-            _ => unreachable!(),
-        }
-        fs::write(fixture.path(), &damaged)?;
-        assert!(
-            delete_row(
-                fixture.path(),
-                RowDelete {
-                    table: b"Rows",
-                    row: locator
-                },
-                &mut budget()
-            )
-            .is_err(),
-            "case {case}"
-        );
-        assert_eq!(fs::read(fixture.path())?, damaged, "case {case}");
-    }
-    Ok(())
-}
-
-#[test]
-fn aliases_unreferenced_fragments_and_broken_chains_are_refused() -> TestResult {
-    let fixture = Fixture::new(true)?;
-    let table = fixture.definition()?;
-    let original = fs::read(fixture.path())?;
-    let mut b = budget();
-    let mut db = DatabaseReader::open(fixture.path(), &mut b)?;
-    let mut rows = db.rows(&table, &mut b)?;
+    // (row, reference, absolute header offset) for Memo then OLE of each row.
     let mut headers = Vec::new();
     while let Some(mut row) = rows.next_row()? {
         let locator = row.locator();
@@ -397,78 +333,82 @@ fn aliases_unreferenced_fragments_and_broken_chains_are_refused() -> TestResult 
     }
     drop(rows);
     drop(db);
-    for case in 0..5 {
+    let target = headers[0].1.target().page();
+    let page = target.get() as usize * PAGE_BYTES;
+    let maps = table.long_value_maps();
+    let bit = 1 << (target.get() % 8);
+    for case in 0..11 {
         let mut damaged = original.clone();
         match case {
-            0 | 1 => {
-                let other = headers[if case == 0 { 2 } else { 1 }].1.raw_header();
+            0 => damaged[page + 4] ^= 1,
+            1 => {
+                damaged[map_offset(&original, MapRowLocator::new(PageNumber::new(1), 0), target)] |=
+                    bit
+            }
+            2 => damaged[map_offset(&original, maps[0].owned(), target)] &= !bit,
+            3 => damaged[map_offset(&original, maps[1].owned(), target)] |= bit,
+            4 => damaged[page + 2] ^= 1,
+            5 => damaged[page + 11] |= 0x20,
+            6 | 7 => {
+                let other = headers[if case == 6 { 2 } else { 1 }].1.raw_header();
                 damaged[headers[0].2 + 4..headers[0].2 + 8].copy_from_slice(&other[4..8]);
             }
-            2 => {
-                let target = headers[0].1.target();
-                let start = target.page().get() as usize * PAGE_BYTES;
-                let source: [u8; PAGE_BYTES] = original[start..start + PAGE_BYTES].try_into()?;
+            8 => {
+                let source: [u8; PAGE_BYTES] = original[page..page + PAGE_BYTES].try_into()?;
                 let (after, _) = crate::row::data_page::DataPageEditor::open(
-                    target.page(),
+                    target,
                     super::mutation::OWNER,
                     &source,
                     &mut budget(),
                 )?
                 .append(b"unreferenced", None, &mut budget())?
                 .ok_or("append")?;
-                damaged[start..start + PAGE_BYTES].copy_from_slice(after.as_bytes());
+                damaged[page..page + PAGE_BYTES].copy_from_slice(after.as_bytes());
             }
-            3 | 4 => {
+            _ => {
                 let reference = headers[3].1;
                 let page = reference.target().page().get() as usize * PAGE_BYTES;
                 let start = usize::from(
                     u16::from_le_bytes([damaged[page + 10], damaged[page + 11]]) & 0x1fff,
                 );
                 let mut pointer: [u8; 4] = reference.raw_header()[4..8].try_into()?;
-                if case == 4 {
+                if case == 10 {
                     pointer[0] = 255;
                 }
                 damaged[page + start..page + start + 4].copy_from_slice(&pointer);
             }
-            _ => unreachable!(),
         }
         fs::write(fixture.path(), &damaged)?;
-        let result = delete_row(
-            fixture.path(),
-            RowDelete {
-                table: b"Rows",
-                row: headers[0].0,
-            },
-            &mut budget(),
-        );
-        match case {
-            0 => assert!(matches!(
+        let result = fixture.delete(headers[0].0);
+        let expected = match case {
+            6 => matches!(
                 result,
                 Err(WriteError::Mismatch("aliased long-value fragment"))
-            )),
-            1 => assert!(matches!(
+            ),
+            7 => matches!(
                 result,
                 Err(WriteError::Mismatch(
                     "long-value reference has wrong column owner"
                 ))
-            )),
-            2 => assert!(matches!(
+            ),
+            8 => matches!(
                 result,
                 Err(WriteError::Mismatch(
                     "unreferenced live long-value fragment"
                 ))
-            )),
-            3 => assert!(matches!(
+            ),
+            9 => matches!(
                 result,
                 Err(WriteError::LongValue(LongValueError::Cycle { .. }))
-            )),
-            4 => assert!(matches!(
+            ),
+            10 => matches!(
                 result,
                 Err(WriteError::LongValue(LongValueError::MissingRow { .. }))
-            )),
-            _ => unreachable!(),
-        }
-        assert_eq!(fs::read(fixture.path())?, damaged);
+            ),
+            _ => result.is_err(),
+        };
+        assert!(expected, "case {case}");
+        assert_eq!(fs::read(fixture.path())?, damaged, "case {case}");
     }
     Ok(())
 }
@@ -615,14 +555,7 @@ fn autonumber_payload_mutations_generate_retain_and_wrap_state() -> TestResult {
             assert_eq!(fs::read(fixture.path())?, before);
         }
         for sample in fixture.snapshot()?.values() {
-            delete_row(
-                fixture.path(),
-                RowDelete {
-                    table: b"Rows",
-                    row: sample.locator,
-                },
-                &mut budget(),
-            )?;
+            fixture.delete(sample.locator)?;
         }
         assert_eq!(state()?, -4);
         for (value, id, expected_state) in [
@@ -727,14 +660,7 @@ fn overflow_rows_preserve_complete_payloads_and_column_ownership() -> TestResult
             assert_eq!(&external[id], row);
         }
     }
-    delete_row(
-        fixture.path(),
-        RowDelete {
-            table: b"Rows",
-            row: logical,
-        },
-        &mut budget(),
-    )?;
+    fixture.delete(logical)?;
     let remaining = fixture.snapshot()?;
     assert_eq!(remaining.len(), initial.len() - 1);
     for (id, row) in &initial {

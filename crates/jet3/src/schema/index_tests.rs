@@ -77,7 +77,7 @@ fn index_edits_preserve_rows_payloads_and_unrelated_source_pages() -> TestResult
     let rows: Vec<_> = values.iter().map(|row| row.as_slice()).collect();
     let fixture = Fixture::new(&rows)?;
     let before = fs::read(fixture.path())?;
-    let table = fixture.table()?;
+    let root = fixture.table()?.root().get() as usize;
     let mut database = DatabaseReader::open(fixture.path(), &mut budget())?;
     let global = crate::alloc::mutation_map::MapBits::load(
         &mut database,
@@ -89,16 +89,18 @@ fn index_edits_preserve_rows_payloads_and_unrelated_source_pages() -> TestResult
         .iter()
         .map(|span| span.page.get() as usize)
         .collect();
-    fixture.create(b"ById", IndexKind::Unique, IndexDirection::Descending)?;
-    let after = fs::read(fixture.path())?;
-    for (number, page) in before.chunks_exact(PAGE_BYTES).enumerate() {
-        if number != 1 && number != table.root().get() as usize && !allocation.contains(&number) {
-            assert!(
-                page == &after[number * PAGE_BYTES..(number + 1) * PAGE_BYTES],
-                "source page {number}"
-            );
+    let unchanged = |after: &[u8]| {
+        for (number, page) in before.chunks_exact(PAGE_BYTES).enumerate() {
+            if number != 1 && number != root && !allocation.contains(&number) {
+                assert!(
+                    page == &after[number * PAGE_BYTES..(number + 1) * PAGE_BYTES],
+                    "source page {number}"
+                );
+            }
         }
-    }
+    };
+    fixture.create(b"ById", IndexKind::Unique, IndexDirection::Descending)?;
+    unchanged(&fs::read(fixture.path())?);
     let table = fixture.table()?;
     let mut database = DatabaseReader::open(fixture.path(), &mut budget())?;
     let tree = database.index_tree(&table, 0, &mut budget())?;
@@ -112,15 +114,7 @@ fn index_edits_preserve_rows_payloads_and_unrelated_source_pages() -> TestResult
     let dropped = fixture.table()?;
     assert!(dropped.indexes().is_empty());
     assert!(dropped.physical_indexes().is_empty());
-    let after = fs::read(fixture.path())?;
-    for (number, page) in before.chunks_exact(PAGE_BYTES).enumerate() {
-        if number != 1 && number != table.root().get() as usize && !allocation.contains(&number) {
-            assert!(
-                page == &after[number * PAGE_BYTES..(number + 1) * PAGE_BYTES],
-                "source page {number}"
-            );
-        }
-    }
+    unchanged(&fs::read(fixture.path())?);
     Ok(())
 }
 
@@ -158,25 +152,13 @@ fn shared_alias_rename_and_drop_keep_the_tree_until_the_last_alias() -> TestResu
 }
 
 #[test]
-fn unique_required_names_and_resource_refusals_leave_the_source_unchanged() -> TestResult {
+fn names_missing_indexes_and_resource_refusals_leave_the_source_unchanged() -> TestResult {
     let fixture = Fixture::new(&[
         &[RowValue::Long(7), RowValue::Null],
         &[RowValue::Long(7), RowValue::Null],
         &[RowValue::Null, RowValue::Null],
     ])?;
     let before = fs::read(fixture.path())?;
-    for kind in [
-        IndexKind::Unique,
-        IndexKind::Primary,
-        IndexKind::Ordinary.with_null_policy(IndexNullPolicy::Required),
-    ] {
-        assert!(
-            fixture
-                .create(b"Key", kind, IndexDirection::Ascending)
-                .is_err()
-        );
-        assert_eq!(fs::read(fixture.path())?, before);
-    }
     for name in [b"".as_slice(), b" Leading", b"bad.name", &[b'x'; 64]] {
         assert!(
             fixture

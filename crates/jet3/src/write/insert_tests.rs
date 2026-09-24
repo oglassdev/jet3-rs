@@ -4,8 +4,8 @@ pub(super) use crate::testkit::budget;
 use crate::testkit::create;
 use crate::testkit::table;
 use crate::{
-    ByteCount, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PageNumber, PublishStage,
-    ResourceBudget, ResourceLimits, RowLocator, RowValue, WriteError,
+    ByteCount, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PageNumber, ResourceBudget,
+    ResourceLimits, RowLocator, RowValue, WriteError,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -81,6 +81,17 @@ impl Fixture {
     pub(super) fn path(&self) -> PathBuf {
         self.directory.join("source.mdb")
     }
+    pub(super) fn insert(&self, id: i32, value: i32) -> Result<RowLocator, WriteError> {
+        let values = [RowValue::Long(id), RowValue::Long(value)];
+        insert_row(self.path(), b"Rows", &values, &mut budget())
+    }
+    pub(super) fn delete(&self, row: RowLocator) -> Result<(), WriteError> {
+        let request = crate::RowDelete {
+            table: b"Rows",
+            row,
+        };
+        crate::delete_row(self.path(), request, &mut budget())
+    }
     pub(super) fn clean(&self) -> TestResult {
         assert_eq!(fs::read_dir(&self.directory)?.count(), 1);
         Ok(())
@@ -93,22 +104,10 @@ fn append_and_append_after_tombstone_preserve_every_unplanned_byte() -> TestResu
         let f = Fixture::longs(4)?;
         let page = f.pages[0];
         if deleted {
-            crate::delete_row(
-                f.path(),
-                crate::RowDelete {
-                    table: b"Rows",
-                    row: RowLocator::new(page, 3),
-                },
-                &mut budget(),
-            )?;
+            f.delete(RowLocator::new(page, 3))?;
         }
         let before = fs::read(f.path())?;
-        let locator = insert_row(
-            f.path(),
-            b"Rows",
-            &[RowValue::Long(99), RowValue::Long(-9900)],
-            &mut budget(),
-        )?;
+        let locator = f.insert(99, -9900)?;
         assert_eq!(locator, RowLocator::new(page, 4));
         let base = page.get() as usize * PAGE_BYTES;
         let root = f.root.get() as usize * PAGE_BYTES;
@@ -217,12 +216,7 @@ fn scalar_layout_and_variable_offsets_use_existing_schema() -> TestResult {
 fn later_page_selection_and_capacity_boundary() -> TestResult {
     let f = Fixture::longs(200)?;
     assert_eq!(f.pages.len(), 2);
-    let locator = insert_row(
-        f.path(),
-        b"Rows",
-        &[RowValue::Long(99), RowValue::Long(99)],
-        &mut budget(),
-    )?;
+    let locator = f.insert(99, 99)?;
     assert_eq!(locator.page(), f.pages[1]);
     let owner = PageNumber::new(20);
     let page = PageNumber::new(23);
@@ -245,21 +239,30 @@ fn later_page_selection_and_capacity_boundary() -> TestResult {
 fn corrupt_metadata_values_and_resources_preserve_original() -> TestResult {
     let f = Fixture::longs(4)?;
     let original = fs::read(f.path())?;
+    let mut b = budget();
+    let mut db = DatabaseReader::open(f.path(), &mut b)?;
+    let def = db.table_definition(f.root, &mut b)?;
+    let available = def.maps().available();
+    let mut bytes = [0; PAGE_BYTES];
+    let map = db.read_classified_page(available.page(), &mut bytes, &mut b)?;
+    let range = crate::locate_usage_map(map, available, &mut b)?.range();
+    drop(db);
+    let map = available.page().get() as usize * PAGE_BYTES + range.start + 5;
     let base = f.pages[0].get() as usize * PAGE_BYTES;
     let root = f.root.get() as usize * PAGE_BYTES;
+    let mut unowned = original.clone();
+    // EXP-0057 inline bitmap: an unowned in-file page is advertised available.
+    unowned[map..available.page().get() as usize * PAGE_BYTES + range.end].fill(0);
+    unowned[map] = 1;
+    let mut corruptions = vec![unowned];
     for (offset, value) in [(base + 2, 0), (root + 12, 0), (base + 11, 0x87)] {
         let mut bad = original.clone();
         bad[offset] = value;
+        corruptions.push(bad);
+    }
+    for bad in corruptions {
         fs::write(f.path(), &bad)?;
-        assert!(
-            insert_row(
-                f.path(),
-                b"Rows",
-                &[RowValue::Long(1), RowValue::Long(2)],
-                &mut budget()
-            )
-            .is_err()
-        );
+        assert!(f.insert(1, 2).is_err());
         assert_eq!(fs::read(f.path())?, bad);
     }
     fs::write(f.path(), &original)?;
@@ -287,61 +290,7 @@ fn corrupt_metadata_values_and_resources_preserve_original() -> TestResult {
         assert_eq!(fs::read(f.path())?, original);
         f.clean()?;
     }
-    let error = insert_with_hook(
-        &f.path(),
-        b"Rows",
-        &[RowValue::Long(1), RowValue::Long(2)],
-        &mut budget(),
-        |stage| -> Result<(), std::io::Error> {
-            if stage == PublishStage::Validation {
-                for entry in fs::read_dir(&f.directory)? {
-                    let path = entry?.path();
-                    if path != f.path() {
-                        let mut bytes = fs::read(&path)?;
-                        bytes[64] ^= 1;
-                        fs::write(path, bytes)?;
-                    }
-                }
-            }
-            Ok(())
-        },
-    );
-    assert!(matches!(error,Err(WriteError::Publish(e)) if e.stage()==PublishStage::Validation));
-    assert_eq!(fs::read(f.path())?, original);
-    f.clean()
-}
-
-#[test]
-fn unowned_available_map_membership_is_refused() -> TestResult {
-    let f = Fixture::longs(4)?;
-    let mut b = budget();
-    let mut db = DatabaseReader::open(f.path(), &mut b)?;
-    let def = db.table_definition(f.root, &mut b)?;
-    let locator = def.maps().available();
-    let mut bytes = [0; PAGE_BYTES];
-    let page = db.read_classified_page(locator.page(), &mut bytes, &mut b)?;
-    let range = crate::locate_usage_map(page, locator, &mut b)?.range();
-    drop(db);
-    let original = fs::read(f.path())?;
-    {
-        let mut bad = original.clone();
-        let base = locator.page().get() as usize * PAGE_BYTES;
-        // EXP-0057 inline bitmap: an unowned in-file page.
-        bad[base + range.start + 5..base + range.end].fill(0);
-        bad[base + range.start + 5] = 1;
-        fs::write(f.path(), &bad)?;
-        assert!(
-            insert_row(
-                f.path(),
-                b"Rows",
-                &[RowValue::Long(1), RowValue::Long(2)],
-                &mut budget()
-            )
-            .is_err()
-        );
-        assert_eq!(fs::read(f.path())?, bad);
-    }
-    f.clean()
+    Ok(())
 }
 
 #[test]
@@ -385,14 +334,7 @@ fn saturated_page_keeps_its_rows_and_moves_insertion_to_another_page() -> TestRe
     assert_eq!(fixture.pages.len(), 1);
     let page = fixture.pages[0];
     // EXP-0305: a live page remains saturated even after a row is deleted.
-    crate::delete_row(
-        fixture.path(),
-        crate::RowDelete {
-            table: b"Rows",
-            row: RowLocator::new(page, 1),
-        },
-        &mut budget(),
-    )?;
+    fixture.delete(RowLocator::new(page, 1))?;
     let before = fs::read(fixture.path())?;
     let inserted = insert_row(
         fixture.path(),

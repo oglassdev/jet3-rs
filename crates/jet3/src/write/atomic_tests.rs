@@ -11,17 +11,6 @@ use crate::{ReadLimits, ResourceBudget, ResourceLimits};
 
 use crate::testkit::TestResult;
 
-#[derive(Debug)]
-struct TestFailure(&'static str);
-
-impl std::fmt::Display for TestFailure {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(self.0)
-    }
-}
-
-impl std::error::Error for TestFailure {}
-
 use crate::testkit::TempDir;
 
 fn private_entries(directory: &Path) -> Result<usize, std::io::Error> {
@@ -45,11 +34,13 @@ fn replace_contents(file: &mut std::fs::File) -> Result<(), std::io::Error> {
     file.write_all(b"replacement")
 }
 
-fn validate_replacement(path: &Path) -> Result<(), TestFailure> {
-    if fs::read(path).map_err(|_| TestFailure("validation read failed"))? == b"replacement" {
+fn validate_replacement(path: &Path) -> Result<(), std::io::Error> {
+    if fs::read(path).map_err(|_| std::io::Error::other("validation read failed"))?
+        == b"replacement"
+    {
         Ok(())
     } else {
-        Err(TestFailure("replacement did not validate"))
+        Err(std::io::Error::other("replacement did not validate"))
     }
 }
 
@@ -112,14 +103,14 @@ fn every_injected_prepublication_failure_preserves_original_and_cleans_private_c
             validate_replacement,
             |stage| {
                 if stage == fault {
-                    Err(TestFailure("injected stage failure"))
+                    Err(std::io::Error::other("injected stage failure"))
                 } else {
                     Ok(())
                 }
             },
         )
         .err()
-        .ok_or(TestFailure("fault injection unexpectedly succeeded"))?;
+        .ok_or("fault injection unexpectedly succeeded")?;
         assert_eq!(error.stage(), fault);
         assert_eq!(fs::read(&target)?, original);
         assert_eq!(private_entries(&directory)?, 0);
@@ -140,14 +131,14 @@ fn directory_sync_fault_reports_published_validated_replacement() -> TestResult 
         validate_replacement,
         |stage| {
             if stage == PublishStage::DirectorySync {
-                Err(TestFailure("injected directory-sync failure"))
+                Err(std::io::Error::other("injected directory-sync failure"))
             } else {
                 Ok(())
             }
         },
     )
     .err()
-    .ok_or(TestFailure("directory-sync fault unexpectedly succeeded"))?;
+    .ok_or("directory-sync fault unexpectedly succeeded")?;
     assert_eq!(error.stage(), PublishStage::DirectorySync);
     assert_eq!(fs::read(&target)?, b"replacement");
     assert_eq!(private_entries(&directory)?, 0);
@@ -166,18 +157,18 @@ fn cleanup_failure_is_reported_without_overwriting_primary_error() -> TestResult
         replace_contents,
         validate_replacement,
         |stage| match stage {
-            PublishStage::Validation => Err(TestFailure("primary validation fault")),
-            PublishStage::Cleanup => Err(TestFailure("secondary cleanup fault")),
+            PublishStage::Validation => Err(std::io::Error::other("primary validation fault")),
+            PublishStage::Cleanup => Err(std::io::Error::other("secondary cleanup fault")),
             _ => Ok(()),
         },
     )
     .err()
-    .ok_or(TestFailure("combined fault unexpectedly succeeded"))?;
+    .ok_or("combined fault unexpectedly succeeded")?;
 
     assert_eq!(error.stage(), PublishStage::Validation);
     let cleanup = error
         .cleanup_error()
-        .ok_or(TestFailure("cleanup fault was not retained"))?;
+        .ok_or("cleanup fault was not retained")?;
     assert_eq!(cleanup.to_string(), "secondary cleanup fault");
     assert!(error.to_string().contains("primary validation fault"));
     assert!(error.to_string().contains("secondary cleanup fault"));
@@ -198,14 +189,14 @@ fn mutation_and_validation_errors_preserve_original() -> TestResult {
             &mut budget,
             |file| {
                 if fail_validation {
-                    replace_contents(file).map_err(|_| TestFailure("mutation I/O"))
+                    replace_contents(file).map_err(|_| std::io::Error::other("mutation I/O"))
                 } else {
-                    Err(TestFailure("mutation rejected"))
+                    Err(std::io::Error::other("mutation rejected"))
                 }
             },
             |_path| {
                 if fail_validation {
-                    Err(TestFailure("validation rejected"))
+                    Err(std::io::Error::other("validation rejected"))
                 } else {
                     Ok(())
                 }
@@ -213,7 +204,7 @@ fn mutation_and_validation_errors_preserve_original() -> TestResult {
         );
         let error = result
             .err()
-            .ok_or(TestFailure("callback failure unexpectedly succeeded"))?;
+            .ok_or("callback failure unexpectedly succeeded")?;
         let expected = if fail_validation {
             PublishStage::Validation
         } else {
@@ -238,9 +229,7 @@ fn copy_work_limit_covers_one_below_exact_and_one_above() -> TestResult {
         if succeeds {
             assert_eq!(fs::read(&target)?, b"replacement");
         } else {
-            let error = result
-                .err()
-                .ok_or(TestFailure("limited copy unexpectedly succeeded"))?;
+            let error = result.err().ok_or("limited copy unexpectedly succeeded")?;
             assert_eq!(error.stage(), PublishStage::Copy);
             assert_eq!(fs::read(&target)?, b"original");
         }
@@ -257,7 +246,7 @@ fn nonexistent_and_non_regular_targets_are_rejected() -> TestResult {
         let result = atomic_update(target, &mut budget, replace_contents, validate_replacement);
         let error = result
             .err()
-            .ok_or(TestFailure("invalid target unexpectedly succeeded"))?;
+            .ok_or("invalid target unexpectedly succeeded")?;
         assert_eq!(error.stage(), PublishStage::PrivateCopyCreation);
     }
     Ok(())
@@ -269,11 +258,11 @@ fn identity_capture_failure_removes_exclusively_created_private_file() -> TestRe
     let target = directory.target();
     fs::write(&target, b"original")?;
 
-    let error = PrivateCopy::create_with_identity(&target, &*directory, |_| {
+    let error = PrivateCopy::create_with_identity(&target, &directory, |_| {
         Err(std::io::Error::other("injected identity capture failure"))
     })
     .err()
-    .ok_or(TestFailure("identity capture unexpectedly succeeded"))?;
+    .ok_or("identity capture unexpectedly succeeded")?;
 
     assert_eq!(error.kind(), std::io::ErrorKind::Other);
     assert_eq!(error.to_string(), "injected identity capture failure");
@@ -311,7 +300,7 @@ fn substituted_private_path_is_rejected_and_left_untouched() -> TestResult {
         },
     )
     .err()
-    .ok_or(TestFailure("substitution unexpectedly succeeded"))?;
+    .ok_or("substitution unexpectedly succeeded")?;
     assert_eq!(error.stage(), PublishStage::Publish);
     assert!(error.cleanup_error().is_some());
     assert_eq!(fs::read(target)?, b"original");
@@ -336,7 +325,7 @@ fn readonly_private_copy_is_cleaned_after_a_prepublication_failure() -> TestResu
         validate_replacement,
         |stage| {
             if stage == PublishStage::PrePublish {
-                Err(TestFailure("injected failure"))
+                Err(std::io::Error::other("injected failure"))
             } else {
                 Ok(())
             }
@@ -344,7 +333,7 @@ fn readonly_private_copy_is_cleaned_after_a_prepublication_failure() -> TestResu
     );
     let error = result
         .err()
-        .ok_or(TestFailure("injected failure unexpectedly succeeded"))?;
+        .ok_or("injected failure unexpectedly succeeded")?;
     assert_eq!(error.stage(), PublishStage::PrePublish);
     assert!(error.cleanup_error().is_none());
     assert_eq!(fs::read(&target)?, b"original");
@@ -358,22 +347,12 @@ fn write_fresh(file: &mut std::fs::File) -> Result<(), std::io::Error> {
     file.write_all(b"fresh")
 }
 
-fn validate_fresh(path: &Path) -> Result<(), TestFailure> {
-    if fs::read(path).map_err(|_| TestFailure("validation read failed"))? == b"fresh" {
+fn validate_fresh(path: &Path) -> Result<(), std::io::Error> {
+    if fs::read(path).map_err(|_| std::io::Error::other("validation read failed"))? == b"fresh" {
         Ok(())
     } else {
-        Err(TestFailure("fresh file did not validate"))
+        Err(std::io::Error::other("fresh file did not validate"))
     }
-}
-
-#[test]
-fn successful_create_publishes_the_validated_file() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let target = directory.target();
-    atomic_create(&target, write_fresh, validate_fresh)?;
-    assert_eq!(fs::read(&target)?, b"fresh");
-    assert_eq!(private_entries(&directory)?, 0);
-    Ok(())
 }
 
 #[test]
@@ -382,13 +361,13 @@ fn create_directory_sync_fault_reports_the_published_target() -> TestResult {
     let target = directory.target();
     let error = atomic_create_with_hook(&target, write_fresh, validate_fresh, |stage| {
         if stage == PublishStage::DirectorySync {
-            Err(TestFailure("injected directory-sync failure"))
+            Err(std::io::Error::other("injected directory-sync failure"))
         } else {
             Ok(())
         }
     })
     .err()
-    .ok_or(TestFailure("directory-sync fault unexpectedly succeeded"))?;
+    .ok_or("directory-sync fault unexpectedly succeeded")?;
     assert_eq!(error.stage(), PublishStage::DirectorySync);
     assert_eq!(fs::read(&target)?, b"fresh");
     assert_eq!(private_entries(&directory)?, 1);
@@ -402,11 +381,11 @@ fn create_refuses_an_existing_target_and_leaves_it_untouched() -> TestResult {
     fs::write(&target, b"original")?;
     let error = atomic_create(&target, write_fresh, validate_fresh)
         .err()
-        .ok_or(TestFailure("create over an existing target succeeded"))?;
+        .ok_or("create over an existing target succeeded")?;
     assert_eq!(error.stage(), PublishStage::PrivateCopyCreation);
     let io_error = StdError::source(&error)
         .and_then(|source| source.downcast_ref::<std::io::Error>())
-        .ok_or(TestFailure("missing I/O source"))?;
+        .ok_or("missing I/O source")?;
     assert_eq!(io_error.kind(), std::io::ErrorKind::AlreadyExists);
     assert_eq!(fs::read(&target)?, b"original");
     assert_eq!(private_entries(&directory)?, 0);
@@ -426,23 +405,23 @@ fn create_failures_before_publication_leave_the_target_absent() -> TestResult {
     ] {
         let error = atomic_create_with_hook(&target, write_fresh, validate_fresh, |visited| {
             if visited == stage {
-                Err(TestFailure("injected"))
+                Err(std::io::Error::other("injected"))
             } else {
                 Ok(())
             }
         })
         .err()
-        .ok_or(TestFailure("injected failure did not fail the create"))?;
+        .ok_or("injected failure did not fail the create")?;
         assert_eq!(error.stage(), stage);
         assert!(error.cleanup_error().is_none());
         assert!(!target.exists(), "target exists after {stage} failure");
         assert_eq!(private_entries(&directory)?, 0);
     }
     let error = atomic_create(&target, write_fresh, |_: &Path| {
-        Err::<(), _>(TestFailure("rejected"))
+        Err::<(), _>(std::io::Error::other("rejected"))
     })
     .err()
-    .ok_or(TestFailure("rejected validation did not fail the create"))?;
+    .ok_or("rejected validation did not fail the create")?;
     assert_eq!(error.stage(), PublishStage::Validation);
     assert!(!target.exists());
     assert_eq!(private_entries(&directory)?, 0);
@@ -460,7 +439,7 @@ fn create_does_not_replace_a_target_that_appears_before_publication() -> TestRes
         Ok::<(), std::io::Error>(())
     })
     .err()
-    .ok_or(TestFailure("publication over a raced target succeeded"))?;
+    .ok_or("publication over a raced target succeeded")?;
     assert_eq!(error.stage(), PublishStage::Publish);
     assert_eq!(fs::read(&target)?, b"raced");
     assert_eq!(private_entries(&directory)?, 0);

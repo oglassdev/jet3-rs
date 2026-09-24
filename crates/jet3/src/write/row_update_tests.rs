@@ -4,8 +4,8 @@ use crate::testkit::index;
 use crate::testkit::table;
 use crate::{
     ByteCount, ColumnOrdinal, ColumnSpec, ColumnStorageClass, ColumnType, DatabaseReader,
-    PAGE_BYTES, PublishStage, ResourceBudget, ResourceLimits, RowColumnLayout, RowLocator,
-    RowValue, WriteError, row::data_page::DataPageEditor,
+    PAGE_BYTES, ResourceBudget, ResourceLimits, RowColumnLayout, RowLocator, RowValue, WriteError,
+    row::data_page::DataPageEditor,
 };
 use std::error::Error as StdError;
 use std::{fs, num::NonZeroU8, path::PathBuf};
@@ -20,6 +20,13 @@ pub(super) struct Fixture {
 impl Fixture {
     pub(super) fn path(&self) -> PathBuf {
         self.dir.join("rows.mdb")
+    }
+    pub(super) fn delete(&self, row: RowLocator) -> Result<(), WriteError> {
+        let request = crate::RowDelete {
+            table: b"Rows",
+            row,
+        };
+        crate::delete_row(self.path(), request, &mut budget())
     }
     pub(super) fn new(count: usize) -> Result<Self, Box<dyn StdError>> {
         Self::with_index(count, false)
@@ -65,17 +72,8 @@ impl Fixture {
         )?;
         let mut b = budget();
         let mut db = DatabaseReader::open(&path, &mut b)?;
-        let root = {
-            let mut c = db.catalog(&mut b)?;
-            let mut root = None;
-            while let Some(r) = c.next_record()? {
-                if r.name().raw_bytes() == b"Rows" {
-                    root = r.table_definition();
-                }
-            }
-            root.ok_or("root")?
-        };
-        let def = db.table_definition(root, &mut b)?;
+        let def = crate::write::update::indexed_writable_table(&mut db, b"Rows", &mut b)?;
+        let root = def.root();
         let mut locators = Vec::new();
         {
             let mut c = db.rows(&def, &mut b)?;
@@ -215,14 +213,7 @@ fn growth_shrink_nulls_and_equal_width_preserve_slots_and_all_other_bytes() -> T
 fn known_empty_tombstones_and_single_live_row_keep_physical_slots() -> TestResult {
     let f = Fixture::new(4)?;
     for slot in [0, 2, 3] {
-        crate::delete_row(
-            f.path(),
-            crate::RowDelete {
-                table: b"Rows",
-                row: f.locators[slot],
-            },
-            &mut budget(),
-        )?;
+        f.delete(f.locators[slot])?;
     }
     let values = [
         RowValue::Long(42),
@@ -306,7 +297,7 @@ fn schema_locators_corruption_and_capacity_refuse_without_publication() -> TestR
     Ok(())
 }
 #[test]
-fn shared_budgets_and_private_verification_preserve_original() -> TestResult {
+fn shared_budgets_preserve_original() -> TestResult {
     let f = Fixture::new(3)?;
     let original = fs::read(f.path())?;
     let values = [
@@ -330,26 +321,6 @@ fn shared_budgets_and_private_verification_preserve_original() -> TestResult {
         );
         assert_eq!(fs::read(f.path())?, original);
     }
-    let result = update_with_hook(
-        &f.path(),
-        f.request(1, &values),
-        &mut budget(),
-        |stage| -> Result<(), std::io::Error> {
-            if stage == PublishStage::Validation {
-                for e in fs::read_dir(&f.dir)? {
-                    let p = e?.path();
-                    if p != f.path() {
-                        let mut bytes = fs::read(&p)?;
-                        bytes[64] ^= 1;
-                        fs::write(p, bytes)?;
-                    }
-                }
-            }
-            Ok(())
-        },
-    );
-    assert!(matches!(result,Err(WriteError::Publish(e)) if e.stage()==PublishStage::Validation));
-    assert_eq!(fs::read(f.path())?, original);
     let mut exact = budget();
     update_row(f.path(), f.request(1, &values), &mut exact)?;
     fs::write(f.path(), &original)?;

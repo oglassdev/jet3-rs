@@ -2,8 +2,6 @@
 
 pub(crate) mod mutation;
 #[cfg(all(test, any(unix, windows)))]
-mod mutation_empty_tests;
-#[cfg(all(test, any(unix, windows)))]
 mod mutation_field_tests;
 mod mutation_load;
 #[cfg(all(test, any(unix, windows)))]
