@@ -7,6 +7,7 @@ mod atomic_tests;
 mod atomic_windows;
 pub(crate) mod auto_number;
 pub(crate) mod delete;
+mod driver;
 #[cfg(all(test, any(unix, windows)))]
 mod delete_compaction_tests;
 #[cfg(all(test, any(unix, windows)))]

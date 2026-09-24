@@ -45,12 +45,9 @@ where
     H: FnMut(PublishStage) -> Result<(), HE>,
     HE: StdError + Send + Sync + 'static,
 {
-    let mut database = DatabaseReader::open(path, budget)?;
-    crate::write::update::require_writable_sort_order(&database)?;
-    let definition = crate::write::update::indexed_writable_table(&mut database, table, budget)?;
-    let (edits, row) = plan(&mut database, &definition, table, values, true, budget)?;
-    edits.publish(path, database, budget, hook)?;
-    Ok(row)
+    let change = crate::relationship::mutation::Change::Insert(values);
+    super::driver::apply(path, table, change, budget, hook)?
+        .ok_or(UpdateError::Mismatch("inserted row locator"))
 }
 
 pub(crate) fn plan(

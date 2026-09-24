@@ -210,22 +210,9 @@ where
     H: FnMut(PublishStage) -> Result<(), HE>,
     HE: StdError + Send + Sync + 'static,
 {
-    let mut database = DatabaseReader::open(path, budget)?;
-    crate::write::update::require_writable_sort_order(&database)?;
-    let definition = guarded_table(&mut database, request.table, true, budget)?;
-    let options = crate::properties::value_policy::options(&mut database, &definition, budget)?;
-    crate::properties::value_policy::refuse_rules(&options, &definition)?;
-    if let Some(cascade) = crate::relationship::cascade::prepare(
-        &mut database,
-        &definition,
-        request.table,
-        crate::relationship::mutation::Change::Field(request.row, request.column, request.value),
-        budget,
-    )? {
-        return cascade.publish(path, database, budget, hook);
-    }
-    let edits = plan(&mut database, &definition, request, true, budget)?;
-    edits.publish(path, database, budget, hook)
+    let change =
+        crate::relationship::mutation::Change::Field(request.row, request.column, request.value);
+    super::driver::apply(path, request.table, change, budget, hook).map(drop)
 }
 
 pub(crate) fn plan(
