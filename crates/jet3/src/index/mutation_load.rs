@@ -61,7 +61,7 @@ pub(crate) fn load(
         };
         let location = physical.usage_map();
         let map = MapRowLocator::new(location.page(), location.row());
-        if map == MapRowLocator::new(PageNumber::new(1), 0)
+        if map == crate::alloc::mutation_map::global_locator()
             || map == table.maps().owned()
             || map == table.maps().available()
             || table.physical_indexes()[..usize::from(ordinal)]
@@ -213,7 +213,7 @@ pub(crate) fn mapped_index_pages(
             return Err(UpdateError::Mismatch("mapped index page is globally free"));
         }
         database.read_raw_page(*page, &mut bytes, budget)?;
-        if !matches!(bytes[0], 3 | 4) || bytes[1] != 1 || bytes[4..8] != owner.to_le_bytes() {
+        if !crate::alloc::mutation_map::owned_page(&bytes, &[3, 4], owner.to_le_bytes()) {
             return Err(UpdateError::Mismatch("mapped index page kind or owner"));
         }
     }

@@ -707,16 +707,17 @@ fn indexed_rows_accept_retained_separator_and_reject_wrong_subtree_bounds() -> T
         drop(db);
         let mut retained = before.clone();
         // EXP-0225: delete the boundary record while retaining its old branch fence.
-        let removed = crate::row::delete_page::remove(
+        let removed = crate::row::data_page::DataPageEditor::open(
             row.page(),
             table.root(),
             page(&before, row.page())?,
-            row.slot(),
             &mut budget(),
-        )?;
-        let count = crate::row::delete_page::decrement_count(
+        )?
+        .remove(row.slot(), false, &mut budget())?;
+        let count = crate::row::data_page::count_table_row(
             page(&before, table.root())?,
             201,
+            false,
             &mut budget(),
         )?;
         let row_offset = row.page().get() as usize * PAGE_BYTES;

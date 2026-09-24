@@ -1,7 +1,6 @@
 //! Full scalar and long-value row replacement using the checked row encoder and exact publication.
 use crate::{
-    ColumnPhysicalType, ColumnStorageClass, DatabaseReader, PAGE_BYTES, PublishStage,
-    ResourceBudget, RowColumnLayout, RowLocator, RowValue, UpdateError,
+    DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget, RowLocator, RowValue, UpdateError,
 };
 use std::{convert::Infallible, error::Error as StdError, path::Path};
 
@@ -50,23 +49,8 @@ where
     H: FnMut(PublishStage) -> Result<(), HE>,
     HE: StdError + Send + Sync + 'static,
 {
-    let mut database = DatabaseReader::open(path, budget)?;
-    crate::write::update::require_writable_sort_order(&database)?;
-    let definition =
-        crate::write::update::indexed_writable_table(&mut database, request.table, budget)?;
-    let options = crate::properties::value_policy::options(&mut database, &definition, budget)?;
-    crate::properties::value_policy::refuse_rules(&options, &definition)?;
-    if let Some(cascade) = crate::relationship::cascade::prepare(
-        &mut database,
-        &definition,
-        request.table,
-        crate::relationship::mutation::Change::Replace(request.row, request.values),
-        budget,
-    )? {
-        return cascade.publish(path, database, budget, hook);
-    }
-    let edits = plan(&mut database, &definition, request, true, budget)?;
-    edits.publish(path, database, budget, hook)
+    let change = crate::relationship::mutation::Change::Replace(request.row, request.values);
+    super::driver::apply(path, request.table, change, budget, hook).map(drop)
 }
 
 pub(crate) fn plan(
@@ -93,21 +77,7 @@ pub(crate) fn plan(
         Some(crate::index::mutation::load(database, definition, budget)?)
     };
     let columns = definition.columns();
-    if columns.len() > usize::from(u8::MAX) {
-        return Err(UpdateError::Unsupported("row column count"));
-    }
-    let mut layout = [RowColumnLayout::new(
-        ColumnPhysicalType::Long,
-        ColumnStorageClass::Fixed { offset: 0 },
-        4,
-    ); u8::MAX as usize];
-    budget.charge_items(columns.len() as u64)?;
-    for (ordinal, (target, column)) in layout.iter_mut().zip(columns).enumerate() {
-        if usize::from(column.ordinal().get()) != ordinal {
-            return Err(UpdateError::Unsupported("noncontiguous column ordinals"));
-        }
-        *target = column.into();
-    }
+    let layout = super::driver::row_layout(columns, budget)?;
     let mut observed = 0_u32;
     let mut found = false;
     {
@@ -153,17 +123,12 @@ pub(crate) fn plan(
         )?;
     }
     let mut minimum = [0; PAGE_BYTES];
-    let nulls = [RowValue::Null; u8::MAX as usize];
-    let minimum_length = crate::encode_row(
-        &layout[..columns.len()],
-        &nulls[..columns.len()],
-        &mut minimum,
-        budget,
-    )?
-    .get() as usize;
+    let minimum_length =
+        crate::row::insert_page::minimum_row(&layout[..columns.len()], &mut minimum, budget)?;
     let mut count_page = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut count_page, budget)?;
-    crate::row::update_page::check_count(&count_page, observed, budget)?;
+    budget.charge_work_units(4)?;
+    crate::row::data_page::check_table_rows(&count_page, observed)?;
     let mut edits = crate::write::page_edits::PageEdits::new(database.geometry().page_count());
     long_values.stage(database, &mut edits, budget)?;
     crate::row::mutation_place::replace(

@@ -3,14 +3,14 @@
 //! sibling slots. The inline cutoff and packing remain writer policies.
 use crate::{
     ByteCount, ColumnOrdinal, ColumnPhysicalType, DatabaseReader, ExternalLongValueStorage,
-    FileSource, LongValueMapDefinition, MapRowLocator, PAGE_BYTES, PageImage, PageNumber,
-    PageOffset, ResourceBudget, RowColumnLayout, RowLocator, RowValue, TableDefinition,
-    UpdateError,
+    FileSource, LongValueMapDefinition, PAGE_BYTES, PageImage, PageNumber, PageOffset,
+    ResourceBudget, RowColumnLayout, RowLocator, RowValue, TableDefinition, UpdateError,
     long_value::writer::{
         HEADER_LEN, MAX_CHAINED_FRAGMENT, MAX_SINGLE_PAGE_PAYLOAD,
         MAX_SINGLE_PAGE_PROPERTY_PAYLOAD, encode_chained_row, encode_inline_long_value,
         external_long_value_header,
     },
+    row::{data_page::DataPageEditor, delete_page::Deletion},
     write::page_edits::{PageEdits, reserve},
 };
 
@@ -75,21 +75,14 @@ impl LongValues {
                 if page.removed[usize::from(slot) / 64] & (1 << (slot % 64)) == 0 {
                     continue;
                 }
-                let deletion = crate::row::delete_page::remove(
-                    page.page,
-                    OWNER,
-                    page.image.as_bytes(),
-                    slot,
-                    budget,
-                )?;
-                if matches!(deletion, crate::row::delete_page::Deletion::Released(_)) {
+                let deletion =
+                    DataPageEditor::open(page.page, OWNER, page.image.as_bytes(), budget)?
+                        .remove(slot, false, budget)?;
+                if matches!(deletion, Deletion::Released(_)) {
                     page.column = None;
                     page.storage = None;
                 }
-                page.image = match deletion {
-                    crate::row::delete_page::Deletion::Retained(image)
-                    | crate::row::delete_page::Deletion::Released(image) => image,
-                };
+                page.image = deletion.into_image();
                 page.changed = true;
             }
         }
@@ -240,13 +233,10 @@ impl LongValues {
             {
                 continue;
             }
-            if let Some((image, slot)) = crate::row::insert_page::append(
-                page.page,
-                OWNER,
-                page.image.as_bytes(),
-                bytes,
-                budget,
-            )? {
+            if let Some((image, slot)) =
+                DataPageEditor::open(page.page, OWNER, page.image.as_bytes(), budget)?
+                    .append(bytes, None, budget)?
+            {
                 page.image = image;
                 page.changed = true;
                 return Ok(RowLocator::new(page.page, slot));
@@ -303,7 +293,7 @@ impl LongValues {
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
     ) -> Result<(), UpdateError> {
-        let global = MapRowLocator::new(PageNumber::new(1), 0);
+        let global = crate::alloc::mutation_map::global_locator();
         for page in self.pages {
             if !page.changed {
                 continue;
@@ -317,7 +307,7 @@ impl LongValues {
             }
             let available = page.column.is_some()
                 && page.storage == Some(ExternalLongValueStorage::SinglePage)
-                && crate::row::insert_page::has_capacity(page.image.as_bytes(), 1);
+                && crate::row::data_page::has_capacity(page.image.as_bytes(), 1);
             budget.charge_items(self.maps.len() as u64)?;
             for (ordinal, map) in self.maps.iter().enumerate() {
                 let before = page.original_column == Some(ordinal);

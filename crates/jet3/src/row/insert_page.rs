@@ -1,156 +1,74 @@
-//! EXP-0162 appends within the EXP-0305 slot limit and EXP-0060 directory layout.
+//! EXP-0162 appends within the EXP-0305 slot limit and EXP-0060 directory layout,
+//! and new-page placement when no existing data page can hold the row.
 use crate::{
     DatabaseReader, FileSource, PAGE_BYTES, PageImage, PageImageError, PageNumber, PageOffset,
     ResourceBudget, TableDefinition, UpdateError,
     alloc::patch::{AllocationChange, MapPatches},
-    definition::header::ROW_COUNT as TABLE_ROW_COUNT,
     format::{
-        data_page_directory::{DIRECTORY_OFFSET, ENTRY_LEN, FREE_SPACE_OFFSET, ROW_COUNT_OFFSET},
+        data_page_directory::{ENTRY_LEN, ROW_COUNT_OFFSET},
         page_image::MAX_BUILT_ROWS,
     },
-    row::directory::{RowDirectory, RowSlot},
+    row::{
+        data_page::{DataPageEditor, write_free, write_slot},
+        directory::RowSlot,
+    },
 };
 
-pub(crate) fn append(
-    page: PageNumber,
-    owner: PageNumber,
-    source: &[u8; PAGE_BYTES],
-    row: &[u8],
-    budget: &mut ResourceBudget,
-) -> Result<Option<(PageImage, u8)>, UpdateError> {
-    append_inner(page, owner, source, row, None, budget)
-}
-
-pub(crate) fn append_physical(
-    page: PageNumber,
-    owner: PageNumber,
-    source: &[u8; PAGE_BYTES],
-    row: &[u8],
-    state: RowSlot,
-    budget: &mut ResourceBudget,
-) -> Result<Option<(PageImage, u8)>, UpdateError> {
-    append_inner(page, owner, source, row, Some(state), budget)
-}
-
-fn append_inner(
-    page: PageNumber,
-    owner: PageNumber,
-    source: &[u8; PAGE_BYTES],
-    row: &[u8],
-    state: Option<RowSlot>,
-    budget: &mut ResourceBudget,
-) -> Result<Option<(PageImage, u8)>, UpdateError> {
-    let directory = RowDirectory::validate(page, owner, source, budget)?;
-    let count = directory.row_count();
-    if count == 0 {
-        return Ok(None);
-    }
-    budget.charge_items(u64::from(count))?;
-    let mut live = 0;
-    for ordinal in 0..count {
-        let entry = directory.entry(source, ordinal as u8)?;
-        if state.is_some() {
-            if RowSlot::read(&entry)? != RowSlot::Deleted {
-                live += 1;
-            }
-            continue;
+impl DataPageEditor<'_> {
+    /// EXP-0162 append within the EXP-0305 slot limit; `None` when the row does not fit.
+    pub(crate) fn append(
+        &self,
+        row: &[u8],
+        physical: Option<RowSlot>,
+        budget: &mut ResourceBudget,
+    ) -> Result<Option<(PageImage, u8)>, UpdateError> {
+        let count = self.directory.row_count();
+        if count == 0 {
+            return Ok(None);
         }
-        if entry.range().is_empty() && entry.hidden() && entry.overflow() {
-            continue;
+        budget.charge_items(u64::from(count))?;
+        if self.live_rows(physical.is_some(), "page contains nonordinary row slots")? == 0 {
+            return Ok(None);
         }
-        if entry.hidden() || entry.overflow() || entry.range().is_empty() {
-            return Err(UpdateError::Unsupported(
-                "page contains nonordinary row slots",
-            ));
+        let packed = self.packed("data page free-byte count")?;
+        let state = physical.unwrap_or(RowSlot::Ordinary);
+        state.check_length(row.len())?;
+        if state == RowSlot::Deleted {
+            return Err(UpdateError::Mismatch("appending a deleted row"));
         }
-        live += 1;
+        let needed = row
+            .len()
+            .checked_add(ENTRY_LEN)
+            .ok_or(UpdateError::Mismatch("row width"))?;
+        if count >= MAX_BUILT_ROWS || packed.free < needed {
+            return Ok(None);
+        }
+        let start = packed
+            .lowest
+            .checked_sub(row.len())
+            .ok_or(UpdateError::Mismatch("row start"))?;
+        let new_free =
+            u16::try_from(packed.free - needed).map_err(|_| UpdateError::Mismatch("free bytes"))?;
+        let word =
+            u16::try_from(start).map_err(|_| UpdateError::Mismatch("row offset"))? | state.flags();
+        let mut patched = PageImage::from_bytes(*self.source);
+        patched.write_at(PageOffset::new(start as u64), row, budget)?;
+        write_slot(&mut patched, count, word, budget)?;
+        write_free(&mut patched, new_free, budget)?;
+        patched.write_at(
+            PageOffset::new(ROW_COUNT_OFFSET as u64),
+            &(count + 1).to_le_bytes(),
+            budget,
+        )?;
+        Ok(Some((patched, count as u8)))
     }
-    if live == 0 {
-        return Ok(None);
-    }
-    let packed_start = directory.entry(source, (count - 1) as u8)?.range().start;
-    let directory_end = DIRECTORY_OFFSET + ENTRY_LEN * usize::from(count);
-    let free = usize::from(u16::from_le_bytes([
-        source[FREE_SPACE_OFFSET],
-        source[FREE_SPACE_OFFSET + 1],
-    ]));
-    if free != packed_start - directory_end {
-        return Err(UpdateError::Mismatch("data page free-byte count"));
-    }
-    let state = state.unwrap_or(RowSlot::Ordinary);
-    state.check_length(row.len())?;
-    if state == RowSlot::Deleted {
-        return Err(UpdateError::Mismatch("appending a deleted row"));
-    }
-    let needed = row
-        .len()
-        .checked_add(ENTRY_LEN)
-        .ok_or(UpdateError::Mismatch("row width"))?;
-    if count >= MAX_BUILT_ROWS || free < needed {
-        return Ok(None);
-    }
-    let start = packed_start
-        .checked_sub(row.len())
-        .ok_or(UpdateError::Mismatch("row start"))?;
-    let new_free = u16::try_from(free - needed).map_err(|_| UpdateError::Mismatch("free bytes"))?;
-    let word =
-        u16::try_from(start).map_err(|_| UpdateError::Mismatch("row offset"))? | state.flags();
-    let mut patched = PageImage::from_bytes(*source);
-    patched.write_at(PageOffset::new(start as u64), row, budget)?;
-    patched.write_at(
-        PageOffset::new(directory_end as u64),
-        &word.to_le_bytes(),
-        budget,
-    )?;
-    patched.write_at(
-        PageOffset::new(FREE_SPACE_OFFSET as u64),
-        &new_free.to_le_bytes(),
-        budget,
-    )?;
-    patched.write_at(
-        PageOffset::new(ROW_COUNT_OFFSET as u64),
-        &(count + 1).to_le_bytes(),
-        budget,
-    )?;
-    Ok(Some((patched, count as u8)))
-}
-
-pub(crate) fn increment_count(
-    source: &[u8; PAGE_BYTES],
-    observed_rows: u32,
-    budget: &mut ResourceBudget,
-) -> Result<PageImage, UpdateError> {
-    if source[TABLE_ROW_COUNT..TABLE_ROW_COUNT + 4] != observed_rows.to_le_bytes() {
-        return Err(UpdateError::Mismatch("table row count"));
-    }
-    let count = observed_rows
-        .checked_add(1)
-        .ok_or(UpdateError::Mismatch("table row count overflow"))?;
-    let mut patched = PageImage::from_bytes(*source);
-    patched.write_at(
-        PageOffset::new(TABLE_ROW_COUNT as u64),
-        &count.to_le_bytes(),
-        budget,
-    )?;
-    Ok(patched)
-}
-
-/// Candidate availability policy: an appended minimum row and directory slot fit.
-/// EXP-0060 supplies the physical slots; this does not model DAO's allocation policy.
-pub(crate) fn has_capacity(page: &[u8; PAGE_BYTES], minimum: usize) -> bool {
-    let count = u16::from_le_bytes([page[ROW_COUNT_OFFSET], page[ROW_COUNT_OFFSET + 1]]);
-    let free = usize::from(u16::from_le_bytes([
-        page[FREE_SPACE_OFFSET],
-        page[FREE_SPACE_OFFSET + 1],
-    ]));
-    count < MAX_BUILT_ROWS && minimum.checked_add(ENTRY_LEN).is_some_and(|n| free >= n)
 }
 
 pub(crate) fn minimum_length(
     columns: &[crate::ColumnDefinition],
     budget: &mut ResourceBudget,
 ) -> Result<usize, UpdateError> {
-    use crate::{ColumnPhysicalType, ColumnStorageClass, RowColumnLayout, RowValue};
+    use crate::{ColumnPhysicalType, ColumnStorageClass, RowColumnLayout};
     if columns.len() > u8::MAX as usize {
         return Err(UpdateError::Unsupported("row column count"));
     }
@@ -163,15 +81,19 @@ pub(crate) fn minimum_length(
     for (entry, column) in layout.iter_mut().zip(columns) {
         *entry = column.into();
     }
-    let nulls = [RowValue::Null; u8::MAX as usize];
     let mut encoded = [0; PAGE_BYTES];
-    Ok(crate::encode_row(
-        &layout[..columns.len()],
-        &nulls[..columns.len()],
-        &mut encoded,
-        budget,
-    )?
-    .get() as usize)
+    minimum_row(&layout[..columns.len()], &mut encoded, budget)
+}
+
+/// Encodes the all-null row, the smallest row `layout` can store.
+pub(crate) fn minimum_row(
+    layout: &[crate::RowColumnLayout],
+    output: &mut [u8; PAGE_BYTES],
+    budget: &mut ResourceBudget,
+) -> Result<usize, UpdateError> {
+    let nulls = [crate::RowValue::Null; u8::MAX as usize];
+    let nulls = nulls.get(..layout.len()).unwrap_or(&nulls);
+    Ok(crate::encode_row(layout, nulls, output, budget)?.get() as usize)
 }
 
 // Released-page reuse (EXP-0227) or single EOF allocation: SRC-0020/EXP-0057 map framing and EXP-0051 free bits;
@@ -255,7 +177,7 @@ fn find_released_page(
     for number in free {
         budget.charge_work_units(1)?;
         database.read_raw_page(number, &mut candidate, budget)?;
-        if candidate[0] != 9 || candidate[1] != 1 || candidate[4..8] != owner.to_le_bytes() {
+        if !crate::alloc::mutation_map::owned_page(&candidate, &[9], owner.to_le_bytes()) {
             continue;
         }
         let directory = crate::row::directory::RowDirectory::validate(

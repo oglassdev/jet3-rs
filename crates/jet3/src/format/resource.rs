@@ -432,27 +432,47 @@ pub(crate) fn reserve<T>(
     additional: usize,
     budget: &mut ResourceBudget,
 ) -> Result<(), Error> {
-    let needed = items
-        .len()
-        .checked_add(additional)
-        .ok_or(Error::Arithmetic {
+    grow(items, additional, 1, budget).map_err(|error| match error {
+        GrowError::Size => Error::Arithmetic {
             operation: "size bounded vector",
-        })?;
+        },
+        GrowError::Budget(error) => error,
+        GrowError::OutOfMemory => Error::Io {
+            operation: "reserve bounded vector",
+            kind: std::io::ErrorKind::OutOfMemory,
+        },
+    })
+}
+
+/// Why [`grow`] could not reserve room.
+pub(crate) enum GrowError {
+    Size,
+    Budget(Error),
+    OutOfMemory,
+}
+
+/// Reserves room for `additional` items, at least doubling capacity. Charges the
+/// new bytes, then `moved_units` work units per existing item.
+pub(crate) fn grow<T>(
+    items: &mut Vec<T>,
+    additional: usize,
+    moved_units: u64,
+    budget: &mut ResourceBudget,
+) -> Result<(), GrowError> {
+    let needed = items.len().checked_add(additional).ok_or(GrowError::Size)?;
     if needed <= items.capacity() {
         return Ok(());
     }
     let capacity = needed.max(items.capacity().saturating_mul(2));
     let bytes = (capacity - items.capacity())
         .checked_mul(std::mem::size_of::<T>())
-        .ok_or(Error::Arithmetic {
-            operation: "size bounded vector",
-        })?;
-    budget.charge_allocation(ByteCount::from_usize(bytes)?)?;
-    budget.charge_work_units(items.len() as u64)?;
+        .ok_or(GrowError::Size)?;
+    let bytes = ByteCount::from_usize(bytes).map_err(GrowError::Budget)?;
+    budget.charge_allocation(bytes).map_err(GrowError::Budget)?;
+    budget
+        .charge_work_units((items.len() as u64).saturating_mul(moved_units))
+        .map_err(GrowError::Budget)?;
     items
         .try_reserve_exact(capacity - items.len())
-        .map_err(|_| Error::Io {
-            operation: "reserve bounded vector",
-            kind: std::io::ErrorKind::OutOfMemory,
-        })
+        .map_err(|_| GrowError::OutOfMemory)
 }

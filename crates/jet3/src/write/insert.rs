@@ -1,7 +1,7 @@
 //! Existing-row insertion composed from EXP-0060/0061 encoding and EXP-0162 slots.
 use crate::{
-    ColumnPhysicalType, ColumnStorageClass, DatabaseReader, PAGE_BYTES, PublishStage,
-    ResourceBudget, RowColumnLayout, RowLocator, RowValue, UpdateError,
+    DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget, RowLocator, RowValue, UpdateError,
+    row::data_page::DataPageEditor,
 };
 use std::convert::Infallible;
 use std::error::Error as StdError;
@@ -45,12 +45,9 @@ where
     H: FnMut(PublishStage) -> Result<(), HE>,
     HE: StdError + Send + Sync + 'static,
 {
-    let mut database = DatabaseReader::open(path, budget)?;
-    crate::write::update::require_writable_sort_order(&database)?;
-    let definition = crate::write::update::indexed_writable_table(&mut database, table, budget)?;
-    let (edits, row) = plan(&mut database, &definition, table, values, true, budget)?;
-    edits.publish(path, database, budget, hook)?;
-    Ok(row)
+    let change = crate::relationship::mutation::Change::Insert(values);
+    super::driver::apply(path, table, change, budget, hook)?
+        .ok_or(UpdateError::Mismatch("inserted row locator"))
 }
 
 pub(crate) fn plan(
@@ -77,21 +74,7 @@ pub(crate) fn plan(
         Some(crate::index::mutation::load(database, definition, budget)?)
     };
     let columns = definition.columns();
-    if columns.len() > usize::from(u8::MAX) {
-        return Err(UpdateError::Unsupported("row column count"));
-    }
-    let mut layout = [RowColumnLayout::new(
-        ColumnPhysicalType::Long,
-        ColumnStorageClass::Fixed { offset: 0 },
-        4,
-    ); u8::MAX as usize];
-    budget.charge_items(columns.len() as u64)?;
-    for (ordinal, (target, column)) in layout.iter_mut().zip(columns).enumerate() {
-        if usize::from(column.ordinal().get()) != ordinal {
-            return Err(UpdateError::Unsupported("noncontiguous column ordinals"));
-        }
-        *target = column.into();
-    }
+    let layout = super::driver::row_layout(columns, budget)?;
     crate::properties::value_policy::check(database, definition, values, budget)?;
     let mut long_values =
         crate::long_value::mutation::LongValues::load(database, definition, None, budget)?;
@@ -123,7 +106,7 @@ pub(crate) fn plan(
     let mut source_definition = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut source_definition, budget)?;
     let mut patched_definition =
-        crate::row::insert_page::increment_count(&source_definition, observed_rows, budget)?;
+        crate::row::data_page::count_table_row(&source_definition, observed_rows, true, budget)?;
     if let Some(auto) = auto {
         auto.write(&mut patched_definition, budget)?;
     }
@@ -148,14 +131,13 @@ pub(crate) fn plan(
             return Err(UpdateError::Mismatch("available page not owned"));
         }
         database.read_raw_page(page, &mut source_page, budget)?;
-        if let Some((patched, slot)) = crate::row::insert_page::append_physical(
-            page,
-            definition.root(),
-            &source_page,
-            &encoded[..length],
-            crate::row::directory::RowSlot::Ordinary,
-            budget,
-        )? {
+        if let Some((patched, slot)) =
+            DataPageEditor::open(page, definition.root(), &source_page, budget)?.append(
+                &encoded[..length],
+                Some(crate::row::directory::RowSlot::Ordinary),
+                budget,
+            )?
+        {
             break Some((page, patched, slot));
         }
     };
@@ -175,7 +157,7 @@ pub(crate) fn plan(
             page,
             crate::alloc::patch::AllocationChange::Retain {
                 before: true,
-                available: crate::row::insert_page::has_capacity(patched.as_bytes(), minimum),
+                available: crate::row::data_page::has_capacity(patched.as_bytes(), minimum),
             },
             budget,
         )?;
@@ -183,14 +165,8 @@ pub(crate) fn plan(
         RowLocator::new(page, slot)
     } else {
         let mut minimum = [0; PAGE_BYTES];
-        let nulls = [RowValue::Null; u8::MAX as usize];
-        let minimum_length = crate::encode_row(
-            &layout[..columns.len()],
-            &nulls[..columns.len()],
-            &mut minimum,
-            budget,
-        )?
-        .get() as usize;
+        let minimum_length =
+            crate::row::insert_page::minimum_row(&layout[..columns.len()], &mut minimum, budget)?;
         let plan = crate::row::insert_page::plan_eof_insert(
             database,
             definition,

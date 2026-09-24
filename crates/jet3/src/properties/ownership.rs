@@ -1,7 +1,7 @@
 //! EXP-0077/0266: catalog properties have exclusive per-column LVAL ownership.
 use crate::{
-    ColumnOrdinal, DatabaseReader, MapRowLocator, PageNumber, ReadAt, ResourceBudget,
-    TableDefinition, UpdateError, alloc::mutation_map::MapBits, write::page_edits::reserve,
+    ColumnOrdinal, DatabaseReader, MapRowLocator, ReadAt, ResourceBudget, TableDefinition,
+    UpdateError, alloc::mutation_map::MapBits, write::page_edits::reserve,
 };
 
 pub(crate) fn load<S: ReadAt>(
@@ -17,7 +17,11 @@ pub(crate) fn load<S: ReadAt>(
         .ok_or(UpdateError::Mismatch("catalog property allocation maps"))?;
     let owned = MapBits::load(database, maps.owned(), budget)?;
     let available = MapBits::load(database, maps.available(), budget)?;
-    let global = MapBits::load(database, MapRowLocator::new(PageNumber::new(1), 0), budget)?;
+    let global = MapBits::load(
+        database,
+        crate::alloc::mutation_map::global_locator(),
+        budget,
+    )?;
     if owned.overlaps(&available, budget)?
         || owned.overlaps(&global, budget)?
         || available.overlaps(&global, budget)?

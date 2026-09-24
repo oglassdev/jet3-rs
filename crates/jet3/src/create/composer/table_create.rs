@@ -31,9 +31,6 @@ use crate::{
 
 use super::*;
 
-/// `EXP-0093`: `MSysObjects` `Flags` of a created user table.
-const USER_FLAGS: i32 = 0;
-
 /// A create with its pages assigned and its map-page rows laid out.
 #[derive(Debug, Clone)]
 pub(super) struct PlannedCreate<'a> {
@@ -383,25 +380,14 @@ impl<'a> PlannedCreate<'a> {
             .contains_key(kinds, values, budget)
     }
 
-    /// Returns the catalog row the create adds (`EXP-0087`).
-    pub(super) const fn catalog_seed(&self) -> CatalogSeed<'a> {
-        CatalogSeed {
-            id: self.plan.object_id(),
-            parent: TABLES_ID,
-            name: self.spec.name,
-            kind: 1,
-            owner: CATALOG_OWNER_0301,
-            flags: USER_FLAGS,
-        }
+    /// Returns the catalog row the create adds.
+    pub(super) const fn catalog_seed(&self) -> ObjectRow<'a> {
+        ObjectRow::table(self.plan.object_id(), TABLES_ID, self.spec.name)
     }
 
-    /// Returns the two access-control rows the create adds (`EXP-0087`).
-    pub(super) const fn ace_seeds(&self) -> [AceSeed; 2] {
-        let id = self.plan.object_id();
-        [
-            ace(id, b"\x03\x01", 983294, false),
-            ace(id, b"\x02\x01", 1048319, false),
-        ]
+    /// Returns the two access-control rows the create adds.
+    pub(super) const fn ace_seeds(&self) -> [AceRow; 2] {
+        AceRow::table_grants(self.plan.object_id())
     }
 
     /// Appends the create's pages in `EXP-0093` order: definition root, map

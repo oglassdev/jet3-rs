@@ -2,7 +2,9 @@
 use crate::{
     ByteCount, DataPageBuilder, DatabaseReader, ExtendedUsageMapEncoder, FileSource,
     InlineUsageMapEncoder, MapRowLocator, PageNumber, ResourceBudget, UpdateError,
-    schema::definition::allocate, write::page_edits::PageEdits,
+    row::{data_page::DataPageEditor, delete_page::Deletion},
+    schema::definition::allocate,
+    write::page_edits::PageEdits,
 };
 
 pub(crate) fn create(
@@ -95,15 +97,10 @@ pub(crate) fn retire(
         }
         let mut bytes = [0; crate::PAGE_BYTES];
         database.read_raw_page(locator.page(), &mut bytes, budget)?;
-        let deletion = crate::row::delete_page::remove_physical(
-            locator.page(),
-            PageNumber::new(0),
-            &bytes,
-            locator.row(),
-            budget,
-        )?;
+        let deletion = DataPageEditor::open(locator.page(), PageNumber::new(0), &bytes, budget)?
+            .remove(locator.row(), true, budget)?;
         let mut edits = PageEdits::new(database.geometry().page_count());
-        if matches!(deletion, crate::row::delete_page::Deletion::Released(_)) {
+        if matches!(deletion, Deletion::Released(_)) {
             edits.map_bit(
                 database,
                 crate::alloc::mutation_map::global_locator(),
@@ -113,11 +110,7 @@ pub(crate) fn retire(
                 budget,
             )?;
         }
-        let image = match deletion {
-            crate::row::delete_page::Deletion::Released(image)
-            | crate::row::delete_page::Deletion::Retained(image) => image,
-        };
-        edits.set_image(database, locator.page(), image, budget)?;
+        edits.set_image(database, locator.page(), deletion.into_image(), budget)?;
         for span in removed.spans {
             if span.page != locator.page() {
                 edits.map_bit(

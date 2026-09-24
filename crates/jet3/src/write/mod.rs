@@ -13,6 +13,7 @@ mod delete_compaction_tests;
 mod delete_release_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod delete_tests;
+mod driver;
 pub(crate) mod field_update;
 pub(crate) mod insert;
 #[cfg(all(test, any(unix, windows)))]

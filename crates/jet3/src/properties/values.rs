@@ -1,11 +1,33 @@
 //! Catalog LvProp values and shared external ownership from EXP-0077/0266.
 use crate::{
-    ByteCount, ColumnOrdinal, ColumnPropertyError, DatabaseReader, InlineLongValue, LongValue,
-    LongValueChunkValue, LongValueReference, PageNumber, ReadAt, ResourceBudget, TableDefinition,
-    TextCodePage, ValueKind,
+    ByteCount, ColumnOrdinal, ColumnPropertyError, DatabaseReader, LongValue, LongValueReference,
+    PageNumber, ReadAt, ResourceBudget, TableDefinition, TextCodePage, ValueKind,
     alloc::mutation_map::MapBits,
     properties::{blob::PropertyBlob, reader::PropertyOptions},
 };
+
+/// A catalog row's stored `LvProp` before any external payload is read.
+pub(crate) enum StoredProperties<'a> {
+    Null,
+    Inline(&'a [u8]),
+    External(LongValueReference),
+}
+
+impl<'a> StoredProperties<'a> {
+    /// Classifies an `LvProp` value; `None` for any other value kind.
+    pub(crate) fn of(kind: &ValueKind<'a>) -> Option<Self> {
+        match kind {
+            ValueKind::Null => Some(Self::Null),
+            ValueKind::LongValue(LongValue::Inline { value, .. }) => {
+                Some(Self::Inline(value.raw_bytes()))
+            }
+            ValueKind::LongValue(LongValue::External(reference)) => {
+                Some(Self::External(*reference))
+            }
+            _ => None,
+        }
+    }
+}
 
 enum Payload {
     Null,
@@ -56,13 +78,11 @@ impl Properties {
                 let value = row
                     .value(property, TextCodePage::Windows1252)?
                     .ok_or(ColumnPropertyError::Invalid("catalog LvProp"))?;
-                let payload = match value.kind() {
-                    ValueKind::Null => Payload::Null,
-                    ValueKind::LongValue(LongValue::Inline { value, .. }) => {
-                        let source = match value {
-                            InlineLongValue::Text(text) => text.raw_bytes(),
-                            InlineLongValue::Binary(bytes) => bytes,
-                        };
+                let stored = StoredProperties::of(value.kind())
+                    .ok_or(ColumnPropertyError::Invalid("catalog LvProp type"))?;
+                let payload = match stored {
+                    StoredProperties::Null => Payload::Null,
+                    StoredProperties::Inline(source) => {
                         let mut saved = [0; crate::PAGE_BYTES];
                         let length = source.len();
                         saved
@@ -73,10 +93,7 @@ impl Properties {
                         bytes.extend_from_slice(&saved[..length]);
                         Payload::Inline(bytes)
                     }
-                    ValueKind::LongValue(LongValue::External(reference)) => {
-                        Payload::External(*reference)
-                    }
-                    _ => return Err(ColumnPropertyError::Invalid("catalog LvProp type")),
+                    StoredProperties::External(reference) => Payload::External(reference),
                 };
                 crate::format::resource::reserve(&mut values, 1, row.budget_mut())?;
                 values.push((root, payload));
@@ -138,10 +155,7 @@ impl Properties {
                             "property reference outside column map",
                         ));
                     }
-                    let source = match chunk.value() {
-                        LongValueChunkValue::Text(text) => text.raw_bytes(),
-                        LongValueChunkValue::Binary(bytes) => bytes,
-                    };
+                    let source = chunk.value().raw_bytes();
                     if source.len() > reference.length() as usize - bytes.len() {
                         return Err(ColumnPropertyError::Invalid("property declared length"));
                     }

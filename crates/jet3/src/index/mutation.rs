@@ -146,7 +146,7 @@ impl MutableIndex {
             let location = physical.usage_map();
             edits.map_bit(
                 database,
-                MapRowLocator::new(PageNumber::new(1), 0),
+                crate::alloc::mutation_map::global_locator(),
                 page,
                 true,
                 false,

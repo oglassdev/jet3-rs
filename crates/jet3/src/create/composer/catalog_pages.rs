@@ -215,8 +215,8 @@ impl CatalogPages {
 
     pub(super) fn new_with_extras(
         creates: &[PlannedCreate<'_>],
-        extra_objects: &[CatalogSeed<'_>],
-        extra_aces: &[AceSeed],
+        extra_objects: &[ObjectRow<'_>],
+        extra_aces: &[AceRow],
         budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
         let mut next_page = creates
