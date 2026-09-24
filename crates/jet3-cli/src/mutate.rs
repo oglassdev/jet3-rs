@@ -15,7 +15,7 @@ pub(crate) const HELP: &str = "\
   jet3-cli mutate <file.mdb> --input <request.json|->
 
 mutate applies one insert, update, replace or delete JSON request through the public API.
-Targets use exact CP1252 table names; update/replace/delete require a current page/slot.
+Targets use exact database-code-page table names; update/replace/delete require a current page/slot.
 Callers must exclude concurrent writers. See README.md for current library bounds.
 ";
 #[derive(Debug)]
@@ -125,7 +125,7 @@ fn resolve(
 }
 
 pub(crate) fn run(command: &MutationCommand) -> Result<String, Failure> {
-    let request: Request = values::read_request(&command.input)?;
+    let request: Request = crate::names::read_request(&command.input, &command.path)?;
     let mut budget = values::budget();
     let (operation, locator) = match &request {
         Request::Insert { table, values } => {

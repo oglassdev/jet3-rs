@@ -64,9 +64,9 @@ pub(crate) fn rename_table(
     new: &[u8],
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    crate::schema_edit::name(new, 64)?;
     let (relationships, updates) =
         crate::schema_publish::apply(file, journal, budget, |database, budget| {
+            let order = database.header().sort_order();
             let selected = crate::update::indexed_writable_table(database, old, budget)?;
             crate::schema_table::validate_name(database, new, Some(selected.root()), budget)?;
             crate::relationship_catalog::validate(database, budget)?;
@@ -83,7 +83,9 @@ pub(crate) fn rename_table(
                     if row
                         .field(field)
                         .and_then(|field| field.raw_bytes())
-                        .is_some_and(|name| crate::catalog_name_key::catalog_names_equal(name, old))
+                        .is_some_and(|name| {
+                            crate::catalog_name_key::catalog_names_equal_for(order, name, old)
+                        })
                     {
                         let locator = row.locator();
                         reserve(&mut updates, 1, row.budget_mut())?;

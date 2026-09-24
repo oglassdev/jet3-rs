@@ -19,8 +19,11 @@ pub(crate) fn read_column<'value>(
     row: &mut RowView<'value, '_>,
     column: ColumnOrdinal,
 ) -> Result<RowValue<'value>, UpdateError> {
+    let page = row
+        .column_code_page(column)
+        .unwrap_or(TextCodePage::Windows1252);
     let value = row
-        .value(column, TextCodePage::Windows1252)?
+        .value(column, page)?
         .ok_or(UpdateError::NotFound("index key column"))?;
     Ok(match value.kind() {
         ValueKind::Null => RowValue::Null,

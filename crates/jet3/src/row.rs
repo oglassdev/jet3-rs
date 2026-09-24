@@ -80,6 +80,11 @@ impl<'row> RowView<'row, '_> {
         self.raw
     }
 
+    pub(crate) fn column_code_page(&self, ordinal: ColumnOrdinal) -> Option<TextCodePage> {
+        let column = self.definition.columns().get(usize::from(ordinal.get()))?;
+        crate::SortOrder::from_encoding_context(column.raw_encoding_context())?.code_page()
+    }
+
     pub(crate) fn budget_mut(&mut self) -> &mut ResourceBudget {
         self.budget
     }

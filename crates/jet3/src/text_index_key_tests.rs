@@ -120,7 +120,10 @@ fn text_shortening_composite_boundaries_and_empty_presence_are_checked() -> Test
                     NumericIndexField {
                         column: 0,
                         direction,
-                        kind: NumericKeyType::Text { max_len: 255 },
+                        kind: NumericKeyType::Text {
+                            max_len: 255,
+                            sort_order: crate::SortOrder::General,
+                        },
                     },
                     NumericIndexField {
                         column: 1,

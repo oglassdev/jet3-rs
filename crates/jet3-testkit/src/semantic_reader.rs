@@ -582,6 +582,7 @@ const fn text_branch(code_page: TextCodePage) -> &'static str {
     match code_page {
         TextCodePage::Windows1251 => "values.text_cp1251",
         TextCodePage::Windows1252 => "values.text_cp1252",
+        TextCodePage::Windows1253 => "values.text_cp1253",
     }
 }
 

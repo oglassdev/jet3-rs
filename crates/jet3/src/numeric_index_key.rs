@@ -21,8 +21,13 @@ pub(crate) enum NumericKeyType {
     Single,
     Double,
     DateTime,
-    Binary { max_len: u8 },
-    Text { max_len: u8 },
+    Binary {
+        max_len: u8,
+    },
+    Text {
+        max_len: u8,
+        sort_order: crate::SortOrder,
+    },
     Guid,
 }
 
@@ -49,12 +54,13 @@ impl NumericKeyType {
                 };
                 if column.physical_type() == ColumnPhysicalType::Binary {
                     Self::Binary { max_len }
-                // EXP-0264: fixed and variable Text use the same recorded collation.
-                } else if column.raw_encoding_context() == &crate::text_index_key::ENCODING_CONTEXT
-                {
-                    Self::Text { max_len }
                 } else {
-                    return None;
+                    let sort_order =
+                        crate::SortOrder::from_encoding_context(column.raw_encoding_context())?;
+                    Self::Text {
+                        max_len,
+                        sort_order,
+                    }
                 }
             }
             _ => return None,
@@ -68,7 +74,7 @@ impl NumericKeyType {
             Self::Long | Self::Single => 5,
             Self::Currency | Self::Double | Self::DateTime => 9,
             Self::Binary { max_len } => 1 + 9 * (max_len as usize).div_ceil(8),
-            Self::Text { max_len } => 3 * max_len as usize + 2,
+            Self::Text { max_len, .. } => 3 * max_len as usize + 2,
             Self::Guid => 19,
         }
     }
@@ -90,8 +96,12 @@ impl NumericKeyType {
                 if let Self::Binary { max_len } = self {
                     return crate::binary_index_key::prefix(key, max_len, direction);
                 }
-                if let Self::Text { max_len } = self {
-                    return crate::text_index_key::prefix(key, max_len, direction);
+                if let Self::Text {
+                    max_len,
+                    sort_order,
+                } = self
+                {
+                    return crate::locale_text_key::prefix(key, max_len, direction, sort_order);
                 }
                 // EXP-0248: two full Binary chunks in GUID display-byte order.
                 if self == Self::Guid {
@@ -132,6 +142,7 @@ impl NumericKeyType {
             },
             // EXP-0264: fixed Text uses the same key transform, including space trimming.
             ColumnType::Text { max_len } | ColumnType::FixedText { len: max_len } => Self::Text {
+                sort_order: crate::SortOrder::General,
                 max_len: max_len.get(),
             },
             ColumnType::Guid => Self::Guid,
@@ -160,8 +171,16 @@ impl NumericKeyType {
             (Self::Binary { max_len }, RowValue::Binary(value)) => {
                 return crate::binary_index_key::encode(value, max_len, direction, output);
             }
-            (Self::Text { max_len }, RowValue::Text(value)) => {
-                return crate::text_index_key::encode(value, max_len, direction, output);
+            (
+                Self::Text {
+                    max_len,
+                    sort_order,
+                },
+                RowValue::Text(value),
+            ) => {
+                return crate::locale_text_key::encode(
+                    value, max_len, direction, sort_order, output,
+                );
             }
             (Self::Guid, RowValue::Guid(value)) => {
                 return crate::binary_index_key::encode(&value, 16, direction, output);

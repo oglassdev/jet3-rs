@@ -38,9 +38,7 @@
 
 use std::fmt;
 
-use crate::catalog_name_key::{
-    CatalogNameKeyError, catalog_names_equal, supported_name_byte, validate_catalog_name,
-};
+use crate::catalog_name_key::CatalogNameKeyError;
 use crate::catalog_record_writer::{CatalogRecordWriteError, catalog_record_len};
 use crate::column_definition_writer::{KEY_SLOT_COUNT, PhysicalIndexSpec, validate_physical_index};
 use crate::page_image::PAGE_BYTES;
@@ -135,7 +133,7 @@ pub enum TableSchemaPlanError {
         needed: u64,
     },
     /// A text property is not accepted for its column or its value is outside
-    /// the EXP-0299 limits: 1 to 2,048 bytes without NUL or undefined CP1252 bytes.
+    /// the EXP-0299 limits: 1 to 2,048 bytes without NUL or bytes undefined in the selected code page.
     InvalidTextProperty {
         /// Column position, or `None` for a table property.
         column: Option<usize>,
@@ -339,6 +337,26 @@ pub(crate) fn plan_table_schema_with_generated_indexes(
     declared_indexes: usize,
     budget: &mut crate::ResourceBudget,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
+    plan_table_schema_for_order(
+        spec,
+        first_page,
+        first_create,
+        extra_names,
+        declared_indexes,
+        crate::SortOrder::General,
+        budget,
+    )
+}
+
+pub(crate) fn plan_table_schema_for_order(
+    spec: &TableSpec<'_>,
+    first_page: u64,
+    first_create: bool,
+    extra_names: &[&[u8]],
+    declared_indexes: usize,
+    order: crate::SortOrder,
+    budget: &mut crate::ResourceBudget,
+) -> Result<TableSchemaPlan, TableSchemaPlanError> {
     budget
         .charge_work_units(
             (spec.columns.len().min(255) as u64)
@@ -347,7 +365,7 @@ pub(crate) fn plan_table_schema_with_generated_indexes(
                 .saturating_mul(512),
         )
         .map_err(TableSchemaPlanError::Resource)?;
-    validate_table_name(spec.name)?;
+    validate_table_name(spec.name, order)?;
     if spec.columns.is_empty() {
         return Err(TableSchemaPlanError::NoColumns);
     }
@@ -361,8 +379,9 @@ pub(crate) fn plan_table_schema_with_generated_indexes(
     }
     for (ordinal, column) in spec.columns.iter().enumerate() {
         validate_name_length("column", column.name(), 64)?;
-        validate_name_bytes("column", ordinal, column.name())?;
+        validate_name_bytes(order, "column", ordinal, column.name())?;
         validate_distinct_name(
+            order,
             "column",
             ordinal,
             column.name(),
@@ -383,7 +402,7 @@ pub(crate) fn plan_table_schema_with_generated_indexes(
         let ordinal = spec.indexes.len() + position;
         validate_name_length("logical index", name, 63)?;
         if !super::relationship_name::HiddenName::matches(name) {
-            validate_name_bytes("logical index", ordinal, name)?;
+            validate_name_bytes(order, "logical index", ordinal, name)?;
         }
         let prior = spec
             .indexes
@@ -392,11 +411,11 @@ pub(crate) fn plan_table_schema_with_generated_indexes(
             .chain(extra_names[..position].iter().copied());
         validate_name("logical index", ordinal as u16, name, prior.clone())
             .map_err(TableSchemaPlanError::Definition)?;
-        validate_distinct_name("logical index", ordinal, name, prior.clone(), budget)?;
+        validate_distinct_name(order, "logical index", ordinal, name, prior.clone(), budget)?;
     }
     let length = measure_definition(spec, extra_names)?;
     let index_fields = resolve_index_fields(spec)?;
-    crate::column_properties::check(spec.columns, spec.validation).map_err(
+    crate::column_properties::check_for_order(spec.columns, spec.validation, order).map_err(
         |(column, property, detail)| TableSchemaPlanError::InvalidTextProperty {
             column,
             property,
@@ -404,7 +423,7 @@ pub(crate) fn plan_table_schema_with_generated_indexes(
         },
     )?;
     let plan = assign_pages(spec, first_page, first_create, length, index_fields, budget)?;
-    validate_indexes(spec, &plan, declared_indexes, budget)?;
+    validate_indexes(spec, &plan, declared_indexes, order, budget)?;
     Ok(plan)
 }
 
@@ -451,9 +470,10 @@ fn resolve_index_fields(
 }
 
 /// Checks the table name against both encodings that will carry it.
-fn validate_table_name(name: &[u8]) -> Result<(), TableSchemaPlanError> {
+fn validate_table_name(name: &[u8], order: crate::SortOrder) -> Result<(), TableSchemaPlanError> {
     validate_name_length("table", name, 64)?;
-    validate_catalog_name(name).map_err(TableSchemaPlanError::TableNameKey)?;
+    crate::catalog_name_key::validate_catalog_name_for(name, order)
+        .map_err(TableSchemaPlanError::TableNameKey)?;
     catalog_record_len(name.len()).map_err(TableSchemaPlanError::TableNameRow)?;
     Ok(())
 }
@@ -474,14 +494,16 @@ fn validate_name_length(
     Ok(())
 }
 
-/// EXP-0277: object names share the defined CP1252 grammar and reject leading spaces.
+/// EXP-0277/0309: object names use the selected code page and reject leading spaces.
 fn validate_name_bytes(
+    order: crate::SortOrder,
     role: &'static str,
     ordinal: usize,
     name: &[u8],
 ) -> Result<(), TableSchemaPlanError> {
     match name.iter().enumerate().position(|(position, byte)| {
-        !supported_name_byte(*byte) || (position == 0 && *byte == b' ')
+        !crate::catalog_name_key::supported_name_byte_for(*byte, order)
+            || (position == 0 && *byte == b' ')
     }) {
         Some(position) => Err(TableSchemaPlanError::NameByteUnestablished {
             role,
@@ -494,6 +516,7 @@ fn validate_name_bytes(
 }
 
 fn validate_distinct_name<'a>(
+    order: crate::SortOrder,
     role: &'static str,
     ordinal: usize,
     name: &[u8],
@@ -507,7 +530,8 @@ fn validate_distinct_name<'a>(
         budget
             .charge_work_units(((name.len().min(64) + other.len().min(64)) as u64) * 2 + 1)
             .map_err(TableSchemaPlanError::Resource)?;
-        let equal = if name.is_ascii()
+        let equal = if order == crate::SortOrder::General
+            && name.is_ascii()
             && other.is_ascii()
             && !name.ends_with(b" ")
             && !other.ends_with(b" ")
@@ -517,7 +541,7 @@ fn validate_distinct_name<'a>(
             budget
                 .charge_work_units(512)
                 .map_err(TableSchemaPlanError::Resource)?;
-            catalog_names_equal(other, name)
+            crate::catalog_name_key::catalog_names_equal_for(order, other, name)
         };
         if equal {
             return Err(TableSchemaPlanError::Definition(
@@ -644,6 +668,7 @@ fn validate_indexes(
     spec: &TableSpec<'_>,
     plan: &TableSchemaPlan,
     declared_indexes: usize,
+    order: crate::SortOrder,
     budget: &mut crate::ResourceBudget,
 ) -> Result<(), TableSchemaPlanError> {
     let mut primary: Option<usize> = None;
@@ -654,9 +679,10 @@ fn validate_indexes(
         if position < declared_indexes
             || !super::relationship_name::HiddenName::matches(planned.name)
         {
-            validate_name_bytes("logical index", position, planned.name)?;
+            validate_name_bytes(order, "logical index", position, planned.name)?;
         }
         validate_distinct_name(
+            order,
             "logical index",
             position,
             planned.name,

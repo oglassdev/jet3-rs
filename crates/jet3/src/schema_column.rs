@@ -11,9 +11,10 @@ pub(crate) fn rename(
     new: &[u8],
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    crate::schema_edit::name(new, 64)?;
     let (root, properties, relationships, updates) =
         crate::schema_publish::apply(file, journal, budget, |database, budget| {
+            let order = database.header().sort_order();
+            crate::schema_edit::name(order, new, 64)?;
             let definition = crate::update::indexed_writable_table(database, table, budget)?;
             let selected = definition
                 .columns()
@@ -21,6 +22,7 @@ pub(crate) fn rename(
                 .position(|column| column.name().raw_bytes() == old)
                 .ok_or(UpdateError::NotFound("column"))?;
             crate::schema_edit::distinct(
+                order,
                 new,
                 definition
                     .columns()
@@ -60,13 +62,13 @@ pub(crate) fn rename(
                         .field(object)
                         .and_then(|field| field.raw_bytes())
                         .is_some_and(|name| {
-                            crate::catalog_name_key::catalog_names_equal(name, table)
+                            crate::catalog_name_key::catalog_names_equal_for(order, name, table)
                         })
                         && row
                             .field(field)
                             .and_then(|field| field.raw_bytes())
                             .is_some_and(|name| {
-                                crate::catalog_name_key::catalog_names_equal(name, old)
+                                crate::catalog_name_key::catalog_names_equal_for(order, name, old)
                             })
                     {
                         let locator = row.locator();

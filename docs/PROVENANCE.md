@@ -20843,6 +20843,136 @@ valid multi-hop overflow discovery, further payload/schema/object combinations
 and broader failure/publication inventories remain open. It makes no
 whole-format compatibility, query-execution or native crash-recovery claim.
 
+## SRC-0027 — Microsoft Windows-1253 Unicode mapping
+
+Microsoft's CP1253 table, version 2.01 dated 1998-04-15, is published by the
+Unicode Consortium at
+<https://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/WINDOWS/CP1253.TXT>.
+Retrieved 2026-09-24. This supplies only byte-to-Unicode conversion and its
+undefined positions, not Jet storage or collation rules. Conversion is strict
+and reversible for defined bytes, consistent with the SRC-0025 API contract.
+
+## EXP-0309 — Six native single-byte text collations
+
+On 2026-09-24 the EXP-0304 Windows/x86 DAO 3.6 provider generated General,
+Nordic, Spanish, Dutch, Cyrillic and Greek indexed Text tables. Complete inputs,
+closed MDBs, provider identities, full table values and primary/ascending/
+descending index traversals are retained in the private
+`checks/20260924-pre-simplification/collation-discovery-r2` and `-r3` bundles.
+Their runs are `20260924T013809Z-collation-d2` and
+`20260924T020646Z-collation-r3`. No MDB implementation source was consulted.
+
+The r2 inventory has 1,282 distinct byte strings per locale, including every
+nonzero byte, prefix/suffix contexts, whitespace, case and contraction controls.
+The independent r3 inventory has 1,507 strings per locale: all 256 bytes,
+contraction contexts, embedded NUL, deterministic mixed-byte strings, and lengths
+through 255. The original raw walker verifies complete primary row locators,
+ordered traversal identities and native readback hashes. `KEYS.json` retains
+every source byte string and native index key. Host ANSI 1252 controls DAO's
+BSTR conversion in this environment; strings were explicitly converted from
+that host view back to stored bytes. This does not conflate that conversion
+with a database's declared code page. Initial Unicode-input mismatches and
+unsuccessful thread-locale controls are retained separately.
+
+All six transforms use the EXP-0248 primary-weight and packed-secondary-nibble
+framing, trailing ASCII-space trimming and descending-byte complement. Per-byte
+weights vary by locale. Nordic includes a TH expansion; Dutch expands byte FF
+and 9F to IJ. Spanish contracts case-insensitive ASCII CH and LL to primaries
+63 and 6E; CH contributes a neutral secondary position and LL does not. Spanish
+N retains a neutral secondary position even though enye has a separate primary.
+Cyrillic uses one primary per byte and no secondary accents. General, Nordic,
+Spanish and Dutch declare code page 1252, Cyrillic 1251, and Greek 1253.
+
+The retained model initially missed the different Cyrillic/Greek space weights,
+then Spanish's neutral N and CH positions. Those failed reports remain beside
+`collation-discovery-r3/MODEL-COMPARISON-r3.json`, which matches all 9,042 complete
+r3 native keys, including the existing EXP-0245/0248 whole-key shortening rule.
+These observations establish the recorded key grammar, not Rust writer
+compatibility. Schema-name rules and differential acceptance are separate work.
+
+
+EXP-0309 additional schema-name observation: native runs
+`20260924T022822Z-collation-names-r1` and
+`20260924T023405Z-collation-names-r2`, retained in the same private bundle,
+exercise table names containing every byte and logical index names around
+Spanish CH/LL contractions. The first run retained name-collision refusals
+and stopped index enumeration on a stale DAO TableDefs collection; the
+second refreshes the collection and prefixes each byte with its distinct
+hexadecimal ordinal. All six corrected acquisitions complete. Each of the
+1,374 complete ParentId/Name catalog keys (229 per locale) binds to its raw
+catalog row and matches the corresponding locale Text model. The first
+run's 884 catalog keys also match, despite the failed enumeration. Spanish
+logical names sort `cz, ch, d` and `lz, ll, m`; the other five sort `ch, cz, d`
+and `ll, lz, m`. `n` and `N ` collide in every locale. The admitted write
+name grammar retains the established punctuation/control exclusions and
+requires defined bytes in the database's code page; it does not admit all
+native truncation/control behaviors. This is native discovery, with Rust
+acceptance recorded separately.
+
+## EXP-0310 — Six-locale row/schema edits and native continuations
+
+The EXP-0309 provider completed 72 same-input edit/refusal pairs across General,
+Nordic, traditional Spanish, Dutch, Cyrillic and Greek. Native acquisition
+`20260924T024620Z-locale-updates-r1` and all inputs, Rust requests, frozen CLI/source,
+closed images, complete DAO readbacks and portable reports are retained under
+`checks/20260924-pre-simplification/locale-updates-r1`. The native helper deliberately
+converts database-code-page name bytes through host ANSI 1252 for DAO's BSTR
+interface. Rust JSON requests retain their actual Unicode names and encode them
+losslessly in the selected database code page. This tests stored bytes and native
+keys; it does not claim that an en-US DAO process returns Greek/Cyrillic Unicode.
+
+Each locale covers row insert/update/delete, duplicate refusal, create/rename and
+replacement of indexes, append/rename/drop of columns, non-ASCII descriptions,
+create/rename of tables, Text relationship creation, related-name changes, cascade
+update/delete and orphan refusal. Keys include mixed directions and components,
+expansions, contractions, accents and 255-byte source values/shortened keys.
+All 216 original input/candidate/native images pass independent complete key,
+locator, tree, ownership, allocation, payload and catalog checks. The final
+`complete-final-r2/REPORT.json` accepts all 72 pairs: 60 successful edits and
+12 byte-exact Rust refusals. Complete DAO table/field/index properties, rows,
+index traversals, relations and saved QueryDefs compare. All unrelated system
+and Watch payload storage, surviving unassigned row bodies and catalog objects
+are checked against the source.
+
+Each native duplicate/orphan refusal changes exactly two bytes: header byte
+1538 from 0 to 1 and the selected table's primary-index count from N to N+1.
+The complete native file must equal that precisely patched source; the DAO
+DistinctCount getter must expose that same counter. Only this proven getter
+residue is normalized when comparing the refused Rust copy with its native
+control. Rust keeps every input byte. The validator remains strict.
+
+Twenty-four edit cases retain bounded allocation-placement differences, listed
+by exact map role and capacity in the final report. Four locale row-edit cases
+have four Rust versus five native pages for each descending/composite index;
+all six retain two versus one available data pages. New/replacement index maps
+and new-table maps may use different locations with equal capacities. Every
+physical tree and global ownership classification is independently checked;
+this is semantic and preservation evidence, not identical placement or file size.
+New objects use deterministic zero timestamps; surviving Rust timestamps remain
+exact. Only explicitly affected native object dates are compared canonically.
+
+The initial column fixture used SQL ALTER TABLE, which omitted Required and
+AllowZeroLength records that DAO field creation stores. Corrected native run
+`20260924T030621Z-locale-column-r2` uses CreateField/Append and retains all twelve
+column/drop-column reruns. The original mismatched raw/semantic reports remain.
+Preparation-invocation and comparison-harness failures are also retained.
+
+Native continuation `20260924T030110Z-locale-continue` updates, inserts and deletes
+from both output lineages for every locale. All six pairs pass complete raw and
+DAO comparison, expected-row models and unrelated-storage preservation in
+`locale-continuation-r1/complete-r4/REPORT.json`. Each header counter advances by
+three. Unordered table scans can reflect different page placement; their complete
+rows are compared by unique ID and the original orders are retained. Every index
+traversal remains ordered and exact. Earlier comparison failures from the header
+counter assumption, omitted request locators and physical scan order are retained.
+
+Portable `locale_inventory.py` reproduces the 9,042-key corpus byte-for-byte;
+`locale_keys.py` independently matches all keys and regenerates the five Rust
+weight tables exactly. The ignored private-corpus Rust test matches all 8,373
+keys whose source bytes are defined in the six code pages and refuses the rest.
+These are finite observations. New database creation remains General, other
+sort orders remain read-only, and undefined code-page bytes remain unsupported.
+
 
 ## EXP-0305 — Native table slot saturation and invalid 256-slot index reads
 
@@ -21047,3 +21177,20 @@ path differences. It does not treat the fresh images as byte-identical.
 These differential results establish the tested one-to-one Long-key creation,
 editing and row-mutation scope. Unknown relationship attribute bits remain
 uninterpreted for writes; no broader format compatibility is inferred.
+
+EXP-0310 final verification: production revision
+`c7b77edcde5d68fb637ad7631c2bf38575c93841` includes the completed one-to-one
+and storage changes. It reproduces all 72 accepted candidate images byte for
+byte and replays the complete comparison report against the retained DAO
+readbacks. The corpus test again matches 8,373 defined-byte native keys.
+Independent GPT-6 Sol high review found no demonstrated blocking correctness
+issue. `just ready` passes 1,818 test executions, zero failures and twelve
+ignored executions (including the separately run private corpus test).
+The support-matrix and protocol-inventory checks pass. Initial lint failures
+are retained with the corrected run.
+
+The private `COLLATION-ARCHIVE-MANIFEST.json` inventories 3,494 retained files
+(555,844,512 bytes); every size and SHA-256 was verified. Its SHA-256 is
+`a5c18180910558572a6e98023d7c07db56b344f44ded68c47d5de4081955fa94`.
+`COLLATION-FINAL-SUMMARY.json` records the final source and report hashes.
+MDBs, provider binaries and credentials remain outside the repository.

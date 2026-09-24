@@ -24,20 +24,86 @@ const JET3_NO_PASSWORD_STATE: [u8; PASSWORD_STATE_END - PASSWORD_STATE_START] = 
 ];
 
 const SORT_ORDER_START: usize = 0x3a;
-/// EXP-0299: raw page-zero bytes `0x3a..0x3e` of every observed General
-/// (LANGID 0x0409, code page 1252) database; other sort orders change them.
+/// EXP-0299/0309: page-zero bytes `0x3a..0x3e` identify the database sort order.
 const GENERAL_SORT_ORDER: [u8; 4] = [0xed, 0xc7, 0x9f, 0x46];
 
 /// Database sort order recorded on page zero (EXP-0299).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SortOrder {
-    /// The General (English-US, code page 1252) order that Rust writes.
+    /// General (English-US, code page 1252), the default for new databases.
     General,
+    /// Nordic (Swedish/Finnish), code page 1252.
+    Nordic,
+    /// Traditional Spanish, code page 1252.
+    Spanish,
+    /// Dutch, code page 1252.
+    Dutch,
+    /// Cyrillic, code page 1251.
+    Cyrillic,
+    /// Greek, code page 1253.
+    Greek,
     /// Any other raw page-zero marker. Reading is supported; writing is refused.
     Other {
         /// Raw page-zero bytes `0x3a..0x3e`.
         raw: [u8; 4],
     },
+}
+
+impl SortOrder {
+    pub(crate) const fn known() -> [Self; 6] {
+        [
+            Self::General,
+            Self::Nordic,
+            Self::Spanish,
+            Self::Dutch,
+            Self::Cyrillic,
+            Self::Greek,
+        ]
+    }
+
+    /// Returns the code page paired with a recognized native sort order.
+    #[must_use]
+    pub const fn code_page(self) -> Option<crate::TextCodePage> {
+        Some(match self {
+            Self::General | Self::Nordic | Self::Spanish | Self::Dutch => {
+                crate::TextCodePage::Windows1252
+            }
+            Self::Cyrillic => crate::TextCodePage::Windows1251,
+            Self::Greek => crate::TextCodePage::Windows1253,
+            Self::Other { .. } => return None,
+        })
+    }
+
+    // EXP-0299/0309: LCID followed by code page, both little-endian.
+    pub(crate) const fn encoding_context(self) -> Option<[u8; 4]> {
+        Some(match self {
+            Self::General => [0x09, 0x04, 0xe4, 0x04],
+            Self::Nordic => [0x1d, 0x04, 0xe4, 0x04],
+            Self::Spanish => [0x0a, 0x04, 0xe4, 0x04],
+            Self::Dutch => [0x13, 0x04, 0xe4, 0x04],
+            Self::Cyrillic => [0x19, 0x04, 0xe3, 0x04],
+            Self::Greek => [0x08, 0x04, 0xe5, 0x04],
+            Self::Other { .. } => return None,
+        })
+    }
+
+    pub(crate) fn from_encoding_context(context: &[u8; 4]) -> Option<Self> {
+        Self::known()
+            .into_iter()
+            .find(|order| order.encoding_context().as_ref() == Some(context))
+    }
+
+    pub(crate) const fn raw_marker(self) -> [u8; 4] {
+        match self {
+            Self::General => GENERAL_SORT_ORDER,
+            Self::Nordic => [0xf9, 0xc7, 0x9f, 0x46],
+            Self::Spanish => [0xee, 0xc7, 0x9f, 0x46],
+            Self::Dutch => [0xf7, 0xc7, 0x9f, 0x46],
+            Self::Cyrillic => [0xfd, 0xc7, 0x98, 0x46],
+            Self::Greek => [0xec, 0xc7, 0x9e, 0x46],
+            Self::Other { raw } => raw,
+        }
+    }
 }
 
 /// Physical page number of the documented database-header page.
@@ -178,11 +244,10 @@ impl DatabaseHeaderPage {
     pub fn sort_order(&self) -> SortOrder {
         let mut raw = [0; 4];
         raw.copy_from_slice(&self.raw[SORT_ORDER_START..SORT_ORDER_START + 4]);
-        if raw == GENERAL_SORT_ORDER {
-            SortOrder::General
-        } else {
-            SortOrder::Other { raw }
-        }
+        SortOrder::known()
+            .into_iter()
+            .find(|order| order.raw_marker() == raw)
+            .unwrap_or(SortOrder::Other { raw })
     }
 
     /// Validates the supported Jet 3, unencrypted, no-password opening state.

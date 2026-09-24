@@ -11,7 +11,7 @@ use std::fmt;
 use crate::column_definition_writer::{
     ColumnSpec, ColumnStorageKind, LogicalIndexKindSpec, LogicalIndexSpec, PhysicalIndexSpec,
     SystemColumnClassSpec, physical_flags, resolve_column, validate_physical_index,
-    write_column_record, write_logical_record, write_name, write_physical_record,
+    write_logical_record, write_name, write_physical_record,
 };
 use crate::table_definition_layout::{definition_len, validate_column_layout, validate_name};
 use crate::{
@@ -362,6 +362,20 @@ pub fn encode_table_definition(
     output: &mut [u8],
     budget: &mut ResourceBudget,
 ) -> Result<ByteCount, TableDefinitionWriteError> {
+    encode_table_definition_with_context(
+        spec,
+        output,
+        crate::text_index_key::ENCODING_CONTEXT,
+        budget,
+    )
+}
+
+pub(crate) fn encode_table_definition_with_context(
+    spec: &TableDefinitionSpec<'_>,
+    output: &mut [u8],
+    encoding_context: [u8; 4],
+    budget: &mut ResourceBudget,
+) -> Result<ByteCount, TableDefinitionWriteError> {
     let counts = validate(spec, budget)?;
     let length = table_definition_len(spec)?;
     if output.len() < length {
@@ -395,8 +409,15 @@ pub fn encode_table_definition(
             &mut next_fixed_offset,
             &mut variables_seen,
         )?;
-        write_column_record(&mut writer, ordinal, column, resolved, spec.kind)
-            .map_err(TableDefinitionWriteError::Resource)?;
+        crate::column_definition_writer::write_column_record_with_context(
+            &mut writer,
+            ordinal,
+            column,
+            resolved,
+            spec.kind,
+            encoding_context,
+        )
+        .map_err(TableDefinitionWriteError::Resource)?;
     }
     for column in spec.columns {
         write_name(&mut writer, column.name())?;

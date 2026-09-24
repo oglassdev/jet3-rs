@@ -95,6 +95,15 @@ impl CreationProperties {
         validation: TableValidation<'_>,
         budget: &mut ResourceBudget,
     ) -> Result<Option<Self>, ColumnPropertyError> {
+        Self::for_order(columns, validation, crate::SortOrder::General, budget)
+    }
+
+    pub(crate) fn for_order(
+        columns: &[ColumnSpec<'_>],
+        validation: TableValidation<'_>,
+        order: crate::SortOrder,
+        budget: &mut ResourceBudget,
+    ) -> Result<Option<Self>, ColumnPropertyError> {
         let text =
             validation.rule.is_some() || validation.text.is_some() || columns.iter().any(has_text);
         if columns.len() > u8::MAX as usize
@@ -103,7 +112,7 @@ impl CreationProperties {
                     has_zero_length_property(column.physical_type()) || column.required()
                 })
             || columns.iter().any(|column| {
-                crate::catalog_name_key::validate_catalog_name(column.name()).is_err()
+                crate::catalog_name_key::validate_catalog_name_for(column.name(), order).is_err()
             })
         {
             return Ok(None);
@@ -227,8 +236,8 @@ fn boolean(
 pub(crate) const MAX_TEXT_PROPERTY: usize = 2048;
 
 /// Checks one opaque value: nonempty, bounded, without NUL (DAO truncates at
-/// NUL, EXP-0299) or bytes undefined in CP1252.
-pub(crate) fn check_value(value: &[u8]) -> Result<(), &'static str> {
+/// NUL, EXP-0299) or bytes undefined in the selected code page (EXP-0309).
+pub(crate) fn check_value_for(value: &[u8], order: crate::SortOrder) -> Result<(), &'static str> {
     if value.is_empty() {
         return Err("empty property value");
     }
@@ -236,7 +245,10 @@ pub(crate) fn check_value(value: &[u8]) -> Result<(), &'static str> {
         return Err("property value too long");
     }
     if value.iter().any(|&byte| {
-        byte == 0 || crate::text::mapped_character(crate::TextCodePage::Windows1252, byte).is_none()
+        byte == 0
+            || order
+                .code_page()
+                .is_none_or(|page| crate::text::mapped_character(page, byte).is_none())
     }) {
         return Err("property value byte");
     }
@@ -244,9 +256,10 @@ pub(crate) fn check_value(value: &[u8]) -> Result<(), &'static str> {
 }
 
 /// Checks every requested text property of a table specification.
-pub(crate) fn check(
+pub(crate) fn check_for_order(
     columns: &[ColumnSpec<'_>],
     validation: TableValidation<'_>,
+    order: crate::SortOrder,
 ) -> Result<(), (Option<usize>, &'static [u8], &'static str)> {
     for (ordinal, column) in columns.iter().enumerate() {
         for property in TextProperty::FIELD_ORDER {
@@ -260,7 +273,8 @@ pub(crate) fn check(
                 {
                     return Err((Some(ordinal), property.name(), "AutoIncrement column"));
                 }
-                check_value(value).map_err(|detail| (Some(ordinal), property.name(), detail))?;
+                check_value_for(value, order)
+                    .map_err(|detail| (Some(ordinal), property.name(), detail))?;
             }
         }
     }
@@ -269,7 +283,7 @@ pub(crate) fn check(
         (TextProperty::ValidationText, validation.text),
     ] {
         if let Some(value) = value {
-            check_value(value).map_err(|detail| (None, property.name(), detail))?;
+            check_value_for(value, order).map_err(|detail| (None, property.name(), detail))?;
         }
     }
     Ok(())

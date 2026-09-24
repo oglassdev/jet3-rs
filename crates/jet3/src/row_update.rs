@@ -84,7 +84,7 @@ where
     HE: StdError + Send + Sync + 'static,
 {
     let mut database = DatabaseReader::open(path, budget)?;
-    crate::update::require_general_sort_order(&database)?;
+    crate::update::require_writable_sort_order(&database)?;
     let definition = crate::update::indexed_writable_table(&mut database, request.table, budget)?;
     let options = crate::column_value_policy::options(&mut database, &definition, budget)?;
     crate::column_value_policy::refuse_rules(&options, &definition)?;

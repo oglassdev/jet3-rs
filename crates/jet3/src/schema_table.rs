@@ -12,12 +12,16 @@ pub(crate) fn create(
     spec: TableSpec<'_>,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    let (root, parent) =
+    let (root, parent, order) =
         crate::schema_publish::apply(file, journal, budget, |database, budget| {
-            crate::creation::schema_plan::plan_table_schema(
+            let order = database.header().sort_order();
+            crate::creation::schema_plan::plan_table_schema_for_order(
                 &spec,
                 database.geometry().page_count(),
                 false,
+                &[],
+                spec.indexes.len(),
+                order,
                 budget,
             )?;
             if spec
@@ -73,14 +77,24 @@ pub(crate) fn create(
             let mut bytes = Vec::new();
             reserve(&mut bytes, length, budget)?;
             bytes.resize(length, 0);
-            crate::encode_table_definition(&definition, &mut bytes, budget)?;
+            crate::table_definition_writer::encode_table_definition_with_context(
+                &definition,
+                &mut bytes,
+                order
+                    .encoding_context()
+                    .ok_or(UpdateError::Unsupported("column encoding context"))?,
+                budget,
+            )?;
             crate::schema_definition::stage_bytes(database, &[root], &bytes, &mut edits, budget)?;
-            Ok((edits, (root, parent)))
+            Ok((edits, (root, parent, order)))
         })?;
     let mut properties = Vec::new();
-    if let Some(description) =
-        crate::column_properties::CreationProperties::new(spec.columns, spec.validation, budget)?
-    {
+    if let Some(description) = crate::column_properties::CreationProperties::for_order(
+        spec.columns,
+        spec.validation,
+        order,
+        budget,
+    )? {
         budget.check_decoded_value(ByteCount::new(description.len() as u64))?;
         reserve(&mut properties, description.len(), budget)?;
         properties.resize(description.len(), 0);
@@ -183,7 +197,8 @@ pub(crate) fn validate_name(
     except: Option<crate::PageNumber>,
     budget: &mut ResourceBudget,
 ) -> Result<i32, UpdateError> {
-    crate::schema_edit::name(name, 64)?;
+    let order = database.header().sort_order();
+    crate::schema_edit::name(order, name, 64)?;
     let parent = {
         let mut catalog = database.catalog(budget)?;
         let mut parent = None;
@@ -218,7 +233,12 @@ pub(crate) fn validate_name(
         }
         let length = existing.len();
         saved[..length].copy_from_slice(existing);
-        crate::schema_edit::distinct(name, std::iter::once(&saved[..length]), row.budget_mut())?;
+        crate::schema_edit::distinct(
+            order,
+            name,
+            std::iter::once(&saved[..length]),
+            row.budget_mut(),
+        )?;
     }
     Ok(parent)
 }

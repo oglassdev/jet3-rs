@@ -37,8 +37,11 @@ pub(crate) fn set(
             }
             for (property, change) in TextProperty::FIELD_ORDER.into_iter().zip(edit.text) {
                 if let PropertyChange::Set(value) = change {
-                    crate::column_properties::check_value(value)
-                        .map_err(UpdateError::Unsupported)?;
+                    crate::column_properties::check_value_for(
+                        value,
+                        database.header().sort_order(),
+                    )
+                    .map_err(UpdateError::Unsupported)?;
                     if edit.column.is_none()
                         && !matches!(
                             property,

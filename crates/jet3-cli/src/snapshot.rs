@@ -14,7 +14,7 @@ use jet3_testkit::{
 
 pub(crate) const HELP: &str = "\
   jet3-cli snapshot <file> --out <dir> --scenario <DAO-READ-...|DAO-WRITE-...|DAO-UPDATE-...> \
-    [--source-revision <text>] [--code-page 1252|1251] [--inventory row-update|row-allocation|indexed-update|row-replacement|creation-index]
+    [--source-revision <text>] [--code-page 1252|1251|1253] [--inventory row-update|row-allocation|indexed-update|row-replacement|creation-index]
 
 snapshot reads the whole database with the jet3 reader and writes
 <dir>/snapshot.json (protocol 1.2 canonical semantic snapshot; omitted when
@@ -68,6 +68,7 @@ pub(crate) fn parse_args(
             code_page = match text {
                 "1252" => TextCodePage::Windows1252,
                 "1251" => TextCodePage::Windows1251,
+                "1253" => TextCodePage::Windows1253,
                 _ => return Err("invalid_code_page"),
             };
         } else {

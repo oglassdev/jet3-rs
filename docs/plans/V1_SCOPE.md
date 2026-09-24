@@ -112,10 +112,11 @@ are retained in the EXP-0296 supplement. Existing-database relationship create/d
 implemented through `edit_schema`; their new differential coverage is recorded
 separately below.
 
-Schema names use defined Windows-1252 bytes and the observed English-US
-collation for ordering and duplicate detection. Stored names retain their exact
-bytes, including accepted whitespace; the CLI converts Unicode names strictly
-to CP1252. Unsupported controls, leading ASCII spaces and `. ! [ ]` or backtick
+Schema names use the database’s observed General, Nordic, traditional Spanish,
+Dutch, Cyrillic or Greek collation for ordering and duplicate detection. Defined
+Windows-1252 bytes serve the first four; Cyrillic uses 1251 and Greek uses 1253.
+Stored names retain their exact bytes, including accepted whitespace; the CLI
+converts Unicode names strictly to the database code page. Creation uses General. Unsupported controls, leading ASCII spaces and `. ! [ ]` or backtick
 are refused. Relationship names share the 63-byte usable index-name limit.
 Other name encodings and index key types remain restricted; relationship
 forms are described under existing schema edits.
@@ -272,7 +273,7 @@ outside this API. Wider preservation/release gates remain open.
 
 Creation, `CreateColumn`/`CreateTable` and `SetColumnProperties`/`SetTableProperties`
 store column DefaultValue, ValidationRule, ValidationText and Description and
-table ValidationRule and ValidationText as opaque CP1252 text of 1 to 2,048 bytes
+table ValidationRule and ValidationText as opaque database-code-page text of 1 to 2,048 bytes
 without NUL. The library reads them through `DatabaseReader::table_properties`.
 One lossless LvProp model serves reads, creation and every property edit, retaining
 unknown blocks, records and dictionary names byte-for-byte. Property payloads
@@ -292,11 +293,20 @@ columns refuse validation properties, and new AutoIncrement columns refuse
 expressions that DAO would drop. Access-layer properties such as Format, Caption
 and InputMask are preserved but cannot be authored.
 
-Databases whose page-zero sort order is not General are readable, including the
-observed Nordic, Spanish, Dutch, Cyrillic and Greek column contexts; their text
-indexes remain uninterpreted. Every mutation and schema edit refuses them with the
-file unchanged. Other code pages, in-place type/size changes, and Memo/OLE indexes
-remain outside v1 writes.
+General, Nordic, traditional Spanish, Dutch, Cyrillic and Greek database headers
+and column contexts are interpreted (EXP-0309). Existing-database row and schema
+edits maintain the corresponding Text, catalog-name and relationship keys.
+Undefined code-page bytes are refused without replacement. Other sort orders
+remain read-only; new database creation uses General. In-place type/size changes
+and Memo/OLE indexes remain outside v1 writes.
+EXP-0309/0310 covers the existing six-locale inventory: 9,042 native Text keys,
+1,374 complete catalog-name keys, 72 same-input edit/refusal pairs and six native
+continuation pairs. Complete properties, values, ordered index traversals, keys,
+ownership, payloads and unrelated storage compare. Twelve Rust refusals retain
+their entire inputs; native header/primary-counter residues are checked exactly.
+The recorded allocation-placement differences remain explicit. Broader locale
+choices, including East Asian encodings, are outside this delivery.
+
 New catalog objects, including replacement relationships, use the existing
 deterministic zero-date writer policy. Surviving object timestamps are retained.
 
@@ -308,9 +318,11 @@ last-live-row page release, row replacement with stable logical locators, indepe
 payload mutation, and multi-level index maintenance. A table may
 have up to 32 indexes with one to ten Boolean, Byte, Integer, Long, Currency,
 Single, Double, Date, Binary, fixed/variable Text or GUID components, including mixed
-directions, duplicates and null policies. Text keys use the observed English-US/CP1252
-collation, retaining stored row bytes while ignoring trailing ASCII spaces in keys.
-Other Text collations remain outside indexed mutation. Fixed Text values must
+directions, duplicates and null policies. Text keys use the six observed
+single-byte collations, retaining stored row bytes while ignoring trailing ASCII
+spaces in keys. Spanish CH/LL pairs contract; the recorded locale expansions and
+accent weights retain their native ordering. Other collations remain outside
+indexed mutation. Fixed Text values must
 contain exactly the declared number of bytes. Rebuilt trees keep their roots,
 reuse reserved index pages, and append
 nodes with allocation-map growth. Indexed EOF insertion publishes data, allocation, table counts and index
@@ -585,17 +597,14 @@ rows use native FK/Memo field edits: DAO rejects a full-row edit that reassigns
 their unchanged primary key. That comparison exercises at most two constraints
 per database.
 
-- Extend creation to remaining schema/index-key combinations and unenforced
-  relationships (available through schema edits).
-- Extend updates to remaining index key types/collations, one-to-one relationships,
-  additional payload/schema combinations, broader
-  data-page/live-slot reuse and multi-hop row growth.
-- Cover remaining DAO inventories, additional saved-query/object forms and
-  failure/rollback behavior. Local VM and hosted runs may both establish
-  evidence; preregistration and per-run approval are not required.
-- Extend validation to the remaining integrity checks.
-- Meet all three release gates on a release commit. Evidence covers its recorded
-  revisions and finite recipes; no whole-v1 compatibility is claimed.
+The implementation batches in #367–#369 cover the recorded relationship,
+six-locale schema and storage/preservation inventories. The next work is the
+implementation simplification in #380, followed by release verification in #370.
+Release verification must cover the remaining integrity and DAO inventories and
+meet all three gates on the resulting release commit. Evidence establishes only
+its recorded revisions and finite recipes; no whole-v1 compatibility is claimed.
+Unobserved collations and valid multi-hop row growth remain unsupported and would
+need additional native observations before implementation.
 
 ## Practical acceptance target
 

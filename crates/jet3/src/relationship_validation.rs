@@ -42,7 +42,7 @@ pub(crate) fn validate<S: ReadAt>(
                     &record.child_column,
                 ]
                 .iter()
-                .all(|name| validate_catalog_name(name).is_ok())
+                .all(|name| validate_catalog_name_for(name, record.order).is_ok())
         });
         if !supported {
             report.uninterpreted += group.len() as u64;
@@ -58,8 +58,8 @@ pub(crate) fn validate<S: ReadAt>(
         if !enforced(&ordered) {
             // EXP-0301: only the named endpoints must exist.
             for record in &ordered {
-                endpoint_column(&parent, &record.parent_column)?;
-                endpoint_column(&child, &record.child_column)?;
+                endpoint_column(record.order, &parent, &record.parent_column)?;
+                endpoint_column(record.order, &child, &record.child_column)?;
             }
             report.unenforced += 1;
             continue;
@@ -70,7 +70,7 @@ pub(crate) fn validate<S: ReadAt>(
                 (&parent, &record.parent_column),
                 (&child, &record.child_column),
             ] {
-                match key_column(table, name) {
+                match key_column(record.order, table, name) {
                     Ok(_) => {}
                     Err(UpdateError::Unsupported("relationship scalar column schema")) => {
                         supported = false
@@ -101,11 +101,15 @@ pub(crate) fn validate<S: ReadAt>(
     Ok(report)
 }
 
-fn endpoint_column(table: &TableDefinition, name: &[u8]) -> Result<(), UpdateError> {
+fn endpoint_column(
+    order: crate::SortOrder,
+    table: &TableDefinition,
+    name: &[u8],
+) -> Result<(), UpdateError> {
     let mut columns = table
         .columns()
         .iter()
-        .filter(|column| catalog_names_equal(column.name().raw_bytes(), name));
+        .filter(|column| catalog_names_equal_for(order, column.name().raw_bytes(), name));
     if columns.next().is_none() || columns.next().is_some() {
         return Err(UpdateError::Mismatch("unresolved relationship column"));
     }

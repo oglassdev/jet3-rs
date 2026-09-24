@@ -259,8 +259,11 @@ fn references(
         let remove_row = selected.is_some_and(|(locator, _)| locator == row.locator());
         pending.clear();
         for (column, map) in result.maps.iter().enumerate() {
+            let page = row
+                .column_code_page(map.column())
+                .unwrap_or(TextCodePage::Windows1252);
             let value = row
-                .value(map.column(), TextCodePage::Windows1252)?
+                .value(map.column(), page)?
                 .ok_or(UpdateError::NotFound("long-value field"))?;
             if let ValueKind::LongValue(LongValue::External(reference)) = value.kind() {
                 pending.push((column, *reference));

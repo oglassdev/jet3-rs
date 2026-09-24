@@ -14,7 +14,7 @@ use jet3::{
 use serde_json::{Value, json};
 
 pub(crate) const HELP: &str = "\
-  jet3-cli inspect <file> [--table <name>] [--rows] [--code-page 1252|1251]
+  jet3-cli inspect <file> [--table <name>] [--rows] [--code-page 1252|1251|1253]
   jet3-cli inspect <file> --page <number> [--hex]
 
 inspect classifies every page, lists catalog records, decodes every
@@ -77,6 +77,7 @@ pub(crate) fn parse_args(
             command.code_page = match value.to_str() {
                 Some("1252") => TextCodePage::Windows1252,
                 Some("1251") => TextCodePage::Windows1251,
+                Some("1253") => TextCodePage::Windows1253,
                 _ => return Err("invalid_code_page"),
             };
         } else {

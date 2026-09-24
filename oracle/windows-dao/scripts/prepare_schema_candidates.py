@@ -107,7 +107,7 @@ def main() -> None:
                 raise SystemExit(f"{name} step {number}: got {result.returncode}, expected {expected}")
             if expected != 0 and not refused_unchanged:
                 raise SystemExit(f"{name} step {number}: refused operation changed candidate bytes")
-        validation = run([str(frozen_cli), "validate", str(candidate)])
+        validation = run([str(frozen_cli), "validate", str(candidate), "--code-page", str(case.get("code_page", 1252))])
         (args.out / "logs" / f"{name}-validate.stdout").write_text(validation.stdout, encoding="utf-8")
         (args.out / "logs" / f"{name}-validate.stderr").write_text(validation.stderr, encoding="utf-8")
         events.append(
