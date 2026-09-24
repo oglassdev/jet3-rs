@@ -1,7 +1,7 @@
 //! EXP-0060 logical links and hidden storage, checked before physical mutation.
 use crate::{
     DatabaseReader, PAGE_BYTES, PageKind, ReadAt, ResourceBudget, RowLocator, TableDefinition,
-    UpdateError, row::directory::RowDirectory, write::page_edits::reserve,
+    WriteError, row::directory::RowDirectory, write::page_edits::reserve,
 };
 
 struct Record {
@@ -25,7 +25,7 @@ impl RowGraph {
         definition: &TableDefinition,
         selected: Option<RowLocator>,
         budget: &mut ResourceBudget,
-    ) -> Result<Self, UpdateError> {
+    ) -> Result<Self, WriteError> {
         let owned =
             crate::alloc::mutation_map::MapBits::load(database, definition.maps().owned(), budget)?;
         let pages = owned.existing_pages(database.geometry().page_count(), false, budget)?;
@@ -35,10 +35,10 @@ impl RowGraph {
             let classified = database
                 .read_classified_page(page, &mut bytes, budget)
                 .map_err(|error| {
-                    UpdateError::Definition(crate::TableDefinitionError::Page(error))
+                    WriteError::Definition(crate::TableDefinitionError::Page(error))
                 })?;
             if classified.kind() != PageKind::Data {
-                return Err(UpdateError::Mismatch("owned row page kind"));
+                return Err(WriteError::Mismatch("owned row page kind"));
             }
             let directory = RowDirectory::validate(page, definition.root(), &bytes, budget)?;
             budget.charge_items(u64::from(directory.row_count()))?;
@@ -49,12 +49,12 @@ impl RowGraph {
                     if entry.hidden() && entry.overflow() {
                         continue;
                     }
-                    return Err(UpdateError::Mismatch("empty live row slot"));
+                    return Err(WriteError::Mismatch("empty live row slot"));
                 }
                 let target = if entry.overflow() {
                     let pointer = bytes[range]
                         .try_into()
-                        .map_err(|_| UpdateError::Mismatch("overflow pointer width"))?;
+                        .map_err(|_| WriteError::Mismatch("overflow pointer width"))?;
                     Some(crate::row::reader::decode_pointer(pointer))
                 } else {
                     None
@@ -86,14 +86,14 @@ impl RowGraph {
             result.count = result
                 .count
                 .checked_add(1)
-                .ok_or(UpdateError::Mismatch("table row count overflow"))?;
+                .ok_or(WriteError::Mismatch("table row count overflow"))?;
             let wanted = Some(record.locator) == selected;
             let mut current = root;
             let mut depth = 0;
             loop {
                 budget.charge_work_units(1)?;
                 if visited[current] {
-                    return Err(UpdateError::Mismatch("shared or cyclic row storage"));
+                    return Err(WriteError::Mismatch("shared or cyclic row storage"));
                 }
                 visited[current] = true;
                 if wanted {
@@ -108,21 +108,21 @@ impl RowGraph {
                 budget.charge_work_units(u64::from(records.len().max(1).ilog2()) + 1)?;
                 current = records
                     .binary_search_by_key(&key(target), |record| key(record.locator))
-                    .map_err(|_| UpdateError::Mismatch("missing owned overflow target"))?;
+                    .map_err(|_| WriteError::Mismatch("missing owned overflow target"))?;
                 if !records[current].hidden {
-                    return Err(UpdateError::Mismatch("overflow target is not hidden"));
+                    return Err(WriteError::Mismatch("overflow target is not hidden"));
                 }
             }
         }
         budget.charge_work_units(visited.len() as u64)?;
         if visited.contains(&false) {
-            return Err(UpdateError::Mismatch("unreferenced hidden row storage"));
+            return Err(WriteError::Mismatch("unreferenced hidden row storage"));
         }
         if result.count != definition.row_count() {
-            return Err(UpdateError::Mismatch("table row count"));
+            return Err(WriteError::Mismatch("table row count"));
         }
         if selected.is_some() && result.selected.is_empty() {
-            return Err(UpdateError::NotFound("row"));
+            return Err(WriteError::NotFound("row"));
         }
         Ok(result)
     }

@@ -238,12 +238,15 @@ fn create(path: &Path, case: Case) -> Result<()> {
             &[RowValue::Long(8), RowValue::Null],
         ],
     };
-    jet3::create_database_with_table_rows(
+    jet3::create_database(
         path,
-        &if case.later {
-            [notes, items]
-        } else {
-            [items, notes]
+        &jet3::DatabaseSpec {
+            tables: &if case.later {
+                [notes, items]
+            } else {
+                [items, notes]
+            },
+            ..jet3::DatabaseSpec::default()
         },
         &mut budget(),
     )?;

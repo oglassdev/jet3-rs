@@ -1,14 +1,10 @@
+use crate::WriteError;
 use crate::{
     ByteCount, ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, ComposeError, DatabaseReader,
-    IndexColumnSpec, IndexDirection, IndexKind, IndexSpec, InlineLongValue, LongValue,
-    LongValueChunkValue, MapRowLocator, PageNumber, ResourceBudget, ResourceLimits, RowValue,
-    TableRows, TableSpec, TextCodePage, ValueKind,
-    create::{
-        api::{CreateDatabaseError, ImageCheckError, create_database},
-        api_tests::*,
-        initial_rows_tests::*,
-    },
-    create_database_with_rows, create_database_with_table_rows,
+    DatabaseSpec, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec, InlineLongValue,
+    LongValue, LongValueChunkValue, MapRowLocator, PageNumber, ResourceBudget, ResourceLimits,
+    RowValue, TableRows, TableSpec, TextCodePage, ValueKind,
+    create::{api::create_database, api_tests::*, check::ImageCheckError, initial_rows_tests::*},
 };
 use std::fs;
 
@@ -131,7 +127,14 @@ fn mixed_columns_indexes_and_generated_ids_keep_independent_payloads_and_maps() 
             });
         }
         requests.push(TableRows { table, rows: &rows });
-        create_database_with_table_rows(directory.target(), &requests, &mut budget())?;
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &requests,
+                ..DatabaseSpec::default()
+            },
+            &mut budget(),
+        )?;
         let original = fs::read(directory.target())?;
         let mut operation = budget();
         let mut database = DatabaseReader::open(directory.target(), &mut operation)?;
@@ -139,7 +142,8 @@ fn mixed_columns_indexes_and_generated_ids_keep_independent_payloads_and_maps() 
             .iter()
             .map(|request| request.table)
             .collect::<Vec<_>>();
-        let roots = crate::create::api::image_table_roots(&mut database, &tables, &mut operation)?;
+        let roots =
+            crate::create::check::image_table_roots(&mut database, &tables, &mut operation)?;
         let root = roots.last().copied().flatten().ok_or("missing table")?;
         let definition = database.table_definition(root, &mut operation)?;
         assert_eq!(definition.row_count(), 205);
@@ -280,7 +284,14 @@ fn long_value_maps_spill_after_the_last_index_map_slot() -> TestResult {
                 columns: &columns,
                 indexes: &INDEXES[..index_count],
             };
-            create_database(directory.target(), &[table], &mut budget())?;
+            create_database(
+                directory.target(),
+                &DatabaseSpec {
+                    tables: &[TableRows::empty(table)],
+                    ..DatabaseSpec::default()
+                },
+                &mut budget(),
+            )?;
             let bytes = fs::read(directory.target())?;
             let map_rows = 2 + index_count + 2 * long_count;
             assert_eq!(page_rows(&bytes, 21), map_rows.min(15) as u16);
@@ -289,10 +300,15 @@ fn long_value_maps_spill_after_the_last_index_map_slot() -> TestResult {
             }
             let mut row = vec![RowValue::Long(1), RowValue::Long(2)];
             row.extend((0..long_count).map(|_| RowValue::Memo(b"a")));
-            create_database_with_rows(
+            create_database(
                 directory.path.join("populated.mdb"),
-                &table,
-                &[&row],
+                &DatabaseSpec {
+                    tables: &[TableRows {
+                        table,
+                        rows: &[&row],
+                    }],
+                    ..DatabaseSpec::default()
+                },
                 &mut budget(),
             )?;
         }
@@ -320,14 +336,21 @@ fn every_external_column_is_checked_and_refusals_preserve_the_destination() -> T
         RowValue::LongBinary(&payloads[1]),
         RowValue::Memo(&payloads[2]),
     ]];
-    create_database_with_rows(directory.target(), &table, rows, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let original = fs::read(directory.target())?;
     for column in 0..3 {
         let mut changed = original.clone();
         changed[(23 + column) * crate::PAGE_BYTES + crate::PAGE_BYTES - 1] ^= 1;
         fs::write(directory.target(), changed)?;
         assert!(matches!(
-            crate::create::api::check_initial_rows(
+            crate::create::check::check_initial_rows(
                 &directory.target(),
                 &table,
                 rows,
@@ -350,7 +373,7 @@ fn every_external_column_is_checked_and_refusals_preserve_the_destination() -> T
         changed[21 * crate::PAGE_BYTES + offset + 5 + 23 / 8] ^= 1 << (23 % 8);
         fs::write(directory.target(), changed)?;
         assert!(matches!(
-            crate::create::api::check_long_value_written_pages(
+            crate::create::check::check_long_value_written_pages(
                 &directory.target(),
                 &[table],
                 &pages,
@@ -369,31 +392,51 @@ fn every_external_column_is_checked_and_refusals_preserve_the_destination() -> T
     ] {
         let row = [rows[0][0], rows[0][1], rejected];
         assert!(matches!(
-            create_database_with_rows(directory.target(), &table, &[&row], &mut budget()),
-            Err(CreateDatabaseError::Compose(_))
+            create_database(
+                directory.target(),
+                &DatabaseSpec {
+                    tables: &[TableRows {
+                        table,
+                        rows: &[&row]
+                    }],
+                    ..DatabaseSpec::default()
+                },
+                &mut budget()
+            ),
+            Err(WriteError::Compose(_))
         ));
     }
     let invalid_option = [NOTE, columns[1].with_allow_zero_length(), columns[2]];
     assert!(matches!(
-        create_database_with_rows(
+        create_database(
             directory.target(),
-            &TableSpec {
-                columns: &invalid_option,
-                ..table
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: TableSpec {
+                        columns: &invalid_option,
+                        ..table
+                    },
+                    rows
+                }],
+                ..DatabaseSpec::default()
             },
-            rows,
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::UnsupportedMemoOption
-        ))
+        Err(WriteError::Compose(ComposeError::UnsupportedMemoOption))
     ));
     let mut limited = ResourceBudget::new(
         ResourceLimits::default().with_max_allocation_bytes(ByteCount::new(2048)),
     );
     assert!(matches!(
-        create_database_with_rows(directory.target(), &table, rows, &mut limited),
-        Err(CreateDatabaseError::Compose(_))
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[TableRows { table, rows }],
+                ..DatabaseSpec::default()
+            },
+            &mut limited
+        ),
+        Err(WriteError::Compose(_))
     ));
     assert_eq!(fs::read(directory.target())?, original);
     assert_eq!(directory.entries()?, ["created.mdb"]);
@@ -447,10 +490,15 @@ fn combined_external_columns_extend_independent_maps() -> TestResult {
     };
     let payload = vec![b'x'; 2032 * 501];
     let first = RowValue::Memo(&payload[..2032 * 500]);
-    create_database_with_rows(
+    create_database(
         directory.target(),
-        &table,
-        &[&[first, RowValue::LongBinary(&payload[..2032 * 500])]],
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table,
+                rows: &[&[first, RowValue::LongBinary(&payload[..2032 * 500])]],
+            }],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let original = fs::read(directory.target())?;
@@ -461,10 +509,15 @@ fn combined_external_columns_extend_independent_maps() -> TestResult {
     assert!(map_bit(&original, 21, 4, 1022)?);
     assert!(map_bit(&original, 21, 0, 1023)?);
     let grown = directory.target().with_file_name("grown.mdb");
-    create_database_with_rows(
+    create_database(
         &grown,
-        &table,
-        &[&[first, RowValue::LongBinary(&payload)]],
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table,
+                rows: &[&[first, RowValue::LongBinary(&payload)]],
+            }],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);

@@ -1,13 +1,12 @@
 use super::api_relationship_graph::*;
+use crate::WriteError;
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexDirection, IndexKind,
     IndexSpec, RelationshipField, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue,
     TableRef, TableSpec, TextCodePage,
     create::{
         api::*,
-        api_relationship_graph::{
-            create_database_with_relationships, create_database_with_relationships_and_rows,
-        },
+        check::*,
         composer::{ComposeError, GraphImage, compose_relationship_graph},
     },
 };
@@ -142,10 +141,13 @@ fn graph_creation_handles_multiple_shared_chain_and_self_endpoints() -> TestResu
                     rows: if populated { rows } else { &[] },
                 })
                 .collect();
-            create_database_with_relationships_and_rows(
+            create_database(
                 directory.target(),
-                &requests,
-                &relationships,
+                &DatabaseSpec {
+                    tables: &requests,
+                    relationships: &relationships,
+                    ..DatabaseSpec::default()
+                },
                 &mut budget(),
             )?;
             let mut database = DatabaseReader::open(directory.target(), &mut budget())?;
@@ -171,33 +173,42 @@ fn graph_creation_rejects_orphans_and_duplicate_names_before_publication() -> Te
         rows,
     }];
     assert!(matches!(
-        create_database_with_relationships_and_rows(
+        create_database(
             directory.target(),
-            &requests,
-            &[relation(b"Self", 0, 0, 1)],
+            &DatabaseSpec {
+                tables: &requests,
+                relationships: &[relation(b"Self", 0, 0, 1)],
+                ..DatabaseSpec::default()
+            },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
+        Err(WriteError::Compose(
             ComposeError::OrphanInitialRelationshipKey { row: 0, value: 2 }
         ))
     ));
     assert!(matches!(
-        create_database_with_relationships(
+        create_database(
             directory.target(),
-            &TABLES,
-            &[relation(b"Same", 0, 1, 1), relation(b"same", 0, 1, 2)],
+            &DatabaseSpec {
+                tables: &TABLES.map(TableRows::empty),
+                relationships: &[relation(b"Same", 0, 1, 1), relation(b"same", 0, 1, 2)],
+                ..DatabaseSpec::default()
+            },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
+        Err(WriteError::Compose(
             ComposeError::UnsupportedRelationship { .. }
         ))
     ));
     let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(0));
     assert!(
-        create_database_with_relationships(
+        create_database(
             directory.target(),
-            &TABLES,
-            &[relation(b"A", 0, 1, 1)],
+            &DatabaseSpec {
+                tables: &TABLES.map(TableRows::empty),
+                relationships: &[relation(b"A", 0, 1, 1)],
+                ..DatabaseSpec::default()
+            },
             &mut limited
         )
         .is_err()
@@ -210,18 +221,36 @@ fn graph_creation_rejects_orphans_and_duplicate_names_before_publication() -> Te
 fn graph_creation_preserves_destination_and_empty_graph_matches_normal_creation() -> TestResult {
     let directory = Directory::new()?;
     let other = directory.0.join("normal.mdb");
-    create_database_with_relationships(directory.target(), &TABLES, &[], &mut budget())?;
-    crate::create_database(&other, &TABLES, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &TABLES.map(TableRows::empty),
+            relationships: &[],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
+    crate::create_database(
+        &other,
+        &crate::DatabaseSpec {
+            tables: &TABLES.map(crate::TableRows::empty),
+            ..crate::DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let original = fs::read(directory.target())?;
     assert_eq!(original, fs::read(other)?);
     assert!(matches!(
-        create_database_with_relationships(
+        create_database(
             directory.target(),
-            &TABLES,
-            &[relation(b"A", 0, 1, 1)],
+            &DatabaseSpec {
+                tables: &TABLES.map(TableRows::empty),
+                relationships: &[relation(b"A", 0, 1, 1)],
+                ..DatabaseSpec::default()
+            },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Publish(_))
+        Err(WriteError::CreatePublish(_))
     ));
     assert_eq!(fs::read(directory.target())?, original);
     Ok(())
@@ -235,10 +264,13 @@ fn graph_candidate_check_rejects_changed_index_names_flags_and_endpoint_columns(
     let GraphImage { image, tables } =
         compose_relationship_graph(&requests, &[relationship], &mut budget())?;
     let pages = image.into_pages();
-    create_database_with_relationships(
+    create_database(
         directory.target(),
-        &TABLES,
-        &[relationship],
+        &DatabaseSpec {
+            tables: &TABLES.map(TableRows::empty),
+            relationships: &[relationship],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     for changed in [
@@ -328,10 +360,13 @@ fn graph_creation_resolves_generated_parent_keys_before_foreign_checks() -> Test
             rows: child_rows,
         },
     ];
-    create_database_with_relationships_and_rows(
+    create_database(
         directory.target(),
-        &requests,
-        &[relation(b"A", 0, 1, 1)],
+        &DatabaseSpec {
+            tables: &requests,
+            relationships: &[relation(b"A", 0, 1, 1)],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let bad_rows: &[&[RowValue<'_>]] = &[&[
@@ -349,13 +384,16 @@ fn graph_creation_resolves_generated_parent_keys_before_foreign_checks() -> Test
     ];
     let missing = directory.0.join("orphan.mdb");
     assert!(matches!(
-        create_database_with_relationships_and_rows(
+        create_database(
             &missing,
-            &bad,
-            &[relation(b"A", 0, 1, 1)],
+            &DatabaseSpec {
+                tables: &bad,
+                relationships: &[relation(b"A", 0, 1, 1)],
+                ..DatabaseSpec::default()
+            },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
+        Err(WriteError::Compose(
             ComposeError::OrphanInitialRelationshipKey { row: 0, value: 3 }
         ))
     ));

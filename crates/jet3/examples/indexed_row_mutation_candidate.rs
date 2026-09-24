@@ -1,7 +1,7 @@
 //! Finite public row/index mutation candidates for EXP-0215.
 use jet3::{
     ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec, ResourceBudget,
-    ResourceLimits, RowDelete, RowLocator, RowValue, TableSpec, UpdateError,
+    ResourceLimits, RowDelete, RowLocator, RowValue, TableSpec, WriteError,
 };
 use std::{env, fs, path::Path};
 fn budget() -> ResourceBudget {
@@ -72,15 +72,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|n| [RowValue::Long(n), RowValue::Long(n + 100)])
             .collect();
         let rows: Vec<_> = values.iter().map(|r| r.as_slice()).collect();
-        jet3::create_database_with_rows(
+        jet3::create_database(
             &original,
-            &TableSpec {
-                validation: jet3::TableValidation::NONE,
-                name: b"Items",
-                columns: &columns,
-                indexes: &indexes,
+            &jet3::DatabaseSpec {
+                tables: &[jet3::TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: b"Items",
+                        columns: &columns,
+                        indexes: &indexes,
+                    },
+                    rows: &rows,
+                }],
+                ..jet3::DatabaseSpec::default()
             },
-            &rows,
             &mut budget(),
         )?;
         fs::copy(&original, &candidate)?;
@@ -127,7 +132,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .err()
         .ok_or("duplicate accepted")?;
         let refusal = match error {
-            UpdateError::Unsupported("duplicate unique key") => "duplicate",
+            WriteError::Unsupported("duplicate unique key") => "duplicate",
             _ => return Err("unexpected refusal".into()),
         };
         if fs::read(&candidate)? != before {

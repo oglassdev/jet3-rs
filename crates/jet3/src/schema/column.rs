@@ -1,6 +1,6 @@
 //! Column renames preserve row storage and update EXP-0297 relationship names.
 use crate::{
-    ResourceBudget, RowValue, UpdateError,
+    ResourceBudget, RowValue, WriteError,
     write::page_edits::{PageEdits, reserve},
 };
 use std::fs::File;
@@ -12,7 +12,7 @@ pub(crate) fn rename(
     old: &[u8],
     new: &[u8],
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let (root, properties, relationships, updates) =
         crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let order = database.header().sort_order();
@@ -22,7 +22,7 @@ pub(crate) fn rename(
                 .columns()
                 .iter()
                 .position(|column| column.name().raw_bytes() == old)
-                .ok_or(UpdateError::NotFound("column"))?;
+                .ok_or(WriteError::NotFound("column"))?;
             crate::schema::edit::distinct(
                 order,
                 new,

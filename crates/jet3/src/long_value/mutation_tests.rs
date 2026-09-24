@@ -78,28 +78,31 @@ impl Fixture {
             RowValue::LongBinary(&[0x22; 4096]),
         ];
         let note = [RowValue::Long(9), RowValue::Memo(&[b'z'; 4096])];
-        create_database_with_table_rows(
+        create_database(
             result.path(),
-            &[
-                TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Rows",
-                        columns: &columns,
-                        indexes: if indexes { &INDEXES } else { &[] },
+            &DatabaseSpec {
+                tables: &[
+                    TableRows {
+                        table: TableSpec {
+                            validation: crate::TableValidation::NONE,
+                            name: b"Rows",
+                            columns: &columns,
+                            indexes: if indexes { &INDEXES } else { &[] },
+                        },
+                        rows: &[&first, &second],
                     },
-                    rows: &[&first, &second],
-                },
-                TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Notes",
-                        columns: &[COLUMNS[0], COLUMNS[2]],
-                        indexes: &[],
+                    TableRows {
+                        table: TableSpec {
+                            validation: crate::TableValidation::NONE,
+                            name: b"Notes",
+                            columns: &[COLUMNS[0], COLUMNS[2]],
+                            indexes: &[],
+                        },
+                        rows: &[&note],
                     },
-                    rows: &[&note],
-                },
-            ],
+                ],
+                ..DatabaseSpec::default()
+            },
             &mut budget(),
         )?;
         Ok(result)
@@ -452,27 +455,27 @@ fn aliases_unreferenced_fragments_and_broken_chains_are_refused() -> TestResult 
         match case {
             0 => assert!(matches!(
                 result,
-                Err(UpdateError::Mismatch("aliased long-value fragment"))
+                Err(WriteError::Mismatch("aliased long-value fragment"))
             )),
             1 => assert!(matches!(
                 result,
-                Err(UpdateError::Mismatch(
+                Err(WriteError::Mismatch(
                     "long-value reference has wrong column owner"
                 ))
             )),
             2 => assert!(matches!(
                 result,
-                Err(UpdateError::Mismatch(
+                Err(WriteError::Mismatch(
                     "unreferenced live long-value fragment"
                 ))
             )),
             3 => assert!(matches!(
                 result,
-                Err(UpdateError::LongValue(LongValueError::Cycle { .. }))
+                Err(WriteError::LongValue(LongValueError::Cycle { .. }))
             )),
             4 => assert!(matches!(
                 result,
-                Err(UpdateError::LongValue(LongValueError::MissingRow { .. }))
+                Err(WriteError::LongValue(LongValueError::MissingRow { .. }))
             )),
             _ => unreachable!(),
         }

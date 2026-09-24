@@ -1,7 +1,8 @@
 //! Finite public numeric-index candidates for EXP-0183.
 use jet3::{
-    ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexNullPolicy, IndexSpec,
-    ResourceBudget, ResourceLimits, RowValue, TableSpec, create_database_with_rows,
+    ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexDirection, IndexKind,
+    IndexNullPolicy, IndexSpec, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec,
+    create_database,
 };
 use std::{env, fs, path::Path};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -158,15 +159,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             fields: &fields,
         }];
         let rows: Vec<_> = rows.iter().map(|r| r.as_slice()).collect();
-        create_database_with_rows(
+        create_database(
             directory.join(format!("{name}.mdb")),
-            &TableSpec {
-                validation: jet3::TableValidation::NONE,
-                name: b"Rows",
-                columns: &columns,
-                indexes: &indexes,
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: b"Rows",
+                        columns: &columns,
+                        indexes: &indexes,
+                    },
+                    rows: &rows,
+                }],
+                ..DatabaseSpec::default()
             },
-            &rows,
             &mut ResourceBudget::new(ResourceLimits::default()),
         )?;
     }

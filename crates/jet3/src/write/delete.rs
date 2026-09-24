@@ -1,5 +1,5 @@
 //! Bounded existing-row deletion using the compaction observed in EXP-0162.
-use crate::{DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget, RowLocator, UpdateError};
+use crate::{DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget, RowLocator, WriteError};
 use std::convert::Infallible;
 use std::error::Error as StdError;
 use std::path::Path;
@@ -24,7 +24,7 @@ pub struct RowDelete<'a> {
 ///
 /// # Errors
 ///
-/// Returns [`UpdateError`] when the file or request is outside the supported
+/// Returns [`WriteError`] when the file or request is outside the supported
 /// scope, a relationship constraint refuses the deletion, or `budget` is
 /// exhausted; the original file is then unchanged. Publication failures
 /// identify their stage. See `docs/plans/V1_SCOPE.md` for the supported scope.
@@ -32,7 +32,7 @@ pub fn delete_row(
     path: impl AsRef<Path>,
     request: RowDelete<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     delete_with_hook(path.as_ref(), request, budget, |_| Ok::<(), Infallible>(()))
 }
 
@@ -41,7 +41,7 @@ pub(super) fn delete_with_hook<H, HE>(
     request: RowDelete<'_>,
     budget: &mut ResourceBudget,
     hook: H,
-) -> Result<(), UpdateError>
+) -> Result<(), WriteError>
 where
     H: FnMut(PublishStage) -> Result<(), HE>,
     HE: StdError + Send + Sync + 'static,
@@ -56,7 +56,7 @@ pub(crate) fn plan(
     request: RowDelete<'_>,
     check_relationships: bool,
     budget: &mut ResourceBudget,
-) -> Result<crate::write::page_edits::PageEdits, UpdateError> {
+) -> Result<crate::write::page_edits::PageEdits, WriteError> {
     let graph = crate::row::mutation_graph::RowGraph::load(
         database,
         definition,
@@ -64,7 +64,7 @@ pub(crate) fn plan(
         budget,
     )?;
     if graph.selected.len() > 2 {
-        return Err(UpdateError::Unsupported(
+        return Err(WriteError::Unsupported(
             "mutation of multi-hop overflow chain",
         ));
     }
@@ -93,14 +93,14 @@ pub(crate) fn plan(
             }
             observed_rows = observed_rows
                 .checked_add(1)
-                .ok_or(UpdateError::Mismatch("row count overflow"))?;
+                .ok_or(WriteError::Mismatch("row count overflow"))?;
             if row.locator() == request.row {
                 found = true;
             }
         }
     }
     if !found {
-        return Err(UpdateError::NotFound("row"));
+        return Err(WriteError::NotFound("row"));
     }
     let mut source_definition = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut source_definition, budget)?;

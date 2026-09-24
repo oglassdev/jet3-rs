@@ -48,8 +48,6 @@ use crate::{
     },
 };
 
-use std::fmt;
-
 /// EXP-0252/0279: at most 32 logical indexes, including relationship aliases.
 pub(crate) const MAX_OBSERVED_INDEXES: usize = 32;
 /// EXP-0252: fifteen 133-byte maps plus two-byte slots fit after the page header.
@@ -73,16 +71,17 @@ pub(crate) use super::{ColumnRef, TableSpec};
 pub(crate) use super::{IndexKind, IndexSpec};
 
 /// Structured failure while planning one new user table.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("Jet 3 table schema planning failed: {self:?}")]
 pub enum TableSchemaPlanError {
     /// The shared work budget is exhausted.
-    Resource(crate::Error),
+    Resource(#[source] crate::Error),
     /// The table name cannot be encoded into a catalog index key.
-    TableNameKey(CatalogNameKeyError),
+    TableNameKey(#[source] CatalogNameKeyError),
     /// The table name cannot be encoded into an `MSysObjects` row.
-    TableNameRow(CatalogRecordWriteError),
+    TableNameRow(#[source] CatalogRecordWriteError),
     /// The columns or indexes cannot be encoded into a table definition.
-    Definition(TableDefinitionWriteError),
+    Definition(#[source] TableDefinitionWriteError),
     /// The table declares no columns.
     NoColumns,
     /// A created object's name exceeds the EXP-0249 admitted length.
@@ -152,24 +151,6 @@ pub enum TableSchemaPlanError {
         /// Highest page a locator can name.
         maximum: u64,
     },
-}
-
-impl fmt::Display for TableSchemaPlanError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "Jet 3 table schema planning failed: {self:?}")
-    }
-}
-
-impl std::error::Error for TableSchemaPlanError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Resource(source) => Some(source),
-            Self::TableNameKey(source) => Some(source),
-            Self::TableNameRow(source) => Some(source),
-            Self::Definition(source) => Some(source),
-            _ => None,
-        }
-    }
 }
 
 /// The validated page assignment for one new user table.

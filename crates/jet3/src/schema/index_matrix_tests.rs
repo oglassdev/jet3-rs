@@ -42,26 +42,31 @@ fn create(
     kind: IndexKind,
     column: u16,
     rows: &[&[RowValue<'_>]],
-) -> Result<(), CreateDatabaseError> {
+) -> Result<(), WriteError> {
     let indexes = [IndexSpec {
         name: b"Key",
         kind,
         fields: &[IndexColumnSpec::ascending(column)],
     }];
-    create_database_with_rows(
+    create_database(
         path,
-        &TableSpec {
-            validation: TableValidation::NONE,
-            name: b"T",
-            columns: &COLUMNS,
-            indexes: &indexes,
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: TableSpec {
+                    validation: TableValidation::NONE,
+                    name: b"T",
+                    columns: &COLUMNS,
+                    indexes: &indexes,
+                },
+                rows,
+            }],
+            ..DatabaseSpec::default()
         },
-        rows,
         &mut budget(),
     )
 }
 
-fn replace(path: &std::path::Path, kind: IndexKind, column: u16) -> Result<(), UpdateError> {
+fn replace(path: &std::path::Path, kind: IndexKind, column: u16) -> Result<(), WriteError> {
     edit_schema(
         path,
         SchemaEdit::ReplaceIndex {

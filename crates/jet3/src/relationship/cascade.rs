@@ -1,7 +1,7 @@
 //! EXP-0294/0295: compute the complete related-row result before staging any writes.
 use super::key;
 use crate::{
-    DatabaseReader, FileSource, ResourceBudget, RowValue, TableDefinition, UpdateError,
+    DatabaseReader, FileSource, ResourceBudget, RowValue, TableDefinition, WriteError,
     relationship::{catalog::Constraint, mutation::Change},
     write::page_edits::reserve,
 };
@@ -19,7 +19,7 @@ pub(crate) fn prepare<'a>(
     table: &'a [u8],
     change: Change<'a>,
     budget: &mut ResourceBudget,
-) -> Result<Option<Plan<'a>>, UpdateError> {
+) -> Result<Option<Plan<'a>>, WriteError> {
     if !target
         .relationships()
         .any(|relation| relation.cascade_updates() || relation.cascade_deletes())
@@ -36,7 +36,7 @@ pub(crate) fn prepare<'a>(
     let selected = rows
         .iter()
         .position(|row| row.table == target.root() && row.locator == locator)
-        .ok_or(UpdateError::NotFound("cascade target row"))?;
+        .ok_or(WriteError::NotFound("cascade target row"))?;
     let row = &mut rows[selected];
     row.deleted = matches!(change, Change::Delete(_));
     for field in &mut row.fields {
@@ -44,7 +44,7 @@ pub(crate) fn prepare<'a>(
             Change::Replace(_, values) => Some(
                 *values
                     .get(usize::from(field.column.get()))
-                    .ok_or(UpdateError::Mismatch("replacement column count"))?,
+                    .ok_or(WriteError::Mismatch("replacement column count"))?,
             ),
             Change::Field(_, column, value) if column == field.column => Some(value),
             _ => None,
@@ -54,9 +54,9 @@ pub(crate) fn prepare<'a>(
                 let column = target
                     .columns()
                     .get(usize::from(field.column.get()))
-                    .ok_or(UpdateError::NotFound("cascade assignment column"))?;
+                    .ok_or(WriteError::NotFound("cascade assignment column"))?;
                 if !matches!(change, Change::Replace(_, _)) || !column.auto_increment() {
-                    return Err(UpdateError::Unsupported(
+                    return Err(WriteError::Unsupported(
                         "AutoIncrement requires an AutoNumber row replacement",
                     ));
                 }
@@ -98,7 +98,7 @@ fn propagate(
     constraints: &[Constraint],
     selected: usize,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let mut queue = Vec::new();
     reserve(&mut queue, 1, budget)?;
     queue.push(selected);
@@ -173,7 +173,7 @@ fn guards(
     selected: usize,
     change: Change<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     for constraint in constraints {
         for (position, parent) in rows.iter().enumerate() {
             budget.charge_work_units(
@@ -215,7 +215,7 @@ fn guards(
                 )?;
                 if super::cascade_rows::equal(&key, &after, budget)? {
                     return Err(key.as_ref().map_or(
-                        UpdateError::NullRelationshipConstraint {
+                        WriteError::NullRelationshipConstraint {
                             parent: constraint.parent.root(),
                             child: constraint.child.root(),
                         },
@@ -233,7 +233,7 @@ fn validate(
     constraints: &[Constraint],
     after: bool,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     for constraint in constraints {
         let mut parents = Vec::new();
         let mut previous = Vec::new();
@@ -270,7 +270,7 @@ fn validate(
         key::sort(&mut parents, budget)?;
         key::sort(&mut previous, budget)?;
         if !key::unique(&parents, budget)? {
-            return Err(UpdateError::Mismatch("duplicate cascade parent key"));
+            return Err(WriteError::Mismatch("duplicate cascade parent key"));
         }
         for row in rows {
             budget.charge_work_units(1)?;

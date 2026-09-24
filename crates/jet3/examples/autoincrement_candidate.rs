@@ -1,8 +1,7 @@
 //! Deterministic AutoIncrement candidates; no DAO acceptance is asserted.
 use jet3::{
-    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
-    ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec,
-    create_database_with_table_rows,
+    ColumnRef, ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexDirection, IndexKind,
+    IndexSpec, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec, create_database,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -54,9 +53,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             rows: &second_rows,
         });
     }
-    create_database_with_table_rows(
+    create_database(
         &args[1],
-        &requests,
+        &DatabaseSpec {
+            tables: &requests,
+            ..DatabaseSpec::default()
+        },
         &mut ResourceBudget::new(ResourceLimits::default()),
     )?;
     Ok(())

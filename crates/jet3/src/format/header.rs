@@ -5,8 +5,6 @@
 //! encryption state, page size, database validity, or application
 //! compatibility.
 
-use std::fmt;
-
 use crate::{ByteCount, ByteOffset, Error, PageGeometry, ReadAt, ReadBudget};
 
 const SIGNATURE_OFFSET: ByteOffset = ByteOffset::new(4);
@@ -40,42 +38,18 @@ pub enum JetFileKind {
 }
 
 /// A failure while reading or recognizing a generic Jet header signature.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum HeaderError {
     /// A bounded random-access read failed.
-    Read(Error),
+    #[error("failed to read Jet signature: {0}")]
+    Read(#[from] Error),
     /// The 15-byte signature window did not contain a documented signature.
+    #[error("unknown Jet signature bytes: {observed:?}")]
     UnknownSignature {
         /// The complete signature window observed at byte offset 4.
         observed: [u8; SIGNATURE_LENGTH],
     },
-}
-
-impl fmt::Display for HeaderError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Read(source) => write!(formatter, "failed to read Jet signature: {source}"),
-            Self::UnknownSignature { observed } => {
-                write!(formatter, "unknown Jet signature bytes: {observed:?}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for HeaderError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Read(source) => Some(source),
-            Self::UnknownSignature { .. } => None,
-        }
-    }
-}
-
-impl From<Error> for HeaderError {
-    fn from(source: Error) -> Self {
-        Self::Read(source)
-    }
 }
 
 /// Reads the documented 15-byte signature window at byte offset 4.

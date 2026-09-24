@@ -17,7 +17,6 @@ use crate::{
         page_kind::page_tag,
     },
 };
-use std::fmt;
 
 // EXP-0305: native index reads fail on table pages with 256 physical slots.
 pub(crate) const MAX_BUILT_ROWS: u16 = 255;
@@ -80,17 +79,24 @@ impl PageImage {
 }
 
 /// A structured failure while appending rows to a data page image.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum PageImageError {
     /// The owner page does not fit the four-byte owner field.
+    #[error("data-page owner {} does not fit a four-byte field", .owner.get())]
     OwnerNotRepresentable {
         /// Rejected table-definition root.
         owner: PageNumber,
     },
     /// A zero-length primary row cannot be distinguished from a deleted slot.
+    #[error("data-page rows must not be empty")]
     EmptyRow,
     /// The row plus its directory entry do not fit the remaining free space.
+    #[error(
+        "data page is full: {} bytes needed, {} available",
+        .needed.get(),
+        .available.get()
+    )]
     PageFull {
         /// Bytes needed for the row and its directory entry.
         needed: ByteCount,
@@ -98,47 +104,14 @@ pub enum PageImageError {
         available: ByteCount,
     },
     /// All addressable row slots are in use.
+    #[error("data page already holds {maximum} rows")]
     RowSlotsExhausted {
         /// Maximum rows one built page may hold.
         maximum: u16,
     },
     /// Checked encoding into the page image failed.
-    Encoding(Error),
-}
-
-impl fmt::Display for PageImageError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::OwnerNotRepresentable { owner } => write!(
-                formatter,
-                "data-page owner {} does not fit a four-byte field",
-                owner.get()
-            ),
-            Self::EmptyRow => write!(formatter, "data-page rows must not be empty"),
-            Self::PageFull { needed, available } => write!(
-                formatter,
-                "data page is full: {} bytes needed, {} available",
-                needed.get(),
-                available.get()
-            ),
-            Self::RowSlotsExhausted { maximum } => {
-                write!(formatter, "data page already holds {maximum} rows")
-            }
-            Self::Encoding(source) => write!(formatter, "data-page encoding failed: {source}"),
-        }
-    }
-}
-
-impl std::error::Error for PageImageError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Encoding(source) => Some(source),
-            Self::OwnerNotRepresentable { .. }
-            | Self::EmptyRow
-            | Self::PageFull { .. }
-            | Self::RowSlotsExhausted { .. } => None,
-        }
-    }
+    #[error("data-page encoding failed: {0}")]
+    Encoding(#[source] Error),
 }
 
 /// Appends primary rows to a tag-`01` data page image.

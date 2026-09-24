@@ -1,4 +1,5 @@
-use super::{api::*, api_tests::TestDirectory};
+use super::{api::*, api_tests::TestDirectory, check::*};
+use crate::WriteError;
 use crate::{
     ByteCount, ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, PageNumber, ResourceBudget,
     ResourceLimits, RowValue, TableSpec,
@@ -77,7 +78,14 @@ fn memo_option_publishes_distinct_empty_null_and_nonempty() -> Result<(), Box<dy
             &[RowValue::Long(2), RowValue::Memo(b"")],
             &[RowValue::Long(3), RowValue::Memo(b"A")],
         ];
-        create_database_with_rows(&path, &table, &rows, &mut budget())?;
+        create_database(
+            &path,
+            &DatabaseSpec {
+                tables: &[TableRows { table, rows: &rows }],
+                ..DatabaseSpec::default()
+            },
+            &mut budget(),
+        )?;
         let mut b = budget();
         let mut db = DatabaseReader::open(&path, &mut b)?;
         {
@@ -131,7 +139,17 @@ fn memo_option_publishes_distinct_empty_null_and_nonempty() -> Result<(), Box<dy
         drop(cursor);
         drop(db);
         let original = fs::read(&path)?;
-        assert!(create_database_with_rows(&path, &table, &rows, &mut budget()).is_err());
+        assert!(
+            create_database(
+                &path,
+                &DatabaseSpec {
+                    tables: &[TableRows { table, rows: &rows }],
+                    ..DatabaseSpec::default()
+                },
+                &mut budget()
+            )
+            .is_err()
+        );
         assert_eq!(fs::read(&path)?, original);
         let pages =
             compose_database_with_table_rows(&[TableRows { table, rows: &rows }], &mut budget())?
@@ -169,10 +187,15 @@ fn memo_option_refuses_nontext_types_and_default_empty() -> Result<(), Box<dyn S
             indexes: &[],
         };
         assert!(matches!(
-            create_database(&path, &[table], &mut budget()),
-            Err(CreateDatabaseError::Compose(
-                ComposeError::UnsupportedMemoOption
-            ))
+            create_database(
+                &path,
+                &DatabaseSpec {
+                    tables: &[TableRows::empty(table)],
+                    ..DatabaseSpec::default()
+                },
+                &mut budget()
+            ),
+            Err(WriteError::Compose(ComposeError::UnsupportedMemoOption))
         ));
         assert!(!path.exists());
     }
@@ -187,10 +210,15 @@ fn memo_option_refuses_nontext_types_and_default_empty() -> Result<(), Box<dyn S
         indexes: &[],
     };
     assert!(
-        create_database_with_rows(
+        create_database(
             dir.path.join("default"),
-            &table,
-            &[&[RowValue::Long(1), RowValue::Memo(b"")]],
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table,
+                    rows: &[&[RowValue::Long(1), RowValue::Memo(b"")]]
+                }],
+                ..DatabaseSpec::default()
+            },
             &mut budget()
         )
         .is_err()
@@ -202,6 +230,13 @@ fn memo_option_refuses_nontext_types_and_default_empty() -> Result<(), Box<dyn S
         columns: &opted,
         indexes: &[],
     };
-    create_database(dir.path.join("later"), &[table, later], &mut budget())?;
+    create_database(
+        dir.path.join("later"),
+        &DatabaseSpec {
+            tables: &[TableRows::empty(table), TableRows::empty(later)],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     Ok(())
 }

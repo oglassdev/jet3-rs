@@ -1,7 +1,7 @@
 //! Exact allocation-map membership patches from SRC-0020, EXP-0051/0057/0065/0162.
 use crate::{
     DatabaseReader, FileSource, MapRowLocator, PageNumber, ResourceBudget, TableDefinition,
-    UpdateError, alloc::mutation_map::MapBits,
+    WriteError, alloc::mutation_map::MapBits,
 };
 
 pub(crate) enum AllocationChange {
@@ -23,7 +23,7 @@ impl MapPatches {
         database: &mut DatabaseReader<FileSource>,
         edits: &mut crate::write::page_edits::PageEdits,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         for role in 0..self.locators.len() {
             edits.map_bit(
                 database,
@@ -44,7 +44,7 @@ pub(crate) fn plan(
     page: PageNumber,
     change: AllocationChange,
     budget: &mut ResourceBudget,
-) -> Result<MapPatches, UpdateError> {
+) -> Result<MapPatches, WriteError> {
     let (expected, desired) = match change {
         AllocationChange::Allocate { available } => {
             ([true, false, false], [false, true, available])
@@ -66,14 +66,14 @@ pub(crate) fn plan(
             || locator.page() == page
             || locators[..role].contains(&locator)
         {
-            return Err(UpdateError::Mismatch(
+            return Err(WriteError::Mismatch(
                 "overlapping allocation map references",
             ));
         }
         let map = MapBits::load(database, locator, budget)?;
         for previous in &maps {
             if map.overlaps(previous, budget)? {
-                return Err(UpdateError::Mismatch("overlapping allocation map storage"));
+                return Err(WriteError::Mismatch("overlapping allocation map storage"));
             }
         }
         let present =
@@ -84,9 +84,7 @@ pub(crate) fn plan(
                 map.contains(page)?
             };
         if present != expected[role] {
-            return Err(UpdateError::Mismatch(
-                "allocation patch membership mismatch",
-            ));
+            return Err(WriteError::Mismatch("allocation patch membership mismatch"));
         }
         maps.push(map);
     }
@@ -104,6 +102,6 @@ pub(crate) fn available(
     definition: &TableDefinition,
     member: PageNumber,
     budget: &mut ResourceBudget,
-) -> Result<bool, UpdateError> {
+) -> Result<bool, WriteError> {
     MapBits::load(database, definition.maps().available(), budget)?.contains(member)
 }

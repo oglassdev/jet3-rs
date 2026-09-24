@@ -1,5 +1,5 @@
 //! Shared typed JSON cells, request reading and mutation failure reporting.
-use jet3::{ResourceBudget, ResourceLimits, RowValue, UpdateError};
+use jet3::{ResourceBudget, ResourceLimits, RowValue, WriteError};
 use serde::{Deserialize, de::DeserializeOwned};
 use std::{ffi::OsStr, fs::File};
 
@@ -27,10 +27,10 @@ impl From<String> for Failure {
         }
     }
 }
-impl From<UpdateError> for Failure {
-    fn from(error: UpdateError) -> Self {
+impl From<WriteError> for Failure {
+    fn from(error: WriteError) -> Self {
         let publication_stage = match &error {
-            UpdateError::Publish(error) => Some(format!("{:?}", error.stage())),
+            WriteError::Publish(error) => Some(format!("{:?}", error.stage())),
             _ => None,
         };
         Self {

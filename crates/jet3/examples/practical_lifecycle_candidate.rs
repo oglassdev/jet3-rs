@@ -3,7 +3,7 @@ use jet3::{
     ByteCount, ColumnSpec, ColumnType, DatabaseReader, FileSource, IndexColumnSpec, IndexKind,
     IndexSpec, InlineLongValue, LongValue, LongValueChunkValue, ResourceBudget, ResourceLimits,
     RowDelete, RowLocator, RowUpdate, RowValue, TableDefinition, TableRows, TableSpec,
-    TextCodePage, UpdateError, ValueKind,
+    TextCodePage, ValueKind, WriteError,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -168,43 +168,46 @@ fn locate(path: &Path, id: i32) -> Result<RowLocator> {
 }
 fn create(path: &Path) -> Result<()> {
     let width = NonZeroU8::new(80).ok_or("width")?;
-    jet3::create_database_with_table_rows(
+    jet3::create_database(
         path,
-        &[
-            TableRows {
-                table: TableSpec {
-                    validation: jet3::TableValidation::NONE,
-                    name: b"Items",
-                    columns: &[
-                        ColumnSpec::new(b"Id", ColumnType::Long),
-                        ColumnSpec::new(b"Name", ColumnType::Text { max_len: width }),
-                        ColumnSpec::new(b"Price", ColumnType::Currency),
-                        ColumnSpec::new(b"Active", ColumnType::Boolean),
-                    ],
-                    indexes: &[IndexSpec {
-                        name: b"ById",
-                        fields: &[IndexColumnSpec::ascending(0)],
-                        kind: IndexKind::Primary,
-                    }],
+        &jet3::DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: b"Items",
+                        columns: &[
+                            ColumnSpec::new(b"Id", ColumnType::Long),
+                            ColumnSpec::new(b"Name", ColumnType::Text { max_len: width }),
+                            ColumnSpec::new(b"Price", ColumnType::Currency),
+                            ColumnSpec::new(b"Active", ColumnType::Boolean),
+                        ],
+                        indexes: &[IndexSpec {
+                            name: b"ById",
+                            fields: &[IndexColumnSpec::ascending(0)],
+                            kind: IndexKind::Primary,
+                        }],
+                    },
+                    rows: &[],
                 },
-                rows: &[],
-            },
-            TableRows {
-                table: TableSpec {
-                    validation: jet3::TableValidation::NONE,
-                    name: b"Notes",
-                    columns: &[
-                        ColumnSpec::new(b"Id", ColumnType::Long),
-                        ColumnSpec::new(b"Body", ColumnType::Memo),
+                TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: b"Notes",
+                        columns: &[
+                            ColumnSpec::new(b"Id", ColumnType::Long),
+                            ColumnSpec::new(b"Body", ColumnType::Memo),
+                        ],
+                        indexes: &[],
+                    },
+                    rows: &[
+                        &[RowValue::Long(7), RowValue::Memo(MEMO)],
+                        &[RowValue::Long(8), RowValue::Null],
                     ],
-                    indexes: &[],
                 },
-                rows: &[
-                    &[RowValue::Long(7), RowValue::Memo(MEMO)],
-                    &[RowValue::Long(8), RowValue::Null],
-                ],
-            },
-        ],
+            ],
+            ..jet3::DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     Ok(())
@@ -459,14 +462,14 @@ fn refusals(directory: &Path, source: &Path) -> Result<()> {
             .ok_or("refusal was accepted")?,
         };
         let expected = match case {
-            "duplicate" => matches!(error, UpdateError::Unsupported("duplicate unique key")),
+            "duplicate" => matches!(error, WriteError::Unsupported("duplicate unique key")),
             "wrong-value" => matches!(
                 error,
-                UpdateError::Encoding(jet3::RowWriteError::TypeMismatch { .. })
+                WriteError::Encoding(jet3::RowWriteError::TypeMismatch { .. })
             ),
             "malformed-source" => matches!(
                 error,
-                UpdateError::Mismatch("mapped index page kind or owner")
+                WriteError::Mismatch("mapped index page kind or owner")
             ),
             _ => {
                 let mut cause: &dyn std::error::Error = &error;
@@ -480,7 +483,7 @@ fn refusals(directory: &Path, source: &Path) -> Result<()> {
             }
         };
         if !expected
-            || matches!(error, UpdateError::Publish(_))
+            || matches!(error, WriteError::Publish(_))
             || fs::read(&before)? != fs::read(&after)?
         {
             return Err(format!("refusal {case}: {error}").into());

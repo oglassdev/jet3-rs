@@ -1,7 +1,8 @@
 use super::update_tests::*;
 use crate::{
     ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, RowValue,
-    row::directory::RowDirectory, write::update::*,
+    row::directory::RowDirectory,
+    write::{error::WriteError, update::*},
 };
 use std::fs;
 use std::num::NonZeroU8;
@@ -141,7 +142,7 @@ fn fixed_text_exact_width_boundaries_and_mismatches() -> TestResult {
                     request(fixture.locator(0)?, RowValue::Text(&bad)),
                     &mut budget()
                 ),
-                Err(UpdateError::Encoding(
+                Err(WriteError::Encoding(
                     crate::RowWriteError::InvalidWidth { .. }
                 ))
             ));

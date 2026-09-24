@@ -2,9 +2,9 @@
 use std::{num::NonZeroU8, path::Path};
 
 use jet3::{
-    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
-    RelationshipField, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef,
-    TableRows, TableSpec, create_database_with_relationship_rows, create_database_with_table_rows,
+    ColumnRef, ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexDirection, IndexKind,
+    IndexSpec, RelationshipField, RelationshipLayout, RelationshipSpec, ResourceBudget,
+    ResourceLimits, RowValue, TableRef, TableRows, TableSpec, create_database,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -275,27 +275,37 @@ pub fn write_fixture(id: &str, output: &Path) -> Result<()> {
         .collect::<Vec<_>>();
     let mut budget = ResourceBudget::new(ResourceLimits::default());
     if let Some(relation) = recipe.relationship {
-        create_database_with_relationship_rows(
+        create_database(
             output,
-            &requests,
-            &RelationshipSpec {
-                unique: false,
-                enforce: true,
-                join: jet3::RelationshipJoin::Inner,
-                cascade_updates: false,
-                cascade_deletes: false,
-                name: relation.name.as_bytes(),
-                parent: TableRef::Ordinal(usize::from(relation.parent_table)),
-                child: TableRef::Ordinal(usize::from(relation.child_table)),
-                fields: &[RelationshipField {
-                    parent: ColumnRef::Ordinal(relation.parent_column),
-                    child: ColumnRef::Ordinal(relation.child_column),
-                }],
+            &DatabaseSpec {
+                tables: &requests,
+                relationships: std::slice::from_ref(&RelationshipSpec {
+                    unique: false,
+                    enforce: true,
+                    join: jet3::RelationshipJoin::Inner,
+                    cascade_updates: false,
+                    cascade_deletes: false,
+                    name: relation.name.as_bytes(),
+                    parent: TableRef::Ordinal(usize::from(relation.parent_table)),
+                    child: TableRef::Ordinal(usize::from(relation.child_table)),
+                    fields: &[RelationshipField {
+                        parent: ColumnRef::Ordinal(relation.parent_column),
+                        child: ColumnRef::Ordinal(relation.child_column),
+                    }],
+                }),
+                relationship_layout: RelationshipLayout::SingleLong,
             },
             &mut budget,
         )?;
     } else {
-        create_database_with_table_rows(output, &requests, &mut budget)?;
+        create_database(
+            output,
+            &DatabaseSpec {
+                tables: &requests,
+                ..DatabaseSpec::default()
+            },
+            &mut budget,
+        )?;
     }
     Ok(())
 }

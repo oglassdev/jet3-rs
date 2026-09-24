@@ -1,7 +1,7 @@
 use super::relationship_graph_mutation_tests::*;
 use crate::{
     ColumnOrdinal, DatabaseReader, PAGE_BYTES, RelationshipValidationError, ResourceLimits,
-    TextCodePage, UpdateError, ValidationError, ValidationReport, create::composer::*,
+    TextCodePage, ValidationError, ValidationReport, WriteError, create::composer::*,
 };
 use std::fs;
 
@@ -306,7 +306,7 @@ fn relationship_names_above_the_usable_index_limit_remain_uninterpreted() -> Res
         } else {
             assert!(matches!(
                 result,
-                Err(UpdateError::Unsupported(
+                Err(WriteError::Unsupported(
                     "relationship name exceeds 63 bytes"
                 ))
             ));

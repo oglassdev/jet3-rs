@@ -1,6 +1,6 @@
 //! EXP-0297 removes both reciprocal aliases, central records, object and grants.
 use crate::{
-    PageNumber, ResourceBudget, RowLocator, RowValue, UpdateError,
+    PageNumber, ResourceBudget, RowLocator, RowValue, WriteError,
     write::page_edits::{PageEdits, reserve},
 };
 use std::fs::File;
@@ -10,7 +10,7 @@ pub(crate) fn drop_relationship(
     journal: &mut PageEdits,
     name: &[u8],
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let (endpoints, catalog, object, id, central, records) =
         crate::schema::edit::apply(file, journal, budget, |database, budget| {
             crate::relationship::catalog::validate(database, budget)?;
@@ -28,7 +28,7 @@ pub(crate) fn drop_relationship(
                         let RowValue::Long(raw) =
                             crate::row::scalar_values::read_column(&mut row, grbit)?
                         else {
-                            return Err(UpdateError::Mismatch("relationship attributes"));
+                            return Err(WriteError::Mismatch("relationship attributes"));
                         };
                         attributes = Some(raw);
                     }
@@ -37,11 +37,11 @@ pub(crate) fn drop_relationship(
                         let bytes = row
                             .field(child_name)
                             .and_then(|field| field.raw_bytes())
-                            .ok_or(UpdateError::Mismatch("relationship child name"))?;
+                            .ok_or(WriteError::Mismatch("relationship child name"))?;
                         let len = bytes.len();
                         saved
                             .get_mut(..len)
-                            .ok_or(UpdateError::Mismatch("relationship name capacity"))?
+                            .ok_or(WriteError::Mismatch("relationship name capacity"))?
                             .copy_from_slice(bytes);
                         reserve(&mut child, len, row.budget_mut())?;
                         child.extend_from_slice(&saved[..len]);
@@ -52,7 +52,7 @@ pub(crate) fn drop_relationship(
             }
             drop(rows);
             if records.is_empty() {
-                return Err(UpdateError::NotFound("relationship"));
+                return Err(WriteError::NotFound("relationship"));
             }
             let child_name = child;
             let child =
@@ -61,7 +61,7 @@ pub(crate) fn drop_relationship(
             let (object, id) = object(database, &catalog, name, budget)?;
             let flags = attributes
                 .and_then(crate::relationship::flags::RelationshipFlags::decode)
-                .ok_or(UpdateError::Unsupported("relationship catalog flags"))?;
+                .ok_or(WriteError::Unsupported("relationship catalog flags"))?;
             // EXP-0301: unenforced relationships have no index records to remove.
             if !flags.enforced {
                 return Ok((
@@ -76,7 +76,7 @@ pub(crate) fn drop_relationship(
                     relation.name().raw_bytes() == name
                         && relation.side() == crate::RelationshipSide::ForeignTable
                 })
-                .ok_or(UpdateError::Mismatch("foreign relationship index"))?;
+                .ok_or(WriteError::Mismatch("foreign relationship index"))?;
             let parent = database.table_definition(foreign.related_table(), budget)?;
             let primary = parent
                 .relationships()
@@ -86,7 +86,7 @@ pub(crate) fn drop_relationship(
                         && relation.raw_selector() == foreign.raw_relation_ordinal()
                         && relation.raw_relation_ordinal() == foreign.raw_selector()
                 })
-                .ok_or(UpdateError::Mismatch("primary relationship index"))?;
+                .ok_or(WriteError::Mismatch("primary relationship index"))?;
             let endpoints = [
                 (child.root(), foreign.raw_selector()),
                 (parent.root(), primary.raw_selector()),
@@ -107,7 +107,7 @@ pub(crate) fn drop_relationship(
         let retired = crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let table = database.table_definition(root, budget)?;
             crate::index::mutation::load(database, &table, budget)?;
-            let position = table.indexes().iter().position(|index| matches!(index.kind(), crate::IndexDefinitionKind::Relationship(relation) if relation.raw_selector() == selector)).ok_or(UpdateError::Mismatch("relationship index identity"))?;
+            let position = table.indexes().iter().position(|index| matches!(index.kind(), crate::IndexDefinitionKind::Relationship(relation) if relation.raw_selector() == selector)).ok_or(WriteError::Mismatch("relationship index identity"))?;
             let physical = table.indexes()[position].physical_index();
             let remaining = table
                 .indexes()
@@ -149,7 +149,7 @@ fn object(
     table: &crate::TableDefinition,
     name: &[u8],
     budget: &mut ResourceBudget,
-) -> Result<(RowLocator, i32), UpdateError> {
+) -> Result<(RowLocator, i32), WriteError> {
     let names = crate::schema::catalog::column(table, b"Name")?;
     let kind = crate::schema::catalog::column(table, b"Type")?;
     let id = crate::schema::catalog::column(table, b"Id")?;
@@ -163,14 +163,14 @@ fn object(
             )
         {
             let RowValue::Long(id) = crate::row::scalar_values::read_column(&mut row, id)? else {
-                return Err(UpdateError::Mismatch("relationship object identity"));
+                return Err(WriteError::Mismatch("relationship object identity"));
             };
             if found.replace((row.locator(), id)).is_some() {
-                return Err(UpdateError::Mismatch("duplicate relationship object"));
+                return Err(WriteError::Mismatch("duplicate relationship object"));
             }
         }
     }
-    found.ok_or(UpdateError::NotFound("relationship catalog object"))
+    found.ok_or(WriteError::NotFound("relationship catalog object"))
 }
 
 pub(crate) fn delete_row(
@@ -179,7 +179,7 @@ pub(crate) fn delete_row(
     root: PageNumber,
     row: RowLocator,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let table = database.table_definition(root, budget)?;
         let edits = crate::write::delete::plan(
@@ -198,7 +198,7 @@ pub(crate) fn delete_grants(
     journal: &mut PageEdits,
     id: i32,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let (root, locators) = crate::schema::edit::apply(
         file,
         journal,

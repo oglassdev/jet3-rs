@@ -1,7 +1,7 @@
 //! Single-field row rewrites using EXP-0060/0061/0262 storage and EXP-0290 assignment semantics.
 use crate::{
     ColumnPhysicalType, DatabaseReader, FieldUpdate, FileSource, PAGE_BYTES, ResourceBudget,
-    RowValue, TableDefinition, UpdateError,
+    RowValue, TableDefinition, WriteError,
 };
 
 pub(crate) fn plan(
@@ -11,7 +11,7 @@ pub(crate) fn plan(
     request: FieldUpdate<'_>,
     check_relationships: bool,
     budget: &mut ResourceBudget,
-) -> Result<crate::write::page_edits::PageEdits, UpdateError> {
+) -> Result<crate::write::page_edits::PageEdits, WriteError> {
     if check_relationships {
         crate::relationship::mutation::check(
             database,
@@ -42,13 +42,13 @@ pub(crate) fn plan_fields(
     selected_row: crate::RowLocator,
     assignments: &[(crate::ColumnOrdinal, RowValue<'_>)],
     budget: &mut ResourceBudget,
-) -> Result<crate::write::page_edits::PageEdits, UpdateError> {
+) -> Result<crate::write::page_edits::PageEdits, WriteError> {
     let columns = definition.columns();
     if columns.len() > usize::from(u8::MAX) || assignments.len() > columns.len() {
-        return Err(UpdateError::Unsupported("row column count"));
+        return Err(WriteError::Unsupported("row column count"));
     }
     if graph.selected.len() > 2 {
-        return Err(UpdateError::Unsupported(
+        return Err(WriteError::Unsupported(
             "mutation of multi-hop overflow chain",
         ));
     }
@@ -57,12 +57,12 @@ pub(crate) fn plan_fields(
     let options = crate::properties::value_policy::options(database, definition, budget)?;
     for (position, &(ordinal, value)) in assignments.iter().enumerate() {
         let index = usize::from(ordinal.get());
-        let column = columns.get(index).ok_or(UpdateError::NotFound("column"))?;
+        let column = columns.get(index).ok_or(WriteError::NotFound("column"))?;
         if column.auto_increment() {
-            return Err(UpdateError::Unsupported("AutoIncrement column"));
+            return Err(WriteError::Unsupported("AutoIncrement column"));
         }
         if assigned[index] {
-            return Err(UpdateError::Unsupported("duplicate field assignment"));
+            return Err(WriteError::Unsupported("duplicate field assignment"));
         }
         assigned[index] = true;
         selected_columns[position] = ordinal;
@@ -107,7 +107,7 @@ pub(crate) fn plan_fields(
                     ColumnPhysicalType::Memo | ColumnPhysicalType::LongBinary
                 ) {
                     row.field(ordinal)
-                        .ok_or(UpdateError::NotFound("long-value column"))?
+                        .ok_or(WriteError::NotFound("long-value column"))?
                         .raw_bytes()
                         .map_or(RowValue::Null, RowValue::LongValue)
                 } else {
@@ -134,19 +134,19 @@ pub(crate) fn plan_fields(
                     let source = row
                         .raw_bytes()
                         .get(start..end)
-                        .ok_or(UpdateError::Mismatch("fixed field source bounds"))?;
+                        .ok_or(WriteError::Mismatch("fixed field source bounds"))?;
                     row.budget_mut().charge_work_units(source.len() as u64)?;
                     encoded
                         .get_mut(start..end)
                         .filter(|_| end <= size)
-                        .ok_or(UpdateError::Mismatch("fixed field replacement bounds"))?
+                        .ok_or(WriteError::Mismatch("fixed field replacement bounds"))?
                         .copy_from_slice(source);
                 }
             }
             length = Some(size);
             break;
         }
-        length.ok_or(UpdateError::NotFound("row"))?
+        length.ok_or(WriteError::NotFound("row"))?
     };
     let mut index = if definition.physical_indexes().iter().any(|index| {
         index

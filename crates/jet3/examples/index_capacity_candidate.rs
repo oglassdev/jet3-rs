@@ -3,8 +3,8 @@ use jet3::{
     ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, FieldUpdate, FileSource,
     IndexColumnSpec, IndexDirection, IndexKind, IndexNullPolicy, IndexSpec, InlineLongValue,
     LongValue, LongValueChunkValue, ResourceBudget, ResourceLimits, RowDelete, RowLocator,
-    RowUpdate, RowValue, TableDefinition, TableRows, TableSpec, TextCodePage, UpdateError,
-    ValueKind,
+    RowUpdate, RowValue, TableDefinition, TableRows, TableSpec, TextCodePage, ValueKind,
+    WriteError,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -214,7 +214,7 @@ fn refusals(directory: &Path, source: &Path, case: &Case) -> Result<()> {
             .err()
         }
         .ok_or("late unique index accepted duplicate")?;
-        if !matches!(error, UpdateError::Unsupported("duplicate unique key"))
+        if !matches!(error, WriteError::Unsupported("duplicate unique key"))
             || fs::read(&before)? != fs::read(&after)?
         {
             return Err(format!("refusal {name}: {error}").into());

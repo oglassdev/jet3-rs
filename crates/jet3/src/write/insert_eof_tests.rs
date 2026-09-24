@@ -1,7 +1,7 @@
 use super::insert_tests::*;
 use crate::{
     ByteCount, ColumnSpec, ColumnType, DatabaseReader, MapRowLocator, PAGE_BYTES, PageNumber,
-    PublishStage, ResourceBudget, ResourceLimits, RowLocator, RowValue, TableSpec, UpdateError,
+    PublishStage, ResourceBudget, ResourceLimits, RowLocator, RowValue, TableSpec, WriteError,
     write::insert::*,
 };
 use std::error::Error as StdError;
@@ -235,9 +235,7 @@ fn eof_budget_and_private_append_corruption_preserve_original() -> TestResult {
                 }
             },
         );
-        assert!(
-            matches!(error, Err(UpdateError::Publish(error)) if error.stage() == failure_stage)
-        );
+        assert!(matches!(error, Err(WriteError::Publish(error)) if error.stage() == failure_stage));
         assert_eq!(fs::read(f.path())?, before);
         f.clean()?;
     }
@@ -268,9 +266,7 @@ fn eof_budget_and_private_append_corruption_preserve_original() -> TestResult {
                 Ok(())
             },
         );
-        assert!(
-            matches!(error,Err(UpdateError::Publish(e)) if e.stage()==PublishStage::Validation)
-        );
+        assert!(matches!(error,Err(WriteError::Publish(e)) if e.stage()==PublishStage::Validation));
         assert_eq!(fs::read(f.path())?, before);
         f.clean()?;
     }
@@ -291,28 +287,31 @@ fn later_table_ownership_and_minimum_row_availability() -> TestResult {
             },
         )
     });
-    crate::create_database_with_table_rows(
+    crate::create_database(
         f.path(),
-        &[
-            crate::TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"First",
-                    columns: &first_columns,
-                    indexes: &[],
+        &crate::DatabaseSpec {
+            tables: &[
+                crate::TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"First",
+                        columns: &first_columns,
+                        indexes: &[],
+                    },
+                    rows: &[&[RowValue::Long(42)]],
                 },
-                rows: &[&[RowValue::Long(42)]],
-            },
-            crate::TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Rows",
-                    columns: &columns,
-                    indexes: &[],
+                crate::TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Rows",
+                        columns: &columns,
+                        indexes: &[],
+                    },
+                    rows: &[],
                 },
-                rows: &[],
-            },
-        ],
+            ],
+            ..crate::DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let mut b = budget();

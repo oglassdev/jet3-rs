@@ -12,37 +12,20 @@ use crate::{
     Jet3PageReader, JetFileKind, PAGE_BYTES, PageGeometry, PageNumber, RawPageCursor, ReadAt,
     ResourceBudget, read_jet_signature,
 };
-use std::fmt;
 
 /// A structured failure while inspecting a raw Jet 3 candidate.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum CandidateError {
     /// The source's captured length exceeded the operation input policy.
-    Input(Error),
+    #[error("candidate input policy failed: {0}")]
+    Input(#[source] Error),
     /// Generic Jet signature recognition failed.
-    Signature(HeaderError),
+    #[error("candidate signature failed: {0}")]
+    Signature(#[source] HeaderError),
     /// The captured source length was not exact 2 KiB candidate geometry.
-    Geometry(Error),
-}
-
-impl fmt::Display for CandidateError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Input(source) => write!(formatter, "candidate input policy failed: {source}"),
-            Self::Signature(source) => write!(formatter, "candidate signature failed: {source}"),
-            Self::Geometry(source) => write!(formatter, "candidate geometry failed: {source}"),
-        }
-    }
-}
-
-impl std::error::Error for CandidateError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Input(source) | Self::Geometry(source) => Some(source),
-            Self::Signature(source) => Some(source),
-        }
-    }
+    #[error("candidate geometry failed: {0}")]
+    Geometry(#[source] Error),
 }
 
 /// A source with a documented generic Jet signature and exact 2 KiB geometry.

@@ -1,16 +1,11 @@
 //! EXP-0286 generated ascending parent trees and retained mutation counters.
 use super::api_relationship_graph_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexDirection, IndexKind,
     IndexNullPolicy, IndexSpec, RelationshipField, RelationshipSide, RelationshipSpec, RowValue,
     TableSpec, TextCodePage,
-    create::{
-        api::*,
-        api_relationship_graph::{
-            create_database_with_relationships, create_database_with_relationships_and_rows,
-        },
-        composer::ComposeError,
-    },
+    create::{api::*, composer::ComposeError},
 };
 use std::fs;
 use std::path::Path;
@@ -132,10 +127,13 @@ fn descending_parents_generate_ascending_trees_with_the_same_null_policy() -> Te
                     child: ColumnRef::Ordinal(2),
                 }];
             }
-            create_database_with_relationships_and_rows(
+            create_database(
                 directory.target(),
-                &requests[..if self_reference { 1 } else { 2 }],
-                &[relationship],
+                &DatabaseSpec {
+                    tables: &requests[..if self_reference { 1 } else { 2 }],
+                    relationships: &[relationship],
+                    ..DatabaseSpec::default()
+                },
                 &mut budget(),
             )?;
             let d = definition(&directory.target(), b"Parent")?;
@@ -212,10 +210,13 @@ fn generated_parent_is_shared_and_declared_ascending_parent_is_preferred() -> Te
         let mut second = edge(2);
         second.name = b"Second";
         let directory = Directory::new()?;
-        create_database_with_relationships(
+        create_database(
             directory.target(),
-            &tables,
-            &[edge(1), second],
+            &DatabaseSpec {
+                tables: &tables.map(TableRows::empty),
+                relationships: &[edge(1), second],
+                ..DatabaseSpec::default()
+            },
             &mut budget(),
         )?;
         let d = definition(&directory.target(), b"Parent")?;
@@ -253,10 +254,13 @@ fn generated_parent_capacity_and_hidden_names_remain_bounded() -> TestResult {
             indexes: &indexes[..count],
         };
         let directory = Directory::new()?;
-        let result = create_database_with_relationships(
+        let result = create_database(
             directory.target(),
-            &[parent, child],
-            &[edge(1)],
+            &DatabaseSpec {
+                tables: &[TableRows::empty(parent), TableRows::empty(child)],
+                relationships: &[edge(1)],
+                ..DatabaseSpec::default()
+            },
             &mut budget(),
         );
         if count == 31 {
@@ -267,7 +271,7 @@ fn generated_parent_capacity_and_hidden_names_remain_bounded() -> TestResult {
         } else {
             assert!(matches!(
                 result,
-                Err(CreateDatabaseError::Compose(ComposeError::Schema(
+                Err(WriteError::Compose(ComposeError::Schema(
                     crate::TableSchemaPlanError::UnobservedIndexCount { .. }
                 )))
             ));
@@ -287,10 +291,13 @@ fn generated_parent_capacity_and_hidden_names_remain_bounded() -> TestResult {
     };
     let directory = Directory::new()?;
     assert!(
-        create_database_with_relationships(
+        create_database(
             directory.target(),
-            &[parent, child],
-            &[edge(1)],
+            &DatabaseSpec {
+                tables: &[TableRows::empty(parent), TableRows::empty(child)],
+                relationships: &[edge(1)],
+                ..DatabaseSpec::default()
+            },
             &mut budget()
         )
         .is_err()
@@ -333,19 +340,22 @@ fn generated_parent_assignments_and_deletes_clamp_only_its_retained_counters() -
         &[RowValue::Long(3), RowValue::Long(3)],
     ];
     let directory = Directory::new()?;
-    create_database_with_relationships_and_rows(
+    create_database(
         directory.target(),
-        &[
-            TableRows {
-                table: tables[0],
-                rows,
-            },
-            TableRows {
-                table: tables[1],
-                rows: &rows[..1],
-            },
-        ],
-        &[edge(1)],
+        &DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: tables[0],
+                    rows,
+                },
+                TableRows {
+                    table: tables[1],
+                    rows: &rows[..1],
+                },
+            ],
+            relationships: &[edge(1)],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let d = definition(&directory.target(), b"Parent")?;
@@ -449,7 +459,15 @@ fn descending_parent_source_uses_logical_name_order_before_primary_or_physical_o
             },
         ];
         let directory = Directory::new()?;
-        create_database_with_relationships(directory.target(), &tables, &[edge(1)], &mut budget())?;
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &tables.map(TableRows::empty),
+                relationships: &[edge(1)],
+                ..DatabaseSpec::default()
+            },
+            &mut budget(),
+        )?;
         let d = definition(&directory.target(), b"Parent")?;
         assert_eq!(d.physical_indexes().len(), 3);
         assert_eq!(d.physical_indexes()[2].raw_flags(), 1);
@@ -502,19 +520,22 @@ fn null_parent_mutations_require_no_remaining_null_children() -> TestResult {
                     &[RowValue::Long(11), RowValue::Null],
                 ];
                 let directory = Directory::new()?;
-                create_database_with_relationships_and_rows(
+                create_database(
                     directory.target(),
-                    &[
-                        TableRows {
-                            table: tables[0],
-                            rows: parents,
-                        },
-                        TableRows {
-                            table: tables[1],
-                            rows: &children[..if null_child { 2 } else { 1 }],
-                        },
-                    ],
-                    &[edge(1)],
+                    &DatabaseSpec {
+                        tables: &[
+                            TableRows {
+                                table: tables[0],
+                                rows: parents,
+                            },
+                            TableRows {
+                                table: tables[1],
+                                rows: &children[..if null_child { 2 } else { 1 }],
+                            },
+                        ],
+                        relationships: &[edge(1)],
+                        ..DatabaseSpec::default()
+                    },
                     &mut budget(),
                 )?;
                 let d = definition(&directory.target(), b"Parent")?;
@@ -549,7 +570,7 @@ fn null_parent_mutations_require_no_remaining_null_children() -> TestResult {
                 if null_child {
                     assert!(matches!(
                         result,
-                        Err(crate::UpdateError::NullRelationshipConstraint { .. })
+                        Err(crate::WriteError::NullRelationshipConstraint { .. })
                     ));
                     assert_eq!(fs::read(directory.target())?, before);
                 } else {

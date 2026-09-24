@@ -1,7 +1,7 @@
 //! Shared open, guard, cascade, plan and publish sequence for row writes.
 use crate::{
     ColumnDefinition, ColumnPhysicalType, ColumnStorageClass, DatabaseReader, FieldUpdate,
-    PublishStage, ResourceBudget, RowColumnLayout, RowDelete, RowLocator, RowUpdate, UpdateError,
+    PublishStage, ResourceBudget, RowColumnLayout, RowDelete, RowLocator, RowUpdate, WriteError,
     relationship::mutation::Change,
 };
 use std::{error::Error as StdError, path::Path};
@@ -13,7 +13,7 @@ pub(super) fn apply<H, HE>(
     change: Change<'_>,
     budget: &mut ResourceBudget,
     hook: H,
-) -> Result<Option<RowLocator>, UpdateError>
+) -> Result<Option<RowLocator>, WriteError>
 where
     H: FnMut(PublishStage) -> Result<(), HE>,
     HE: StdError + Send + Sync + 'static,
@@ -66,9 +66,9 @@ where
 pub(super) fn row_layout(
     columns: &[ColumnDefinition],
     budget: &mut ResourceBudget,
-) -> Result<[RowColumnLayout; u8::MAX as usize], UpdateError> {
+) -> Result<[RowColumnLayout; u8::MAX as usize], WriteError> {
     if columns.len() > usize::from(u8::MAX) {
-        return Err(UpdateError::Unsupported("row column count"));
+        return Err(WriteError::Unsupported("row column count"));
     }
     let mut layout = [RowColumnLayout::new(
         ColumnPhysicalType::Long,
@@ -78,7 +78,7 @@ pub(super) fn row_layout(
     budget.charge_items(columns.len() as u64)?;
     for (ordinal, (target, column)) in layout.iter_mut().zip(columns).enumerate() {
         if usize::from(column.ordinal().get()) != ordinal {
-            return Err(UpdateError::Unsupported("noncontiguous column ordinals"));
+            return Err(WriteError::Unsupported("noncontiguous column ordinals"));
         }
         *target = column.into();
     }

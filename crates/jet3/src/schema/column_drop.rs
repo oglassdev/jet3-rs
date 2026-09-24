@@ -1,6 +1,6 @@
 //! EXP-0297 drops live column metadata while retaining old row storage IDs and bytes.
 use crate::{
-    ResourceBudget, UpdateError, definition::header::COLUMN_COUNT, write::page_edits::PageEdits,
+    ResourceBudget, WriteError, definition::header::COLUMN_COUNT, write::page_edits::PageEdits,
 };
 use std::fs::File;
 
@@ -10,7 +10,7 @@ pub(crate) fn drop_column(
     table: &[u8],
     name: &[u8],
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let table_name = table;
     let (catalog, row, properties, retired) =
         crate::schema::edit::apply(file, journal, budget, |database, budget| {
@@ -20,9 +20,9 @@ pub(crate) fn drop_column(
                 .columns()
                 .iter()
                 .find(|column| column.name().raw_bytes() == name)
-                .ok_or(UpdateError::NotFound("column"))?;
+                .ok_or(WriteError::NotFound("column"))?;
             if table.columns().len() == 1 {
-                return Err(UpdateError::Unsupported("table must retain a column"));
+                return Err(WriteError::Unsupported("table must retain a column"));
             }
             if table.physical_indexes().iter().any(|index| {
                 index
@@ -30,7 +30,7 @@ pub(crate) fn drop_column(
                     .iter()
                     .any(|field| field.column() == column.ordinal())
             }) {
-                return Err(UpdateError::Unsupported("drop indexes before their column"));
+                return Err(WriteError::Unsupported("drop indexes before their column"));
             }
             crate::relationship::catalog::validate(database, budget)?;
             // EXP-0301: DAO refuses to drop any relationship key column (3303/3280).
@@ -43,7 +43,7 @@ pub(crate) fn drop_column(
                     (equal(relation.parent_table(), table_name) && equal(field.parent(), name))
                         || (equal(relation.child_table(), table_name) && equal(field.child(), name))
                 }) {
-                    return Err(UpdateError::Unsupported(
+                    return Err(WriteError::Unsupported(
                         "drop relationships before their column",
                     ));
                 }
@@ -86,7 +86,7 @@ pub(crate) fn drop_column(
                     .suffix
                     .chunks_exact(crate::LONG_VALUE_MAP_GROUP_LEN)
                     .position(|group| group[..2] == column.storage_ordinal().to_le_bytes())
-                    .ok_or(UpdateError::Mismatch("long-value map suffix"))?;
+                    .ok_or(WriteError::Mismatch("long-value map suffix"))?;
                 edited.suffix.drain(
                     position * crate::LONG_VALUE_MAP_GROUP_LEN
                         ..(position + 1) * crate::LONG_VALUE_MAP_GROUP_LEN,

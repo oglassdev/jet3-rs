@@ -23,7 +23,8 @@ pub(crate) struct ScalarIndexField {
     pub(crate) kind: ScalarKeyType,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("numeric index entry: {self:?}")]
 pub(crate) enum EntryError {
     FieldCount { actual: usize },
     MissingColumn { column: usize },
@@ -37,14 +38,6 @@ impl From<Error> for EntryError {
         Self::Encoding(error)
     }
 }
-
-impl std::fmt::Display for EntryError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "numeric index entry: {self:?}")
-    }
-}
-
-impl std::error::Error for EntryError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum RecordBytes {

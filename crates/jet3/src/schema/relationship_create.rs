@@ -3,7 +3,7 @@
 use crate::{
     ColumnOrdinal, ColumnRef, IndexColumnSpec, IndexDirection, IndexKind, IndexNullPolicy,
     IndexSpec, LogicalIndexKindSpec, LogicalIndexSpec, PageNumber, RelationshipSide,
-    RelationshipSpec, ResourceBudget, TableDefinition, TableRef, UpdateError,
+    RelationshipSpec, ResourceBudget, TableDefinition, TableRef, WriteError,
     write::page_edits::{PageEdits, reserve},
 };
 use std::fs::File;
@@ -13,11 +13,11 @@ pub(crate) fn create(
     journal: &mut PageEdits,
     spec: RelationshipSpec<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let (parent_name, child_name) = match (spec.parent, spec.child) {
         (TableRef::Name(parent), TableRef::Name(child)) => (parent, child),
         _ => {
-            return Err(UpdateError::Unsupported(
+            return Err(WriteError::Unsupported(
                 "existing relationship table references require names",
             ));
         }
@@ -49,7 +49,7 @@ pub(crate) fn create(
         let parent = crate::write::update::indexed_writable_table(database, parent_name, budget)?;
         let child = crate::write::update::indexed_writable_table(database, child_name, budget)?;
         if !(1..=10).contains(&spec.fields.len()) {
-            return Err(UpdateError::Unsupported("relationship field count"));
+            return Err(WriteError::Unsupported("relationship field count"));
         }
         let mut parent_columns = Vec::new();
         let mut child_columns = Vec::new();
@@ -60,25 +60,25 @@ pub(crate) fn create(
             let b = column(&child, pair.child)?;
             let kind = |field: &crate::ColumnDefinition| {
                 crate::index::key::scalar::ScalarKeyType::from_definition(field)
-                    .ok_or(UpdateError::Unsupported("relationship key type"))
+                    .ok_or(WriteError::Unsupported("relationship key type"))
             };
             if b.auto_increment() || !crate::relationship::key::compatible(kind(a)?, kind(b)?) {
-                return Err(UpdateError::Unsupported("relationship column types"));
+                return Err(WriteError::Unsupported("relationship column types"));
             }
             if parent_columns.contains(&a.ordinal()) || child_columns.contains(&b.ordinal()) {
-                return Err(UpdateError::Unsupported("repeated relationship field"));
+                return Err(WriteError::Unsupported("repeated relationship field"));
             }
             parent_columns.push(a.ordinal());
             child_columns.push(b.ordinal());
         }
         let same = parent.root() == child.root();
         if same && parent_columns == child_columns {
-            return Err(UpdateError::Unsupported(
+            return Err(WriteError::Unsupported(
                 "self relationship maps key to itself",
             ));
         }
         if child.indexes().len() + 1 + usize::from(same) > 32 || parent.indexes().len() + 1 > 32 {
-            return Err(UpdateError::Unsupported("relationship index capacity"));
+            return Err(WriteError::Unsupported("relationship index capacity"));
         }
         crate::schema::edit::distinct(
             order,
@@ -95,7 +95,7 @@ pub(crate) fn create(
                 true,
                 budget,
             )?)
-            .ok_or(UpdateError::Unsupported(
+            .ok_or(WriteError::Unsupported(
                 "relationship requires ordered unique parent index",
             ))?;
         let flags = parent.physical_indexes()[usize::from(source)].raw_flags();
@@ -126,9 +126,8 @@ pub(crate) fn create(
             ),
         ))
     })?;
-    let hidden = crate::create::relationship_name::HiddenName::for_selector(parent_id).ok_or(
-        UpdateError::Unsupported("relationship hidden-name capacity"),
-    )?;
+    let hidden = crate::create::relationship_name::HiddenName::for_selector(parent_id)
+        .ok_or(WriteError::Unsupported("relationship hidden-name capacity"))?;
     let child_fields = fields(&child_columns, budget)?;
     let parent_fields = fields(&parent_columns, budget)?;
     add_endpoint(
@@ -191,7 +190,7 @@ pub(crate) fn create(
 fn column<'a>(
     table: &'a TableDefinition,
     reference: ColumnRef<'_>,
-) -> Result<&'a crate::ColumnDefinition, UpdateError> {
+) -> Result<&'a crate::ColumnDefinition, WriteError> {
     match reference {
         ColumnRef::Name(name) => table
             .columns()
@@ -199,12 +198,12 @@ fn column<'a>(
             .find(|column| column.name().raw_bytes() == name),
         ColumnRef::Ordinal(ordinal) => table.columns().get(usize::from(ordinal)),
     }
-    .ok_or(UpdateError::NotFound("relationship column"))
+    .ok_or(WriteError::NotFound("relationship column"))
 }
 fn fields(
     columns: &[ColumnOrdinal],
     budget: &mut ResourceBudget,
-) -> Result<Vec<IndexColumnSpec<'static>>, UpdateError> {
+) -> Result<Vec<IndexColumnSpec<'static>>, WriteError> {
     let mut fields = Vec::new();
     reserve(&mut fields, columns.len(), budget)?;
     fields.extend(
@@ -218,7 +217,7 @@ fn selector(
     table: &TableDefinition,
     occupied: Option<u32>,
     budget: &mut ResourceBudget,
-) -> Result<u32, UpdateError> {
+) -> Result<u32, WriteError> {
     for selector in 0_u32..32 {
         budget.charge_items(table.indexes().len() as u64)?;
         if occupied != Some(selector)
@@ -230,7 +229,7 @@ fn selector(
             return Ok(selector);
         }
     }
-    Err(UpdateError::Unsupported(
+    Err(WriteError::Unsupported(
         "relationship index identity capacity",
     ))
 }
@@ -240,7 +239,7 @@ fn select_parent(
     columns: &[ColumnOrdinal],
     descending: bool,
     budget: &mut ResourceBudget,
-) -> Result<Option<u16>, UpdateError> {
+) -> Result<Option<u16>, WriteError> {
     let mut selected: Option<(u16, crate::catalog::name_key::NameKey)> = None;
     for index in table.indexes() {
         let physical = &table.physical_indexes()[usize::from(index.physical_index())];
@@ -271,7 +270,7 @@ fn select_parent(
         }
         budget.charge_work_units(1024)?;
         let key = crate::catalog::name_key::NameKey::new(index.name().raw_bytes(), order)
-            .map_err(|_| UpdateError::Unsupported("relationship index name"))?;
+            .map_err(|_| WriteError::Unsupported("relationship index name"))?;
         if selected
             .as_ref()
             .is_none_or(|(_, prior)| key.bytes() < prior.bytes())
@@ -299,7 +298,7 @@ fn add_endpoint(
     journal: &mut PageEdits,
     endpoint: Endpoint<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let order = database.header().sort_order();
         let table = database.table_definition(endpoint.root, budget)?;
@@ -339,7 +338,7 @@ fn add_endpoint(
             let record = &definition
                 .indexes
                 .last()
-                .ok_or(UpdateError::Mismatch("new relationship index"))?
+                .ok_or(WriteError::Mismatch("new relationship index"))?
                 .record;
             u16::from_le_bytes([record[4], record[5]])
         };
@@ -362,7 +361,7 @@ fn add_endpoint(
         definition
             .indexes
             .last_mut()
-            .ok_or(UpdateError::Mismatch("new relationship index"))?
+            .ok_or(WriteError::Mismatch("new relationship index"))?
             .record = record;
         crate::schema::index::sort_names(order, &mut definition, budget)?;
         definition.stage(database, &table, &mut edits, budget)?;

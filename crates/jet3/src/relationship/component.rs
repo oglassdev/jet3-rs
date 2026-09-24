@@ -1,7 +1,7 @@
 //! Resolve the complete connected constraint set before a multi-table mutation.
 use super::catalog::*;
 use crate::{
-    DatabaseReader, ReadAt, ResourceBudget, TableDefinition, UpdateError,
+    DatabaseReader, ReadAt, ResourceBudget, TableDefinition, WriteError,
     catalog::name_key::{catalog_names_equal, validate_catalog_name},
     relationship::groups::{groups, ordered},
     write::page_edits::reserve,
@@ -12,7 +12,7 @@ pub(crate) fn component<S: ReadAt>(
     target: &TableDefinition,
     name: &[u8],
     budget: &mut ResourceBudget,
-) -> Result<Vec<Constraint>, UpdateError> {
+) -> Result<Vec<Constraint>, WriteError> {
     let records = read_records(database, None, budget)?;
     let groups = groups(&records, budget)?;
     let mut selected = Vec::new();
@@ -30,7 +30,7 @@ pub(crate) fn component<S: ReadAt>(
             }
             let first = group
                 .first()
-                .ok_or(UpdateError::Mismatch("empty relationship"))?;
+                .ok_or(WriteError::Mismatch("empty relationship"))?;
             budget.charge_work_units((names.len() as u64).saturating_mul(1024))?;
             if !names.iter().any(|name| {
                 catalog_names_equal(name, &first.parent, first.order)
@@ -39,7 +39,7 @@ pub(crate) fn component<S: ReadAt>(
                 continue;
             }
             if interpreted(&first.metadata).is_none() {
-                return Err(UpdateError::Unsupported("relationship catalog flags"));
+                return Err(WriteError::Unsupported("relationship catalog flags"));
             }
             let ordered = ordered(group, budget)?;
             for record in &ordered {
@@ -54,7 +54,7 @@ pub(crate) fn component<S: ReadAt>(
                     .iter()
                     .any(|name| validate_catalog_name(name, record.order).is_err())
                 {
-                    return Err(UpdateError::Unsupported("unresolved relationship name"));
+                    return Err(WriteError::Unsupported("unresolved relationship name"));
                 }
             }
             selected[position] = true;

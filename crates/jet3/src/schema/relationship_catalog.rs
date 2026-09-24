@@ -2,7 +2,7 @@
 //! relationships consist of these rows alone.
 use crate::{
     ColumnRef, DatabaseReader, FileSource, RelationshipSpec, ResourceBudget, TableDefinition,
-    UpdateError,
+    WriteError,
     catalog::system_rows::{AceRow, ObjectRow, RelationshipRow},
     schema::table::insert,
     write::page_edits::{PageEdits, reserve},
@@ -15,10 +15,10 @@ pub(crate) fn create_unenforced(
     spec: &RelationshipSpec<'_>,
     tables: (&[u8], &[u8]),
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     // DAO refuses cascades on unenforced relationships (EXP-0301, error 3001).
     if spec.cascade_updates || spec.cascade_deletes {
-        return Err(UpdateError::Unsupported(
+        return Err(WriteError::Unsupported(
             "unenforced relationships cannot cascade",
         ));
     }
@@ -30,7 +30,7 @@ pub(crate) fn create_unenforced(
             // EXP-0301: unenforced relationships have no index and its ten-field
             // limit; bound them by the 255-column table limit.
             if !(1..=255).contains(&spec.fields.len()) {
-                return Err(UpdateError::Unsupported("relationship field count"));
+                return Err(WriteError::Unsupported("relationship field count"));
             }
             let mut pairs: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
             reserve(&mut pairs, spec.fields.len(), budget)?;
@@ -56,7 +56,7 @@ pub(crate) fn create_unenforced(
 fn column<'a>(
     table: &'a TableDefinition,
     reference: ColumnRef<'_>,
-) -> Result<&'a [u8], UpdateError> {
+) -> Result<&'a [u8], WriteError> {
     match reference {
         ColumnRef::Name(name) => table
             .columns()
@@ -65,10 +65,10 @@ fn column<'a>(
         ColumnRef::Ordinal(ordinal) => table.columns().get(usize::from(ordinal)),
     }
     .map(|column| column.name().raw_bytes())
-    .ok_or(UpdateError::NotFound("relationship column"))
+    .ok_or(WriteError::NotFound("relationship column"))
 }
 
-fn owned(name: &[u8], budget: &mut ResourceBudget) -> Result<Vec<u8>, UpdateError> {
+fn owned(name: &[u8], budget: &mut ResourceBudget) -> Result<Vec<u8>, WriteError> {
     let mut result = Vec::new();
     reserve(&mut result, name.len(), budget)?;
     result.extend_from_slice(name);
@@ -84,7 +84,7 @@ pub(crate) fn publish(
     pairs: &[(&[u8], &[u8])],
     (object_id, folder): (i32, i32),
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     for (ordinal, (parent_column, child_column)) in pairs.iter().enumerate() {
         let row = RelationshipRow {
             name: spec.name,
@@ -113,7 +113,7 @@ pub(crate) fn object_identity(
     database: &mut DatabaseReader<FileSource>,
     name: &[u8],
     budget: &mut ResourceBudget,
-) -> Result<(i32, i32), UpdateError> {
+) -> Result<(i32, i32), WriteError> {
     let order = database.header().sort_order();
     crate::schema::edit::name(order, name, 63)?;
     let mut catalog = database.catalog(budget)?;
@@ -126,7 +126,7 @@ pub(crate) fn object_identity(
                     .id()
                     .get()
                     .checked_add(1)
-                    .ok_or(UpdateError::Unsupported(
+                    .ok_or(WriteError::Unsupported(
                         "relationship object identity capacity",
                     ))?,
             );
@@ -145,6 +145,6 @@ pub(crate) fn object_identity(
     }
     Ok((
         next as i32,
-        folder.ok_or(UpdateError::NotFound("Relationships container"))?,
+        folder.ok_or(WriteError::NotFound("Relationships container"))?,
     ))
 }

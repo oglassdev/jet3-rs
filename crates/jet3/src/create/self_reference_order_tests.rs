@@ -3,10 +3,7 @@ use super::descending_parent_tests::*;
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec,
     RelationshipField, RelationshipSide, RowValue, TableSpec, TextCodePage,
-    create::{
-        api::*, api_relationship_graph::create_database_with_relationships_and_rows,
-        api_relationship_graph_tests::*,
-    },
+    create::{DatabaseSpec, TableRows, api_relationship_graph_tests::*, create_database},
 };
 use std::fs;
 
@@ -41,13 +38,16 @@ fn deleting_the_only_null_self_reference_removes_its_child_reference() -> TestRe
         child: ColumnRef::Ordinal(2),
     }];
     let directory = Directory::new()?;
-    create_database_with_relationships_and_rows(
+    create_database(
         directory.target(),
-        &[TableRows {
-            table,
-            rows: &[&[RowValue::Long(1), RowValue::Null, RowValue::Null]],
-        }],
-        &[relation],
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table,
+                rows: &[&[RowValue::Long(1), RowValue::Null, RowValue::Null]],
+            }],
+            relationships: &[relation],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let d = definition(&directory.target(), b"Node")?;
@@ -70,7 +70,7 @@ fn deleting_the_only_null_self_reference_removes_its_child_reference() -> TestRe
             },
             &mut budget()
         ),
-        Err(crate::UpdateError::NullRelationshipConstraint { .. })
+        Err(crate::WriteError::NullRelationshipConstraint { .. })
     ));
     assert_eq!(fs::read(directory.target())?, before);
     crate::delete_row(
@@ -125,13 +125,16 @@ fn parent_tree_after_foreign_requires_existing_self_keys() -> TestResult {
         let directory = Directory::new()?;
         let initial_rows: Vec<&[RowValue<'_>]> =
             initial.as_ref().map(|r| r.as_slice()).into_iter().collect();
-        create_database_with_relationships_and_rows(
+        create_database(
             directory.target(),
-            &[TableRows {
-                table,
-                rows: &initial_rows,
-            }],
-            &[relation],
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table,
+                    rows: &initial_rows,
+                }],
+                relationships: &[relation],
+                ..DatabaseSpec::default()
+            },
             &mut budget(),
         )?;
         let before = fs::read(directory.target())?;
@@ -160,22 +163,25 @@ fn parent_tree_after_foreign_requires_existing_self_keys() -> TestResult {
         };
         assert!(matches!(
             result,
-            Err(crate::UpdateError::RelationshipConstraint { value: 4, .. })
+            Err(crate::WriteError::RelationshipConstraint { value: 4, .. })
         ));
         assert_eq!(fs::read(directory.target())?, before);
     }
 
     let directory = Directory::new()?;
-    create_database_with_relationships_and_rows(
+    create_database(
         directory.target(),
-        &[TableRows {
-            table,
-            rows: &[
-                &[RowValue::Long(1), RowValue::Null, RowValue::Null],
-                &[RowValue::Long(2), RowValue::Long(1), RowValue::Long(1)],
-            ],
-        }],
-        &[relation],
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table,
+                rows: &[
+                    &[RowValue::Long(1), RowValue::Null, RowValue::Null],
+                    &[RowValue::Long(2), RowValue::Long(1), RowValue::Long(1)],
+                ],
+            }],
+            relationships: &[relation],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let d = definition(&directory.target(), b"Node")?;
@@ -271,19 +277,22 @@ fn self_key_checks_follow_physical_order_for_generated_and_declared_parents() ->
             let directory = Directory::new()?;
             let row = [RowValue::Long(1), RowValue::Long(1), RowValue::Long(1)];
             let initial: &[&[RowValue<'_>]] = if insert { &[] } else { &[&row] };
-            create_database_with_relationships_and_rows(
+            create_database(
                 directory.target(),
-                &[
-                    TableRows {
-                        table,
-                        rows: initial,
-                    },
-                    TableRows {
-                        table: child,
-                        rows: &[],
-                    },
-                ],
-                &relations[usize::from(!generated_parent_first)..],
+                &DatabaseSpec {
+                    tables: &[
+                        TableRows {
+                            table,
+                            rows: initial,
+                        },
+                        TableRows {
+                            table: child,
+                            rows: &[],
+                        },
+                    ],
+                    relationships: &relations[usize::from(!generated_parent_first)..],
+                    ..DatabaseSpec::default()
+                },
                 &mut budget(),
             )?;
             let d = definition(&directory.target(), b"Node")?;
@@ -335,7 +344,7 @@ fn self_key_checks_follow_physical_order_for_generated_and_declared_parents() ->
             } else {
                 assert!(matches!(
                     result,
-                    Err(crate::UpdateError::RelationshipConstraint { value: 4, .. })
+                    Err(crate::WriteError::RelationshipConstraint { value: 4, .. })
                 ));
                 assert_eq!(fs::read(directory.target())?, before);
             }

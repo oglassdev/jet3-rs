@@ -1,8 +1,7 @@
 //! Generates bounded EXP-0222/0241 catalog and table-layout candidates.
 use jet3::{
-    ColumnSpec, ColumnType, ComposeError, CreateDatabaseError, IndexColumnSpec, IndexKind,
-    IndexSpec, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec, create_database,
-    create_database_with_table_rows,
+    ColumnSpec, ColumnType, ComposeError, DatabaseSpec, IndexColumnSpec, IndexKind, IndexSpec,
+    ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec, WriteError, create_database,
 };
 use std::path::Path;
 
@@ -13,7 +12,7 @@ fn create(
     populated: bool,
     name_width: usize,
     schema_name_width: usize,
-) -> Result<(), CreateDatabaseError> {
+) -> Result<(), WriteError> {
     let names = (0..count)
         .map(|n| {
             let prefix = format!("T{n:02}");
@@ -98,9 +97,27 @@ fn create(
                 rows: &rows,
             })
             .collect::<Vec<_>>();
-        create_database_with_table_rows(path, &requests, &mut budget)
+        create_database(
+            path,
+            &DatabaseSpec {
+                tables: &requests,
+                ..DatabaseSpec::default()
+            },
+            &mut budget,
+        )
     } else {
-        create_database(path, &tables, &mut budget)
+        create_database(
+            path,
+            &DatabaseSpec {
+                tables: &tables
+                    .iter()
+                    .copied()
+                    .map(TableRows::empty)
+                    .collect::<Vec<_>>(),
+                ..DatabaseSpec::default()
+            },
+            &mut budget,
+        )
     }
 }
 
@@ -139,12 +156,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let refusal = directory.join("refused.mdb");
     if !matches!(
         create(&refusal, 32640, 1, false, 3, 0),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::TableCountOverflow {
-                count: 32640,
-                maximum: 32639
-            }
-        ))
+        Err(WriteError::Compose(ComposeError::TableCountOverflow {
+            count: 32640,
+            maximum: 32639
+        }))
     ) {
         return Err("creation counter refusal changed".into());
     }

@@ -1,7 +1,7 @@
 //! Lossless LvProp field-block edits using EXP-0208/0266/0283/0297 framing and EXP-0299 text records.
 use crate::{
     DatabaseReader, FileSource, ResourceBudget, RowLocator, TableDefinition, TextCodePage,
-    UpdateError,
+    WriteError,
     properties::{
         blob::{BOOLEAN, Block, FIELD_BLOCK, PropertyBlob, Record},
         column::TextProperty,
@@ -14,7 +14,7 @@ pub(crate) fn load(
     database: &mut DatabaseReader<FileSource>,
     table: &TableDefinition,
     budget: &mut ResourceBudget,
-) -> Result<(TableDefinition, RowLocator, Vec<u8>), UpdateError> {
+) -> Result<(TableDefinition, RowLocator, Vec<u8>), WriteError> {
     let catalog = crate::schema::catalog::table(database, b"MSysObjects", budget)?;
     let locator = crate::schema::catalog::object(database, &catalog, table.root(), budget)?;
     let property = crate::schema::catalog::column(&catalog, b"LvProp")?;
@@ -28,9 +28,9 @@ pub(crate) fn load(
         let mut saved = [0; crate::PAGE_BYTES];
         let value = row
             .value(property, TextCodePage::Windows1252)?
-            .ok_or(UpdateError::NotFound("catalog properties"))?;
+            .ok_or(WriteError::NotFound("catalog properties"))?;
         let length = match StoredProperties::of(value.kind())
-            .ok_or(UpdateError::Mismatch("catalog property type"))?
+            .ok_or(WriteError::Mismatch("catalog property type"))?
         {
             StoredProperties::Null => 0,
             StoredProperties::External(value) => {
@@ -40,7 +40,7 @@ pub(crate) fn load(
             StoredProperties::Inline(source) => {
                 saved
                     .get_mut(..source.len())
-                    .ok_or(UpdateError::Mismatch("inline properties length"))?
+                    .ok_or(WriteError::Mismatch("inline properties length"))?
                     .copy_from_slice(source);
                 source.len()
             }
@@ -55,7 +55,7 @@ pub(crate) fn load(
         while let Some(chunk) = stream.next_chunk()? {
             let data = chunk.value().raw_bytes();
             if bytes.len().saturating_add(data.len()) > reference.length() as usize {
-                return Err(UpdateError::Mismatch("property length"));
+                return Err(WriteError::Mismatch("property length"));
             }
             bytes.extend_from_slice(data);
         }
@@ -67,7 +67,7 @@ pub(crate) fn load(
     Ok((catalog, locator, bytes))
 }
 
-fn parse(bytes: &[u8], budget: &mut ResourceBudget) -> Result<PropertyBlob, UpdateError> {
+fn parse(bytes: &[u8], budget: &mut ResourceBudget) -> Result<PropertyBlob, WriteError> {
     if bytes.is_empty() {
         Ok(PropertyBlob::empty())
     } else {
@@ -78,7 +78,7 @@ fn parse(bytes: &[u8], budget: &mut ResourceBudget) -> Result<PropertyBlob, Upda
 pub(crate) fn encode(
     blob: &PropertyBlob,
     budget: &mut ResourceBudget,
-) -> Result<Vec<u8>, UpdateError> {
+) -> Result<Vec<u8>, WriteError> {
     Ok(blob.encode(budget)?)
 }
 
@@ -88,7 +88,7 @@ pub(crate) fn rename(
     old: &[u8],
     new: &[u8],
     budget: &mut ResourceBudget,
-) -> Result<Vec<u8>, UpdateError> {
+) -> Result<Vec<u8>, WriteError> {
     if bytes.is_empty() {
         return Ok(Vec::new());
     }
@@ -104,7 +104,7 @@ pub(crate) fn add(
     bytes: &[u8],
     column: crate::ColumnSpec<'_>,
     budget: &mut ResourceBudget,
-) -> Result<Vec<u8>, UpdateError> {
+) -> Result<Vec<u8>, WriteError> {
     let auto = column.column_type() == crate::ColumnType::AutoIncrement;
     if auto
         && TextProperty::FIELD_ORDER
@@ -151,7 +151,7 @@ pub(crate) fn boolean(
     name: u16,
     value: bool,
     budget: &mut ResourceBudget,
-) -> Result<Record, UpdateError> {
+) -> Result<Record, WriteError> {
     Ok(Record::new(
         1,
         BOOLEAN,
@@ -166,7 +166,7 @@ pub(crate) fn remove(
     bytes: &[u8],
     selected: &[u8],
     budget: &mut ResourceBudget,
-) -> Result<Vec<u8>, UpdateError> {
+) -> Result<Vec<u8>, WriteError> {
     if bytes.is_empty() {
         return Ok(Vec::new());
     }
@@ -182,7 +182,7 @@ pub(crate) fn store(
     row: RowLocator,
     bytes: &[u8],
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let catalog = database.table_definition(catalog, budget)?;
         let column = crate::schema::catalog::column(&catalog, b"LvProp")?;

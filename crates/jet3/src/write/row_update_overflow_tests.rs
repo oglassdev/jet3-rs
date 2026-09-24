@@ -1,7 +1,7 @@
 use super::row_update_tests::*;
 use crate::{
     ColumnOrdinal, DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget, ResourceLimits,
-    RowLocator, RowValue, UpdateError, write::row_update::*,
+    RowLocator, RowValue, WriteError, write::row_update::*,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -314,7 +314,7 @@ fn overflow_allocation_failures_preserve_the_source_and_remove_private_files() -
     let duplicate = values(1, &[b'X'; 255], &[0x11; 255]);
     assert!(matches!(
         update_row(f.path(), f.request(0, &duplicate), &mut budget()),
-        Err(UpdateError::Unsupported("duplicate unique key"))
+        Err(WriteError::Unsupported("duplicate unique key"))
     ));
     assert_eq!(fs::read(f.path())?, before);
     let large = values(0, &[b'X'; 255], &[0x11; 255]);
@@ -338,7 +338,7 @@ fn overflow_allocation_failures_preserve_the_source_and_remove_private_files() -
         },
     );
     assert!(
-        matches!(result, Err(UpdateError::Publish(error)) if error.stage() == PublishStage::Validation)
+        matches!(result, Err(WriteError::Publish(error)) if error.stage() == PublishStage::Validation)
     );
     assert_eq!(fs::read(f.path())?, before);
     assert_eq!(fs::read_dir(&f.dir)?.count(), 1);
@@ -426,7 +426,7 @@ fn valid_multi_hop_chains_are_refused_without_changing_the_image() -> TestResult
         };
         assert!(matches!(
             result,
-            Err(UpdateError::Unsupported(
+            Err(WriteError::Unsupported(
                 "mutation of multi-hop overflow chain"
             ))
         ));

@@ -1,7 +1,7 @@
 //! EXP-0077/0266: catalog properties have exclusive per-column LVAL ownership.
 use crate::{
     ColumnOrdinal, DatabaseReader, MapRowLocator, ReadAt, ResourceBudget, TableDefinition,
-    UpdateError, alloc::mutation_map::MapBits, write::page_edits::reserve,
+    WriteError, alloc::mutation_map::MapBits, write::page_edits::reserve,
 };
 
 pub(crate) fn load<S: ReadAt>(
@@ -9,12 +9,12 @@ pub(crate) fn load<S: ReadAt>(
     catalog: &TableDefinition,
     column: ColumnOrdinal,
     budget: &mut ResourceBudget,
-) -> Result<MapBits, UpdateError> {
+) -> Result<MapBits, WriteError> {
     let maps = catalog
         .long_value_maps()
         .iter()
         .find(|map| map.column() == column)
-        .ok_or(UpdateError::Mismatch("catalog property allocation maps"))?;
+        .ok_or(WriteError::Mismatch("catalog property allocation maps"))?;
     let owned = MapBits::load(database, maps.owned(), budget)?;
     let available = MapBits::load(database, maps.available(), budget)?;
     let global = MapBits::load(
@@ -26,17 +26,17 @@ pub(crate) fn load<S: ReadAt>(
         || owned.overlaps(&global, budget)?
         || available.overlaps(&global, budget)?
     {
-        return Err(UpdateError::Mismatch("aliased property allocation maps"));
+        return Err(WriteError::Mismatch("aliased property allocation maps"));
     }
     let pages = owned.existing_pages(database.geometry().page_count(), false, budget)?;
     for page in available.existing_pages(database.geometry().page_count(), false, budget)? {
         if !owned.contains(page)? {
-            return Err(UpdateError::Mismatch("available property page not owned"));
+            return Err(WriteError::Mismatch("available property page not owned"));
         }
     }
     for &page in &pages {
         if global.contains(page)? {
-            return Err(UpdateError::Mismatch("owned property page globally free"));
+            return Err(WriteError::Mismatch("owned property page globally free"));
         }
     }
     for map in [&owned, &available] {
@@ -75,7 +75,7 @@ pub(crate) fn load<S: ReadAt>(
         for locator in locators {
             let map = MapBits::load(database, locator, budget)?;
             if owned.overlaps(&map, budget)? || available.overlaps(&map, budget)? {
-                return Err(UpdateError::Mismatch(
+                return Err(WriteError::Mismatch(
                     "property map aliases another object map",
                 ));
             }
@@ -83,7 +83,7 @@ pub(crate) fn load<S: ReadAt>(
             budget.charge_work_units(pages.len() as u64)?;
             for &page in &pages {
                 if map.contains(page)? {
-                    return Err(UpdateError::Mismatch(
+                    return Err(WriteError::Mismatch(
                         "property page belongs to another object",
                     ));
                 }
@@ -98,11 +98,11 @@ fn metadata(
     owned: &MapBits,
     global: &MapBits,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     for page in std::iter::once(map.locator.page()).chain(map.spans.iter().map(|span| span.page)) {
         budget.charge_work_units(1)?;
         if owned.contains(page)? || global.contains(page)? {
-            return Err(UpdateError::Mismatch(
+            return Err(WriteError::Mismatch(
                 "property map metadata used as payload or globally free",
             ));
         }

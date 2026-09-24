@@ -1,7 +1,9 @@
 use super::update_tests::*;
 use crate::{
-    ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, RowValue, TableSpec,
-    create_database_with_rows, row::directory::RowDirectory, write::update::*,
+    ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, PAGE_BYTES, RowValue,
+    TableRows, TableSpec, create_database,
+    row::directory::RowDirectory,
+    write::{error::WriteError, update::*},
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -23,18 +25,23 @@ pub(super) fn indexed() -> Result<Fixture, Box<dyn StdError>> {
         kind: crate::IndexKind::Ordinary,
         fields: &composite,
     }];
-    create_database_with_rows(
+    create_database(
         fixture.path(),
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &columns,
-            indexes: &indexes,
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Items",
+                    columns: &columns,
+                    indexes: &indexes,
+                },
+                rows: &[
+                    &[RowValue::Long(1), RowValue::Long(3), RowValue::Long(77)],
+                    &[RowValue::Long(2), RowValue::Long(3), RowValue::Long(88)],
+                ],
+            }],
+            ..DatabaseSpec::default()
         },
-        &[
-            &[RowValue::Long(1), RowValue::Long(3), RowValue::Long(77)],
-            &[RowValue::Long(2), RowValue::Long(3), RowValue::Long(88)],
-        ],
         &mut budget(),
     )?;
     Ok(fixture)
@@ -82,7 +89,7 @@ fn nonkey_update_preserves_every_index_and_unrelated_byte() -> TestResult {
     let mut db = DatabaseReader::open(fixture.path(), &mut b)?;
     assert!(matches!(
         writable_table(&mut db, b"Items", &mut b),
-        Err(UpdateError::Unsupported(_))
+        Err(WriteError::Unsupported(_))
     ));
     for column in [0, 1] {
         update_field(
@@ -139,7 +146,7 @@ fn out_of_range_index_mapping_refuses_publication() -> TestResult {
                 },
                 &mut budget()
             ),
-            Err(UpdateError::Definition(_))
+            Err(WriteError::Definition(_))
         ));
         assert_eq!(fs::read(fixture.path())?, damaged);
         fixture.assert_only_original()?;

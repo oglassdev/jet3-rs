@@ -2,7 +2,7 @@
 use super::{TableValidationError, ValidationReport, add, reserve};
 use crate::{
     DatabaseReader, IndexNullPolicy, IndexTree, ReadAt, ResourceBudget, RowLocator,
-    TableDefinition, UpdateError,
+    TableDefinition, WriteError,
     index::{
         entry::{EntryError, ScalarIndexEntry, ScalarIndexField, sort_cost},
         key::scalar::ScalarKeyType,
@@ -17,16 +17,16 @@ fn failure(index: u16, detail: &'static str) -> TableValidationError {
     TableValidationError::IndexContents { index, detail }
 }
 
-fn source_error(index: u16, error: UpdateError) -> TableValidationError {
+fn source_error(index: u16, error: WriteError) -> TableValidationError {
     match error {
-        UpdateError::Resource(error)
-        | UpdateError::Value(
+        WriteError::Resource(error)
+        | WriteError::Value(
             crate::ValueError::Resource(error)
             | crate::ValueError::Text(crate::TextError::Resource(error)),
         ) => TableValidationError::Resource(error),
-        UpdateError::Index(source) => TableValidationError::Index { index, source },
-        UpdateError::Definition(source) => TableValidationError::Definition(source),
-        UpdateError::Mismatch(detail) | UpdateError::Unsupported(detail) => failure(index, detail),
+        WriteError::Index(source) => TableValidationError::Index { index, source },
+        WriteError::Definition(source) => TableValidationError::Definition(source),
+        WriteError::Mismatch(detail) | WriteError::Unsupported(detail) => failure(index, detail),
         _ => failure(index, "index value cannot be represented by its schema"),
     }
 }

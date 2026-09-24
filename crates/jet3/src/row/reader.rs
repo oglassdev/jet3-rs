@@ -10,7 +10,6 @@ use crate::{
     format::data_page_directory::{DataPageDirectory, LONG_VALUE_OWNER},
     row::directory::{RowDirectory, RowDirectoryError, RowEntry},
 };
-use std::fmt;
 use std::mem::size_of;
 use std::ops::Range;
 
@@ -182,13 +181,14 @@ impl<'row> RowView<'row, '_> {
 }
 
 /// A structured failure while traversing or validating rows.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
+#[error("row stream failed: {self:?}")]
 pub enum RowError {
     /// Table allocation-map traversal failed.
-    Allocation(AllocationTraversalError),
+    Allocation(#[source] AllocationTraversalError),
     /// A data-page row directory is malformed.
-    Directory(RowDirectoryError),
+    Directory(#[source] RowDirectoryError),
     /// An owned table page has the wrong classification.
     UnexpectedOwnedPageKind {
         /// Owned page that violated the data-page invariant.
@@ -277,24 +277,7 @@ pub enum RowError {
         locator: RowLocator,
     },
     /// Resource policy rejected row traversal or validation work.
-    Resource(Error),
-}
-
-impl fmt::Display for RowError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "row stream failed: {self:?}")
-    }
-}
-
-impl std::error::Error for RowError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Allocation(source) => Some(source),
-            Self::Directory(source) => Some(source),
-            Self::Resource(source) => Some(source),
-            _ => None,
-        }
-    }
+    Resource(#[source] Error),
 }
 
 /// Forward-only access to validated logical rows of one table definition.

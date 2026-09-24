@@ -1,6 +1,6 @@
 //! Existing-row insertion composed from EXP-0060/0061 encoding and EXP-0162 slots.
 use crate::{
-    DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget, RowLocator, RowValue, UpdateError,
+    DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget, RowLocator, RowValue, WriteError,
     row::data_page::DataPageEditor,
 };
 use std::convert::Infallible;
@@ -18,7 +18,7 @@ use std::path::Path;
 ///
 /// # Errors
 ///
-/// Returns [`UpdateError`] when the file or request is outside the supported
+/// Returns [`WriteError`] when the file or request is outside the supported
 /// scope, a key or relationship constraint refuses the change, the table
 /// stores a validation rule (rules are not evaluated), or `budget` is
 /// exhausted; the original file is then unchanged. Publication failures
@@ -28,7 +28,7 @@ pub fn insert_row(
     table: &[u8],
     values: &[RowValue<'_>],
     budget: &mut ResourceBudget,
-) -> Result<RowLocator, UpdateError> {
+) -> Result<RowLocator, WriteError> {
     insert_with_hook(path.as_ref(), table, values, budget, |_| {
         Ok::<(), Infallible>(())
     })
@@ -40,14 +40,14 @@ pub(super) fn insert_with_hook<H, HE>(
     values: &[RowValue<'_>],
     budget: &mut ResourceBudget,
     hook: H,
-) -> Result<RowLocator, UpdateError>
+) -> Result<RowLocator, WriteError>
 where
     H: FnMut(PublishStage) -> Result<(), HE>,
     HE: StdError + Send + Sync + 'static,
 {
     let change = crate::relationship::mutation::Change::Insert(values);
     super::driver::apply(path, table, change, budget, hook)?
-        .ok_or(UpdateError::Mismatch("inserted row locator"))
+        .ok_or(WriteError::Mismatch("inserted row locator"))
 }
 
 pub(crate) fn plan(
@@ -57,7 +57,7 @@ pub(crate) fn plan(
     values: &[RowValue<'_>],
     check_relationships: bool,
     budget: &mut ResourceBudget,
-) -> Result<(crate::write::page_edits::PageEdits, RowLocator), UpdateError> {
+) -> Result<(crate::write::page_edits::PageEdits, RowLocator), WriteError> {
     crate::row::mutation_graph::RowGraph::load(database, definition, None, budget)?;
     let mut auto = crate::write::auto_number::AutoNumber::load(definition)?;
     let mut lowered = [RowValue::Null; u8::MAX as usize];
@@ -100,7 +100,7 @@ pub(crate) fn plan(
             }
             observed_rows = observed_rows
                 .checked_add(1)
-                .ok_or(UpdateError::Mismatch("row count overflow"))?;
+                .ok_or(WriteError::Mismatch("row count overflow"))?;
         }
     }
     let mut source_definition = [0; PAGE_BYTES];
@@ -115,7 +115,7 @@ pub(crate) fn plan(
     let available =
         crate::alloc::mutation_map::MapBits::load(database, definition.maps().available(), budget)?;
     if owned.overlaps(&available, budget)? {
-        return Err(UpdateError::Mismatch("aliased table maps"));
+        return Err(WriteError::Mismatch("aliased table maps"));
     }
     let owned_pages = owned.existing_pages(database.geometry().page_count(), false, budget)?;
     let mut candidates = available
@@ -128,7 +128,7 @@ pub(crate) fn plan(
         };
         budget.charge_work_units((owned_pages.len().max(1).ilog2() + 1) as u64)?;
         if owned_pages.binary_search(&page).is_err() {
-            return Err(UpdateError::Mismatch("available page not owned"));
+            return Err(WriteError::Mismatch("available page not owned"));
         }
         database.read_raw_page(page, &mut source_page, budget)?;
         if let Some((patched, slot)) =
@@ -179,7 +179,7 @@ pub(crate) fn plan(
         if plan.page.get() < database.geometry().page_count() {
             edits.set_image(database, plan.page, plan.image, budget)?;
         } else if edits.append(plan.image, budget)? != plan.page {
-            return Err(UpdateError::Mismatch("EOF placement"));
+            return Err(WriteError::Mismatch("EOF placement"));
         }
         RowLocator::new(plan.page, 0)
     };

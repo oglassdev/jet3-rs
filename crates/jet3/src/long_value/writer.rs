@@ -15,8 +15,6 @@
 //! nothing here chooses a storage class: the caller does, and this module
 //! refuses a payload its chosen class cannot hold.
 
-use std::fmt;
-
 #[cfg(test)]
 use crate::PageNumber;
 use crate::{
@@ -46,7 +44,8 @@ pub(super) const SINGLE_PAGE_FLAG: u32 = 0x4000_0000;
 const CHAINED_FLAG: u32 = 0;
 
 /// Structured failure while encoding a long value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("long-value encoding failed: {self:?}")]
 pub(crate) enum LongValueWriteError {
     /// The payload exceeds what its storage class declares or holds.
     PayloadTooLong {
@@ -79,14 +78,6 @@ pub(crate) enum LongValueWriteError {
         available: usize,
     },
 }
-
-impl fmt::Display for LongValueWriteError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "long-value encoding failed: {self:?}")
-    }
-}
-
-impl std::error::Error for LongValueWriteError {}
 
 /// Encodes an inline long value, header then payload, into `output`.
 ///

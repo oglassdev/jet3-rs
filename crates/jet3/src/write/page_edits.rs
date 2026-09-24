@@ -1,7 +1,7 @@
 //! One private publication for data, index and allocation changes.
 use crate::{
     DatabaseReader, FileSource, MapRowLocator, PAGE_BYTES, PageImage, PageNumber, PageOffset,
-    PublishStage, ResourceBudget, UpdateError,
+    PublishStage, ResourceBudget, WriteError,
     format::resource::{GrowError, grow},
     row::data_page::DataPageEditor,
     write::update_pages::PageChange,
@@ -12,11 +12,11 @@ pub(crate) fn reserve<T>(
     items: &mut Vec<T>,
     additional: usize,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     grow(items, additional, size_of::<T>() as u64, budget).map_err(|error| match error {
-        GrowError::Size => UpdateError::Mismatch("edit allocation size"),
+        GrowError::Size => WriteError::Mismatch("edit allocation size"),
         GrowError::Budget(error) => error.into(),
-        GrowError::OutOfMemory => UpdateError::Resource(crate::Error::Io {
+        GrowError::OutOfMemory => WriteError::Resource(crate::Error::Io {
             operation: "reserve page edits",
             kind: std::io::ErrorKind::OutOfMemory,
         }),
@@ -46,19 +46,19 @@ impl PageEdits {
         }
     }
 
-    pub fn next_append_page(&self) -> Result<PageNumber, UpdateError> {
+    pub fn next_append_page(&self) -> Result<PageNumber, WriteError> {
         self.first_append
             .checked_add(self.append.len() as u64)
             .filter(|n| *n <= 0x00ff_ffff)
             .map(PageNumber::new)
-            .ok_or(UpdateError::Unsupported("appended page reference width"))
+            .ok_or(WriteError::Unsupported("appended page reference width"))
     }
 
     pub fn append(
         &mut self,
         image: PageImage,
         budget: &mut ResourceBudget,
-    ) -> Result<PageNumber, UpdateError> {
+    ) -> Result<PageNumber, WriteError> {
         let page = self.next_append_page()?;
         // EXP-0062: row locators carry a 24-bit page reference.
         reserve(&mut self.append, 1, budget)?;
@@ -70,18 +70,18 @@ impl PageEdits {
         &mut self,
         change: PageChange<'_>,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         budget.charge_work_units(self.changes.len() as u64 + PAGE_BYTES as u64)?;
         if let Some(existing) = self.changes.iter_mut().find(|c| c.page == change.page) {
             if &existing.before != change.before {
-                return Err(UpdateError::Mismatch("inconsistent source page"));
+                return Err(WriteError::Mismatch("inconsistent source page"));
             }
             for offset in 0..PAGE_BYTES {
                 if change.before[offset] != change.after[offset] {
                     if existing.after.as_bytes()[offset] != change.before[offset]
                         && existing.after.as_bytes()[offset] != change.after[offset]
                     {
-                        return Err(UpdateError::Mismatch("overlapping page edits"));
+                        return Err(WriteError::Mismatch("overlapping page edits"));
                     }
                     existing.after.write_at(
                         PageOffset::new(offset as u64),
@@ -93,7 +93,7 @@ impl PageEdits {
             return Ok(());
         }
         if change.page.get() >= self.first_append {
-            return Err(UpdateError::Mismatch("source page outside original"));
+            return Err(WriteError::Mismatch("source page outside original"));
         }
         reserve(&mut self.changes, 1, budget)?;
         self.changes.push(Change {
@@ -110,14 +110,14 @@ impl PageEdits {
         page: PageNumber,
         image: PageImage,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         if page.get() >= self.first_append {
             let ordinal = usize::try_from(page.get() - self.first_append)
-                .map_err(|_| UpdateError::Mismatch("append ordinal"))?;
+                .map_err(|_| WriteError::Mismatch("append ordinal"))?;
             let target = self
                 .append
                 .get_mut(ordinal)
-                .ok_or(UpdateError::Mismatch("unplanned append"))?;
+                .ok_or(WriteError::Mismatch("unplanned append"))?;
             *target = image;
         } else {
             let mut before = [0; PAGE_BYTES];
@@ -143,7 +143,7 @@ impl PageEdits {
         expected: bool,
         desired: bool,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         budget.charge_work_units(self.maps.len() as u64)?;
         let position =
             if let Some(position) = self.maps.iter().position(|map| map.bits.locator == locator) {
@@ -152,7 +152,7 @@ impl PageEdits {
                 let bits = crate::alloc::mutation_map::MapBits::load(database, locator, budget)?;
                 for previous in &self.maps {
                     if bits.overlaps(&previous.bits, budget)? {
-                        return Err(UpdateError::Mismatch("aliased mutation allocation maps"));
+                        return Err(WriteError::Mismatch("aliased mutation allocation maps"));
                     }
                 }
                 reserve(&mut self.maps, 1, budget)?;
@@ -170,7 +170,7 @@ impl PageEdits {
         expected: &[u8],
         desired: &[u8],
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         let mut before = [0; PAGE_BYTES];
         database.read_raw_page(locator.page(), &mut before, budget)?;
         budget.charge_work_units(self.changes.len() as u64)?;
@@ -184,14 +184,14 @@ impl PageEdits {
             );
         let page =
             crate::classify_page(locator.page(), current.as_bytes(), budget).map_err(|error| {
-                UpdateError::Definition(crate::TableDefinitionError::Page(
+                WriteError::Definition(crate::TableDefinitionError::Page(
                     crate::DatabasePageError::Classification(error),
                 ))
             })?;
         let record =
-            crate::locate_usage_map(page, locator, budget).map_err(UpdateError::UsageMap)?;
+            crate::locate_usage_map(page, locator, budget).map_err(WriteError::UsageMap)?;
         if record.raw() != expected {
-            return Err(UpdateError::Mismatch(
+            return Err(WriteError::Mismatch(
                 "allocation record changed during staging",
             ));
         }
@@ -206,7 +206,7 @@ impl PageEdits {
             ])));
             current = DataPageEditor::open(locator.page(), owner, bytes, budget)?
                 .replace(locator.row(), desired, None, budget)?
-                .ok_or(UpdateError::Unsupported(
+                .ok_or(WriteError::Unsupported(
                     "replacement exceeds contiguous page space",
                 ))?;
         }
@@ -236,13 +236,13 @@ impl PageEdits {
         offset: usize,
         bytes: &[u8],
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         if page.get() >= self.first_append {
             let ordinal = usize::try_from(page.get() - self.first_append)
-                .map_err(|_| UpdateError::Mismatch("bitmap append ordinal"))?;
+                .map_err(|_| WriteError::Mismatch("bitmap append ordinal"))?;
             self.append
                 .get_mut(ordinal)
-                .ok_or(UpdateError::Mismatch("bitmap append page"))?
+                .ok_or(WriteError::Mismatch("bitmap append page"))?
                 .write_at(PageOffset::from_usize(offset)?, bytes, budget)?;
             return Ok(());
         }
@@ -251,12 +251,12 @@ impl PageEdits {
             let end = offset
                 .checked_add(bytes.len())
                 .filter(|end| *end <= PAGE_BYTES)
-                .ok_or(UpdateError::Mismatch("map patch bounds"))?;
+                .ok_or(WriteError::Mismatch("map patch bounds"))?;
             for (at, value) in (offset..end).zip(bytes) {
                 if change.after.as_bytes()[at] != change.before[at]
                     && change.after.as_bytes()[at] != *value
                 {
-                    return Err(UpdateError::Mismatch(
+                    return Err(WriteError::Mismatch(
                         "allocation patch overlaps content edit",
                     ));
                 }
@@ -285,7 +285,7 @@ impl PageEdits {
         &mut self,
         database: &mut DatabaseReader<FileSource>,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         if self.maps.is_empty() {
             return Ok(());
         }
@@ -313,7 +313,7 @@ impl PageEdits {
         mut database: DatabaseReader<FileSource>,
         budget: &mut ResourceBudget,
         hook: H,
-    ) -> Result<(), UpdateError>
+    ) -> Result<(), WriteError>
     where
         H: FnMut(PublishStage) -> Result<(), HE>,
         HE: StdError + Send + Sync + 'static,

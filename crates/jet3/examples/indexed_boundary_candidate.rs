@@ -20,7 +20,7 @@ fn main() -> Result<()> {
         fs::copy(&original, &candidate)?;
         let result = jet3::insert_row(&candidate, b"Items", &values(id), &mut budget());
         if let Some(message) = refusal {
-            if !matches!(result,Err(jet3::UpdateError::Unsupported(m)) if m==message)
+            if !matches!(result,Err(jet3::WriteError::Unsupported(m)) if m==message)
                 || fs::read(&original)? != fs::read(&candidate)?
             {
                 return Err("refusal or preservation".into());

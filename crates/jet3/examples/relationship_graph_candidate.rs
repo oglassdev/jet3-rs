@@ -1,8 +1,8 @@
 //! Reproduce private relationship graphs through the public creation API.
 use jet3::{
-    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexNullPolicy,
-    IndexSpec, RelationshipField, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue,
-    TableRef, TableRows, TableSpec, create_database_with_relationships_and_rows,
+    ColumnRef, ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexDirection, IndexKind,
+    IndexNullPolicy, IndexSpec, RelationshipField, RelationshipSpec, ResourceBudget,
+    ResourceLimits, RowValue, TableRef, TableRows, TableSpec, create_database,
 };
 use serde_json::Value;
 use std::{error::Error, fs, num::NonZeroU8, path::Path};
@@ -333,10 +333,13 @@ fn create(case: &Value, output: &Path, replicas: u64) -> Result<()> {
         })
         .collect::<Result<Vec<_>>>()?;
     for replica in 1..=replicas {
-        create_database_with_relationships_and_rows(
+        create_database(
             output.join(format!("{}-r{replica}.mdb", text(case, "name")?)),
-            &requests,
-            &relationships,
+            &DatabaseSpec {
+                tables: &requests,
+                relationships: &relationships,
+                ..DatabaseSpec::default()
+            },
             &mut ResourceBudget::new(ResourceLimits::default()),
         )?;
     }

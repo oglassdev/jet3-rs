@@ -2,7 +2,7 @@
 use crate::{
     BinaryWriter, ColumnRef, DatabaseReader, FileSource, IndexDefinitionKind, IndexFieldSpec,
     IndexNullPolicy, IndexSpec, LogicalIndexSpec, MapRowLocator, PAGE_BYTES, PageImage,
-    PhysicalIndexSpec, ResourceBudget, SchemaEdit, TableDefinition, UpdateError,
+    PhysicalIndexSpec, ResourceBudget, SchemaEdit, TableDefinition, WriteError,
     definition::column_writer::{write_logical_record, write_physical_record},
     index::{
         entry::{ScalarIndexEntry, ScalarIndexField, sort_cost},
@@ -19,7 +19,7 @@ pub(crate) fn plan(
     table: &TableDefinition,
     request: SchemaEdit<'_>,
     budget: &mut ResourceBudget,
-) -> Result<PageEdits, UpdateError> {
+) -> Result<PageEdits, WriteError> {
     let order = database.header().sort_order();
     // Check every existing tree before changing its logical or physical inventory.
     if !table.physical_indexes().is_empty() {
@@ -41,7 +41,7 @@ pub(crate) fn plan(
         | SchemaEdit::DropRelationship { .. }
         | SchemaEdit::CreateRelationship { .. }
         | SchemaEdit::ReplaceRelationship { .. } => {
-            return Err(UpdateError::Mismatch("index edit request"));
+            return Err(WriteError::Mismatch("index edit request"));
         }
         SchemaEdit::CreateIndex { index, .. } => {
             crate::schema::edit::name(order, index.name, 63)?;
@@ -72,17 +72,17 @@ pub(crate) fn plan(
     Ok(edits)
 }
 
-fn position(table: &TableDefinition, name: &[u8]) -> Result<usize, UpdateError> {
+fn position(table: &TableDefinition, name: &[u8]) -> Result<usize, WriteError> {
     let position = table
         .indexes()
         .iter()
         .position(|index| index.name().raw_bytes() == name)
-        .ok_or(UpdateError::NotFound("index"))?;
+        .ok_or(WriteError::NotFound("index"))?;
     if matches!(
         table.indexes()[position].kind(),
         IndexDefinitionKind::Relationship(_)
     ) {
-        return Err(UpdateError::Unsupported(
+        return Err(WriteError::Unsupported(
             "edit relationship through its relationship",
         ));
     }
@@ -93,14 +93,14 @@ pub(crate) fn sort_names(
     order: crate::SortOrder,
     definition: &mut DefinitionEdit<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let mut keys = Vec::new();
     reserve(&mut keys, definition.indexes.len(), budget)?;
     for index in &definition.indexes {
         budget.charge_work_units(1024)?;
         keys.push(
             crate::catalog::name_key::NameKey::new(index.name, order)
-                .map_err(|_| UpdateError::Unsupported("index name collation"))?,
+                .map_err(|_| WriteError::Unsupported("index name collation"))?,
         );
     }
     // At most 32 logical names; move the records together with their collation keys.
@@ -123,7 +123,7 @@ pub(crate) fn create<'a>(
     definition: &mut DefinitionEdit<'a>,
     edits: &mut PageEdits,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let order = database.header().sort_order();
     if !crate::create::relationship_name::HiddenName::matches(index.name) {
         crate::schema::edit::name(order, index.name, 63)?;
@@ -137,7 +137,7 @@ pub(crate) fn create<'a>(
     if table.indexes().len() >= crate::create::schema_plan::MAX_OBSERVED_INDEXES
         || !(1..=10).contains(&index.fields.len())
     {
-        return Err(UpdateError::Unsupported("index or key field capacity"));
+        return Err(WriteError::Unsupported("index or key field capacity"));
     }
     if index.kind.is_primary()
         && (index.kind.null_policy() != IndexNullPolicy::Required
@@ -146,7 +146,7 @@ pub(crate) fn create<'a>(
                 .iter()
                 .any(|i| i.kind() == IndexDefinitionKind::Primary))
     {
-        return Err(UpdateError::Unsupported(
+        return Err(WriteError::Unsupported(
             "primary index options or duplicate primary",
         ));
     }
@@ -163,17 +163,17 @@ pub(crate) fn create<'a>(
                 .iter()
                 .find(|c| c.name().raw_bytes() == name),
         }
-        .ok_or(UpdateError::NotFound("index column"))?;
+        .ok_or(WriteError::NotFound("index column"))?;
         let ordinal = column.ordinal().get();
         let marked = selected
             .get_mut(usize::from(ordinal))
-            .ok_or(UpdateError::Unsupported("column count"))?;
+            .ok_or(WriteError::Unsupported("column count"))?;
         if *marked {
-            return Err(UpdateError::Unsupported("repeated index column"));
+            return Err(WriteError::Unsupported("repeated index column"));
         }
         *marked = true;
         let kind = ScalarKeyType::from_definition(column)
-            .ok_or(UpdateError::Unsupported("index column type"))?;
+            .ok_or(WriteError::Unsupported("index column type"))?;
         fields.push(IndexFieldSpec {
             column: column.storage_ordinal(),
             direction: field.direction,
@@ -208,7 +208,7 @@ pub(crate) fn create<'a>(
         }
         let root = *pages
             .last()
-            .ok_or(UpdateError::Mismatch("empty index page layout"))?;
+            .ok_or(WriteError::Mismatch("empty index page layout"))?;
         for (ordinal, &page) in pages.iter().enumerate() {
             let image = layout
                 .image(
@@ -229,7 +229,7 @@ pub(crate) fn create<'a>(
             .filter(|(n, entry)| *n == 0 || entries[*n - 1].key() != entry.key())
             .count();
         let count =
-            u32::try_from(count).map_err(|_| UpdateError::Unsupported("index distinct count"))?;
+            u32::try_from(count).map_err(|_| WriteError::Unsupported("index distinct count"))?;
         let spec = PhysicalIndexSpec {
             fields: &fields,
             usage_map_page: map.page(),
@@ -242,7 +242,7 @@ pub(crate) fn create<'a>(
         write_physical_record(&mut BinaryWriter::new(&mut raw, budget)?, &spec)?;
         let mut prefix = [0; 8];
         let entry_count = u32::try_from(entries.len())
-            .map_err(|_| UpdateError::Unsupported("index entry count"))?;
+            .map_err(|_| WriteError::Unsupported("index entry count"))?;
         prefix[..4].copy_from_slice(&entry_count.to_le_bytes());
         prefix[4..].copy_from_slice(&count.to_le_bytes());
         reserve(&mut definition.physical, 1, budget)?;
@@ -268,7 +268,7 @@ pub(crate) fn create<'a>(
         budget.charge_items(definition.indexes.len() as u64)?;
         selector = selector
             .checked_add(1)
-            .ok_or(UpdateError::Unsupported("logical index identity capacity"))?;
+            .ok_or(WriteError::Unsupported("logical index identity capacity"))?;
     }
     raw[..4].copy_from_slice(&selector.to_le_bytes());
     reserve(&mut definition.indexes, 1, budget)?;
@@ -286,7 +286,7 @@ fn entries(
     numeric: &[ScalarIndexField],
     selected: &[bool; 255],
     budget: &mut ResourceBudget,
-) -> Result<Vec<ScalarIndexEntry>, UpdateError> {
+) -> Result<Vec<ScalarIndexEntry>, WriteError> {
     let mut entries = Vec::new();
     let mut rows = database.rows(table, budget)?;
     let mut count = 0_u32;
@@ -307,11 +307,11 @@ fn entries(
         }
         count = count
             .checked_add(1)
-            .ok_or(UpdateError::Mismatch("row count overflow"))?;
+            .ok_or(WriteError::Mismatch("row count overflow"))?;
     }
     drop(rows);
     if count != table.row_count() {
-        return Err(UpdateError::Mismatch("table row count"));
+        return Err(WriteError::Mismatch("table row count"));
     }
     budget.charge_work_units(
         (entries.len() as u64)
@@ -324,7 +324,7 @@ fn entries(
             .windows(2)
             .any(|pair| !pair[0].has_null() && pair[0].key() == pair[1].key())
     {
-        return Err(UpdateError::Unsupported("duplicate unique key"));
+        return Err(WriteError::Unsupported("duplicate unique key"));
     }
     Ok(entries)
 }
@@ -336,14 +336,14 @@ fn drop_index(
     definition: &mut DefinitionEdit<'_>,
     edits: &mut PageEdits,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let position = position(table, name)?;
     let ordinal = table.indexes()[position].physical_index();
     if table.indexes().iter().any(|index| {
         index.physical_index() == ordinal
             && matches!(index.kind(), IndexDefinitionKind::Relationship(relation) if relation.side() == crate::RelationshipSide::PrimaryTable)
     }) {
-        return Err(UpdateError::Unsupported("unique index required by relationship"));
+        return Err(WriteError::Unsupported("unique index required by relationship"));
     }
     remove_position(database, table, position, definition, edits, budget)
 }
@@ -355,11 +355,11 @@ pub(crate) fn remove_position(
     definition: &mut DefinitionEdit<'_>,
     edits: &mut PageEdits,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let ordinal = table
         .indexes()
         .get(position)
-        .ok_or(UpdateError::NotFound("index position"))?
+        .ok_or(WriteError::NotFound("index position"))?
         .physical_index();
     definition.indexes.remove(position);
     if table
@@ -406,7 +406,7 @@ pub(crate) fn edit(
     table: &[u8],
     request: SchemaEdit<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let retired = crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let definition = crate::write::update::indexed_writable_table(database, table, budget)?;
         let retired = if let SchemaEdit::DropIndex { index, .. } = request {

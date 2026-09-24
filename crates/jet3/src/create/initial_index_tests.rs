@@ -1,12 +1,11 @@
 use super::initial_rows_tests::*;
+use crate::WriteError;
 use crate::{
-    ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexColumnSpec, IndexDirection,
-    IndexKind, IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue, TableSpec,
-    create::{
-        api::{CreateDatabaseError, ImageCheckError},
-        api_tests::*,
-    },
-    create_database_with_rows,
+    ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexColumnSpec,
+    IndexDirection, IndexKind, IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue,
+    TableRows, TableSpec,
+    create::{api_tests::*, check::ImageCheckError},
+    create_database,
     definition::column_writer::nz,
 };
 use std::fs;
@@ -44,7 +43,14 @@ fn ascending_long_keys_sort_signed_extremes_and_retain_row_locators() -> TestRes
         &[RowValue::Long(0)],
         &[RowValue::Long(-1)],
     ];
-    create_database_with_rows(directory.target(), &table, rows, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let index = tree(&directory.target())?;
     let expected = [
         ([0x7f, 0, 0, 0, 0], 1),
@@ -86,7 +92,14 @@ fn duplicate_keys_are_distinct_counted_for_ordinary_and_rejected_for_unique() ->
             columns: &[ID],
             indexes: &indexes,
         };
-        let result = create_database_with_rows(directory.target(), &table, rows, &mut budget());
+        let result = create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[TableRows { table, rows }],
+                ..DatabaseSpec::default()
+            },
+            &mut budget(),
+        );
         if kind == IndexKind::Ordinary {
             result?;
             let bytes = fs::read(directory.target())?;
@@ -106,7 +119,7 @@ fn duplicate_keys_are_distinct_counted_for_ordinary_and_rejected_for_unique() ->
         } else {
             assert!(matches!(
                 result,
-                Err(CreateDatabaseError::Compose(
+                Err(WriteError::Compose(
                     ComposeError::DuplicateInitialIndexKey { value: 2 }
                 ))
             ));
@@ -135,7 +148,14 @@ fn indexed_payload_rows_can_reference_multiple_data_pages() -> TestResult {
         .map(|value| [RowValue::Long(19 - value), RowValue::Text(&text)])
         .collect::<Vec<_>>();
     let rows = values.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
-    create_database_with_rows(directory.target(), &table, &rows, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     for (key, entry) in tree(&directory.target())?.entries().iter().enumerate() {
         let ordinal = 19 - key;
         assert_eq!(
@@ -163,7 +183,17 @@ fn leaf_capacity_spills_into_a_branch_root() -> TestResult {
         .map(|value| [RowValue::Long(value)])
         .collect::<Vec<_>>();
     let rows = values.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
-    create_database_with_rows(directory.target(), &table, &rows[..200], &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table,
+                rows: &rows[..200],
+            }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let original = fs::read(directory.target())?;
     assert_eq!(tree(&directory.target())?.entries().len(), 200);
     assert_eq!(
@@ -171,12 +201,26 @@ fn leaf_capacity_spills_into_a_branch_root() -> TestResult {
         &[0, 0]
     );
     assert!(matches!(
-        create_database_with_rows(directory.target(), &table, &rows, &mut budget()),
-        Err(CreateDatabaseError::Publish(_))
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[TableRows { table, rows: &rows }],
+                ..DatabaseSpec::default()
+            },
+            &mut budget()
+        ),
+        Err(WriteError::CreatePublish(_))
     ));
     assert_eq!(fs::read(directory.target())?, original);
     let directory = TestDirectory::create()?;
-    create_database_with_rows(directory.target(), &table, &rows, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let expanded = tree(&directory.target())?;
     assert_eq!(expanded.entries().len(), 201);
     assert_eq!(expanded.nodes().len(), 3);
@@ -200,15 +244,20 @@ fn required_null_keys_fail_before_publication() -> TestResult {
             indexes: &indexes,
         };
         assert!(matches!(
-            create_database_with_rows(
+            create_database(
                 directory.target(),
-                &table,
-                &[&[RowValue::Null]],
+                &DatabaseSpec {
+                    tables: &[TableRows {
+                        table,
+                        rows: &[&[RowValue::Null]]
+                    }],
+                    ..DatabaseSpec::default()
+                },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(
-                ComposeError::NullInitialIndexKey { row: 0 }
-            ))
+            Err(WriteError::Compose(ComposeError::NullInitialIndexKey {
+                row: 0
+            }))
         ));
     }
     assert!(directory.entries()?.is_empty());
@@ -226,20 +275,27 @@ fn candidate_check_rejects_index_owner_and_key_corruption() -> TestResult {
         indexes: &indexes,
     };
     let rows: &[&[RowValue<'_>]] = &[&[RowValue::Long(1)], &[RowValue::Long(2)]];
-    create_database_with_rows(directory.target(), &table, rows, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let original = fs::read(directory.target())?;
     let mut changed = original.clone();
     changed[23 * crate::PAGE_BYTES + 4] = 19;
     fs::write(directory.target(), &changed)?;
     assert!(matches!(
-        super::api::check_initial_rows(&directory.target(), &table, rows, &mut budget()),
+        super::check::check_initial_rows(&directory.target(), &table, rows, &mut budget()),
         Err(ImageCheckError::Index(_))
     ));
     let mut changed = original;
     changed[23 * crate::PAGE_BYTES + 248 + 4] = 0;
     fs::write(directory.target(), &changed)?;
     assert!(matches!(
-        super::api::check_initial_rows(&directory.target(), &table, rows, &mut budget()),
+        super::check::check_initial_rows(&directory.target(), &table, rows, &mut budget()),
         Err(ImageCheckError::Mismatch {
             detail: "initial index entries"
         })
@@ -257,20 +313,32 @@ fn index_storage_budget_and_empty_index_are_handled() -> TestResult {
         columns: &[ID],
         indexes: &indexes,
     };
-    create_database_with_rows(directory.target(), &table, &[], &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &[] }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     assert!(tree(&directory.target())?.entries().is_empty());
     let original = fs::read(directory.target())?;
     let mut limited = ResourceBudget::new(
         ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(8)),
     );
     assert!(matches!(
-        create_database_with_rows(
+        create_database(
             directory.target(),
-            &table,
-            &[&[RowValue::Long(1)]],
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table,
+                    rows: &[&[RowValue::Long(1)]]
+                }],
+                ..DatabaseSpec::default()
+            },
             &mut limited
         ),
-        Err(CreateDatabaseError::Compose(ComposeError::Encoding(
+        Err(WriteError::Compose(ComposeError::Encoding(
             crate::Error::ResourceLimitExceeded {
                 kind: crate::ResourceLimitKind::AllocationBytes,
                 ..

@@ -1,7 +1,6 @@
 use super::cascade::*;
 use crate::{
-    DatabaseReader, FileSource, PAGE_BYTES, RowValue, UpdateError, relationship::mutation::Change,
-    *,
+    DatabaseReader, FileSource, PAGE_BYTES, RowValue, WriteError, relationship::mutation::Change, *,
 };
 use std::{error::Error, fs, path::Path};
 
@@ -156,19 +155,22 @@ fn cascade_actions_are_independent_and_preserve_refused_inputs() -> TestResult {
             RowValue::Long(10),
             RowValue::Memo(b"child"),
         ][..]];
-        create_database_with_relationships_and_rows(
+        create_database(
             &path,
-            &[
-                TableRows {
-                    table: table(b"Parent", true),
-                    rows: &parents,
-                },
-                TableRows {
-                    table: table(b"Child", false),
-                    rows: &children,
-                },
-            ],
-            &[relation(b"ParentChild", 0, 1, updates, deletes)],
+            &DatabaseSpec {
+                tables: &[
+                    TableRows {
+                        table: table(b"Parent", true),
+                        rows: &parents,
+                    },
+                    TableRows {
+                        table: table(b"Child", false),
+                        rows: &children,
+                    },
+                ],
+                relationships: &[relation(b"ParentChild", 0, 1, updates, deletes)],
+                ..DatabaseSpec::default()
+            },
             &mut budget(),
         )?;
         for value in [10, 11] {
@@ -224,26 +226,29 @@ fn cascade_chain_changes_every_level_and_rolls_back_the_whole_publication() -> T
         RowValue::Long(10),
         RowValue::Memo(&payload),
     ];
-    create_database_with_relationships_and_rows(
+    create_database(
         &path,
-        &[
-            TableRows {
-                table: table(b"Root", true),
-                rows: &[&root],
-            },
-            TableRows {
-                table: table(b"Middle", true),
-                rows: &[&middle],
-            },
-            TableRows {
-                table: table(b"Leaf", false),
-                rows: &[&leaf],
-            },
-        ],
-        &[
-            relation(b"RootMiddle", 0, 1, true, true),
-            relation(b"MiddleLeaf", 1, 2, true, true),
-        ],
+        &DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: table(b"Root", true),
+                    rows: &[&root],
+                },
+                TableRows {
+                    table: table(b"Middle", true),
+                    rows: &[&middle],
+                },
+                TableRows {
+                    table: table(b"Leaf", false),
+                    rows: &[&leaf],
+                },
+            ],
+            relationships: &[
+                relation(b"RootMiddle", 0, 1, true, true),
+                relation(b"MiddleLeaf", 1, 2, true, true),
+            ],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let original = fs::read(&path)?;
@@ -267,7 +272,7 @@ fn cascade_chain_changes_every_level_and_rolls_back_the_whole_publication() -> T
         }
     });
     assert!(
-        matches!(result, Err(UpdateError::Publish(error)) if error.stage() == PublishStage::PrePublish)
+        matches!(result, Err(WriteError::Publish(error)) if error.stage() == PublishStage::PrePublish)
     );
     assert_eq!(fs::read(&path)?, original);
     assert_eq!(fs::read_dir(directory.path())?.count(), 1);
@@ -296,26 +301,29 @@ fn cascade_shared_foreign_key_checks_other_parents_before_writing() -> TestResul
     let path = directory.path().join("shared.mdb");
     let first = [RowValue::Long(1), RowValue::Long(10), RowValue::Memo(b"a")];
     let other = [RowValue::Long(2), RowValue::Long(30), RowValue::Memo(b"b")];
-    create_database_with_relationships_and_rows(
+    create_database(
         &path,
-        &[
-            TableRows {
-                table: table(b"Left", true),
-                rows: &[&first],
-            },
-            TableRows {
-                table: table(b"Right", true),
-                rows: &[&first, &other],
-            },
-            TableRows {
-                table: table(b"Child", false),
-                rows: &[&first],
-            },
-        ],
-        &[
-            relation(b"LeftChild", 0, 2, true, true),
-            relation(b"RightChild", 1, 2, false, false),
-        ],
+        &DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: table(b"Left", true),
+                    rows: &[&first],
+                },
+                TableRows {
+                    table: table(b"Right", true),
+                    rows: &[&first, &other],
+                },
+                TableRows {
+                    table: table(b"Child", false),
+                    rows: &[&first],
+                },
+            ],
+            relationships: &[
+                relation(b"LeftChild", 0, 2, true, true),
+                relation(b"RightChild", 1, 2, false, false),
+            ],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let original = fs::read(&path)?;
@@ -351,18 +359,21 @@ fn cascade_self_replacement_preserves_the_explicit_foreign_key() -> TestResult {
             }],
             ..relation(b"SelfRel", 0, 0, true, true)
         };
-        create_database_with_relationships_and_rows(
+        create_database(
             &path,
-            &[TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Node",
-                    columns: &columns,
-                    indexes: INDEXES,
-                },
-                rows: &[&rows[0], &rows[1], &rows[2]],
-            }],
-            &[relation],
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Node",
+                        columns: &columns,
+                        indexes: INDEXES,
+                    },
+                    rows: &[&rows[0], &rows[1], &rows[2]],
+                }],
+                relationships: &[relation],
+                ..DatabaseSpec::default()
+            },
             &mut budget(),
         )?;
         let before = fs::read(&path)?;
@@ -459,29 +470,32 @@ fn cascade_composite_null_tuples_match_exactly_and_update_each_row_once() -> Tes
         ],
         ..relation(b"Pair", 0, 1, true, true)
     };
-    create_database_with_relationships_and_rows(
+    create_database(
         &path,
-        &[
-            TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Parent",
-                    columns: &columns,
-                    indexes: &indexes,
+        &DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Parent",
+                        columns: &columns,
+                        indexes: &indexes,
+                    },
+                    rows: &references,
                 },
-                rows: &references,
-            },
-            TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Child",
-                    columns: &columns,
-                    indexes: &indexes[..1],
+                TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Child",
+                        columns: &columns,
+                        indexes: &indexes[..1],
+                    },
+                    rows: &references,
                 },
-                rows: &references,
-            },
-        ],
-        &[relationship],
+            ],
+            relationships: &[relationship],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let descriptors = |path: &Path| -> Result<Vec<Vec<u8>>, Box<dyn Error>> {
@@ -551,7 +565,14 @@ fn cascade_journal_merges_successive_and_appended_pages_and_rejects_stale_plans(
     let directory = Directory::new()?;
     let original_path = directory.path().join("original.mdb");
     let private_path = directory.path().join("private.mdb");
-    create_database(&original_path, &[], &mut budget())?;
+    create_database(
+        &original_path,
+        &DatabaseSpec {
+            tables: &[],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     fs::copy(&original_path, &private_path)?;
     let original_bytes = fs::read(&original_path)?;
     let mut file = fs::OpenOptions::new()
@@ -618,7 +639,7 @@ fn cascade_journal_merges_successive_and_appended_pages_and_rejects_stale_plans(
         )?;
         assert!(matches!(
             plan.apply_private(&mut db, &mut file, &mut combined, &mut work),
-            Err(UpdateError::Mismatch(_))
+            Err(WriteError::Mismatch(_))
         ));
         assert_eq!(fs::read(&private_path)?, expected);
     }
@@ -649,22 +670,25 @@ fn cascade_autoincrement_marker_requires_an_autonumber_row_replacement() -> Test
             RowValue::Long(10),
             RowValue::Memo(b"before"),
         ];
-        create_database_with_relationships_and_rows(
+        create_database(
             &path,
-            &[
-                TableRows {
-                    table: TableSpec {
-                        columns: &columns,
-                        ..table(b"Parent", true)
+            &DatabaseSpec {
+                tables: &[
+                    TableRows {
+                        table: TableSpec {
+                            columns: &columns,
+                            ..table(b"Parent", true)
+                        },
+                        rows: &[&values],
                     },
-                    rows: &[&values],
-                },
-                TableRows {
-                    table: table(b"Child", false),
-                    rows: &[&values],
-                },
-            ],
-            &[relation(b"ParentChild", 0, 1, true, true)],
+                    TableRows {
+                        table: table(b"Child", false),
+                        rows: &[&values],
+                    },
+                ],
+                relationships: &[relation(b"ParentChild", 0, 1, true, true)],
+                ..DatabaseSpec::default()
+            },
             &mut budget(),
         )?;
         let selected = locator(&path, b"Parent", 1)?;
@@ -679,7 +703,7 @@ fn cascade_autoincrement_marker_requires_an_autonumber_row_replacement() -> Test
             },
             &mut budget(),
         );
-        assert!(matches!(result, Err(UpdateError::Unsupported(_))));
+        assert!(matches!(result, Err(WriteError::Unsupported(_))));
         assert_eq!(fs::read(&path)?, before);
         let result = update_row(
             &path,
@@ -700,7 +724,7 @@ fn cascade_autoincrement_marker_requires_an_autonumber_row_replacement() -> Test
             assert_eq!(keys(&path, b"Child", &[1])?, vec![vec![Some(10)]]);
             validate_file(&path)?;
         } else {
-            assert!(matches!(result, Err(UpdateError::Unsupported(_))));
+            assert!(matches!(result, Err(WriteError::Unsupported(_))));
             assert_eq!(fs::read(&path)?, before);
         }
     }

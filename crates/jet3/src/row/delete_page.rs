@@ -1,6 +1,6 @@
 //! Slot-preserving compaction and tombstones from EXP-0162 (EXP-0059/0060 layout).
 use crate::{
-    PAGE_BYTES, PageImage, PageOffset, ResourceBudget, UpdateError,
+    PAGE_BYTES, PageImage, PageOffset, ResourceBudget, WriteError,
     row::{
         data_page::{DataPageEditor, Packed, write_free, write_slot},
         directory::RowSlot,
@@ -38,18 +38,18 @@ impl DataPageEditor<'_> {
         slot: u8,
         physical: bool,
         budget: &mut ResourceBudget,
-    ) -> Result<Deletion, UpdateError> {
+    ) -> Result<Deletion, WriteError> {
         let count = self.directory.row_count();
         let range = self.entry(slot)?.range();
         budget.charge_work_units(2 * u64::from(count))?;
         let live = self.live_rows(physical, "page contains an unsupported row slot")?;
         if range.is_empty() {
-            return Err(UpdateError::NotFound("live row slot"));
+            return Err(WriteError::NotFound("live row slot"));
         }
         let Packed { lowest, free, .. } = self.packed("data page free-byte count")?;
         let removed = range.len();
         let new_free =
-            u16::try_from(free + removed).map_err(|_| UpdateError::Mismatch("free-byte range"))?;
+            u16::try_from(free + removed).map_err(|_| WriteError::Mismatch("free-byte range"))?;
         let mut patched = PageImage::from_bytes(*self.source);
         if live == 1 {
             patched.write_at(PageOffset::new(0), &[RELEASED_PAGE_TAG], budget)?;
@@ -76,16 +76,15 @@ impl DataPageEditor<'_> {
                     .start
                     .checked_add(removed)
                     .filter(|v| *v <= PAGE_BYTES)
-                    .ok_or(UpdateError::Mismatch("compacted row offset"))?
+                    .ok_or(WriteError::Mismatch("compacted row offset"))?
             };
             let flags = if ordinal == u16::from(slot) {
                 TOMBSTONE
             } else {
                 RowSlot::read(&entry)?.flags()
             };
-            let word = u16::try_from(start)
-                .map_err(|_| UpdateError::Mismatch("tombstone offset"))?
-                | flags;
+            let word =
+                u16::try_from(start).map_err(|_| WriteError::Mismatch("tombstone offset"))? | flags;
             write_slot(&mut patched, ordinal, word, budget)?;
         }
         write_free(&mut patched, new_free, budget)?;

@@ -2,8 +2,9 @@ use super::update_tests::*;
 use crate::{
     ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, FileSource, IndexColumnSpec,
     IndexKind, IndexSpec, PAGE_BYTES, RelationshipField, RelationshipSpec, ResourceBudget,
-    RowLocator, RowValue, TableRef, TableRows, TableSpec, row::directory::RowDirectory,
-    write::update::*,
+    RowLocator, RowValue, TableRef, TableRows, TableSpec,
+    row::directory::RowDirectory,
+    write::{error::WriteError, update::*},
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -11,60 +12,63 @@ use std::fs;
 fn fixture() -> Result<Fixture, Box<dyn StdError>> {
     let fixture = simple()?;
     fs::remove_file(fixture.path())?;
-    crate::create_database_with_relationship_rows(
+    crate::create_database(
         fixture.path(),
-        &[
-            TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Parent",
-                    columns: &[
-                        ColumnSpec::new(b"Id", ColumnType::Long),
-                        ColumnSpec::new(b"Other", ColumnType::Long),
+        &crate::DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Parent",
+                        columns: &[
+                            ColumnSpec::new(b"Id", ColumnType::Long),
+                            ColumnSpec::new(b"Other", ColumnType::Long),
+                        ],
+                        indexes: &[IndexSpec {
+                            name: b"ById",
+                            fields: &[IndexColumnSpec::ascending(0)],
+                            kind: IndexKind::Primary,
+                        }],
+                    },
+                    rows: &[
+                        &[RowValue::Long(1), RowValue::Long(11)],
+                        &[RowValue::Long(2), RowValue::Long(22)],
+                        &[RowValue::Long(3), RowValue::Long(33)],
                     ],
-                    indexes: &[IndexSpec {
-                        name: b"ById",
-                        fields: &[IndexColumnSpec::ascending(0)],
-                        kind: IndexKind::Primary,
-                    }],
                 },
-                rows: &[
-                    &[RowValue::Long(1), RowValue::Long(11)],
-                    &[RowValue::Long(2), RowValue::Long(22)],
-                    &[RowValue::Long(3), RowValue::Long(33)],
-                ],
-            },
-            TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Child",
-                    columns: &[
-                        ColumnSpec::new(b"Id", ColumnType::Long),
-                        ColumnSpec::new(b"ParentId", ColumnType::Long),
-                        ColumnSpec::new(b"Other", ColumnType::Long),
+                TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Child",
+                        columns: &[
+                            ColumnSpec::new(b"Id", ColumnType::Long),
+                            ColumnSpec::new(b"ParentId", ColumnType::Long),
+                            ColumnSpec::new(b"Other", ColumnType::Long),
+                        ],
+                        indexes: &[],
+                    },
+                    rows: &[
+                        &[RowValue::Long(10), RowValue::Long(1), RowValue::Long(7)],
+                        &[RowValue::Long(11), RowValue::Long(1), RowValue::Long(8)],
+                        &[RowValue::Long(12), RowValue::Long(2), RowValue::Long(9)],
                     ],
-                    indexes: &[],
                 },
-                rows: &[
-                    &[RowValue::Long(10), RowValue::Long(1), RowValue::Long(7)],
-                    &[RowValue::Long(11), RowValue::Long(1), RowValue::Long(8)],
-                    &[RowValue::Long(12), RowValue::Long(2), RowValue::Long(9)],
-                ],
-            },
-        ],
-        &RelationshipSpec {
-            unique: false,
-            enforce: true,
-            join: crate::RelationshipJoin::Inner,
-            cascade_updates: false,
-            cascade_deletes: false,
-            name: b"ParentChild",
-            parent: TableRef::Ordinal(0),
-            child: TableRef::Ordinal(1),
-            fields: &[RelationshipField {
-                parent: ColumnRef::Ordinal(0),
-                child: ColumnRef::Ordinal(1),
-            }],
+            ],
+            relationships: std::slice::from_ref(&RelationshipSpec {
+                unique: false,
+                enforce: true,
+                join: crate::RelationshipJoin::Inner,
+                cascade_updates: false,
+                cascade_deletes: false,
+                name: b"ParentChild",
+                parent: TableRef::Ordinal(0),
+                child: TableRef::Ordinal(1),
+                fields: &[RelationshipField {
+                    parent: ColumnRef::Ordinal(0),
+                    child: ColumnRef::Ordinal(1),
+                }],
+            }),
+            relationship_layout: crate::RelationshipLayout::SingleLong,
         },
         &mut budget(),
     )?;
@@ -303,7 +307,7 @@ fn orphan_and_referenced_parent_requests_preserve_the_complete_file() -> TestRes
     ];
     for result in results {
         assert!(
-            matches!(result, Err(UpdateError::RelationshipConstraint { .. })),
+            matches!(result, Err(WriteError::RelationshipConstraint { .. })),
             "{result:?}"
         );
     }
@@ -476,7 +480,7 @@ fn damaged_reciprocal_metadata_and_stale_parent_index_are_refused() -> TestResul
         assert!(
             matches!(
                 result,
-                Err(UpdateError::Unsupported(_) | UpdateError::Mismatch(_))
+                Err(WriteError::Unsupported(_) | WriteError::Mismatch(_))
             ),
             "{result:?}"
         );
@@ -536,7 +540,7 @@ fn missing_catalog_and_parent_records_cannot_hide_an_incoming_relationship() -> 
     assert!(
         matches!(
             result,
-            Err(UpdateError::Mismatch(
+            Err(WriteError::Mismatch(
                 "unresolved incoming relationship record"
             ))
         ),
@@ -602,10 +606,7 @@ fn an_existing_orphan_is_not_silently_repaired_by_a_later_write() -> TestResult 
         &mut budget(),
     );
     assert!(
-        matches!(
-            result,
-            Err(UpdateError::Mismatch("orphan relationship key"))
-        ),
+        matches!(result, Err(WriteError::Mismatch("orphan relationship key"))),
         "{result:?}"
     );
     assert_eq!(fs::read(fixture.path())?, damaged);
@@ -648,7 +649,7 @@ fn duplicate_reciprocal_relationship_records_are_refused() -> TestResult {
     assert!(
         matches!(
             result,
-            Err(UpdateError::Mismatch(
+            Err(WriteError::Mismatch(
                 "ambiguous reciprocal relationship index"
             ))
         ),

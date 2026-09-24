@@ -1,4 +1,5 @@
 use super::api_relationship_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec,
     IndexDirection, IndexKind, IndexSpec, InlineLongValue, LongValue, LongValueChunkValue,
@@ -112,10 +113,13 @@ fn rich_relationship_rows_keep_primary_null_keys_payloads_and_generated_ids() ->
                 rows: &rows,
             },
         ];
-        crate::create_database_with_relationship_rows(
+        crate::create_database(
             directory.target(),
-            &requests,
-            &RELATION,
+            &crate::DatabaseSpec {
+                tables: &requests,
+                relationships: std::slice::from_ref(&RELATION),
+                relationship_layout: crate::RelationshipLayout::SingleLong,
+            },
             &mut budget(),
         )?;
         let mut operation = budget();
@@ -283,19 +287,22 @@ fn parent_relationship_record_at_definition_boundary_keeps_external_payload_star
                 indexes: PRIMARY,
             };
             let directory = Directory::new()?;
-            crate::create_database_with_relationship_rows(
+            crate::create_database(
                 directory.target(),
-                &[
-                    TableRows {
-                        table: parent,
-                        rows: &[&values],
-                    },
-                    TableRows {
-                        table: child,
-                        rows: &[&[RowValue::Long(1), RowValue::Long(1)]],
-                    },
-                ],
-                &RELATION,
+                &crate::DatabaseSpec {
+                    tables: &[
+                        TableRows {
+                            table: parent,
+                            rows: &[&values],
+                        },
+                        TableRows {
+                            table: child,
+                            rows: &[&[RowValue::Long(1), RowValue::Long(1)]],
+                        },
+                    ],
+                    relationships: std::slice::from_ref(&RELATION),
+                    relationship_layout: crate::RelationshipLayout::SingleLong,
+                },
                 &mut budget(),
             )?;
             let raw = fs::read(directory.target())?;
@@ -348,13 +355,16 @@ fn relationship_names_cannot_replace_declared_primary_indexes() -> TestResult {
         };
         let directory = Directory::new()?;
         assert!(matches!(
-            crate::create_database_with_relationship(
+            crate::create_database(
                 directory.target(),
-                &tables,
-                &relation,
+                &crate::DatabaseSpec {
+                    tables: &tables.map(crate::TableRows::empty),
+                    relationships: std::slice::from_ref(&relation),
+                    relationship_layout: crate::RelationshipLayout::SingleLong
+                },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(ComposeError::Schema(_)))
+            Err(WriteError::Compose(ComposeError::Schema(_)))
         ));
         assert!(directory.empty()?);
     }

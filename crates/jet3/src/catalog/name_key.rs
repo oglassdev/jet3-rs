@@ -4,8 +4,6 @@
 //! expansions and accent nibbles. EXP-0101/0248 cover General; EXP-0309
 //! supplies the remaining five observed locales and their catalog keys.
 
-use std::fmt;
-
 use crate::{IndexDirection, SortOrder, index::key::scalar::MAX_COMPONENT_BYTES};
 
 /// EXP-0062: marker and four-byte signed Long component.
@@ -14,11 +12,13 @@ pub(crate) const LONG_COMPONENT_LEN: usize = 5;
 pub(crate) const MAX_CREATION_KEY_BYTES: usize = LONG_COMPONENT_LEN + 3 * 64 + 2;
 
 /// Structured failure while encoding a ParentId/Name index key.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum CatalogNameKeyError {
     /// The name is empty.
+    #[error("catalog name key needs a non-empty name")]
     EmptyName,
     /// The name byte is outside the supported object-name grammar.
+    #[error("unsupported catalog name byte {byte:#04x} at position {position}")]
     UnmappedNameByte {
         /// Zero-based byte position in the name.
         position: usize,
@@ -26,6 +26,7 @@ pub enum CatalogNameKeyError {
         byte: u8,
     },
     /// The name exceeds the EXP-0249 object-name boundary.
+    #[error("catalog name has {length} bytes; maximum is {maximum}")]
     NameTooLong {
         /// Requested byte length.
         length: usize,
@@ -33,6 +34,7 @@ pub enum CatalogNameKeyError {
         maximum: usize,
     },
     /// The encoded key does not fit the caller's buffer.
+    #[error("catalog name key needs {needed} bytes but {available} are available")]
     KeyTooLong {
         /// Bytes the encoded key needs.
         needed: usize,
@@ -40,28 +42,6 @@ pub enum CatalogNameKeyError {
         available: usize,
     },
 }
-
-impl fmt::Display for CatalogNameKeyError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::EmptyName => formatter.write_str("catalog name key needs a non-empty name"),
-            Self::UnmappedNameByte { position, byte } => write!(
-                formatter,
-                "unsupported catalog name byte {byte:#04x} at position {position}"
-            ),
-            Self::NameTooLong { length, maximum } => write!(
-                formatter,
-                "catalog name has {length} bytes; maximum is {maximum}"
-            ),
-            Self::KeyTooLong { needed, available } => write!(
-                formatter,
-                "catalog name key needs {needed} bytes but {available} are available"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for CatalogNameKeyError {}
 
 /// EXP-0087 excludes controls and the five punctuation bytes below; SRC-0025
 /// and SRC-0027 identify undefined code-page bytes. EXP-0101/0309 admit defined

@@ -1,9 +1,9 @@
 use super::initial_index_tests::*;
 use crate::{
-    ColumnSpec, ColumnType, DatabaseReader, IndexDirection, IndexKind, IndexNodeKind, IndexSpec,
-    PageNumber, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec,
+    ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, IndexDirection, IndexKind, IndexNodeKind,
+    IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec,
     create::{api_tests::*, initial_rows_tests::*},
-    create_database_with_rows, create_database_with_table_rows,
+    create_database,
 };
 use std::fs;
 
@@ -23,7 +23,17 @@ fn branch_fanout_builds_another_level_and_preserves_complete_separators() -> Tes
     let rows = values.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
     for (count, nodes, depth) in [(27800, 140, 2), (27801, 143, 3)] {
         let directory = TestDirectory::create()?;
-        create_database_with_rows(directory.target(), &table, &rows[..count], &mut budget())?;
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table,
+                    rows: &rows[..count],
+                }],
+                ..DatabaseSpec::default()
+            },
+            &mut budget(),
+        )?;
         let index = tree(&directory.target())?;
         assert_eq!(index.entries().len(), count);
         assert_eq!(index.nodes().len(), nodes);
@@ -94,7 +104,14 @@ fn composite_duplicates_cross_leaves_and_later_tables_keep_roots_and_locators() 
         },
     ];
     let directory = TestDirectory::create()?;
-    create_database_with_table_rows(directory.target(), &requests, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &requests,
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let bytes = fs::read(directory.target())?;
     let mut reader = DatabaseReader::open(directory.target(), &mut budget())?;
     let first = reader.table_definition(PageNumber::new(20), &mut budget())?;
@@ -151,7 +168,14 @@ fn branched_corruption_and_resource_limits_preserve_publication() -> TestResult 
     };
     let value = [RowValue::Long(1)];
     let rows = vec![value.as_slice(); 401];
-    create_database_with_rows(directory.target(), &table, &rows, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let original = fs::read(directory.target())?;
     let index = tree(&directory.target())?;
     let leaf = index
@@ -170,7 +194,7 @@ fn branched_corruption_and_resource_limits_preserve_publication() -> TestResult 
         changed[offset] = 0;
         fs::write(directory.target(), changed)?;
         assert!(
-            crate::create::api::check_initial_rows(
+            crate::create::check::check_initial_rows(
                 &directory.target(),
                 &table,
                 &rows,
@@ -181,7 +205,17 @@ fn branched_corruption_and_resource_limits_preserve_publication() -> TestResult 
     }
     fs::write(directory.target(), &original)?;
     let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(100));
-    assert!(create_database_with_rows(directory.target(), &table, &rows, &mut limited).is_err());
+    assert!(
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[TableRows { table, rows: &rows }],
+                ..DatabaseSpec::default()
+            },
+            &mut limited
+        )
+        .is_err()
+    );
     assert_eq!(fs::read(directory.target())?, original);
     Ok(())
 }
@@ -198,11 +232,28 @@ fn data_and_index_levels_extend_past_inline_map_capacity() -> TestResult {
     };
     let value = [RowValue::Long(1)];
     let rows = vec![value.as_slice(); 111253];
-    create_database_with_rows(directory.target(), &table, &rows[..111252], &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table,
+                rows: &rows[..111252],
+            }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let original = fs::read(directory.target())?;
     assert_eq!(original.len(), 1024 * crate::PAGE_BYTES);
     let grown = directory.target().with_file_name("grown.mdb");
-    create_database_with_rows(&grown, &table, &rows, &mut budget())?;
+    create_database(
+        &grown,
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);
     assert_eq!(fs::read(directory.target())?, original);
     Ok(())
@@ -220,7 +271,14 @@ fn generated_keys_keep_their_counter_and_locators_across_index_leaves() -> TestR
     };
     let value = [RowValue::AutoIncrement];
     let rows = vec![value.as_slice(); 401];
-    create_database_with_rows(directory.target(), &table, &rows, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let bytes = fs::read(directory.target())?;
     assert_eq!(
         &bytes[20 * crate::PAGE_BYTES + 16..20 * crate::PAGE_BYTES + 20],

@@ -1,7 +1,7 @@
 //! Budgeted scalar snapshots used to plan related-row changes before publication.
 use crate::{
     ColumnOrdinal, DatabaseReader, FileSource, PageNumber, ResourceBudget, RowLocator, RowValue,
-    UpdateError,
+    WriteError,
     index::key::scalar::ScalarKeyType,
     relationship::{catalog::Constraint, key::Key},
     write::page_edits::reserve,
@@ -14,7 +14,7 @@ pub(super) enum Value {
 }
 
 impl Value {
-    pub fn copy(value: RowValue<'_>, budget: &mut ResourceBudget) -> Result<Self, UpdateError> {
+    pub fn copy(value: RowValue<'_>, budget: &mut ResourceBudget) -> Result<Self, WriteError> {
         let scalar = match value {
             RowValue::Null => RowValue::Null,
             RowValue::Boolean(v) => RowValue::Boolean(v),
@@ -37,7 +37,7 @@ impl Value {
                     Self::Binary(saved)
                 });
             }
-            _ => return Err(UpdateError::Unsupported("non-scalar cascade key")),
+            _ => return Err(WriteError::Unsupported("non-scalar cascade key")),
         };
         Ok(Self::Scalar(scalar))
     }
@@ -50,7 +50,7 @@ impl Value {
         }
     }
 
-    fn equal(&self, other: RowValue<'_>, budget: &mut ResourceBudget) -> Result<bool, UpdateError> {
+    fn equal(&self, other: RowValue<'_>, budget: &mut ResourceBudget) -> Result<bool, WriteError> {
         budget.charge_work_units(match self {
             Self::Text(bytes) | Self::Binary(bytes) => bytes.len() as u64,
             Self::Scalar(_) => 1,
@@ -85,17 +85,17 @@ impl Row {
         &self,
         columns: &[ColumnOrdinal],
         after: bool,
-    ) -> Result<[RowValue<'_>; crate::index::entry::MAX_FIELDS], UpdateError> {
+    ) -> Result<[RowValue<'_>; crate::index::entry::MAX_FIELDS], WriteError> {
         let mut values = [RowValue::Null; crate::index::entry::MAX_FIELDS];
         if columns.len() > values.len() {
-            return Err(UpdateError::Mismatch("cascade key width"));
+            return Err(WriteError::Mismatch("cascade key width"));
         }
         for (&column, value) in columns.iter().zip(&mut values) {
             let field = self
                 .fields
                 .iter()
                 .find(|field| field.column == column)
-                .ok_or(UpdateError::Mismatch("cascade key column absent"))?;
+                .ok_or(WriteError::Mismatch("cascade key column absent"))?;
             *value = if after {
                 field.after.as_ref().unwrap_or(&field.before)
             } else {
@@ -112,7 +112,7 @@ impl Row {
         kinds: &[ScalarKeyType],
         after: bool,
         budget: &mut ResourceBudget,
-    ) -> Result<Option<Key>, UpdateError> {
+    ) -> Result<Option<Key>, WriteError> {
         budget.charge_work_units((columns.len() * self.fields.len()) as u64)?;
         let values = self.values(columns, after)?;
         Key::encode(kinds, &values[..columns.len()], budget)
@@ -132,13 +132,13 @@ impl Row {
         value: RowValue<'_>,
         explicit: bool,
         budget: &mut ResourceBudget,
-    ) -> Result<bool, UpdateError> {
+    ) -> Result<bool, WriteError> {
         budget.charge_work_units(self.fields.len() as u64)?;
         let field = self
             .fields
             .iter_mut()
             .find(|field| field.column == column)
-            .ok_or(UpdateError::Mismatch("cascade assignment column absent"))?;
+            .ok_or(WriteError::Mismatch("cascade assignment column absent"))?;
         if field.explicit && !explicit {
             return Ok(false);
         }
@@ -157,7 +157,7 @@ pub(super) fn load(
     database: &mut DatabaseReader<FileSource>,
     constraints: &[Constraint],
     budget: &mut ResourceBudget,
-) -> Result<Vec<Row>, UpdateError> {
+) -> Result<Vec<Row>, WriteError> {
     let mut roots = Vec::new();
     let mut result = Vec::new();
     for constraint in constraints {
@@ -180,7 +180,7 @@ pub(super) fn load(
                         for column in columns {
                             *selected
                                 .get_mut(usize::from(column.get()))
-                                .ok_or(UpdateError::Unsupported("cascade column ordinal"))? = true;
+                                .ok_or(WriteError::Unsupported("cascade column ordinal"))? = true;
                         }
                     }
                 }
@@ -190,7 +190,7 @@ pub(super) fn load(
             while let Some(mut row) = cursor.next_row()? {
                 count = count
                     .checked_add(1)
-                    .ok_or(UpdateError::Mismatch("cascade row count"))?;
+                    .ok_or(WriteError::Mismatch("cascade row count"))?;
                 let mut fields = Vec::new();
                 for (ordinal, &selected) in selected.iter().enumerate() {
                     row.budget_mut().charge_work_units(1)?;
@@ -216,7 +216,7 @@ pub(super) fn load(
                 });
             }
             if count != table.row_count() {
-                return Err(UpdateError::Mismatch("cascade table row count"));
+                return Err(WriteError::Mismatch("cascade table row count"));
             }
         }
     }
@@ -227,7 +227,7 @@ pub(super) fn equal(
     left: &Option<Key>,
     right: &Option<Key>,
     budget: &mut ResourceBudget,
-) -> Result<bool, UpdateError> {
+) -> Result<bool, WriteError> {
     budget.charge_work_units(left.as_ref().map_or(1, |key| key.bytes().len()) as u64)?;
     Ok(left.as_ref().map(Key::bytes) == right.as_ref().map(Key::bytes))
 }

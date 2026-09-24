@@ -16,22 +16,26 @@ use crate::{
     RawJet3Candidate, RawPageCursor, ReadAt, ResourceBudget, SupportedDatabaseFormat,
     classify_page,
 };
-use std::fmt;
 use std::path::Path;
 
 /// A structured failure while opening a database candidate.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum DatabaseOpenError {
     /// Opening a file or capturing its bounded source length failed.
-    Source(Error),
+    #[error("database source open failed: {0}")]
+    Source(#[source] Error),
     /// Generic signature or exact 2 KiB geometry inspection failed.
-    Candidate(CandidateError),
+    #[error("database candidate inspection failed: {0}")]
+    Candidate(#[source] CandidateError),
     /// Reading or revalidating the complete database-header page failed.
-    Header(DatabaseHeaderPageError),
+    #[error("database header validation failed: {0}")]
+    Header(#[source] DatabaseHeaderPageError),
     /// The complete header describes a version or protection state outside v1.
-    Format(DatabaseFormatError),
+    #[error("database format is unsupported: {0}")]
+    Format(#[source] DatabaseFormatError),
     /// The generic signature classification changed between bounded reads.
+    #[error("database signature changed while opening: initial {initial:?}, header {header:?}")]
     SignatureChanged {
         /// Classification from the initial 15-byte signature read.
         initial: JetFileKind,
@@ -40,67 +44,16 @@ pub enum DatabaseOpenError {
     },
 }
 
-impl fmt::Display for DatabaseOpenError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Source(source) => write!(formatter, "database source open failed: {source}"),
-            Self::Candidate(source) => {
-                write!(formatter, "database candidate inspection failed: {source}")
-            }
-            Self::Header(source) => {
-                write!(formatter, "database header validation failed: {source}")
-            }
-            Self::Format(source) => {
-                write!(formatter, "database format is unsupported: {source}")
-            }
-            Self::SignatureChanged { initial, header } => write!(
-                formatter,
-                "database signature changed while opening: initial {initial:?}, header {header:?}"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for DatabaseOpenError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Source(source) => Some(source),
-            Self::Candidate(source) => Some(source),
-            Self::Header(source) => Some(source),
-            Self::Format(source) => Some(source),
-            Self::SignatureChanged { .. } => None,
-        }
-    }
-}
-
 /// A structured failure while reading and experimentally classifying a page.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum DatabasePageError {
     /// Reading the complete fixed page failed.
-    Read(Error),
+    #[error("database page read failed: {0}")]
+    Read(#[source] Error),
     /// Charging or performing byte-zero classification failed.
-    Classification(PageClassificationError),
-}
-
-impl fmt::Display for DatabasePageError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Read(source) => write!(formatter, "database page read failed: {source}"),
-            Self::Classification(source) => {
-                write!(formatter, "database page classification failed: {source}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for DatabasePageError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Read(source) => Some(source),
-            Self::Classification(source) => Some(source),
-        }
-    }
+    #[error("database page classification failed: {0}")]
+    Classification(#[source] PageClassificationError),
 }
 
 /// A bounded reader whose initial, narrowly supported structure was checked.

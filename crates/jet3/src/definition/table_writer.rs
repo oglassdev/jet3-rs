@@ -6,8 +6,6 @@
 //! longer than one page across continuation pages, and filling the
 //! next-page reference at `[4,8)`, is left to the page assembler.
 
-use std::fmt;
-
 use crate::{
     BinaryWriter, ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageKind, Error,
     MapRowLocator, PageNumber, ResourceBudget, TableDefinitionKind,
@@ -104,7 +102,8 @@ pub struct TableDefinitionSpec<'a> {
 }
 
 /// Structured failure while validating or encoding a table definition.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("table definition encoding failed: {self:?}")]
 #[non_exhaustive]
 pub enum TableDefinitionWriteError {
     /// More columns than a row can count.
@@ -305,22 +304,7 @@ pub enum TableDefinitionWriteError {
         available: usize,
     },
     /// Resource policy or checked arithmetic rejected the encoding.
-    Resource(Error),
-}
-
-impl fmt::Display for TableDefinitionWriteError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "table definition encoding failed: {self:?}")
-    }
-}
-
-impl std::error::Error for TableDefinitionWriteError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Resource(source) => Some(source),
-            _ => None,
-        }
-    }
+    Resource(#[source] Error),
 }
 
 /// Returns the exact logical length of the encoded definition.

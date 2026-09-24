@@ -206,7 +206,14 @@ fn create(path: &Path, case: &Case, model: &BTreeMap<i32, Row>) -> Result<()> {
     } else {
         [items, notes]
     };
-    jet3::create_database_with_table_rows(path, &tables, &mut budget())?;
+    jet3::create_database(
+        path,
+        &jet3::DatabaseSpec {
+            tables: &tables,
+            ..jet3::DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     Ok(())
 }
 fn refusals(

@@ -7,7 +7,6 @@
 //! `EXP-0077` accepts that grammar with order-insensitive coverage and
 //! correlates the owned map with newly appearing long-value pages.
 
-use std::fmt;
 use std::mem::size_of;
 
 use crate::{
@@ -54,7 +53,8 @@ impl LongValueMapDefinition {
 }
 
 /// Structured failure while decoding the long-value map suffix.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("long-value map suffix failed: {self:?}")]
 #[non_exhaustive]
 pub enum LongValueMapError {
     /// The suffix is not a whole number of groups.
@@ -111,27 +111,7 @@ pub enum LongValueMapError {
         source: crate::UsageMapError,
     },
     /// Resource policy rejected decoding work or owned storage.
-    Resource(Error),
-}
-
-impl fmt::Display for LongValueMapError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "long-value map suffix failed: {self:?}")
-    }
-}
-
-impl std::error::Error for LongValueMapError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::InvalidReference {
-                source: Some(source),
-                ..
-            }
-            | Self::Resource(source) => Some(source),
-            Self::InvalidMapRow { source, .. } => Some(source),
-            _ => None,
-        }
-    }
+    Resource(#[source] Error),
 }
 
 pub(crate) fn decode_long_value_maps(

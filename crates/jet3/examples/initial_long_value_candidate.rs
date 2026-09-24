@@ -1,7 +1,7 @@
 //! Deterministic Memo/OLE initial-payload boundary candidates.
 use jet3::{
-    ColumnSpec, ColumnType, ResourceBudget, ResourceLimits, RowValue, TableSpec,
-    create_database_with_rows,
+    ColumnSpec, ColumnType, DatabaseSpec, ResourceBudget, ResourceLimits, RowValue, TableRows,
+    TableSpec, create_database,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -55,10 +55,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect::<Vec<_>>();
     values.push([RowValue::Long(10), RowValue::Null]);
     let rows = values.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
-    create_database_with_rows(
+    create_database(
         path,
-        &table,
-        &rows,
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &rows }],
+            ..DatabaseSpec::default()
+        },
         &mut ResourceBudget::new(ResourceLimits::default()),
     )?;
     Ok(())

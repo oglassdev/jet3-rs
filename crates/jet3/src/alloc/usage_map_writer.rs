@@ -6,8 +6,6 @@
 //! bit is the caller's concern (`SRC-0020` table maps: set means allocated;
 //! `EXP-0051` global map: set means not in use). Nothing here chooses pages.
 
-use std::fmt;
-
 use crate::{
     BinaryWriter, ByteCount, Error, PageImage, PageKind, PageNumber, PageOffset, ResourceBudget,
     alloc::map::EXTENDED_BITMAP_BITS as CRATE_EXTENDED_BITMAP_BITS,
@@ -30,10 +28,16 @@ const EXTENDED_HEADER: [u8; 4] = [0x05, 0x01, 0x00, 0x00];
 const EXTENDED_BITMAP_OFFSET: usize = 4;
 
 /// A structured failure while building or encoding a usage map.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum UsageMapWriteError {
     /// The page is not represented by this map's bit range.
+    #[error(
+        "page {} is outside the map covering {} pages from {}",
+        .page.get(),
+        .page_count,
+        .first.get()
+    )]
     PageOutOfMap {
         /// Rejected page.
         page: PageNumber,
@@ -43,51 +47,14 @@ pub enum UsageMapWriteError {
         page_count: u64,
     },
     /// A page does not fit a four-byte little-endian field.
+    #[error("page {} does not fit a four-byte reference", .page.get())]
     PageNotRepresentable {
         /// Rejected page.
         page: PageNumber,
     },
     /// Checked arithmetic, budget, or output-capacity validation failed.
-    Encoding(Error),
-}
-
-impl fmt::Display for UsageMapWriteError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::PageOutOfMap {
-                page,
-                first,
-                page_count,
-            } => write!(
-                formatter,
-                "page {} is outside the map covering {} pages from {}",
-                page.get(),
-                page_count,
-                first.get()
-            ),
-            Self::PageNotRepresentable { page } => write!(
-                formatter,
-                "page {} does not fit a four-byte reference",
-                page.get()
-            ),
-            Self::Encoding(source) => write!(formatter, "usage-map encoding failed: {source}"),
-        }
-    }
-}
-
-impl std::error::Error for UsageMapWriteError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Encoding(source) => Some(source),
-            Self::PageOutOfMap { .. } | Self::PageNotRepresentable { .. } => None,
-        }
-    }
-}
-
-impl From<Error> for UsageMapWriteError {
-    fn from(source: Error) -> Self {
-        Self::Encoding(source)
-    }
+    #[error("usage-map encoding failed: {0}")]
+    Encoding(#[from] Error),
 }
 
 /// Resolves a map-relative bit into its byte index and low-bit-first mask.

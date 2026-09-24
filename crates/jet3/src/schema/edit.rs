@@ -1,6 +1,6 @@
 //! Atomic edits of existing user schemas. Format layouts are sourced by the low-level planners.
 use crate::{
-    DatabaseReader, FileSource, IndexSpec, ResourceBudget, UpdateError,
+    DatabaseReader, FileSource, IndexSpec, ResourceBudget, WriteError,
     schema::column_options::PropertyEdit, write::page_edits::PageEdits,
 };
 use std::{cell::Cell, convert::Infallible, fs::File, path::Path};
@@ -63,7 +63,7 @@ pub enum SchemaEdit<'a> {
     /// Change a column's text properties (EXP-0299); existing rows are unchanged.
     ///
     /// A stored nonempty ValidationRule makes later inserts and updates on the
-    /// table fail with [`UpdateError::ValidationRule`]. Binary, OLE and GUID
+    /// table fail with [`WriteError::ValidationRule`]. Binary, OLE and GUID
     /// columns refuse validation properties, as DAO does.
     SetColumnProperties {
         /// Exact database-encoded table name.
@@ -162,12 +162,12 @@ pub enum SchemaEdit<'a> {
 /// failures before publication leave the original file unchanged. Callers must
 /// exclude concurrent writers for the entire operation.
 /// A database outside the six observed sort orders (EXP-0309) refuses with
-/// [`UpdateError::UnsupportedSortOrder`], preserving the file.
+/// [`WriteError::UnsupportedSortOrder`], preserving the file.
 pub fn edit_schema(
     path: impl AsRef<Path>,
     request: SchemaEdit<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     run(
         path.as_ref(),
         budget,
@@ -291,14 +291,10 @@ pub fn edit_schema(
     )
 }
 
-pub(crate) fn name(
-    order: crate::SortOrder,
-    name: &[u8],
-    maximum: usize,
-) -> Result<(), UpdateError> {
+pub(crate) fn name(order: crate::SortOrder, name: &[u8], maximum: usize) -> Result<(), WriteError> {
     if name.len() > maximum || crate::catalog::name_key::validate_catalog_name(name, order).is_err()
     {
-        return Err(UpdateError::Unsupported("schema name grammar or length"));
+        return Err(WriteError::Unsupported("schema name grammar or length"));
     }
     Ok(())
 }
@@ -308,11 +304,11 @@ pub(crate) fn distinct<'a>(
     name: &[u8],
     others: impl Iterator<Item = &'a [u8]>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     for other in others {
         budget.charge_work_units(1024)?;
         if crate::catalog::name_key::catalog_names_equal(name, other, order) {
-            return Err(UpdateError::Unsupported("duplicate schema name"));
+            return Err(WriteError::Unsupported("duplicate schema name"));
         }
     }
     Ok(())
@@ -322,8 +318,8 @@ pub(crate) fn distinct<'a>(
 pub(crate) fn run(
     path: &Path,
     budget: &mut ResourceBudget,
-    stage: impl FnOnce(&mut File, &mut PageEdits, &mut ResourceBudget) -> Result<(), UpdateError>,
-) -> Result<(), UpdateError> {
+    stage: impl FnOnce(&mut File, &mut PageEdits, &mut ResourceBudget) -> Result<(), WriteError>,
+) -> Result<(), WriteError> {
     let database = DatabaseReader::open(path, budget)?;
     crate::write::update::require_writable_sort_order(&database)?;
     let journal = Cell::new(Some(PageEdits::new(database.geometry().page_count())));
@@ -331,18 +327,18 @@ pub(crate) fn run(
     crate::write::atomic::atomic_update_budgeted(
         path,
         budget,
-        |file, budget| -> Result<(), UpdateError> {
+        |file, budget| -> Result<(), WriteError> {
             let mut combined = journal
                 .take()
-                .ok_or(UpdateError::Mismatch("schema journal absent"))?;
+                .ok_or(WriteError::Mismatch("schema journal absent"))?;
             stage(file, &mut combined, budget)?;
             journal.set(Some(combined));
             Ok(())
         },
-        |private, budget| -> Result<(), UpdateError> {
+        |private, budget| -> Result<(), WriteError> {
             let combined = journal
                 .take()
-                .ok_or(UpdateError::Mismatch("schema journal absent"))?;
+                .ok_or(WriteError::Mismatch("schema journal absent"))?;
             let mut candidate = FileSource::open(private, budget.read_budget())?;
             combined.verify_private(&mut original, &mut candidate, budget)?;
             Ok(())
@@ -359,8 +355,8 @@ pub(crate) fn apply<T>(
     plan: impl FnOnce(
         &mut DatabaseReader<FileSource>,
         &mut ResourceBudget,
-    ) -> Result<(PageEdits, T), UpdateError>,
-) -> Result<T, UpdateError> {
+    ) -> Result<(PageEdits, T), WriteError>,
+) -> Result<T, WriteError> {
     let source = FileSource::from_file(file.try_clone()?, budget.read_budget())?;
     let mut database = DatabaseReader::from_source(source, budget)?;
     let (edits, result) = plan(&mut database, budget)?;

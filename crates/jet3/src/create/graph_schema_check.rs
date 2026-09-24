@@ -3,7 +3,8 @@ use crate::{
     ColumnRef, IndexDefinitionKind, IndexDirection, PageNumber, RelationshipSide, RelationshipSpec,
     ResourceBudget, TableDefinition, TableRef,
     create::{
-        api::*,
+        api::TableRows,
+        check::ImageCheckError,
         relationship_indexes::{select_descending_parent, select_existing},
         relationship_name::HiddenName,
     },

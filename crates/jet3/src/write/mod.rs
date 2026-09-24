@@ -14,6 +14,7 @@ mod delete_release_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod delete_tests;
 mod driver;
+pub(crate) mod error;
 pub(crate) mod field_update;
 pub(crate) mod insert;
 #[cfg(all(test, any(unix, windows)))]

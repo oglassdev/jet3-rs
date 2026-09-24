@@ -1,10 +1,10 @@
 //! Scalar row values shared by index mutation and validation (EXP-0061/0150/0248).
-use crate::{ColumnOrdinal, RowValue, RowView, TextCodePage, UpdateError, ValueKind};
+use crate::{ColumnOrdinal, RowValue, RowView, TextCodePage, ValueKind, WriteError};
 
 pub(crate) fn read<'value>(
     row: &mut RowView<'value, '_>,
     columns: &[bool; u8::MAX as usize],
-) -> Result<[RowValue<'value>; u8::MAX as usize], UpdateError> {
+) -> Result<[RowValue<'value>; u8::MAX as usize], WriteError> {
     let mut values = [RowValue::Null; u8::MAX as usize];
     for (ordinal, selected) in columns.iter().enumerate() {
         if !selected {
@@ -18,13 +18,13 @@ pub(crate) fn read<'value>(
 pub(crate) fn read_column<'value>(
     row: &mut RowView<'value, '_>,
     column: ColumnOrdinal,
-) -> Result<RowValue<'value>, UpdateError> {
+) -> Result<RowValue<'value>, WriteError> {
     let page = row
         .column_code_page(column)
         .unwrap_or(TextCodePage::Windows1252);
     let value = row
         .value(column, page)?
-        .ok_or(UpdateError::NotFound("index key column"))?;
+        .ok_or(WriteError::NotFound("index key column"))?;
     Ok(match value.kind() {
         ValueKind::Null => RowValue::Null,
         ValueKind::Boolean(v) => RowValue::Boolean(*v),
@@ -38,14 +38,14 @@ pub(crate) fn read_column<'value>(
         ValueKind::Binary(_) => RowValue::Binary(
             row.field(column)
                 .and_then(|field| field.raw_bytes())
-                .ok_or(UpdateError::Mismatch("missing binary key bytes"))?,
+                .ok_or(WriteError::Mismatch("missing binary key bytes"))?,
         ),
         ValueKind::Text(_) => RowValue::Text(
             row.field(column)
                 .and_then(|field| field.raw_bytes())
-                .ok_or(UpdateError::Mismatch("missing text key bytes"))?,
+                .ok_or(WriteError::Mismatch("missing text key bytes"))?,
         ),
         ValueKind::Guid(value) => RowValue::Guid(value.display_bytes()),
-        _ => return Err(UpdateError::Unsupported("non-numeric index value")),
+        _ => return Err(WriteError::Unsupported("non-numeric index value")),
     })
 }

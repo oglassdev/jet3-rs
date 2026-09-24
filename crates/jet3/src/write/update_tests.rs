@@ -1,8 +1,8 @@
-use super::update::*;
+use super::{error::WriteError, update::*};
 use crate::{
-    ByteCount, ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PublishStage,
-    ResourceBudget, ResourceLimits, RowLocator, RowValue, TableSpec, create_database_with_rows,
-    row::directory::RowDirectory,
+    ByteCount, ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, PAGE_BYTES,
+    PublishStage, ResourceBudget, ResourceLimits, RowLocator, RowValue, TableRows, TableSpec,
+    create_database, row::directory::RowDirectory,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -17,15 +17,20 @@ impl Fixture {
     ) -> Result<Self, Box<dyn StdError>> {
         let directory = crate::testkit::TempDir::new("field-update")?;
         let fixture = Self(directory);
-        create_database_with_rows(
+        create_database(
             fixture.path(),
-            &TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Items",
-                columns,
-                indexes: &[],
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Items",
+                        columns,
+                        indexes: &[],
+                    },
+                    rows: values,
+                }],
+                ..DatabaseSpec::default()
             },
-            values,
             &mut budget(),
         )?;
         Ok(fixture)
@@ -184,7 +189,7 @@ fn auto_columns_and_mismatched_values_are_refused() -> TestResult {
                 request(fixture.locator(0)?, RowValue::Long(2)),
                 &mut budget()
             ),
-            Err(UpdateError::Unsupported(_) | UpdateError::Encoding(_))
+            Err(WriteError::Unsupported(_) | WriteError::Encoding(_))
         ));
         assert_eq!(fs::read(fixture.path())?, original);
     }
@@ -218,7 +223,7 @@ fn faults_at_each_prepublication_stage_preserve_original() -> TestResult {
                 }
             },
         );
-        assert!(matches!(result, Err(UpdateError::Publish(error)) if error.stage() == stage));
+        assert!(matches!(result, Err(WriteError::Publish(error)) if error.stage() == stage));
         assert_eq!(fs::read(fixture.path())?, original);
         fixture.assert_only_original()?;
     }
@@ -254,7 +259,7 @@ fn private_byte_corruption_is_rejected_by_streaming_verification() -> TestResult
             },
         );
         assert!(
-            matches!(result, Err(UpdateError::Publish(error)) if error.stage() == PublishStage::Validation)
+            matches!(result, Err(WriteError::Publish(error)) if error.stage() == PublishStage::Validation)
         );
         assert_eq!(fs::read(fixture.path())?, original);
         fixture.assert_only_original()?;
@@ -273,15 +278,20 @@ fn nonunique_index_keys_are_updated() -> TestResult {
         kind: crate::IndexKind::Ordinary,
         fields: &keys,
     }];
-    create_database_with_rows(
+    create_database(
         fixture.path(),
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &columns,
-            indexes: &indexes,
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Items",
+                    columns: &columns,
+                    indexes: &indexes,
+                },
+                rows: &[&[RowValue::Long(1)]],
+            }],
+            ..DatabaseSpec::default()
         },
-        &[&[RowValue::Long(1)]],
         &mut budget(),
     )?;
     update_field(
@@ -338,7 +348,7 @@ fn copy_and_verification_share_the_planning_read_budget() -> TestResult {
         &mut ResourceBudget::new(ResourceLimits::new(limits)),
     );
     assert!(
-        matches!(result, Err(UpdateError::Publish(error)) if error.stage() == PublishStage::Copy)
+        matches!(result, Err(WriteError::Publish(error)) if error.stage() == PublishStage::Copy)
     );
     assert_eq!(fs::read(fixture.path())?, original);
     let mut exact = budget();
@@ -358,7 +368,7 @@ fn copy_and_verification_share_the_planning_read_budget() -> TestResult {
         );
         if maximum < total {
             assert!(
-                matches!(result, Err(UpdateError::Publish(error)) if error.stage() == PublishStage::Validation)
+                matches!(result, Err(WriteError::Publish(error)) if error.stage() == PublishStage::Validation)
             );
             assert_eq!(fs::read(fixture.path())?, original);
         } else {
@@ -393,7 +403,14 @@ fn a_valid_locator_from_another_table_is_rejected() -> TestResult {
             rows: &[&[RowValue::Long(2)]],
         },
     ];
-    crate::create_database_with_table_rows(fixture.path(), &tables, &mut budget())?;
+    crate::create_database(
+        fixture.path(),
+        &crate::DatabaseSpec {
+            tables: &tables,
+            ..crate::DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let original = fs::read(fixture.path())?;
     let wrong = FieldUpdate {
         table: b"Other",
@@ -401,7 +418,7 @@ fn a_valid_locator_from_another_table_is_rejected() -> TestResult {
     };
     assert!(matches!(
         update_field(fixture.path(), wrong, &mut budget()),
-        Err(UpdateError::NotFound("row"))
+        Err(WriteError::NotFound("row"))
     ));
     assert_eq!(fs::read(fixture.path())?, original);
     fixture.assert_only_original()
@@ -498,7 +515,7 @@ fn relationship_catalog_cases(fixture: Fixture, column: ColumnOrdinal) -> TestRe
         if refused {
             assert!(matches!(
                 result,
-                Err(UpdateError::Unsupported(_) | UpdateError::Mismatch(_))
+                Err(WriteError::Unsupported(_) | WriteError::Mismatch(_))
             ));
             assert_eq!(fs::read(fixture.path())?, input);
         } else {

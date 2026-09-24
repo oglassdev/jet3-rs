@@ -2,7 +2,7 @@
 #[path = "../examples/support/indexed_boundary.rs"]
 mod fixture;
 use fixture::*;
-use jet3::{DatabaseReader, MapRowLocator, PAGE_BYTES, PageNumber, UpdateError};
+use jet3::{DatabaseReader, MapRowLocator, PAGE_BYTES, PageNumber, WriteError};
 use std::fs;
 struct Temp(std::path::PathBuf);
 impl Drop for Temp {
@@ -43,7 +43,7 @@ fn indexed_boundary_grouped_matrix() -> Result<()> {
         }
         let result = jet3::insert_row(&path, b"Items", &values(id), &mut budget());
         if let Some(message) = error {
-            assert!(matches!(result,Err(UpdateError::Unsupported(m)) if m==message));
+            assert!(matches!(result,Err(WriteError::Unsupported(m)) if m==message));
             assert_eq!(fs::read(&path)?, before);
             continue;
         }

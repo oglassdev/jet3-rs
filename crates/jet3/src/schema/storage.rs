@@ -1,7 +1,7 @@
 //! Releasing selected table storage while retaining shared map pages (EXP-0057/0077/0297).
 use crate::{
     DatabaseReader, FileSource, MapRowLocator, PageNumber, ResourceBudget, TableDefinition,
-    UpdateError,
+    WriteError,
     alloc::mutation_map::MapBits,
     write::page_edits::{PageEdits, reserve},
 };
@@ -9,7 +9,7 @@ use crate::{
 pub(crate) fn locators(
     table: &TableDefinition,
     budget: &mut ResourceBudget,
-) -> Result<Vec<MapRowLocator>, UpdateError> {
+) -> Result<Vec<MapRowLocator>, WriteError> {
     let mut values = Vec::new();
     reserve(
         &mut values,
@@ -36,7 +36,7 @@ pub(crate) fn release_table(
     database: &mut DatabaseReader<FileSource>,
     table: &TableDefinition,
     budget: &mut ResourceBudget,
-) -> Result<PageEdits, UpdateError> {
+) -> Result<PageEdits, WriteError> {
     crate::row::mutation_graph::RowGraph::load(database, table, None, budget)?;
     crate::long_value::mutation::LongValues::load(database, table, None, budget)?;
     if !table.physical_indexes().is_empty() {
@@ -55,13 +55,11 @@ pub(crate) fn release_table(
     for locator in selected {
         let map = MapBits::load(database, locator, budget)?;
         if locator == global.locator || map.overlaps(&global, budget)? {
-            return Err(UpdateError::Mismatch(
-                "schema map aliases global allocation",
-            ));
+            return Err(WriteError::Mismatch("schema map aliases global allocation"));
         }
         for previous in &maps {
             if map.locator == previous.locator || map.overlaps(previous, budget)? {
-                return Err(UpdateError::Mismatch("schema map aliases another role"));
+                return Err(WriteError::Mismatch("schema map aliases another role"));
             }
         }
         push(&mut metadata, locator.page(), budget)?;
@@ -93,7 +91,7 @@ pub(crate) fn release_table(
         for page in other.pages() {
             budget.charge_items(content.len() as u64 + metadata.len() as u64)?;
             if content.contains(page) || metadata.contains(page) {
-                return Err(UpdateError::Mismatch(
+                return Err(WriteError::Mismatch(
                     "schema storage aliases another definition",
                 ));
             }
@@ -102,17 +100,17 @@ pub(crate) fn release_table(
             let other = MapBits::load(database, locator, budget)?;
             budget.charge_items(content.len() as u64)?;
             if content.contains(&locator.page()) {
-                return Err(UpdateError::Mismatch("schema content aliases another map"));
+                return Err(WriteError::Mismatch("schema content aliases another map"));
             }
             for map in &maps {
                 if map.locator == other.locator || map.overlaps(&other, budget)? {
-                    return Err(UpdateError::Mismatch("schema maps shared between objects"));
+                    return Err(WriteError::Mismatch("schema maps shared between objects"));
                 }
             }
             for page in other.existing_pages(database.geometry().page_count(), false, budget)? {
                 budget.charge_items(content.len() as u64 + metadata.len() as u64)?;
                 if content.contains(&page) || metadata.contains(&page) {
-                    return Err(UpdateError::Mismatch(
+                    return Err(WriteError::Mismatch(
                         "schema storage claimed by another object",
                     ));
                 }
@@ -142,7 +140,7 @@ fn push(
     values: &mut Vec<PageNumber>,
     page: PageNumber,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     budget.charge_items(values.len() as u64)?;
     if !values.contains(&page) {
         reserve(values, 1, budget)?;

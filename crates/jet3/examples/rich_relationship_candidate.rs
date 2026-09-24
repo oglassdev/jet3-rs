@@ -1,8 +1,8 @@
 //! Reproduce the private rich relationship creation matrix through public APIs.
 use jet3::{
-    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
-    RelationshipField, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef,
-    TableRows, TableSpec, create_database_with_relationship_rows,
+    ColumnRef, ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexDirection, IndexKind,
+    IndexSpec, RelationshipField, RelationshipLayout, RelationshipSpec, ResourceBudget,
+    ResourceLimits, RowValue, TableRef, TableRows, TableSpec, create_database,
 };
 use serde_json::Value;
 use std::{error::Error, fs, num::NonZeroU8, path::Path};
@@ -183,10 +183,13 @@ fn create(arm: &Value, output: &Path, replicas: u64) -> Result<()> {
             "{}-r{replica}.mdb",
             arm["name"].as_str().ok_or("arm name")?
         ));
-        create_database_with_relationship_rows(
+        create_database(
             path,
-            &requests,
-            &relation,
+            &DatabaseSpec {
+                tables: &requests,
+                relationships: std::slice::from_ref(&relation),
+                relationship_layout: RelationshipLayout::SingleLong,
+            },
             &mut ResourceBudget::new(ResourceLimits::default()),
         )?;
     }

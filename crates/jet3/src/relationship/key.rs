@@ -1,6 +1,6 @@
 //! EXP-0288/0290 relationship equality uses ordered scalar index encodings.
 use crate::{
-    IndexDirection, IndexNullPolicy, PageNumber, ResourceBudget, RowLocator, RowValue, UpdateError,
+    IndexDirection, IndexNullPolicy, PageNumber, ResourceBudget, RowLocator, RowValue, WriteError,
     index::{
         entry::{EntryError, ScalarIndexEntry, ScalarIndexField},
         key::scalar::ScalarKeyType,
@@ -27,11 +27,11 @@ impl Key {
         kinds: &[ScalarKeyType],
         values: &[RowValue<'_>],
         budget: &mut ResourceBudget,
-    ) -> Result<Option<Self>, UpdateError> {
+    ) -> Result<Option<Self>, WriteError> {
         if kinds.len() != values.len()
             || !(1..=crate::index::entry::MAX_FIELDS).contains(&kinds.len())
         {
-            return Err(UpdateError::Mismatch("relationship key field count"));
+            return Err(WriteError::Mismatch("relationship key field count"));
         }
         let mut fields = [ScalarIndexField {
             column: 0,
@@ -50,10 +50,10 @@ impl Key {
             budget,
         )
         .map_err(|error| match error {
-            EntryError::Encoding(error) => UpdateError::Resource(error),
-            _ => UpdateError::Mismatch("relationship key value type"),
+            EntryError::Encoding(error) => WriteError::Resource(error),
+            _ => WriteError::Mismatch("relationship key value type"),
         })?
-        .ok_or(UpdateError::Mismatch("relationship key omitted"))?;
+        .ok_or(WriteError::Mismatch("relationship key omitted"))?;
         if kinds
             .iter()
             .zip(values)
@@ -74,20 +74,20 @@ impl Key {
         self.entry.key()
     }
 
-    pub(crate) fn violation(&self, parent: PageNumber, child: PageNumber) -> UpdateError {
+    pub(crate) fn violation(&self, parent: PageNumber, child: PageNumber) -> WriteError {
         if let Some(value) = self.long {
-            UpdateError::RelationshipConstraint {
+            WriteError::RelationshipConstraint {
                 parent,
                 child,
                 value,
             }
         } else {
-            UpdateError::ScalarRelationshipConstraint { parent, child }
+            WriteError::ScalarRelationshipConstraint { parent, child }
         }
     }
 }
 
-pub(crate) fn sort(keys: &mut [Key], budget: &mut ResourceBudget) -> Result<(), UpdateError> {
+pub(crate) fn sort(keys: &mut [Key], budget: &mut ResourceBudget) -> Result<(), WriteError> {
     budget.charge_work_units(keys.len() as u64)?;
     let width = keys.iter().map(|key| key.bytes().len()).max().unwrap_or(0);
     budget.charge_work_units(
@@ -103,7 +103,7 @@ pub(crate) fn contains(
     parent: &[Key],
     child: &Key,
     budget: &mut ResourceBudget,
-) -> Result<bool, UpdateError> {
+) -> Result<bool, WriteError> {
     budget.charge_work_units(
         (u64::from(parent.len().max(1).ilog2()) + 2).saturating_mul(child.bytes().len() as u64),
     )?;
@@ -116,7 +116,7 @@ pub(crate) fn missing<'a>(
     parent: &[Key],
     child: &'a [Key],
     budget: &mut ResourceBudget,
-) -> Result<Option<&'a Key>, UpdateError> {
+) -> Result<Option<&'a Key>, WriteError> {
     for key in child {
         if !contains(parent, key, budget)? {
             return Ok(Some(key));
@@ -125,7 +125,7 @@ pub(crate) fn missing<'a>(
     Ok(None)
 }
 
-pub(crate) fn unique(keys: &[Key], budget: &mut ResourceBudget) -> Result<bool, UpdateError> {
+pub(crate) fn unique(keys: &[Key], budget: &mut ResourceBudget) -> Result<bool, WriteError> {
     for pair in keys.windows(2) {
         budget.charge_work_units(pair[0].bytes().len() as u64)?;
         if !pair[0].entry.has_null() && pair[0].bytes() == pair[1].bytes() {
@@ -138,10 +138,10 @@ pub(crate) fn unique(keys: &[Key], budget: &mut ResourceBudget) -> Result<bool, 
 pub(crate) fn key_values<'row>(
     row: &mut crate::RowView<'row, '_>,
     columns: &[crate::ColumnOrdinal],
-) -> Result<[RowValue<'row>; crate::index::entry::MAX_FIELDS], UpdateError> {
+) -> Result<[RowValue<'row>; crate::index::entry::MAX_FIELDS], WriteError> {
     let mut values = [RowValue::Null; crate::index::entry::MAX_FIELDS];
     if columns.len() > values.len() {
-        return Err(UpdateError::Mismatch("relationship key field count"));
+        return Err(WriteError::Mismatch("relationship key field count"));
     }
     for (&column, value) in columns.iter().zip(&mut values) {
         *value = crate::row::scalar_values::read_column(row, column)?;

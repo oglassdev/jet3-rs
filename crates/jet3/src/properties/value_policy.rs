@@ -2,7 +2,7 @@
 //! Stored EXP-0299 validation rules are not evaluated, so writes to their tables are refused.
 use crate::{
     ColumnPhysicalType, ColumnPropertyError, ColumnStorageClass, DatabaseReader, ReadAt,
-    ResourceBudget, RowValue, RowWriteError, TableDefinition, UpdateError,
+    ResourceBudget, RowValue, RowWriteError, TableDefinition, WriteError,
     properties::reader::{ColumnOptions, PropertyOptions},
 };
 
@@ -68,7 +68,7 @@ pub(crate) fn check<S: ReadAt>(
     table: &TableDefinition,
     values: &[RowValue<'_>],
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let options = options(database, table, budget)?;
     refuse_rules(&options, table)?;
     for ((column, value), option) in table.columns().iter().zip(values).zip(options.columns) {
@@ -87,9 +87,9 @@ pub(crate) fn check<S: ReadAt>(
 pub(crate) fn refuse_rules(
     options: &PropertyOptions,
     table: &TableDefinition,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     match options.validation_rule(table.columns()) {
-        Some(column) => Err(UpdateError::ValidationRule {
+        Some(column) => Err(WriteError::ValidationRule {
             column: column.map(crate::ColumnOrdinal::new),
         }),
         None => Ok(()),

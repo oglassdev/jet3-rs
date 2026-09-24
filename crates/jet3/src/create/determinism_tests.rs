@@ -1,19 +1,15 @@
 use super::api_tests::*;
+use crate::WriteError;
 use crate::{
-    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
-    RelationshipField, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef,
-    TableRows, TableSpec,
-    create::api::{CreateDatabaseError, create_database},
-    create_database_with_relationship, create_database_with_relationship_rows,
-    create_database_with_rows, create_database_with_table_rows,
+    ColumnRef, ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexDirection, IndexKind,
+    IndexSpec, RelationshipField, RelationshipLayout, RelationshipSpec, ResourceBudget,
+    ResourceLimits, RowValue, TableRef, TableRows, TableSpec, create::api::create_database,
     definition::column_writer::nz,
 };
 use std::fs;
 use std::path::Path;
 
-fn repeats(
-    create: impl Fn(&Path, &mut ResourceBudget) -> Result<(), CreateDatabaseError>,
-) -> TestResult {
+fn repeats(create: impl Fn(&Path, &mut ResourceBudget) -> Result<(), WriteError>) -> TestResult {
     let first = TestDirectory::create()?;
     let second = TestDirectory::create()?;
     let mut measured = budget();
@@ -34,15 +30,42 @@ fn repeats(
 
 #[test]
 fn empty_creation_is_independent_of_destination_and_successful_budget() -> TestResult {
-    repeats(|path, operation| create_database(path, &[], operation))?;
-    repeats(|path, operation| create_database_with_table_rows(path, &[], operation))?;
+    repeats(|path, operation| {
+        create_database(
+            path,
+            &DatabaseSpec {
+                tables: &[],
+                ..DatabaseSpec::default()
+            },
+            operation,
+        )
+    })?;
+    repeats(|path, operation| {
+        create_database(
+            path,
+            &DatabaseSpec {
+                tables: &[],
+                ..DatabaseSpec::default()
+            },
+            operation,
+        )
+    })?;
     let table = TableSpec {
         validation: crate::TableValidation::NONE,
         name: b"Empty",
         columns: &[ID, NOTE],
         indexes: &[],
     };
-    repeats(|path, operation| create_database_with_rows(path, &table, &[], operation))
+    repeats(|path, operation| {
+        create_database(
+            path,
+            &DatabaseSpec {
+                tables: &[TableRows { table, rows: &[] }],
+                ..DatabaseSpec::default()
+            },
+            operation,
+        )
+    })
 }
 
 #[test]
@@ -155,7 +178,16 @@ fn populated_catalog_definitions_indexes_payloads_and_generated_ids_repeat() -> 
         },
         rows: &rows,
     });
-    repeats(|path, operation| create_database_with_table_rows(path, &requests, operation))
+    repeats(|path, operation| {
+        create_database(
+            path,
+            &DatabaseSpec {
+                tables: &requests,
+                ..DatabaseSpec::default()
+            },
+            operation,
+        )
+    })
 }
 
 #[test]
@@ -194,7 +226,15 @@ fn empty_and_populated_relationship_metadata_repeat() -> TestResult {
         }],
     };
     repeats(|path, operation| {
-        create_database_with_relationship(path, &tables, &relationship, operation)
+        create_database(
+            path,
+            &DatabaseSpec {
+                tables: &tables.map(TableRows::empty),
+                relationships: std::slice::from_ref(&relationship),
+                relationship_layout: RelationshipLayout::SingleLong,
+            },
+            operation,
+        )
     })?;
     let child = [RowValue::Text(b"child"), RowValue::Long(7)];
     let children = vec![child.as_slice(); 201];
@@ -209,6 +249,14 @@ fn empty_and_populated_relationship_metadata_repeat() -> TestResult {
         },
     ];
     repeats(|path, operation| {
-        create_database_with_relationship_rows(path, &requests, &relationship, operation)
+        create_database(
+            path,
+            &DatabaseSpec {
+                tables: &requests,
+                relationships: std::slice::from_ref(&relationship),
+                relationship_layout: RelationshipLayout::SingleLong,
+            },
+            operation,
+        )
     })
 }

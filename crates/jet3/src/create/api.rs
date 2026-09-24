@@ -12,27 +12,20 @@
 //! they do not establish arbitrary schemas, values, or general compatibility.
 //! Local and hosted differential results govern the support matrix.
 use crate::{
-    CatalogError, CatalogObjectClass, ColumnStorageClass, ColumnStorageKind, ColumnType,
-    DatabaseOpenError, DatabaseReader, IndexDefinitionKind, PageNumber, PublishError,
-    ResourceBudget, RowError, RowValue, TableDefinitionError, TableSpec,
+    ColumnType, RelationshipSpec, ResourceBudget, RowValue, TableSpec, WriteError,
     create::{
-        composer::{
-            ComposeError, InitialAutoIncrement, InitialScalarIndex, compose_database,
-            compose_database_with_table_rows, encode_initial_row, initial_payload_start,
-            initial_row_layout,
-        },
+        check::{check_image, check_initial_tables, check_long_value_written_pages},
+        composer::{ComposeError, compose_database, compose_database_with_table_rows},
         page_append_plan::PlannedPage,
     },
     write::atomic::atomic_create,
 };
 
-use std::error::Error as StdError;
-use std::fmt;
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
 
-/// A table schema and its initial rows, in caller-specified order.
+/// A table schema and its initial rows.
 #[derive(Debug, Clone, Copy)]
 pub struct TableRows<'a> {
     /// The schema to create.
@@ -41,136 +34,140 @@ pub struct TableRows<'a> {
     pub rows: &'a [&'a [RowValue<'a>]],
 }
 
-/// Structured failure of [`create_database`].
-#[derive(Debug)]
-pub enum CreateDatabaseError {
-    /// The tables could not be composed into a database image; nothing was
-    /// written.
-    Compose(ComposeError),
-    /// The composed image could not be written, checked, or published.
-    Publish(PublishError),
-}
-
-impl fmt::Display for CreateDatabaseError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Compose(source) => write!(formatter, "database composition failed: {source}"),
-            Self::Publish(source) => write!(formatter, "database publication failed: {source}"),
-        }
+impl<'a> TableRows<'a> {
+    /// A table created without rows.
+    #[must_use]
+    pub const fn empty(table: TableSpec<'a>) -> Self {
+        Self { table, rows: &[] }
     }
 }
 
-impl StdError for CreateDatabaseError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            Self::Compose(source) => Some(source),
-            Self::Publish(source) => Some(source),
-        }
-    }
+/// Everything [`create_database`] writes into a new database.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DatabaseSpec<'a> {
+    /// Tables and their initial rows, created in order. An empty slice
+    /// creates an empty database.
+    pub tables: &'a [TableRows<'a>],
+    /// Enforced relationships between `tables`.
+    pub relationships: &'a [RelationshipSpec<'a>],
+    /// Page layout used for `relationships`.
+    pub relationship_layout: RelationshipLayout,
 }
 
-/// A structural difference between the written candidate and the request,
-/// found when the candidate was reopened before publication.
-#[derive(Debug)]
-pub enum ImageCheckError {
-    /// Reading a candidate page or charging comparison work failed.
-    Read(crate::Error),
-    /// The candidate index tree could not be read.
-    Index(crate::IndexTreeError),
-    /// The candidate fails the catalogued allocation and user-table validator.
-    Validation(Box<crate::ValidationError>),
-    /// A candidate allocation inventory is malformed.
-    AllocationState(crate::UpdateError),
-    /// A candidate long-value field could not be decoded.
-    Value(crate::ValueError),
-    /// A candidate external payload could not be streamed.
-    LongValue(crate::LongValueError),
-    /// The candidate rows could not be read.
-    Rows(RowError),
-    /// Requested rows could not be encoded for comparison.
-    RowEncoding(ComposeError),
-    /// The candidate could not be opened as a Jet 3 database.
-    Open(DatabaseOpenError),
-    /// The candidate's catalog could not be read.
-    Catalog(CatalogError),
-    /// The created table's definition could not be read.
-    Definition(TableDefinitionError),
-    /// The candidate decodes but does not describe the requested tables.
-    Mismatch {
-        /// Which structure differed.
-        detail: &'static str,
-    },
+/// How [`create_database`] lays out relationships.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum RelationshipLayout {
+    /// EXP-0273/0279 endpoint records. Relationships have one to ten scalar
+    /// fields each; table order is independent of relationship direction;
+    /// chains, multiple endpoints and self-references are admitted; missing
+    /// parent or child indexes are generated.
+    #[default]
+    Graph,
+    /// The EXP-0118/0122 construction: exactly one enforced, non-cascading
+    /// Long relationship from the first table to the second. Page zero keeps
+    /// the EXP-0114 transition byte, so the image differs from [`Self::Graph`]
+    /// for the same request.
+    SingleLong,
 }
 
-impl fmt::Display for ImageCheckError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Read(source) => write!(formatter, "candidate page comparison failed: {source}"),
-            Self::Index(source) => write!(formatter, "candidate index scan failed: {source}"),
-            Self::Validation(source) => write!(formatter, "candidate validation failed: {source}"),
-            Self::AllocationState(source) => {
-                write!(formatter, "candidate allocation state failed: {source}")
-            }
-            Self::Value(source) => write!(formatter, "candidate value failed: {source}"),
-            Self::LongValue(source) => write!(formatter, "candidate long value failed: {source}"),
-            Self::Rows(source) => write!(formatter, "candidate row scan failed: {source}"),
-            Self::RowEncoding(source) => {
-                write!(formatter, "candidate row comparison failed: {source}")
-            }
-            Self::Open(source) => write!(formatter, "candidate did not open: {source}"),
-            Self::Catalog(source) => write!(formatter, "candidate catalog failed: {source}"),
-            Self::Definition(source) => {
-                write!(formatter, "candidate table definition failed: {source}")
-            }
-            Self::Mismatch { detail } => {
-                write!(formatter, "candidate does not match the request: {detail}")
-            }
-        }
-    }
-}
-
-impl StdError for ImageCheckError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            Self::Read(source) => Some(source),
-            Self::Index(source) => Some(source),
-            Self::Validation(source) => Some(source),
-            Self::AllocationState(source) => Some(source),
-            Self::Value(source) => Some(source),
-            Self::LongValue(source) => Some(source),
-            Self::Rows(source) => Some(source),
-            Self::RowEncoding(source) => Some(source),
-            Self::Open(source) => Some(source),
-            Self::Catalog(source) => Some(source),
-            Self::Definition(source) => Some(source),
-            Self::Mismatch { .. } => None,
-        }
-    }
-}
-
-/// Creates the database at `path` holding the empty `tables`, in order.
+/// Creates the database described by `spec` at `path`.
 ///
-/// The image is composed, written privately, reopened and checked, then
-/// published atomically. `budget` bounds every step.
+/// Tables, their rows, indexes, AutoNumber state, Memo/OLE payloads and
+/// relationships are composed in order, written privately, reopened and
+/// checked, then published atomically. Every non-null foreign key must exist
+/// in its parent's initial rows. `budget` bounds every step.
 ///
 /// # Errors
 ///
-/// Returns [`CreateDatabaseError::Compose`] before writing anything when the
-/// schema is outside the supported scope, and [`CreateDatabaseError::Publish`]
+/// Returns [`WriteError::Compose`] before writing anything when the
+/// request is outside the supported scope, and [`WriteError::CreatePublish`]
 /// when writing, checking or publication fails; an existing `path` is left
-/// unchanged and reported as `AlreadyExists`. See `docs/plans/V1_SCOPE.md` for the supported scope.
+/// unchanged and reported as `AlreadyExists`. See `docs/plans/V1_SCOPE.md` for
+/// the supported scope.
 pub fn create_database(
+    path: impl AsRef<Path>,
+    spec: &DatabaseSpec<'_>,
+    budget: &mut ResourceBudget,
+) -> Result<(), WriteError> {
+    let requests = spec.tables;
+    let has_rows = requests.iter().any(|request| !request.rows.is_empty());
+    match (spec.relationship_layout, spec.relationships) {
+        (RelationshipLayout::Graph, []) if has_rows => create_table_rows(path, requests, budget),
+        (RelationshipLayout::Graph, []) => {
+            crate::create::composer::table_count_limit(requests.len())
+                .map_err(WriteError::Compose)?;
+            refuse_multiple_autoincrement(requests)?;
+            create_tables(path, &schemas(requests, budget)?, budget)
+        }
+        (RelationshipLayout::Graph, relationships) => {
+            super::api_relationship_graph::create(path, requests, relationships, budget)
+        }
+        (RelationshipLayout::SingleLong, [relationship]) if has_rows => {
+            super::api_relationship::create_with_rows(path, requests, relationship, budget)
+        }
+        (RelationshipLayout::SingleLong, [relationship]) => {
+            // The composer refuses every table count other than two.
+            let pair;
+            let tables: &[TableSpec<'_>] = match requests {
+                [parent, child] => {
+                    pair = [parent.table, child.table];
+                    &pair
+                }
+                _ => &[],
+            };
+            super::api_relationship::create(path, tables, relationship, budget)
+        }
+        (RelationshipLayout::SingleLong, _) => {
+            Err(WriteError::Compose(ComposeError::UnsupportedRelationship {
+                detail: "the single Long layout requires exactly one relationship",
+            }))
+        }
+    }
+}
+
+/// Applies the row path's one-AutoIncrement-per-table refusal (EXP-0136) to
+/// schema-only creation.
+fn refuse_multiple_autoincrement(requests: &[TableRows<'_>]) -> Result<(), WriteError> {
+    let multiple = requests.iter().any(|request| {
+        request
+            .table
+            .columns
+            .iter()
+            .filter(|column| column.column_type() == ColumnType::AutoIncrement)
+            .nth(1)
+            .is_some()
+    });
+    if multiple {
+        return Err(WriteError::Compose(ComposeError::InitialAutoIncrement {
+            detail: "multiple AutoIncrement columns",
+        }));
+    }
+    Ok(())
+}
+
+fn schemas<'a>(
+    requests: &[TableRows<'a>],
+    budget: &mut ResourceBudget,
+) -> Result<Vec<TableSpec<'a>>, WriteError> {
+    let mut tables = Vec::new();
+    crate::format::resource::reserve(&mut tables, requests.len(), budget)
+        .map_err(|error| WriteError::Compose(error.into()))?;
+    tables.extend(requests.iter().map(|request| request.table));
+    Ok(tables)
+}
+
+fn create_tables(
     path: impl AsRef<Path>,
     tables: &[TableSpec<'_>],
     budget: &mut ResourceBudget,
-) -> Result<(), CreateDatabaseError> {
+) -> Result<(), WriteError> {
     let pages = compose_database(tables, budget)
-        .map_err(CreateDatabaseError::Compose)?
+        .map_err(WriteError::Compose)?
         .into_pages();
     let page_count = pages.len() as u64;
     budget
         .charge_work_units(page_count.saturating_mul(crate::PAGE_BYTES as u64))
-        .map_err(|error| CreateDatabaseError::Compose(ComposeError::Encoding(error)))?;
+        .map_err(|error| WriteError::Compose(ComposeError::Encoding(error)))?;
     atomic_create(
         path,
         |file| write_pages(file, &pages),
@@ -179,58 +176,27 @@ pub fn create_database(
             check_image(candidate, tables, page_count, budget)
         },
     )
-    .map_err(CreateDatabaseError::Publish)
+    .map_err(WriteError::CreatePublish)
 }
 
-/// Creates one table holding `rows`, in caller order.
-///
-/// Rows, indexes, AutoNumber state and Memo/OLE payloads are composed with the
-/// table; the result is checked and published like [`create_database`].
-///
-/// # Errors
-///
-/// As [`create_database`]; unsupported schemas and rows fail before writing.
-/// See `docs/plans/V1_SCOPE.md` for the supported scope.
-pub fn create_database_with_rows(
-    path: impl AsRef<Path>,
-    table: &TableSpec<'_>,
-    rows: &[&[RowValue<'_>]],
-    budget: &mut ResourceBudget,
-) -> Result<(), CreateDatabaseError> {
-    create_database_with_table_rows(
-        path,
-        &[TableRows {
-            table: *table,
-            rows,
-        }],
-        budget,
-    )
-}
-
-/// Creates tables and their initial rows in one atomic publication.
-///
-/// Each table retains the bounds described by [`create_database_with_rows`]
-/// and [`create_database`]. Tables, their LVAL pages and their row pages are
-/// placed sequentially in input order within the map-reference and resource limits.
-/// An empty request creates an empty database. Relationships are not included.
-/// Every table and row is checked before publication; existing destinations
-/// remain untouched. This candidate construction has no general DAO guarantee.
-pub fn create_database_with_table_rows(
+/// Tables, their LVAL pages and their row pages are placed sequentially in
+/// input order within the map-reference and resource limits.
+fn create_table_rows(
     path: impl AsRef<Path>,
     requests: &[TableRows<'_>],
     budget: &mut ResourceBudget,
-) -> Result<(), CreateDatabaseError> {
+) -> Result<(), WriteError> {
     let pages = compose_database_with_table_rows(requests, budget)
-        .map_err(CreateDatabaseError::Compose)?
+        .map_err(WriteError::Compose)?
         .into_pages();
     budget
         .charge_allocation(crate::ByteCount::new(
             (requests.len() * std::mem::size_of::<TableSpec<'_>>()) as u64,
         ))
-        .map_err(|error| CreateDatabaseError::Compose(error.into()))?;
+        .map_err(|error| WriteError::Compose(error.into()))?;
     let mut tables = Vec::new();
     tables.try_reserve_exact(requests.len()).map_err(|_| {
-        CreateDatabaseError::Compose(ComposeError::Encoding(crate::Error::Io {
+        WriteError::Compose(ComposeError::Encoding(crate::Error::Io {
             operation: "reserve initial table schemas",
             kind: io::ErrorKind::OutOfMemory,
         }))
@@ -239,7 +205,7 @@ pub fn create_database_with_table_rows(
     let page_count = pages.len() as u64;
     budget
         .charge_work_units(page_count.saturating_mul(crate::PAGE_BYTES as u64))
-        .map_err(|error| CreateDatabaseError::Compose(ComposeError::Encoding(error)))?;
+        .map_err(|error| WriteError::Compose(ComposeError::Encoding(error)))?;
     atomic_create(
         path,
         |file| write_pages(file, &pages),
@@ -249,258 +215,7 @@ pub fn create_database_with_table_rows(
             check_initial_tables(candidate, &tables, requests, budget)
         },
     )
-    .map_err(CreateDatabaseError::Publish)
-}
-
-#[cfg(test)]
-pub(super) fn check_initial_rows(
-    candidate: &Path,
-    table: &TableSpec<'_>,
-    rows: &[&[RowValue<'_>]],
-    budget: &mut ResourceBudget,
-) -> Result<(), ImageCheckError> {
-    check_initial_tables(
-        candidate,
-        std::slice::from_ref(table),
-        &[TableRows {
-            table: *table,
-            rows,
-        }],
-        budget,
-    )
-}
-
-pub(super) fn check_initial_tables(
-    candidate: &Path,
-    tables: &[TableSpec<'_>],
-    requests: &[TableRows<'_>],
-    budget: &mut ResourceBudget,
-) -> Result<(), ImageCheckError> {
-    let mut database = DatabaseReader::open(candidate, budget).map_err(ImageCheckError::Open)?;
-    let roots = image_table_roots(&mut database, tables, budget)?;
-    for (position, (request, root)) in requests.iter().zip(roots).enumerate() {
-        let root = root.ok_or(ImageCheckError::Mismatch {
-            detail: "catalog row",
-        })?;
-        check_initial_table_rows(&mut database, request, root, position == 0, budget)?;
-    }
-    Ok(())
-}
-
-fn check_initial_table_rows(
-    database: &mut DatabaseReader<crate::FileSource>,
-    request: &TableRows<'_>,
-    root: PageNumber,
-    first_create: bool,
-    budget: &mut ResourceBudget,
-) -> Result<(), ImageCheckError> {
-    let next_payload = initial_payload_start(&request.table, root, first_create, budget)
-        .map_err(ImageCheckError::RowEncoding)?;
-    check_initial_table_rows_from(database, request, root, next_payload, budget)
-}
-
-pub(super) fn check_initial_table_rows_from(
-    database: &mut DatabaseReader<crate::FileSource>,
-    request: &TableRows<'_>,
-    root: PageNumber,
-    mut next_payload: u64,
-    budget: &mut ResourceBudget,
-) -> Result<(), ImageCheckError> {
-    let table = &request.table;
-    let rows = request.rows;
-    let layout = initial_row_layout(table, budget).map_err(ImageCheckError::RowEncoding)?;
-    let definition = database
-        .table_definition(root, budget)
-        .map_err(ImageCheckError::Definition)?;
-    let mut generated =
-        InitialAutoIncrement::new(table, rows, budget).map_err(ImageCheckError::RowEncoding)?;
-    if let Some(generated) = generated {
-        let mut raw = [0_u8; crate::PAGE_BYTES];
-        database
-            .read_raw_page(root, &mut raw, budget)
-            .map_err(|error| ImageCheckError::RowEncoding(ComposeError::Encoding(error)))?;
-        if !generated.matches(&raw) {
-            return Err(ImageCheckError::Mismatch {
-                detail: "initial AutoIncrement state",
-            });
-        }
-    }
-    let mut expected_indexes = InitialScalarIndex::for_table(table, rows.len(), budget)
-        .map_err(ImageCheckError::RowEncoding)?;
-    let long_columns = table
-        .columns
-        .iter()
-        .filter(|column| column.column_type().is_long_value())
-        .count();
-    budget
-        .charge_allocation(crate::ByteCount::new(
-            (long_columns * size_of::<(crate::LongValueReference, &[u8])>()) as u64,
-        ))
-        .map_err(ImageCheckError::Read)?;
-    let mut external = Vec::new();
-    external.try_reserve_exact(long_columns).map_err(|_| {
-        ImageCheckError::Read(crate::Error::Io {
-            operation: "reserve initial long-value verification",
-            kind: io::ErrorKind::OutOfMemory,
-        })
-    })?;
-    let mut encoded = [0_u8; crate::PAGE_BYTES];
-    let mut cursor = database
-        .rows(&definition, budget)
-        .map_err(ImageCheckError::Rows)?;
-    for (ordinal, row) in rows.iter().enumerate() {
-        let mut lowered = [RowValue::Null; u8::MAX as usize];
-        let row = if let Some(generated) = generated.as_mut() {
-            generated
-                .lower(row, ordinal, &mut lowered, cursor.owned.budget_mut())
-                .map_err(ImageCheckError::RowEncoding)?;
-            &lowered[..row.len()]
-        } else {
-            *row
-        };
-        let length = encode_initial_row(
-            &layout,
-            table.columns,
-            row,
-            ordinal,
-            &mut next_payload,
-            &mut encoded,
-            cursor.owned.budget_mut(),
-        )
-        .map_err(ImageCheckError::RowEncoding)?
-        .get() as usize;
-        let mut actual =
-            cursor
-                .next_row()
-                .map_err(ImageCheckError::Rows)?
-                .ok_or(ImageCheckError::Mismatch {
-                    detail: "initial row count",
-                })?;
-        if actual.raw_bytes() != &encoded[..length] {
-            return Err(ImageCheckError::Mismatch {
-                detail: "initial row value",
-            });
-        }
-        let locator = actual.locator();
-        external.clear();
-        for (column, value) in row.iter().enumerate() {
-            let payload = match value {
-                RowValue::Memo(payload) | RowValue::LongBinary(payload) => *payload,
-                _ => continue,
-            };
-            let decoded = actual
-                .value(
-                    crate::ColumnOrdinal::new(column as u16),
-                    crate::TextCodePage::Windows1252,
-                )
-                .map_err(ImageCheckError::Value)?;
-            if let Some(decoded) = decoded
-                && let crate::ValueKind::LongValue(crate::LongValue::External(reference)) =
-                    decoded.kind()
-            {
-                external.push((*reference, payload));
-            }
-        }
-        for (reference, expected) in &external {
-            cursor
-                .owned
-                .budget_mut()
-                .charge_work_units(expected.len() as u64)
-                .map_err(|error| ImageCheckError::RowEncoding(ComposeError::Encoding(error)))?;
-            let mut stream = cursor
-                .long_value(*reference)
-                .map_err(ImageCheckError::LongValue)?;
-            let mut remaining = *expected;
-            while let Some(chunk) = stream.next_chunk().map_err(ImageCheckError::LongValue)? {
-                let bytes = chunk.value().raw_bytes();
-                remaining = remaining
-                    .strip_prefix(bytes)
-                    .ok_or(ImageCheckError::Mismatch {
-                        detail: "initial long-value payload",
-                    })?;
-            }
-            if !remaining.is_empty() {
-                return Err(ImageCheckError::Mismatch {
-                    detail: "initial long-value length",
-                });
-            }
-        }
-        for index in &mut expected_indexes {
-            index
-                .push(row, locator, cursor.owned.budget_mut())
-                .map_err(ImageCheckError::RowEncoding)?;
-        }
-    }
-    if cursor.next_row().map_err(ImageCheckError::Rows)?.is_some() {
-        return Err(ImageCheckError::Mismatch {
-            detail: "initial row count",
-        });
-    }
-    drop(cursor);
-    for (ordinal, mut expected) in expected_indexes.into_iter().enumerate() {
-        expected
-            .sort(budget)
-            .map_err(ImageCheckError::RowEncoding)?;
-        let physical =
-            definition
-                .physical_indexes()
-                .get(ordinal)
-                .ok_or(ImageCheckError::Mismatch {
-                    detail: "initial index count",
-                })?;
-        if physical.distinct_key_count() != expected.distinct_count() {
-            return Err(ImageCheckError::Mismatch {
-                detail: "initial index distinct count",
-            });
-        }
-        let actual = database
-            .index_tree(&definition, ordinal as u16, budget)
-            .map_err(ImageCheckError::Index)?;
-        check_initial_index_map(database, physical.usage_map(), &actual, budget)?;
-        if !expected
-            .matches(&actual, budget)
-            .map_err(ImageCheckError::RowEncoding)?
-        {
-            return Err(ImageCheckError::Mismatch {
-                detail: "initial index entries",
-            });
-        }
-    }
-    Ok(())
-}
-
-fn check_initial_index_map(
-    database: &mut DatabaseReader<crate::FileSource>,
-    location: crate::IndexUsageMapReference,
-    tree: &crate::IndexTree,
-    budget: &mut ResourceBudget,
-) -> Result<(), ImageCheckError> {
-    let map = crate::alloc::mutation_map::MapBits::load(
-        database,
-        crate::MapRowLocator::new(location.page(), location.row()),
-        budget,
-    )
-    .map_err(ImageCheckError::AllocationState)?;
-    let pages = map
-        .existing_pages(database.geometry().page_count(), false, budget)
-        .map_err(ImageCheckError::AllocationState)?;
-    let count = pages.len();
-    for page in pages {
-        budget
-            .charge_work_units(tree.nodes().len() as u64)
-            .map_err(ImageCheckError::Read)?;
-        if !tree.nodes().iter().any(|node| node.page() == page) {
-            return Err(ImageCheckError::Mismatch {
-                detail: "initial index map pages",
-            });
-        }
-    }
-    if count != tree.nodes().len() {
-        return Err(ImageCheckError::Mismatch {
-            detail: "initial index map pages",
-        });
-    }
-    Ok(())
+    .map_err(WriteError::CreatePublish)
 }
 
 /// Writes every page in physical order and sets the exact final length.
@@ -517,174 +232,3 @@ pub(super) fn write_pages(file: &mut File, pages: &[PlannedPage]) -> Result<(), 
     file.set_len(pages.len() as u64 * crate::PAGE_BYTES as u64)?;
     file.flush()
 }
-
-/// Checks the complete written image when long-value column maps or column
-/// properties are present, including maps whose membership row traversal
-/// does not otherwise visit.
-pub(super) fn check_long_value_written_pages(
-    candidate: &Path,
-    tables: &[TableSpec<'_>],
-    pages: &[PlannedPage],
-    budget: &mut ResourceBudget,
-) -> Result<(), ImageCheckError> {
-    if !tables.iter().any(|table| {
-        table.columns.iter().any(|column| {
-            column.column_type().is_long_value()
-                || crate::properties::column::has_zero_length_property(column.physical_type())
-                || column.required()
-        })
-    }) {
-        return Ok(());
-    }
-    let mut database = DatabaseReader::open(candidate, budget).map_err(ImageCheckError::Open)?;
-    let mut bytes = [0_u8; crate::PAGE_BYTES];
-    for page in pages {
-        database
-            .read_raw_page(page.number(), &mut bytes, budget)
-            .map_err(ImageCheckError::Read)?;
-        budget
-            .charge_work_units(crate::PAGE_BYTES as u64)
-            .map_err(ImageCheckError::Read)?;
-        if &bytes != page.image().as_bytes() {
-            return Err(ImageCheckError::Mismatch {
-                detail: "long-value written page",
-            });
-        }
-    }
-    Ok(())
-}
-
-pub(super) fn check_image(
-    candidate: &Path,
-    tables: &[TableSpec<'_>],
-    page_count: u64,
-    budget: &mut ResourceBudget,
-) -> Result<(), ImageCheckError> {
-    let mismatch = |detail: &'static str| ImageCheckError::Mismatch { detail };
-    let mut database = DatabaseReader::open(candidate, budget).map_err(ImageCheckError::Open)?;
-    if database.geometry().page_count() != page_count {
-        return Err(mismatch("page count"));
-    }
-    let roots = image_table_roots(&mut database, tables, budget)?;
-    for (spec, root) in tables.iter().zip(roots) {
-        let root = root.ok_or(mismatch("catalog row"))?;
-        check_table(&mut database, spec, root, budget)?;
-    }
-    Ok(())
-}
-
-pub(super) fn image_table_roots(
-    database: &mut DatabaseReader<crate::FileSource>,
-    tables: &[TableSpec<'_>],
-    budget: &mut ResourceBudget,
-) -> Result<Vec<Option<PageNumber>>, ImageCheckError> {
-    let mismatch = |detail: &'static str| ImageCheckError::Mismatch { detail };
-    let mut roots: Vec<Option<PageNumber>> = vec![None; tables.len()];
-    let mut user_rows = 0_usize;
-    {
-        let mut catalog = database.catalog(budget).map_err(ImageCheckError::Catalog)?;
-        while let Some(record) = catalog.next_record().map_err(ImageCheckError::Catalog)? {
-            if record.class() != CatalogObjectClass::User {
-                continue;
-            }
-            user_rows += 1;
-            let position = tables
-                .iter()
-                .position(|table| table.name == record.name().raw_bytes())
-                .ok_or(mismatch("catalog row"))?;
-            if roots[position].is_some() {
-                return Err(mismatch("catalog row"));
-            }
-            roots[position] = Some(record.table_definition().ok_or(mismatch("catalog row"))?);
-        }
-    }
-    if user_rows != tables.len() {
-        return Err(mismatch("catalog row"));
-    }
-    Ok(roots)
-}
-
-/// Checks one table's definition at `root` against `spec`.
-fn check_table(
-    database: &mut DatabaseReader<crate::FileSource>,
-    spec: &TableSpec<'_>,
-    root: PageNumber,
-    budget: &mut ResourceBudget,
-) -> Result<(), ImageCheckError> {
-    let mismatch = |detail: &'static str| ImageCheckError::Mismatch { detail };
-    let definition = database
-        .table_definition(root, budget)
-        .map_err(ImageCheckError::Definition)?;
-    check_columns(&definition, spec)?;
-    if definition.physical_indexes().len() != spec.indexes.len()
-        || definition.indexes().len() != spec.indexes.len()
-    {
-        return Err(mismatch("index count"));
-    }
-    for logical in definition.indexes() {
-        let physical = usize::from(logical.physical_index());
-        let requested = spec
-            .indexes
-            .get(physical)
-            .ok_or(mismatch("index reference"))?;
-        if logical.name().raw_bytes() != requested.name {
-            return Err(mismatch("index name"));
-        }
-        let physical_definition = &definition.physical_indexes()[physical];
-        let logical_kind = if requested.kind.is_primary() {
-            IndexDefinitionKind::Primary
-        } else {
-            IndexDefinitionKind::Ordinary
-        };
-        let physical_flags = requested.kind.flags().raw();
-        if logical.kind() != logical_kind || physical_definition.raw_flags() != physical_flags {
-            return Err(mismatch("index kind"));
-        }
-        let fields = physical_definition.fields();
-        if fields.len() != requested.fields.len()
-            || fields.iter().zip(requested.fields).any(|(field, wanted)| {
-                wanted.column.resolve(spec.columns) != Some(field.column().get())
-                    || field.direction() != wanted.direction
-            })
-        {
-            return Err(mismatch("index fields"));
-        }
-    }
-    Ok(())
-}
-
-pub(super) fn check_columns(
-    definition: &crate::TableDefinition,
-    spec: &TableSpec<'_>,
-) -> Result<(), ImageCheckError> {
-    let mismatch = |detail| ImageCheckError::Mismatch { detail };
-    if definition.columns().len() != spec.columns.len() {
-        return Err(mismatch("column count"));
-    }
-    for (column, requested) in definition.columns().iter().zip(spec.columns) {
-        let storage_matches = matches!(
-            (column.storage(), requested.storage()),
-            (ColumnStorageClass::Fixed { .. }, ColumnStorageKind::Fixed)
-                | (
-                    ColumnStorageClass::Variable { .. },
-                    ColumnStorageKind::Variable
-                )
-        );
-        if column.name().raw_bytes() != requested.name()
-            || column.physical_type() != requested.physical_type()
-            || column.size() != requested.size()
-            || column.auto_increment() != (requested.column_type() == ColumnType::AutoIncrement)
-            || !storage_matches
-        {
-            return Err(mismatch("column"));
-        }
-    }
-    Ok(())
-}
-
-pub use super::{
-    api_relationship::{create_database_with_relationship, create_database_with_relationship_rows},
-    api_relationship_graph::{
-        create_database_with_relationships, create_database_with_relationships_and_rows,
-    },
-};

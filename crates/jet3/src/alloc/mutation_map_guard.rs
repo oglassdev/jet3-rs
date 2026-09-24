@@ -1,6 +1,6 @@
 //! Reject shared bitmap storage before changing any allocation role (EXP-0057/0077).
 use crate::{
-    DatabaseReader, FileSource, MapRowLocator, ResourceBudget, UpdateError,
+    DatabaseReader, FileSource, MapRowLocator, ResourceBudget, WriteError,
     alloc::mutation_map::{MapBits, PendingMap, global_locator},
     write::page_edits::reserve,
 };
@@ -9,7 +9,7 @@ pub(crate) fn validate(
     database: &mut DatabaseReader<FileSource>,
     maps: &[PendingMap],
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let mut roots = Vec::new();
     {
         let mut catalog = database.catalog(budget)?;
@@ -30,9 +30,7 @@ pub(crate) fn validate(
         {
             budget.charge_items(1)?;
             if global.contains(page)? {
-                return Err(UpdateError::Mismatch(
-                    "allocation metadata is globally free",
-                ));
+                return Err(WriteError::Mismatch("allocation metadata is globally free"));
             }
         }
     }
@@ -61,7 +59,7 @@ pub(crate) fn validate(
         }
     }
     if seen.iter().any(|seen| !seen) {
-        return Err(UpdateError::Mismatch("unreferenced mutation map"));
+        return Err(WriteError::Mismatch("unreferenced mutation map"));
     }
     Ok(())
 }
@@ -72,15 +70,15 @@ fn inspect(
     seen: &mut [bool],
     global: bool,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     for (position, map) in maps.iter().enumerate() {
         if bits.locator == map.bits.locator {
             if seen[position] {
-                return Err(UpdateError::Mismatch("allocation map shared between roles"));
+                return Err(WriteError::Mismatch("allocation map shared between roles"));
             }
             seen[position] = true;
         } else if bits.overlaps(&map.bits, budget)? {
-            return Err(UpdateError::Mismatch(
+            return Err(WriteError::Mismatch(
                 "allocation bitmap shared between roles",
             ));
         }
@@ -90,7 +88,7 @@ fn inspect(
             {
                 budget.charge_items(1)?;
                 if bits.contains(page)? {
-                    return Err(UpdateError::Mismatch(
+                    return Err(WriteError::Mismatch(
                         "allocation metadata claimed as content",
                     ));
                 }

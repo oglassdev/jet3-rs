@@ -82,11 +82,12 @@ pub enum ValidationError {
 }
 
 /// Context for a failure inside one user or system table.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
+#[error("{self:?}")]
 pub enum TableValidationError {
     /// Named column properties or their payload storage could not be read.
-    ColumnProperties(crate::ColumnPropertyError),
+    ColumnProperties(#[source] crate::ColumnPropertyError),
     /// A stored null violates the column's Required property.
     RequiredValue {
         /// Logical row containing the null.
@@ -95,7 +96,7 @@ pub enum TableValidationError {
         column: ColumnOrdinal,
     },
     /// Definition or its typed references could not be decoded.
-    Definition(TableDefinitionError),
+    Definition(#[source] TableDefinitionError),
     /// The definition kind disagrees with its catalog record's class.
     DefinitionKind {
         /// Kind required by the catalog classification.
@@ -151,9 +152,9 @@ pub enum TableValidationError {
         detail: &'static str,
     },
     /// Physical row or Memo/OLE storage is shared, missing, or unreferenced.
-    Storage(StorageValidationError),
+    Storage(#[source] StorageValidationError),
     /// Resource policy rejected table bookkeeping.
-    Resource(Error),
+    Resource(#[source] Error),
 }
 
 impl fmt::Display for ValidationError {
@@ -187,31 +188,6 @@ impl std::error::Error for ValidationError {
             Self::Relationships(source) => source,
             Self::Resource(source) => source,
         })
-    }
-}
-
-impl fmt::Display for TableValidationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-impl std::error::Error for TableValidationError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::ColumnProperties(source) => Some(source),
-            Self::Definition(source) => Some(source),
-            Self::Rows { source, .. } => Some(source),
-            Self::Value { source, .. } => Some(source),
-            Self::LongValue { source, .. } => Some(source),
-            Self::Index { source, .. } => Some(source),
-            Self::Storage(source) => Some(source),
-            Self::Resource(source) => Some(source),
-            Self::DefinitionKind { .. }
-            | Self::RowCount { .. }
-            | Self::IndexContents { .. }
-            | Self::RequiredValue { .. } => None,
-        }
     }
 }
 

@@ -1,7 +1,7 @@
 //! Checked data-page primitives in the EXP-0059/0060 directory layout shared by
 //! the append, replace and remove operations in the sibling `*_page` modules.
 use crate::{
-    PAGE_BYTES, PageImage, PageNumber, PageOffset, ResourceBudget, UpdateError,
+    PAGE_BYTES, PageImage, PageNumber, PageOffset, ResourceBudget, WriteError,
     definition::header::ROW_COUNT as TABLE_ROW_COUNT,
     format::{
         data_page_directory::{DIRECTORY_OFFSET, ENTRY_LEN, FREE_SPACE_OFFSET, ROW_COUNT_OFFSET},
@@ -31,12 +31,12 @@ impl<'a> DataPageEditor<'a> {
         owner: PageNumber,
         source: &'a [u8; PAGE_BYTES],
         budget: &mut ResourceBudget,
-    ) -> Result<Self, UpdateError> {
+    ) -> Result<Self, WriteError> {
         let directory = RowDirectory::validate(page, owner, source, budget)?;
         Ok(Self { source, directory })
     }
 
-    pub(super) fn entry(&self, slot: u8) -> Result<RowEntry, UpdateError> {
+    pub(super) fn entry(&self, slot: u8) -> Result<RowEntry, WriteError> {
         Ok(self.directory.entry(self.source, slot)?)
     }
 
@@ -44,7 +44,7 @@ impl<'a> DataPageEditor<'a> {
         &self,
         physical: bool,
         unsupported: &'static str,
-    ) -> Result<u16, UpdateError> {
+    ) -> Result<u16, WriteError> {
         let mut live = 0;
         for ordinal in 0..self.directory.row_count() {
             let entry = self.entry(ordinal as u8)?;
@@ -58,7 +58,7 @@ impl<'a> DataPageEditor<'a> {
                 continue;
             }
             if entry.hidden() || entry.overflow() || entry.range().is_empty() {
-                return Err(UpdateError::Unsupported(unsupported));
+                return Err(WriteError::Unsupported(unsupported));
             }
             live += 1;
         }
@@ -66,11 +66,9 @@ impl<'a> DataPageEditor<'a> {
     }
 
     /// Requires the stored free-byte count to equal the gap below the lowest row.
-    pub(super) fn packed(&self, mismatch: &'static str) -> Result<Packed, UpdateError> {
+    pub(super) fn packed(&self, mismatch: &'static str) -> Result<Packed, WriteError> {
         let count = self.directory.row_count();
-        let last = count
-            .checked_sub(1)
-            .ok_or(UpdateError::Mismatch(mismatch))?;
+        let last = count.checked_sub(1).ok_or(WriteError::Mismatch(mismatch))?;
         let lowest = self.entry(last as u8)?.range().start;
         let directory_end = DIRECTORY_OFFSET + ENTRY_LEN * usize::from(count);
         let free = usize::from(u16::from_le_bytes([
@@ -78,7 +76,7 @@ impl<'a> DataPageEditor<'a> {
             self.source[FREE_SPACE_OFFSET + 1],
         ]));
         if free != lowest - directory_end {
-            return Err(UpdateError::Mismatch(mismatch));
+            return Err(WriteError::Mismatch(mismatch));
         }
         Ok(Packed {
             lowest,
@@ -93,7 +91,7 @@ pub(super) fn write_slot(
     ordinal: u16,
     word: u16,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let offset = DIRECTORY_OFFSET + ENTRY_LEN * usize::from(ordinal);
     image.write_at(PageOffset::new(offset as u64), &word.to_le_bytes(), budget)?;
     Ok(())
@@ -103,7 +101,7 @@ pub(super) fn write_free(
     image: &mut PageImage,
     free: u16,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     image.write_at(
         PageOffset::new(FREE_SPACE_OFFSET as u64),
         &free.to_le_bytes(),
@@ -124,12 +122,9 @@ pub(crate) fn has_capacity(page: &[u8; PAGE_BYTES], minimum: usize) -> bool {
 }
 
 /// Requires the table definition's stored row count to equal the rows read.
-pub(crate) fn check_table_rows(
-    source: &[u8; PAGE_BYTES],
-    observed: u32,
-) -> Result<(), UpdateError> {
+pub(crate) fn check_table_rows(source: &[u8; PAGE_BYTES], observed: u32) -> Result<(), WriteError> {
     if source[TABLE_ROW_COUNT..TABLE_ROW_COUNT + 4] != observed.to_le_bytes() {
-        return Err(UpdateError::Mismatch("table row count"));
+        return Err(WriteError::Mismatch("table row count"));
     }
     Ok(())
 }
@@ -140,16 +135,16 @@ pub(crate) fn count_table_row(
     observed: u32,
     inserted: bool,
     budget: &mut ResourceBudget,
-) -> Result<PageImage, UpdateError> {
+) -> Result<PageImage, WriteError> {
     check_table_rows(source, observed)?;
     let count = if inserted {
         observed
             .checked_add(1)
-            .ok_or(UpdateError::Mismatch("table row count overflow"))?
+            .ok_or(WriteError::Mismatch("table row count overflow"))?
     } else {
         observed
             .checked_sub(1)
-            .ok_or(UpdateError::Mismatch("empty table"))?
+            .ok_or(WriteError::Mismatch("empty table"))?
     };
     let mut patched = PageImage::from_bytes(*source);
     patched.write_at(

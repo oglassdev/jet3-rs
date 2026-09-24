@@ -2,7 +2,7 @@ use super::row_update::*;
 use crate::{
     ByteCount, ColumnOrdinal, ColumnSpec, ColumnStorageClass, ColumnType, DatabaseReader,
     PAGE_BYTES, PublishStage, ResourceBudget, ResourceLimits, RowColumnLayout, RowLocator,
-    RowValue, TableSpec, UpdateError, row::data_page::DataPageEditor,
+    RowValue, TableSpec, WriteError, row::data_page::DataPageEditor,
 };
 use std::error::Error as StdError;
 use std::{fs, num::NonZeroU8, path::PathBuf};
@@ -57,15 +57,20 @@ impl Fixture {
             kind: crate::IndexKind::Unique,
             fields: &keys,
         }];
-        crate::create_database_with_rows(
+        crate::create_database(
             &path,
-            &TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Rows",
-                columns: &columns,
-                indexes: if indexed { &indexes } else { &[] },
+            &crate::DatabaseSpec {
+                tables: &[crate::TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Rows",
+                        columns: &columns,
+                        indexes: if indexed { &indexes } else { &[] },
+                    },
+                    rows: &rows,
+                }],
+                ..crate::DatabaseSpec::default()
             },
-            &rows,
             &mut budget(),
         )?;
         let mut b = budget();
@@ -353,7 +358,7 @@ fn shared_budgets_and_private_verification_preserve_original() -> TestResult {
             Ok(())
         },
     );
-    assert!(matches!(result,Err(UpdateError::Publish(e)) if e.stage()==PublishStage::Validation));
+    assert!(matches!(result,Err(WriteError::Publish(e)) if e.stage()==PublishStage::Validation));
     assert_eq!(fs::read(f.path())?, original);
     let mut exact = budget();
     update_row(f.path(), f.request(1, &values), &mut exact)?;
@@ -458,7 +463,7 @@ fn full_slot_directory_allows_replacement_but_hidden_payload_is_refused() -> Tes
             None,
             &mut budget()
         ),
-        Err(UpdateError::Unsupported(
+        Err(WriteError::Unsupported(
             "replacement page contains an unsupported row slot"
         ))
     ));
@@ -493,15 +498,20 @@ fn boolean_zero_and_legacy_offsets_reach_public_row_replacement() -> TestResult 
         RowValue::Binary(&[0, 17]),
         RowValue::Boolean(true),
     ];
-    crate::create_database_with_rows(
+    crate::create_database(
         f.path(),
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Rows",
-            columns: &columns,
-            indexes: &[],
+        &crate::DatabaseSpec {
+            tables: &[crate::TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &columns,
+                    indexes: &[],
+                },
+                rows: &[&original_values, &original_values],
+            }],
+            ..crate::DatabaseSpec::default()
         },
-        &[&original_values, &original_values],
         &mut budget(),
     )?;
     let mut b = budget();
@@ -587,7 +597,7 @@ fn indexed_variable_row_replacement_preserves_locators_and_other_rows() -> TestR
     ];
     assert!(matches!(
         update_row(f.path(), f.request(target, &duplicate), &mut budget()),
-        Err(UpdateError::Unsupported("duplicate unique key"))
+        Err(WriteError::Unsupported("duplicate unique key"))
     ));
     assert_eq!(fs::read(f.path())?, before);
     Ok(())

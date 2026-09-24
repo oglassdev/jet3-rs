@@ -8,7 +8,6 @@
 use crate::{
     ClassifiedPage, Error, PAGE_BYTES, PageGeometry, PageKind, PageNumber, ResourceBudget,
 };
-use std::fmt;
 use std::ops::Range;
 
 const INLINE_RECORD_TYPE: u8 = 0x00;
@@ -95,27 +94,36 @@ impl<'a> IndirectAllocationMap<'a> {
 }
 
 /// A structured failure while decoding or iterating a detached allocation map.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum AllocationMapError {
     /// The caller-delimited record has no type byte.
+    #[error("allocation-map record is empty")]
     EmptyRecord,
     /// A type-0 record does not contain its complete five-byte header.
+    #[error(
+        "inline allocation-map record is {actual_len} bytes; at least {INLINE_HEADER_LEN} are required"
+    )]
     InlineRecordTooShort {
         /// Actual caller-delimited record length.
         actual_len: usize,
     },
     /// Bytes after a type-1 record tag do not form complete four-byte entries.
+    #[error(
+        "indirect allocation-map payload of {payload_len} bytes is not divisible by {INDIRECT_REFERENCE_LEN}"
+    )]
     IndirectPayloadMisaligned {
         /// Number of bytes after the type byte.
         payload_len: usize,
     },
     /// The record type is outside the documented detached forms.
+    #[error("unsupported allocation-map record type 0x{record_type:02x}")]
     UnsupportedRecordType {
         /// Unrecognized byte-zero record type.
         record_type: u8,
     },
     /// The supplied classified page is not an extended usage bitmap page.
+    #[error("expected page {} to be an extended usage bitmap, found {actual:?}", .page.get())]
     ExpectedExtendedUsageBitmap {
         /// Physical page number supplied by the classifier.
         page: PageNumber,
@@ -123,6 +131,7 @@ pub enum AllocationMapError {
         actual: PageKind,
     },
     /// Adding an inline bit index to its starting page overflowed.
+    #[error("inline allocation page overflow for start page {start_page} and bit {bit_index}")]
     PageNumberOverflow {
         /// First page represented by bit zero.
         start_page: u64,
@@ -130,71 +139,14 @@ pub enum AllocationMapError {
         bit_index: u64,
     },
     /// Checked cursor arithmetic could not represent the next bit position.
-    Arithmetic(Error),
+    #[error("allocation-map cursor arithmetic failed: {0}")]
+    Arithmetic(#[source] Error),
     /// A set inline bit refers outside the caller-supplied page geometry.
-    PageReference(Error),
+    #[error("inline allocation page is invalid: {0}")]
+    PageReference(#[source] Error),
     /// Resource policy rejected inspection of a bit or reference.
-    Resource(Error),
-}
-
-impl fmt::Display for AllocationMapError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::EmptyRecord => write!(formatter, "allocation-map record is empty"),
-            Self::InlineRecordTooShort { actual_len } => write!(
-                formatter,
-                "inline allocation-map record is {actual_len} bytes; at least {INLINE_HEADER_LEN} are required"
-            ),
-            Self::IndirectPayloadMisaligned { payload_len } => write!(
-                formatter,
-                "indirect allocation-map payload of {payload_len} bytes is not divisible by {INDIRECT_REFERENCE_LEN}"
-            ),
-            Self::UnsupportedRecordType { record_type } => write!(
-                formatter,
-                "unsupported allocation-map record type 0x{record_type:02x}"
-            ),
-            Self::ExpectedExtendedUsageBitmap { page, actual } => write!(
-                formatter,
-                "expected page {} to be an extended usage bitmap, found {actual:?}",
-                page.get()
-            ),
-            Self::PageNumberOverflow {
-                start_page,
-                bit_index,
-            } => write!(
-                formatter,
-                "inline allocation page overflow for start page {start_page} and bit {bit_index}"
-            ),
-            Self::Arithmetic(source) => {
-                write!(
-                    formatter,
-                    "allocation-map cursor arithmetic failed: {source}"
-                )
-            }
-            Self::PageReference(source) => {
-                write!(formatter, "inline allocation page is invalid: {source}")
-            }
-            Self::Resource(source) => {
-                write!(formatter, "allocation-map inspection rejected: {source}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for AllocationMapError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Arithmetic(source) | Self::PageReference(source) | Self::Resource(source) => {
-                Some(source)
-            }
-            Self::EmptyRecord
-            | Self::InlineRecordTooShort { .. }
-            | Self::IndirectPayloadMisaligned { .. }
-            | Self::UnsupportedRecordType { .. }
-            | Self::ExpectedExtendedUsageBitmap { .. }
-            | Self::PageNumberOverflow { .. } => None,
-        }
-    }
+    #[error("allocation-map inspection rejected: {0}")]
+    Resource(#[source] Error),
 }
 
 /// Decodes one complete, caller-delimited allocation-map record.

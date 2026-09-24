@@ -1,7 +1,7 @@
 use super::delete::*;
 use crate::{
     ByteCount, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PageNumber, PublishStage,
-    ResourceBudget, ResourceLimits, RowLocator, RowValue, TableSpec, UpdateError,
+    ResourceBudget, ResourceLimits, RowLocator, RowValue, TableSpec, WriteError,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -25,15 +25,20 @@ impl Fixture {
             .map(|n| [RowValue::Long(n as i32), RowValue::Long(-(n as i32))])
             .collect();
         let rows: Vec<_> = values.iter().map(|r| r.as_slice()).collect();
-        crate::create_database_with_rows(
+        crate::create_database(
             &path,
-            &TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Rows",
-                columns: &columns,
-                indexes: &[],
+            &crate::DatabaseSpec {
+                tables: &[crate::TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Rows",
+                        columns: &columns,
+                        indexes: &[],
+                    },
+                    rows: &rows,
+                }],
+                ..crate::DatabaseSpec::default()
             },
-            &rows,
             &mut budget(),
         )?;
         let mut b = budget();
@@ -194,7 +199,7 @@ fn resource_and_publication_failures_preserve_original() -> ResultTest {
                 Ok(())
             }
         });
-        assert!(matches!(result, Err(UpdateError::Publish(e)) if e.stage() == stage));
+        assert!(matches!(result, Err(WriteError::Publish(e)) if e.stage() == stage));
         assert_eq!(fs::read(f.path())?, original);
         f.clean()?;
     }
@@ -223,9 +228,7 @@ fn private_corruption_and_shared_read_budget_are_detected() -> ResultTest {
             Ok(())
         },
     );
-    assert!(
-        matches!(result, Err(UpdateError::Publish(e)) if e.stage() == PublishStage::Validation)
-    );
+    assert!(matches!(result, Err(WriteError::Publish(e)) if e.stage() == PublishStage::Validation));
     assert_eq!(fs::read(f.path())?, original);
     let mut exact = budget();
     delete_row(f.path(), f.request(), &mut exact)?;

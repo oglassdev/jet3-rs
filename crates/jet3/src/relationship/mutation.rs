@@ -1,7 +1,7 @@
 //! Referential integrity over the catalog's checked scalar relationships.
 use crate::{
     ColumnOrdinal, DatabaseReader, FileSource, ResourceBudget, RowLocator, RowValue,
-    TableDefinition, UpdateError, index::key::scalar::ScalarKeyType, write::page_edits::reserve,
+    TableDefinition, WriteError, index::key::scalar::ScalarKeyType, write::page_edits::reserve,
 };
 
 use super::key::{self, Key, key_values};
@@ -17,11 +17,11 @@ pub(crate) enum Change<'a> {
 fn column_value<'a>(
     values: &[RowValue<'a>],
     column: ColumnOrdinal,
-) -> Result<RowValue<'a>, UpdateError> {
+) -> Result<RowValue<'a>, WriteError> {
     values
         .get(usize::from(column.get()))
         .copied()
-        .ok_or(UpdateError::Mismatch(
+        .ok_or(WriteError::Mismatch(
             "relationship key absent from replacement",
         ))
 }
@@ -34,7 +34,7 @@ impl Change<'_> {
         before: &[RowValue<'_>],
         kinds: &[ScalarKeyType],
         budget: &mut ResourceBudget,
-    ) -> Result<Option<Option<Key>>, UpdateError> {
+    ) -> Result<Option<Option<Key>>, WriteError> {
         if matches!(self, Self::Delete(selected) if selected == row) {
             return Ok(None);
         }
@@ -66,7 +66,7 @@ fn push(
     keys: &mut Vec<Key>,
     value: Option<Key>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     if let Some(value) = value {
         reserve(keys, 1, budget)?;
         keys.push(value);
@@ -82,7 +82,7 @@ fn keys(
     change: Option<Change<'_>>,
     exclude_replacement: bool,
     budget: &mut ResourceBudget,
-) -> Result<Keys, UpdateError> {
+) -> Result<Keys, WriteError> {
     let mut result = Keys {
         before: Vec::new(),
         after: Vec::new(),
@@ -94,7 +94,7 @@ fn keys(
     let mut rows = database.rows(table, budget)?;
     let mut count = 0_u32;
     while let Some(mut row) = rows.next_row()? {
-        count = count.checked_add(1).ok_or(UpdateError::Mismatch(
+        count = count.checked_add(1).ok_or(WriteError::Mismatch(
             "relationship table row count overflow",
         ))?;
         let locator = row.locator();
@@ -133,7 +133,7 @@ fn keys(
         }
     }
     if count != table.row_count() {
-        return Err(UpdateError::Mismatch("relationship table row count"));
+        return Err(WriteError::Mismatch("relationship table row count"));
     }
     if let Some(Change::Insert(values)) = change {
         let mut key = [RowValue::Null; crate::index::entry::MAX_FIELDS];
@@ -153,7 +153,7 @@ pub(crate) fn check(
     name: &[u8],
     change: Change<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let constraints = crate::relationship::catalog::load(database, target, name, budget)?;
     for constraint in constraints {
         // Both relation indexes must agree with their rows before relying on the keys.
@@ -181,15 +181,15 @@ pub(crate) fn check(
         key::sort(&mut parent.before, budget)?;
         key::sort(&mut parent.after, budget)?;
         if !key::unique(&parent.before, budget)? {
-            return Err(UpdateError::Mismatch("duplicate relationship parent key"));
+            return Err(WriteError::Mismatch("duplicate relationship parent key"));
         }
         if key::missing(&parent.before, &child.before, budget)?.is_some() {
-            return Err(UpdateError::Mismatch("orphan relationship key"));
+            return Err(WriteError::Mismatch("orphan relationship key"));
         }
         // EXP-0286/0289/0290: parent assignments are checked even if the key is
         // unchanged or another nullable parent has the same tuple.
         if parent.assigned_null && child.has_other_null_after {
-            return Err(UpdateError::NullRelationshipConstraint {
+            return Err(WriteError::NullRelationshipConstraint {
                 parent: constraint.parent.root(),
                 child: constraint.child.root(),
             });

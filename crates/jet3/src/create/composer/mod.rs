@@ -12,8 +12,6 @@
 //! from `EXP-0093`. Any composed image other than the `Alpha` transition is
 //! an unvalidated candidate until a DAO differential accepts it.
 
-use std::fmt;
-
 use crate::{
     ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnType, DataPageBuilder,
     Error, IndexDirection, InlineUsageMapEncoder, LogicalIndexKindSpec, LogicalIndexSpec,

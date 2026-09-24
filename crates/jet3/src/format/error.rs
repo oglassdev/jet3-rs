@@ -1,7 +1,5 @@
 //! Structured failures returned by checked, format-neutral primitives.
 
-use std::fmt;
-
 use crate::{ByteCount, ByteOffset};
 
 /// Identifies the resource policy that rejected an operation.
@@ -40,10 +38,11 @@ pub enum ResourceLimitKind {
 ///
 /// Variants retain the relevant positions and sizes so callers can report
 /// malformed input without parsing error strings.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
     /// An integer cannot be represented by the requested target type.
+    #[error("value {value} cannot be represented as {target}")]
     IntegerConversion {
         /// The value that could not be represented.
         value: u128,
@@ -51,11 +50,13 @@ pub enum Error {
         target: &'static str,
     },
     /// Checked byte arithmetic overflowed or underflowed.
+    #[error("checked byte arithmetic failed during {operation}")]
     Arithmetic {
         /// The operation that failed.
         operation: &'static str,
     },
     /// A requested position is outside the input, including one byte past it.
+    #[error("byte offset {} is outside input of {} bytes", .offset.get(), .input_len.get())]
     OffsetOutOfBounds {
         /// Requested absolute position.
         offset: ByteOffset,
@@ -63,6 +64,11 @@ pub enum Error {
         input_len: ByteCount,
     },
     /// A requested write position is outside the fixed output slice.
+    #[error(
+        "byte offset {} is outside output capacity of {} bytes",
+        .offset.get(),
+        .capacity.get()
+    )]
     OutputOffsetOutOfBounds {
         /// Requested absolute position.
         offset: ByteOffset,
@@ -70,6 +76,12 @@ pub enum Error {
         capacity: ByteCount,
     },
     /// The fixed output slice cannot hold a complete requested write.
+    #[error(
+        "output capacity exhausted at byte {}: needed {} bytes, but {} remain",
+        .offset.get(),
+        .needed.get(),
+        .available.get()
+    )]
     OutputCapacityExceeded {
         /// Position at which the write was attempted.
         offset: ByteOffset,
@@ -79,6 +91,12 @@ pub enum Error {
         available: ByteCount,
     },
     /// The input ended before a complete value could be read.
+    #[error(
+        "input ended at byte {}: needed {} bytes, but {} remain",
+        .offset.get(),
+        .needed.get(),
+        .available.get()
+    )]
     UnexpectedEnd {
         /// Position at which the read was attempted.
         offset: ByteOffset,
@@ -88,6 +106,12 @@ pub enum Error {
         available: ByteCount,
     },
     /// A file or other I/O source returned fewer bytes than requested.
+    #[error(
+        "short read at byte {}: needed {} bytes, but received {}",
+        .offset.get(),
+        .needed.get(),
+        .actual.get()
+    )]
     ShortRead {
         /// Absolute source position at which the read began.
         offset: ByteOffset,
@@ -97,6 +121,7 @@ pub enum Error {
         actual: ByteCount,
     },
     /// An underlying I/O operation failed.
+    #[error("I/O failure during {operation}: {kind}")]
     Io {
         /// Stable description of the operation being attempted.
         operation: &'static str,
@@ -104,11 +129,18 @@ pub enum Error {
         kind: std::io::ErrorKind,
     },
     /// A page size is zero or cannot be used for checked page geometry.
+    #[error("invalid page size: {} bytes", .page_size.get())]
     InvalidPageSize {
         /// Rejected page size.
         page_size: ByteCount,
     },
     /// The input contains bytes after its final complete page.
+    #[error(
+        "input of {} bytes is not divisible into {}-byte pages: {} trailing bytes",
+        .input_len.get(),
+        .page_size.get(),
+        .trailing.get()
+    )]
     PartialPage {
         /// Total input length.
         input_len: ByteCount,
@@ -118,6 +150,7 @@ pub enum Error {
         trailing: ByteCount,
     },
     /// A page number is outside the captured page range.
+    #[error("page {page} is outside input containing {page_count} pages")]
     PageOutOfBounds {
         /// Requested zero-based page number.
         page: u64,
@@ -125,6 +158,7 @@ pub enum Error {
         page_count: u64,
     },
     /// An offset within a page is at or beyond the page size.
+    #[error("page offset {offset} is outside a {}-byte page", .page_size.get())]
     PageOffsetOutOfBounds {
         /// Requested zero-based offset within the page.
         offset: u64,
@@ -132,6 +166,11 @@ pub enum Error {
         page_size: ByteCount,
     },
     /// A request exceeded an explicit resource limit.
+    #[error(
+        "{kind:?} limit exceeded: requested {} bytes, maximum is {}",
+        .requested.get(),
+        .maximum.get()
+    )]
     LimitExceeded {
         /// Policy limit that rejected the request.
         kind: LimitKind,
@@ -141,6 +180,7 @@ pub enum Error {
         maximum: ByteCount,
     },
     /// An operation-wide count or work ceiling was exceeded.
+    #[error("{kind:?} resource limit exceeded: requested {requested}, maximum is {maximum}")]
     ResourceLimitExceeded {
         /// Policy dimension that rejected the request.
         kind: ResourceLimitKind,
@@ -150,113 +190,6 @@ pub enum Error {
         maximum: u64,
     },
 }
-
-impl fmt::Display for Error {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::IntegerConversion { value, target } => {
-                write!(formatter, "value {value} cannot be represented as {target}")
-            }
-            Self::Arithmetic { operation } => {
-                write!(
-                    formatter,
-                    "checked byte arithmetic failed during {operation}"
-                )
-            }
-            Self::OffsetOutOfBounds { offset, input_len } => write!(
-                formatter,
-                "byte offset {} is outside input of {} bytes",
-                offset.get(),
-                input_len.get()
-            ),
-            Self::OutputOffsetOutOfBounds { offset, capacity } => write!(
-                formatter,
-                "byte offset {} is outside output capacity of {} bytes",
-                offset.get(),
-                capacity.get()
-            ),
-            Self::OutputCapacityExceeded {
-                offset,
-                needed,
-                available,
-            } => write!(
-                formatter,
-                "output capacity exhausted at byte {}: needed {} bytes, but {} remain",
-                offset.get(),
-                needed.get(),
-                available.get()
-            ),
-            Self::UnexpectedEnd {
-                offset,
-                needed,
-                available,
-            } => write!(
-                formatter,
-                "input ended at byte {}: needed {} bytes, but {} remain",
-                offset.get(),
-                needed.get(),
-                available.get()
-            ),
-            Self::ShortRead {
-                offset,
-                needed,
-                actual,
-            } => write!(
-                formatter,
-                "short read at byte {}: needed {} bytes, but received {}",
-                offset.get(),
-                needed.get(),
-                actual.get()
-            ),
-            Self::Io { operation, kind } => {
-                write!(formatter, "I/O failure during {operation}: {kind}")
-            }
-            Self::InvalidPageSize { page_size } => {
-                write!(formatter, "invalid page size: {} bytes", page_size.get())
-            }
-            Self::PartialPage {
-                input_len,
-                page_size,
-                trailing,
-            } => write!(
-                formatter,
-                "input of {} bytes is not divisible into {}-byte pages: {} trailing bytes",
-                input_len.get(),
-                page_size.get(),
-                trailing.get()
-            ),
-            Self::PageOutOfBounds { page, page_count } => write!(
-                formatter,
-                "page {page} is outside input containing {page_count} pages"
-            ),
-            Self::PageOffsetOutOfBounds { offset, page_size } => write!(
-                formatter,
-                "page offset {offset} is outside a {}-byte page",
-                page_size.get()
-            ),
-            Self::LimitExceeded {
-                kind,
-                requested,
-                maximum,
-            } => write!(
-                formatter,
-                "{kind:?} limit exceeded: requested {} bytes, maximum is {}",
-                requested.get(),
-                maximum.get()
-            ),
-            Self::ResourceLimitExceeded {
-                kind,
-                requested,
-                maximum,
-            } => write!(
-                formatter,
-                "{kind:?} resource limit exceeded: requested {requested}, maximum is {maximum}"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
 
 #[cfg(test)]
 mod tests {

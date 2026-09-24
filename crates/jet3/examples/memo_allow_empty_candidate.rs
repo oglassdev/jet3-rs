@@ -1,7 +1,7 @@
 //! Deterministic bounded Memo property candidates; no DAO acceptance claim.
 use jet3::{
-    ColumnSpec, ColumnType, ResourceBudget, ResourceLimits, RowValue, TableSpec,
-    create_database_with_rows,
+    ColumnSpec, ColumnType, DatabaseSpec, ResourceBudget, ResourceLimits, RowValue, TableRows,
+    TableSpec, create_database,
 };
 use std::{env, fs, path::Path};
 
@@ -29,15 +29,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &[RowValue::Long(2), RowValue::Memo(b"")],
             &[RowValue::Long(3), RowValue::Memo(b"A")],
         ];
-        create_database_with_rows(
+        create_database(
             directory.join(file),
-            &TableSpec {
-                validation: jet3::TableValidation::NONE,
-                name: table,
-                columns: &columns,
-                indexes: &[],
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: table,
+                        columns: &columns,
+                        indexes: &[],
+                    },
+                    rows: &rows,
+                }],
+                ..DatabaseSpec::default()
             },
-            &rows,
             &mut ResourceBudget::new(ResourceLimits::default()),
         )?;
     }

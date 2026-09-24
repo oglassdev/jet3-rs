@@ -7,8 +7,6 @@ use crate::{
     format::data_page_directory::{DataPageDirectory, DataPageDirectoryError, DataPageEntry},
 };
 
-use std::fmt;
-
 // EXP-0058: minimum catalog record fields and reverse trailer entries.
 pub(super) const CATALOG_COLUMN_COUNT: u8 = 17;
 const OBJECT_ID_OFFSET: usize = 1;
@@ -216,10 +214,11 @@ impl<'row> CatalogRecordView<'row> {
 }
 
 /// Structured catalog directory or record corruption.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum CatalogRecordError {
     /// A row count cannot fit a complete directory.
+    #[error("catalog page declares {row_count} rows; at most {maximum} fit")]
     RowCountTooLarge {
         /// Declared row count.
         row_count: u16,
@@ -227,6 +226,7 @@ pub enum CatalogRecordError {
         maximum: usize,
     },
     /// A directory entry contains an unobserved flag bit.
+    #[error("catalog row {row} has unknown directory flags in 0x{raw_offset:04x}")]
     UnknownDirectoryFlag {
         /// Zero-based directory entry.
         row: u16,
@@ -234,6 +234,7 @@ pub enum CatalogRecordError {
         raw_offset: u16,
     },
     /// A masked row offset is outside the page.
+    #[error("catalog row {row} has out-of-page offset 0x{raw_offset:04x}")]
     RowOffsetOutOfPage {
         /// Zero-based directory entry.
         row: u16,
@@ -241,6 +242,9 @@ pub enum CatalogRecordError {
         raw_offset: u16,
     },
     /// Row bounds overlap the directory or reverse incorrectly.
+    #[error(
+        "catalog row {row} has invalid bounds [{start}, {end}) with directory ending at {directory_end}"
+    )]
     InvalidRowBounds {
         /// Zero-based directory entry.
         row: u16,
@@ -252,11 +256,13 @@ pub enum CatalogRecordError {
         directory_end: usize,
     },
     /// An active catalog row has the overflow flag.
+    #[error("active catalog row {row} uses the overflow flag")]
     ActiveOverflowRow {
         /// Zero-based directory entry.
         row: u16,
     },
     /// A catalog record is shorter than its minimum fields and trailer.
+    #[error("catalog record length {length} is below minimum {minimum}")]
     RecordTooShort {
         /// Observed record length.
         length: usize,
@@ -264,11 +270,15 @@ pub enum CatalogRecordError {
         minimum: usize,
     },
     /// A selected catalog row has an unexpected column count.
+    #[error("catalog record declares {observed} columns")]
     UnexpectedColumnCount {
         /// Sourced catalog column count.
         observed: u8,
     },
     /// The minimum reverse trailer does not match the observed layout.
+    #[error(
+        "catalog name trailer has range [{name_start}, {name_end}), fixed boundary {fixed_boundary}, marker 0x{marker:02x}, and record length {record_length}"
+    )]
     InvalidNameTrailer {
         /// Decoded inclusive name start.
         name_start: usize,
@@ -282,78 +292,14 @@ pub enum CatalogRecordError {
         record_length: usize,
     },
     /// Object flags are outside the observed exact kind/flag classifications.
+    #[error("catalog object flags 0x{raw:08x} are unsupported")]
     UnsupportedObjectFlags {
         /// Sourced object flags.
         raw: u32,
     },
     /// Resource policy rejected directory or record work.
-    Resource(Error),
-}
-
-impl fmt::Display for CatalogRecordError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::RowCountTooLarge { row_count, maximum } => {
-                write!(
-                    formatter,
-                    "catalog page declares {row_count} rows; at most {maximum} fit"
-                )
-            }
-            Self::UnknownDirectoryFlag { row, raw_offset } => write!(
-                formatter,
-                "catalog row {row} has unknown directory flags in 0x{raw_offset:04x}"
-            ),
-            Self::RowOffsetOutOfPage { row, raw_offset } => write!(
-                formatter,
-                "catalog row {row} has out-of-page offset 0x{raw_offset:04x}"
-            ),
-            Self::InvalidRowBounds {
-                row,
-                start,
-                end,
-                directory_end,
-            } => write!(
-                formatter,
-                "catalog row {row} has invalid bounds [{start}, {end}) with directory ending at {directory_end}"
-            ),
-            Self::ActiveOverflowRow { row } => {
-                write!(formatter, "active catalog row {row} uses the overflow flag")
-            }
-            Self::RecordTooShort { length, minimum } => write!(
-                formatter,
-                "catalog record length {length} is below minimum {minimum}"
-            ),
-            Self::UnexpectedColumnCount { observed } => {
-                write!(formatter, "catalog record declares {observed} columns")
-            }
-            Self::InvalidNameTrailer {
-                name_start,
-                name_end,
-                fixed_boundary,
-                marker,
-                record_length,
-            } => write!(
-                formatter,
-                "catalog name trailer has range [{name_start}, {name_end}), fixed boundary {fixed_boundary}, marker 0x{marker:02x}, and record length {record_length}"
-            ),
-            Self::UnsupportedObjectFlags { raw } => {
-                write!(
-                    formatter,
-                    "catalog object flags 0x{raw:08x} are unsupported"
-                )
-            }
-            Self::Resource(source) => write!(formatter, "catalog record rejected: {source}"),
-        }
-    }
-}
-
-impl std::error::Error for CatalogRecordError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Resource(source) => Some(source),
-            _ => None,
-        }
-    }
+    #[error("catalog record rejected: {0}")]
+    Resource(#[source] Error),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,7 +1,7 @@
 use super::delete_tests::*;
 use crate::{
     ByteCount, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget,
-    ResourceLimits, RowLocator, RowValue, TableSpec, UpdateError, write::delete::*,
+    ResourceLimits, RowLocator, RowValue, TableSpec, WriteError, write::delete::*,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -78,15 +78,20 @@ fn first_middle_and_tail_unequal_rows_preserve_slots_and_vacated_slack() -> Resu
         [RowValue::Long(4), RowValue::Text(&text)],
     ];
     let rows: Vec<_> = values.iter().map(|r| r.as_slice()).collect();
-    crate::create_database_with_rows(
+    crate::create_database(
         f.path(),
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Rows",
-            columns: &columns,
-            indexes: &[],
+        &crate::DatabaseSpec {
+            tables: &[crate::TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &columns,
+                    indexes: &[],
+                },
+                rows: &rows,
+            }],
+            ..crate::DatabaseSpec::default()
         },
-        &rows,
         &mut budget(),
     )?;
     let before = fs::read(f.path())?;
@@ -248,9 +253,7 @@ fn compaction_budget_and_full_private_verification_preserve_original() -> Result
                 Ok(())
             },
         );
-        assert!(
-            matches!(error,Err(UpdateError::Publish(e)) if e.stage()==PublishStage::Validation)
-        );
+        assert!(matches!(error,Err(WriteError::Publish(e)) if e.stage()==PublishStage::Validation));
         assert_eq!(fs::read(f.path())?, before);
         f.clean()?;
     }

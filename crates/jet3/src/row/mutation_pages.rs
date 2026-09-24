@@ -1,7 +1,7 @@
 //! EXP-0262 composes logical and hidden-slot edits before changing allocation bits.
 use crate::{
     DatabaseReader, FileSource, PAGE_BYTES, PageImage, PageNumber, ResourceBudget, RowLocator,
-    TableDefinition, UpdateError,
+    TableDefinition, WriteError,
     row::{data_page::DataPageEditor, directory::RowSlot},
     write::page_edits::{PageEdits, reserve},
 };
@@ -26,7 +26,7 @@ impl RowPages {
         database: &mut DatabaseReader<FileSource>,
         page: PageNumber,
         budget: &mut ResourceBudget,
-    ) -> Result<usize, UpdateError> {
+    ) -> Result<usize, WriteError> {
         budget.charge_work_units(self.pages.len() as u64)?;
         if let Some(index) = self.pages.iter().position(|entry| entry.page == page) {
             return Ok(index);
@@ -51,7 +51,7 @@ impl RowPages {
         encoded: &[u8],
         state: RowSlot,
         budget: &mut ResourceBudget,
-    ) -> Result<bool, UpdateError> {
+    ) -> Result<bool, WriteError> {
         let index = self.position(database, row.page(), budget)?;
         let entry = &mut self.pages[index];
         let Some(after) = DataPageEditor::open(row.page(), owner, entry.after.as_bytes(), budget)?
@@ -69,7 +69,7 @@ impl RowPages {
         owner: PageNumber,
         row: RowLocator,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         let index = self.position(database, row.page(), budget)?;
         let entry = &mut self.pages[index];
         entry.after = DataPageEditor::open(row.page(), owner, entry.after.as_bytes(), budget)?
@@ -84,10 +84,10 @@ impl RowPages {
         before: [u8; PAGE_BYTES],
         after: PageImage,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         budget.charge_work_units(self.pages.len() as u64)?;
         if self.pages.iter().any(|entry| entry.page == page) {
-            return Err(UpdateError::Mismatch(
+            return Err(WriteError::Mismatch(
                 "row destination overlaps selected chain",
             ));
         }
@@ -106,7 +106,7 @@ impl RowPages {
         definition: &TableDefinition,
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         let minimum = crate::row::insert_page::minimum_length(definition.columns(), budget)?;
         for entry in self.pages {
             let available =

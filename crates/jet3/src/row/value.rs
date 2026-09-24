@@ -1,6 +1,5 @@
 //! Lossless scalar and short-value decoding from `EXP-0061`.
 
-use std::fmt;
 use std::mem::size_of;
 
 use crate::{
@@ -111,8 +110,9 @@ impl<'raw> DecodedValue<'raw> {
 }
 
 /// A scalar, text, or long-value header failure.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
+#[error("value decoding failed: {self:?}")]
 pub enum ValueError {
     /// A fixed-width value has the wrong physical byte length.
     InvalidWidth {
@@ -124,28 +124,11 @@ pub enum ValueError {
         actual: usize,
     },
     /// Text decoding failed.
-    Text(TextError),
+    Text(#[source] TextError),
     /// Long-value header decoding failed.
-    LongValue(LongValueError),
+    LongValue(#[source] LongValueError),
     /// Resource policy rejected decoded output.
-    Resource(Error),
-}
-
-impl fmt::Display for ValueError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "value decoding failed: {self:?}")
-    }
-}
-
-impl std::error::Error for ValueError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Text(source) => Some(source),
-            Self::LongValue(source) => Some(source),
-            Self::Resource(source) => Some(source),
-            Self::InvalidWidth { .. } => None,
-        }
-    }
+    Resource(#[source] Error),
 }
 
 pub(crate) fn decode_value<'raw>(

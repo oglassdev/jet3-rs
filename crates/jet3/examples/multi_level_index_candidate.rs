@@ -1,8 +1,8 @@
 //! Deterministic multi-level Long index candidates for separate DAO validation.
 use jet3::{
-    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
-    RelationshipField, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef,
-    TableRows, TableSpec, create_database_with_relationship_rows, create_database_with_table_rows,
+    ColumnRef, ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexDirection, IndexKind,
+    IndexSpec, RelationshipField, RelationshipLayout, RelationshipSpec, ResourceBudget,
+    ResourceLimits, RowValue, TableRef, TableRows, TableSpec, create_database,
 };
 use std::path::Path;
 
@@ -34,17 +34,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rows = (0..27801)
         .map(|position| [RowValue::Long(27800 - position), RowValue::Long(position)])
         .collect::<Vec<_>>();
-    create_database_with_table_rows(
+    create_database(
         directory.join("primary.mdb"),
-        &[TableRows {
-            table: TableSpec {
-                validation: jet3::TableValidation::NONE,
-                name: b"Rows",
-                columns: &COLUMNS,
-                indexes: &PRIMARY,
-            },
-            rows: &references(&rows),
-        }],
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: TableSpec {
+                    validation: jet3::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &COLUMNS,
+                    indexes: &PRIMARY,
+                },
+                rows: &references(&rows),
+            }],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
 
@@ -74,28 +77,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect::<Vec<_>>();
     let references = rows.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
-    create_database_with_table_rows(
+    create_database(
         directory.join("composite.mdb"),
-        &[
-            TableRows {
-                table: TableSpec {
-                    validation: jet3::TableValidation::NONE,
-                    name: b"Empty",
-                    columns: &COLUMNS,
-                    indexes: &[],
+        &DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: b"Empty",
+                        columns: &COLUMNS,
+                        indexes: &[],
+                    },
+                    rows: &[],
                 },
-                rows: &[],
-            },
-            TableRows {
-                table: TableSpec {
-                    validation: jet3::TableValidation::NONE,
-                    name: b"Rows",
-                    columns: &columns,
-                    indexes: &indexes,
+                TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: b"Rows",
+                        columns: &columns,
+                        indexes: &indexes,
+                    },
+                    rows: &references,
                 },
-                rows: &references,
-            },
-        ],
+            ],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
 
@@ -107,41 +113,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect::<Vec<_>>();
     let parent_rows = parent.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
     let child_rows = child.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
-    create_database_with_relationship_rows(
+    create_database(
         directory.join("relationship.mdb"),
-        &[
-            TableRows {
-                table: TableSpec {
-                    validation: jet3::TableValidation::NONE,
-                    name: b"Parents",
-                    columns: &COLUMNS,
-                    indexes: &PRIMARY,
+        &DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: b"Parents",
+                        columns: &COLUMNS,
+                        indexes: &PRIMARY,
+                    },
+                    rows: &parent_rows,
                 },
-                rows: &parent_rows,
-            },
-            TableRows {
-                table: TableSpec {
-                    validation: jet3::TableValidation::NONE,
-                    name: b"Children",
-                    columns: &COLUMNS,
-                    indexes: &[],
+                TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: b"Children",
+                        columns: &COLUMNS,
+                        indexes: &[],
+                    },
+                    rows: &child_rows,
                 },
-                rows: &child_rows,
-            },
-        ],
-        &RelationshipSpec {
-            unique: false,
-            enforce: true,
-            join: jet3::RelationshipJoin::Inner,
-            cascade_updates: false,
-            cascade_deletes: false,
-            name: b"ParentChildren",
-            parent: TableRef::Ordinal(0),
-            child: TableRef::Ordinal(1),
-            fields: &[RelationshipField {
-                parent: ColumnRef::Ordinal(0),
-                child: ColumnRef::Ordinal(0),
-            }],
+            ],
+            relationships: std::slice::from_ref(&RelationshipSpec {
+                unique: false,
+                enforce: true,
+                join: jet3::RelationshipJoin::Inner,
+                cascade_updates: false,
+                cascade_deletes: false,
+                name: b"ParentChildren",
+                parent: TableRef::Ordinal(0),
+                child: TableRef::Ordinal(1),
+                fields: &[RelationshipField {
+                    parent: ColumnRef::Ordinal(0),
+                    child: ColumnRef::Ordinal(0),
+                }],
+            }),
+            relationship_layout: RelationshipLayout::SingleLong,
         },
         &mut budget(),
     )?;

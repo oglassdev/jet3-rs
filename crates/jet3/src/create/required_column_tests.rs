@@ -1,12 +1,9 @@
 use super::api_tests::*;
 use crate::{
     ColumnOrdinal, ColumnPropertyError, ColumnSpec, ColumnType, ComposeError, DatabaseReader,
-    RowUpdate, RowValue, RowWriteError, TableSpec, TableValidationError, TextCodePage, UpdateError,
-    ValidationError, ValueKind,
-    create::api::{CreateDatabaseError, create_database},
-    create_database_with_rows,
-    definition::column_writer::nz,
-    insert_row, update_row,
+    DatabaseSpec, RowUpdate, RowValue, RowWriteError, TableRows, TableSpec, TableValidationError,
+    TextCodePage, ValidationError, ValueKind, WriteError, create::api::create_database,
+    definition::column_writer::nz, insert_row, update_row,
 };
 use std::fs;
 
@@ -41,13 +38,23 @@ fn required_columns_enforce_nulls_without_indexes_and_keep_scalar_exceptions() -
         RowValue::Null,
         RowValue::AutoIncrement,
     ];
-    let error = create_database_with_rows(&path, &table, &[&invalid], &mut budget())
-        .err()
-        .ok_or("null creation accepted")?;
+    let error = create_database(
+        &path,
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table,
+                rows: &[&invalid],
+            }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )
+    .err()
+    .ok_or("null creation accepted")?;
     assert!(
         matches!(
             error,
-            CreateDatabaseError::Compose(ComposeError::Row(RowWriteError::RequiredValueMissing {
+            WriteError::Compose(ComposeError::Row(RowWriteError::RequiredValueMissing {
                 ordinal: 0,
                 ..
             }))
@@ -61,7 +68,17 @@ fn required_columns_enforce_nulls_without_indexes_and_keep_scalar_exceptions() -
         RowValue::Null,
         RowValue::AutoIncrement,
     ];
-    create_database_with_rows(&path, &table, &[&values], &mut budget())?;
+    create_database(
+        &path,
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table,
+                rows: &[&values],
+            }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let original = fs::read(&path)?;
     let row = first_row(&path)?;
     for result in [
@@ -83,7 +100,7 @@ fn required_columns_enforce_nulls_without_indexes_and_keep_scalar_exceptions() -
     ] {
         assert!(matches!(
             result,
-            Err(UpdateError::Encoding(RowWriteError::RequiredValueMissing {
+            Err(WriteError::Encoding(RowWriteError::RequiredValueMissing {
                 ordinal: 0,
                 ..
             }))
@@ -149,15 +166,20 @@ fn required_payloads_distinguish_empty_strings_from_storage_nulls() -> TestResul
         RowValue::LongBinary(b"x"),
         RowValue::Text(b"    "),
     ];
-    create_database_with_rows(
+    create_database(
         &path,
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Rows",
-            columns: &columns,
-            indexes: &[],
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &columns,
+                    indexes: &[],
+                },
+                rows: &[&values],
+            }],
+            ..DatabaseSpec::default()
         },
-        &[&values],
         &mut budget(),
     )?;
     let original = fs::read(&path)?;
@@ -185,7 +207,7 @@ fn required_payloads_distinguish_empty_strings_from_storage_nulls() -> TestResul
                 physical_type: columns[column].physical_type(),
             }
         };
-        assert!(matches!(error, UpdateError::Encoding(actual) if actual == expected));
+        assert!(matches!(error, WriteError::Encoding(actual) if actual == expected));
         assert_eq!(fs::read(&path)?, original);
     }
     insert_row(&path, b"Rows", &values, &mut budget())?;
@@ -205,7 +227,17 @@ fn required_property_corruption_and_stored_nulls_are_reported() -> TestResult {
         columns: &columns,
         indexes: &[],
     };
-    create_database_with_rows(&path, &table, &[&[RowValue::Long(1)]], &mut budget())?;
+    create_database(
+        &path,
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table,
+                rows: &[&[RowValue::Long(1)]],
+            }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let property = crate::properties::column::CreationProperties::new(
         &columns,
         crate::TableValidation::NONE,
@@ -226,7 +258,7 @@ fn required_property_corruption_and_stored_nulls_are_reported() -> TestResult {
     fs::write(&path, &changed)?;
     assert!(matches!(
         insert_row(&path, b"Rows", &[RowValue::Null], &mut budget()),
-        Err(UpdateError::ColumnProperties(ColumnPropertyError::Invalid(
+        Err(WriteError::ColumnProperties(ColumnPropertyError::Invalid(
             "named Boolean property record"
         )))
     ));
@@ -280,12 +312,15 @@ fn missing_zero_length_properties_do_not_disable_empty_strings() -> TestResult {
         let columns = [ID, ColumnSpec::new(b"Payload", kind)];
         create_database(
             &path,
-            &[TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Rows",
-                columns: &columns,
-                indexes: &[],
-            }],
+            &DatabaseSpec {
+                tables: &[TableRows::empty(TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &columns,
+                    indexes: &[],
+                })],
+                ..DatabaseSpec::default()
+            },
             &mut budget(),
         )?;
         let mut db = DatabaseReader::open(&path, &mut budget())?;

@@ -6,7 +6,6 @@
 //! lossless classifications rather than malformed-input errors.
 
 use crate::{Error, PAGE_BYTES, PageNumber, ResourceBudget};
-use std::fmt;
 
 // Byte-zero page tags documented by SRC-0020.
 const DATABASE_DEFINITION_TAG: u8 = 0x00;
@@ -83,28 +82,13 @@ impl<'a> ClassifiedPage<'a> {
 }
 
 /// A structured failure while classifying an already-read fixed page.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum PageClassificationError {
     /// The required single classification work unit exceeded the operation
     /// budget.
-    Resource(Error),
-}
-
-impl fmt::Display for PageClassificationError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Resource(source) => write!(formatter, "page classification rejected: {source}"),
-        }
-    }
-}
-
-impl std::error::Error for PageClassificationError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Resource(source) => Some(source),
-        }
-    }
+    #[error("page classification rejected: {0}")]
+    Resource(#[source] Error),
 }
 
 /// Classifies one already-read page using only its page number and byte zero.

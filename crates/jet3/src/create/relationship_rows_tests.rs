@@ -1,13 +1,13 @@
 use super::api_relationship_tests::*;
+use crate::WriteError;
 use crate::{
-    ColumnSpec, ColumnType, DatabaseReader, PageNumber, ResourceBudget, ResourceLimits, RowLocator,
-    RowValue,
+    ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, PageNumber, RelationshipLayout,
+    ResourceBudget, ResourceLimits, RowLocator, RowValue, TableRows,
     create::{
-        api::*,
         api_relationship::*,
         composer::{ComposeError, compose_relationship_with_rows},
     },
-    create_database_with_relationship_rows,
+    create_database,
 };
 use std::fs;
 
@@ -74,10 +74,13 @@ fn duplicate_child_keys_keep_payload_locators_maps_and_distinct_counts() -> Test
             rows: &child_rows,
         },
     ];
-    create_database_with_relationship_rows(
+    create_database(
         directory.target(),
-        &requests,
-        &relation,
+        &DatabaseSpec {
+            tables: &requests,
+            relationships: std::slice::from_ref(&relation),
+            relationship_layout: RelationshipLayout::SingleLong,
+        },
         &mut budget(),
     )?;
     let bytes = fs::read(directory.target())?;
@@ -175,10 +178,13 @@ fn orphan_null_duplicate_and_unsupported_parent_shapes_are_refused() -> TestResu
                 rows: child,
             },
         ];
-        let error = create_database_with_relationship_rows(
+        let error = create_database(
             directory.target(),
-            &requests,
-            &relation,
+            &DatabaseSpec {
+                tables: &requests,
+                relationships: std::slice::from_ref(&relation),
+                relationship_layout: RelationshipLayout::SingleLong,
+            },
             &mut budget(),
         )
         .err()
@@ -187,34 +193,37 @@ fn orphan_null_duplicate_and_unsupported_parent_shapes_are_refused() -> TestResu
             (expected, error),
             (
                 "orphan",
-                CreateDatabaseError::Compose(ComposeError::OrphanInitialRelationshipKey { .. })
+                WriteError::Compose(ComposeError::OrphanInitialRelationshipKey { .. })
             ) | (
                 "null",
-                CreateDatabaseError::Compose(ComposeError::NullInitialIndexKey { .. })
+                WriteError::Compose(ComposeError::NullInitialIndexKey { .. })
             ) | (
                 "duplicate",
-                CreateDatabaseError::Compose(ComposeError::DuplicateInitialIndexKey { .. })
+                WriteError::Compose(ComposeError::DuplicateInitialIndexKey { .. })
             )
         ));
     }
     let (two, relation) = schema(true);
     assert!(matches!(
-        create_database_with_relationship_rows(
+        create_database(
             directory.target(),
-            &[
-                TableRows {
-                    table: two[0],
-                    rows: &[]
-                },
-                TableRows {
-                    table: two[1],
-                    rows: &[]
-                }
-            ],
-            &relation,
+            &DatabaseSpec {
+                tables: &[
+                    TableRows {
+                        table: two[0],
+                        rows: parent_rows()
+                    },
+                    TableRows {
+                        table: two[1],
+                        rows: &[]
+                    }
+                ],
+                relationships: std::slice::from_ref(&relation),
+                relationship_layout: RelationshipLayout::SingleLong
+            },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
+        Err(WriteError::Compose(
             ComposeError::UnsupportedRelationship { .. }
         ))
     ));
@@ -244,19 +253,25 @@ fn foreign_branch_growth_and_publication_budget_preserve_destination() -> TestRe
         composition.total_work_units() + plan.pages().len() as u64 * crate::PAGE_BYTES as u64,
     ));
     assert!(matches!(
-        create_database_with_relationship_rows(
+        create_database(
             directory.target(),
-            &requests,
-            &relation,
+            &DatabaseSpec {
+                tables: &requests,
+                relationships: std::slice::from_ref(&relation),
+                relationship_layout: RelationshipLayout::SingleLong
+            },
             &mut limited
         ),
-        Err(CreateDatabaseError::Publish(_))
+        Err(WriteError::CreatePublish(_))
     ));
     assert!(directory.empty()?);
-    create_database_with_relationship_rows(
+    create_database(
         directory.target(),
-        &requests,
-        &relation,
+        &DatabaseSpec {
+            tables: &requests,
+            relationships: std::slice::from_ref(&relation),
+            relationship_layout: RelationshipLayout::SingleLong,
+        },
         &mut budget(),
     )?;
     let expanded = [
@@ -267,10 +282,13 @@ fn foreign_branch_growth_and_publication_budget_preserve_destination() -> TestRe
         },
     ];
     let directory = Directory::new()?;
-    create_database_with_relationship_rows(
+    create_database(
         directory.target(),
-        &expanded,
-        &relation,
+        &DatabaseSpec {
+            tables: &expanded,
+            relationships: std::slice::from_ref(&relation),
+            relationship_layout: RelationshipLayout::SingleLong,
+        },
         &mut budget(),
     )?;
     let original = fs::read(directory.target())?;
@@ -286,10 +304,13 @@ fn foreign_branch_growth_and_publication_budget_preserve_destination() -> TestRe
     drop(reader);
     let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(1));
     assert!(
-        create_database_with_relationship_rows(
+        create_database(
             directory.target(),
-            &expanded,
-            &relation,
+            &DatabaseSpec {
+                tables: &expanded,
+                relationships: std::slice::from_ref(&relation),
+                relationship_layout: RelationshipLayout::SingleLong
+            },
             &mut limited
         )
         .is_err()
@@ -304,19 +325,22 @@ fn empty_and_unreferenced_parent_rows_are_valid_inputs() -> TestResult {
     let (tables, relation) = schema(false);
     for parent in [&[], parent_rows()] {
         let directory = Directory::new()?;
-        create_database_with_relationship_rows(
+        create_database(
             directory.target(),
-            &[
-                TableRows {
-                    table: tables[0],
-                    rows: parent,
-                },
-                TableRows {
-                    table: tables[1],
-                    rows: &[],
-                },
-            ],
-            &relation,
+            &DatabaseSpec {
+                tables: &[
+                    TableRows {
+                        table: tables[0],
+                        rows: parent,
+                    },
+                    TableRows {
+                        table: tables[1],
+                        rows: &[],
+                    },
+                ],
+                relationships: std::slice::from_ref(&relation),
+                relationship_layout: RelationshipLayout::SingleLong,
+            },
             &mut budget(),
         )?;
     }

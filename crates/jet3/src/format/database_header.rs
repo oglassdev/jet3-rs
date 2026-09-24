@@ -14,8 +14,6 @@ use crate::{
     },
 };
 
-use std::fmt;
-
 const VERSION_OFFSET: usize = 0x14;
 const JET3_VERSION_MARKER: u8 = 0x00;
 const ENCRYPTION_OFFSET: usize = 0x41;
@@ -153,44 +151,25 @@ impl SupportedDatabaseFormat {
 }
 
 /// A structured rejection of an unsupported page-zero format state.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum DatabaseFormatError {
     /// The observed generation marker is not the Jet 3 marker.
+    #[error("unsupported database version marker {observed:#04x}")]
     UnsupportedVersion {
         /// Exact bounded marker observed at the version discriminator.
         observed: u8,
     },
     /// The observed protection marker is not the unencrypted marker.
+    #[error("encrypted or unsupported database protection marker {observed:#04x}")]
     EncryptedOrUnsupported {
         /// Exact bounded marker observed at the encryption discriminator.
         observed: u8,
     },
     /// The page does not carry the observed Jet 3 no-password state.
+    #[error("passworded or unsupported database header state")]
     PasswordedOrUnsupported,
 }
-
-impl fmt::Display for DatabaseFormatError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::UnsupportedVersion { observed } => {
-                write!(
-                    formatter,
-                    "unsupported database version marker {observed:#04x}"
-                )
-            }
-            Self::EncryptedOrUnsupported { observed } => write!(
-                formatter,
-                "encrypted or unsupported database protection marker {observed:#04x}"
-            ),
-            Self::PasswordedOrUnsupported => {
-                formatter.write_str("passworded or unsupported database header state")
-            }
-        }
-    }
-}
-
-impl std::error::Error for DatabaseFormatError {}
 
 /// A complete 2 KiB page-zero snapshot with only documented fields exposed.
 ///
@@ -276,33 +255,13 @@ impl DatabaseHeaderPage {
 }
 
 /// A structured failure while reading a typed database-header-page view.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum DatabaseHeaderPageError {
     /// Reading the complete 2 KiB page zero failed.
-    Read(Error),
+    #[error("failed to read database header page: {0}")]
+    Read(#[source] Error),
     /// The page did not contain a documented generic Jet signature.
-    Signature(HeaderError),
-}
-
-impl fmt::Display for DatabaseHeaderPageError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Read(source) => {
-                write!(formatter, "failed to read database header page: {source}")
-            }
-            Self::Signature(source) => {
-                write!(formatter, "database header signature failed: {source}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for DatabaseHeaderPageError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Read(source) => Some(source),
-            Self::Signature(source) => Some(source),
-        }
-    }
+    #[error("database header signature failed: {0}")]
+    Signature(#[source] HeaderError),
 }

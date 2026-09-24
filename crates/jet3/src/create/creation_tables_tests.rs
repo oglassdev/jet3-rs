@@ -1,9 +1,9 @@
 use super::api_tests::*;
+use crate::WriteError;
 use crate::{
-    ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexDirection, IndexKind, IndexSpec,
-    PageNumber, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec,
-    create::api::{CreateDatabaseError, create_database},
-    create_database_with_table_rows,
+    ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexDirection, IndexKind,
+    IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec,
+    create::api::create_database,
 };
 use std::fs;
 
@@ -63,9 +63,27 @@ fn six_tables_preserve_independent_index_roots_and_initial_rows() -> TestResult 
                     rows: &rows,
                 })
                 .collect::<Vec<_>>();
-            create_database_with_table_rows(directory.target(), &requests, &mut budget())?;
+            create_database(
+                directory.target(),
+                &DatabaseSpec {
+                    tables: &requests,
+                    ..DatabaseSpec::default()
+                },
+                &mut budget(),
+            )?;
         } else {
-            create_database(directory.target(), &tables, &mut budget())?;
+            create_database(
+                directory.target(),
+                &DatabaseSpec {
+                    tables: &tables
+                        .iter()
+                        .copied()
+                        .map(TableRows::empty)
+                        .collect::<Vec<_>>(),
+                    ..DatabaseSpec::default()
+                },
+                &mut budget(),
+            )?;
         }
         let mut budget = budget();
         let mut database = DatabaseReader::open(directory.target(), &mut budget)?;
@@ -112,13 +130,22 @@ fn creation_counter_overflow_is_refused_before_allocating_or_writing() -> TestRe
     ];
     let mut budget = budget();
     assert!(matches!(
-        create_database(directory.target(), &tables, &mut budget),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::TableCountOverflow {
-                count: 32640,
-                maximum: 32639
-            }
-        ))
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &tables
+                    .iter()
+                    .copied()
+                    .map(TableRows::empty)
+                    .collect::<Vec<_>>(),
+                ..DatabaseSpec::default()
+            },
+            &mut budget
+        ),
+        Err(WriteError::Compose(ComposeError::TableCountOverflow {
+            count: 32640,
+            maximum: 32639
+        }))
     ));
     assert_eq!(budget.allocation_bytes().get(), 0);
     assert!(directory.entries()?.is_empty());
@@ -153,7 +180,18 @@ fn catalog_data_and_index_pages_grow_with_complete_row_locators() -> TestResult 
                 indexes: &[],
             })
             .collect::<Vec<_>>();
-        create_database(directory.target(), &tables, &mut budget())?;
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &tables
+                    .iter()
+                    .copied()
+                    .map(TableRows::empty)
+                    .collect::<Vec<_>>(),
+                ..DatabaseSpec::default()
+            },
+            &mut budget(),
+        )?;
         let mut budget = budget();
         let mut database = DatabaseReader::open(directory.target(), &mut budget)?;
         let mut users = Vec::new();
@@ -284,15 +322,36 @@ fn catalog_spill_extends_maps_without_overwriting_existing_destination() -> Test
             rows: &rows[..if n == 39 { 25 } else { 23 }],
         })
         .collect::<Vec<_>>();
-    create_database_with_table_rows(directory.target(), &requests, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &requests,
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let before = fs::read(directory.target())?;
     assert_eq!(before.len(), 1024 * crate::PAGE_BYTES);
     requests[39].rows = &rows;
-    let result = create_database_with_table_rows(directory.target(), &requests, &mut budget());
+    let result = create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &requests,
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    );
     assert!(result.is_err());
     assert_eq!(fs::read(directory.target())?, before);
     let grown = directory.target().with_file_name("grown.mdb");
-    create_database_with_table_rows(&grown, &requests, &mut budget())?;
+    create_database(
+        &grown,
+        &DatabaseSpec {
+            tables: &requests,
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);
     Ok(())
 }

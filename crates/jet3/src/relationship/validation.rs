@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     CatalogObjectClass, DatabaseReader, PageNumber, ReadAt, ResourceBudget, TableDefinition,
-    UpdateError,
+    WriteError,
     catalog::name_key::{catalog_names_equal, validate_catalog_name},
     relationship::groups::{groups, ordered},
     write::page_edits::reserve,
@@ -28,7 +28,7 @@ struct Endpoint {
 pub(crate) fn validate<S: ReadAt>(
     database: &mut DatabaseReader<S>,
     budget: &mut ResourceBudget,
-) -> Result<Summary, UpdateError> {
+) -> Result<Summary, WriteError> {
     let records = read_records(database, None, budget)?;
     let mut report = Summary {
         catalog_rows: records.len() as u64,
@@ -38,7 +38,7 @@ pub(crate) fn validate<S: ReadAt>(
     for group in groups(&records, budget)? {
         let record = group
             .first()
-            .ok_or(UpdateError::Mismatch("empty relationship"))?;
+            .ok_or(WriteError::Mismatch("empty relationship"))?;
         budget.charge_work_units(group.len() as u64 * 5 * 255)?;
         let supported = group.iter().any(|record| {
             interpreted(&record.metadata).is_some()
@@ -81,7 +81,7 @@ pub(crate) fn validate<S: ReadAt>(
             ] {
                 match key_column(record.order, table, name) {
                     Ok(_) => {}
-                    Err(UpdateError::Unsupported("relationship scalar column schema")) => {
+                    Err(WriteError::Unsupported("relationship scalar column schema")) => {
                         supported = false
                     }
                     Err(error) => return Err(error),
@@ -114,13 +114,13 @@ fn endpoint_column(
     order: crate::SortOrder,
     table: &TableDefinition,
     name: &[u8],
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let mut columns = table
         .columns()
         .iter()
         .filter(|column| catalog_names_equal(column.name().raw_bytes(), name, order));
     if columns.next().is_none() || columns.next().is_some() {
-        return Err(UpdateError::Mismatch("unresolved relationship column"));
+        return Err(WriteError::Mismatch("unresolved relationship column"));
     }
     Ok(())
 }
@@ -129,7 +129,7 @@ fn check_keys<S: ReadAt>(
     database: &mut DatabaseReader<S>,
     constraint: &Constraint,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let mut parent_keys = Vec::new();
     {
         let mut rows = database.rows(&constraint.parent, budget)?;
@@ -149,7 +149,7 @@ fn check_keys<S: ReadAt>(
     }
     key::sort(&mut parent_keys, budget)?;
     if !key::unique(&parent_keys, budget)? {
-        return Err(UpdateError::Mismatch("duplicate relationship parent key"));
+        return Err(WriteError::Mismatch("duplicate relationship parent key"));
     }
     let mut rows = database.rows(&constraint.child, budget)?;
     while let Some(mut row) = rows.next_row()? {
@@ -174,7 +174,7 @@ fn check_inventory<S: ReadAt>(
     endpoints: &[Endpoint],
     complete: bool,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let mut roots = Vec::new();
     {
         let mut catalog = database.catalog(budget)?;
@@ -202,13 +202,13 @@ fn check_inventory<S: ReadAt>(
             });
             if let Some((position, _)) = matches.next() {
                 if matches.next().is_some() || seen[position] != 0 {
-                    return Err(UpdateError::Mismatch(
+                    return Err(WriteError::Mismatch(
                         "duplicate relationship endpoint record",
                     ));
                 }
                 seen[position] = 1;
             } else if complete {
-                return Err(UpdateError::Mismatch(
+                return Err(WriteError::Mismatch(
                     "unresolved relationship endpoint record",
                 ));
             }
@@ -216,7 +216,7 @@ fn check_inventory<S: ReadAt>(
     }
     budget.charge_work_units(seen.len() as u64)?;
     if seen.contains(&0) {
-        return Err(UpdateError::Mismatch("relationship endpoint inventory"));
+        return Err(WriteError::Mismatch("relationship endpoint inventory"));
     }
     Ok(())
 }
