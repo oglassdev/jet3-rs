@@ -10,7 +10,7 @@ pub enum PropertyChange<'a> {
     #[default]
     Keep,
     /// Store opaque database-code-page bytes: 1 to 2,048 bytes without NUL or
-    /// undefined CP1252 bytes. Expressions are not parsed or evaluated.
+    /// bytes undefined in the database code page. Expressions are not parsed or evaluated.
     Set(&'a [u8]),
     /// Remove the stored value, as DAO does when assigning an empty string.
     Clear,
@@ -159,7 +159,7 @@ pub enum SchemaEdit<'a> {
 /// other column metadata edits retain row bytes. Invalid requests and
 /// failures before publication leave the original file unchanged. Callers must
 /// exclude concurrent writers for the entire operation.
-/// A database whose sort order is not General (EXP-0299) refuses with
+/// A database outside the six observed sort orders (EXP-0309) refuses with
 /// [`UpdateError::UnsupportedSortOrder`], preserving the file.
 pub fn edit_schema(
     path: impl AsRef<Path>,
@@ -289,21 +289,28 @@ pub fn edit_schema(
     )
 }
 
-pub(crate) fn name(name: &[u8], maximum: usize) -> Result<(), UpdateError> {
-    if name.len() > maximum || crate::catalog_name_key::validate_catalog_name(name).is_err() {
+pub(crate) fn name(
+    order: crate::SortOrder,
+    name: &[u8],
+    maximum: usize,
+) -> Result<(), UpdateError> {
+    if name.len() > maximum
+        || crate::catalog_name_key::validate_catalog_name_for(name, order).is_err()
+    {
         return Err(UpdateError::Unsupported("schema name grammar or length"));
     }
     Ok(())
 }
 
 pub(crate) fn distinct<'a>(
+    order: crate::SortOrder,
     name: &[u8],
     others: impl Iterator<Item = &'a [u8]>,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
     for other in others {
         budget.charge_work_units(1024)?;
-        if crate::catalog_name_key::catalog_names_equal(name, other) {
+        if crate::catalog_name_key::catalog_names_equal_for(order, name, other) {
             return Err(UpdateError::Unsupported("duplicate schema name"));
         }
     }

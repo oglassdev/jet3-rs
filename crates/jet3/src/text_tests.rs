@@ -80,7 +80,11 @@ fn explicit_encoding_preserves_accents_expansions_and_controls()
         TextCodePage::Windows1251.encode("Ђ€Ая", &mut budget)?,
         [0x80, 0x88, 0xc0, 0xff]
     );
-    for code_page in [TextCodePage::Windows1251, TextCodePage::Windows1252] {
+    for code_page in [
+        TextCodePage::Windows1251,
+        TextCodePage::Windows1252,
+        TextCodePage::Windows1253,
+    ] {
         for byte in 0..=u8::MAX {
             let raw = [byte];
             if let Ok(decoded) = code_page.decode(&raw, &mut budget) {
@@ -130,4 +134,19 @@ fn encoding_work_is_bounded_before_scanning_the_mapping() {
         TextCodePage::Windows1252.decode(&[0x81], &mut budget),
         Err(TextError::Resource(_))
     ));
+}
+
+#[test]
+fn greek_text_is_lossless_and_rejects_undefined_bytes() -> Result<(), Box<dyn std::error::Error>> {
+    let mut budget = ResourceBudget::new(ResourceLimits::default());
+    let page = TextCodePage::Windows1253;
+    let raw = [0xc1, 0xe1, 0xb8, 0x80];
+    assert_eq!(decode_text(&raw, page, &mut budget)?.as_str(), "ΑαΈ€");
+    assert_eq!(page.encode("ΑαΈ€", &mut budget)?, raw);
+    assert!(matches!(
+        decode_text(&[0xd2], page, &mut budget),
+        Err(TextError::UndefinedByte { byte: 0xd2, .. })
+    ));
+    assert!(page.encode("Я", &mut budget).is_err());
+    Ok(())
 }

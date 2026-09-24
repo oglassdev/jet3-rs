@@ -25,6 +25,7 @@ pub(crate) fn plan(
     request: SchemaEdit<'_>,
     budget: &mut ResourceBudget,
 ) -> Result<PageEdits, UpdateError> {
+    let order = database.header().sort_order();
     // Check every existing tree before changing its logical or physical inventory.
     if !table.physical_indexes().is_empty() {
         crate::index_mutation::load(database, table, budget)?;
@@ -48,7 +49,7 @@ pub(crate) fn plan(
             return Err(UpdateError::Mismatch("index edit request"));
         }
         SchemaEdit::CreateIndex { index, .. } => {
-            crate::schema_edit::name(index.name, 63)?;
+            crate::schema_edit::name(order, index.name, 63)?;
             create(database, table, index, &mut definition, &mut edits, budget)?;
         }
         SchemaEdit::DropIndex { index, .. } => {
@@ -56,8 +57,9 @@ pub(crate) fn plan(
         }
         SchemaEdit::RenameIndex { index, name, .. } => {
             let position = position(table, index)?;
-            crate::schema_edit::name(name, 63)?;
+            crate::schema_edit::name(order, name, 63)?;
             crate::schema_edit::distinct(
+                order,
                 name,
                 table
                     .indexes()
@@ -70,7 +72,7 @@ pub(crate) fn plan(
             definition.indexes[position].name = name;
         }
     }
-    sort_names(&mut definition, budget)?;
+    sort_names(order, &mut definition, budget)?;
     definition.stage(database, table, &mut edits, budget)?;
     Ok(edits)
 }
@@ -93,6 +95,7 @@ fn position(table: &TableDefinition, name: &[u8]) -> Result<usize, UpdateError> 
 }
 
 pub(crate) fn sort_names(
+    order: crate::SortOrder,
     definition: &mut DefinitionEdit<'_>,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
@@ -101,7 +104,7 @@ pub(crate) fn sort_names(
     for index in &definition.indexes {
         budget.charge_work_units(1024)?;
         keys.push(
-            crate::catalog_name_key::NameKey::new(index.name)
+            crate::catalog_name_key::NameKey::for_order(index.name, order)
                 .map_err(|_| UpdateError::Unsupported("index name collation"))?,
         );
     }
@@ -126,10 +129,12 @@ pub(crate) fn create<'a>(
     edits: &mut PageEdits,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
+    let order = database.header().sort_order();
     if !crate::creation::relationship_name::HiddenName::matches(index.name) {
-        crate::schema_edit::name(index.name, 63)?;
+        crate::schema_edit::name(order, index.name, 63)?;
     }
     crate::schema_edit::distinct(
+        order,
         index.name,
         table.indexes().iter().map(|i| i.name().raw_bytes()),
         budget,

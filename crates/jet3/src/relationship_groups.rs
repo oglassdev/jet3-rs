@@ -9,9 +9,9 @@ pub(super) fn groups<'a>(
     for record in records {
         budget.charge_work_units((groups.len() as u64).saturating_mul(512))?;
         if let Some(group) = groups.iter_mut().find(|group| {
-            group
-                .first()
-                .is_some_and(|first| catalog_names_equal(&first.name, &record.name))
+            group.first().is_some_and(|first| {
+                catalog_names_equal_for(first.order, &first.name, &record.name)
+            })
         }) {
             reserve(group, 1, budget)?;
             group.push(record);
@@ -44,8 +44,8 @@ pub(super) fn ordered<'a>(
     for &record in group {
         budget.charge_work_units(1024)?;
         if record.metadata[..2] != first.metadata[..2]
-            || !catalog_names_equal(&record.parent, &first.parent)
-            || !catalog_names_equal(&record.child, &first.child)
+            || !catalog_names_equal_for(first.order, &record.parent, &first.parent)
+            || !catalog_names_equal_for(first.order, &record.child, &first.child)
         {
             return Err(UpdateError::Mismatch(
                 "relationship component metadata differs",
@@ -77,6 +77,7 @@ mod tests {
     use super::*;
     fn record(count: i32, ordinal: i32) -> Record {
         Record {
+            order: crate::SortOrder::General,
             name: b"Relation".to_vec(),
             parent: b"Parent".to_vec(),
             child: b"Child".to_vec(),

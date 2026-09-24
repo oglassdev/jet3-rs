@@ -5,7 +5,7 @@ use serde_json::json;
 
 pub const HELP: &str = "\
 validate: check reachable table data without modifying the file
-  jet3-cli validate <file> [--code-page 1252|1251] \
+  jet3-cli validate <file> [--code-page 1252|1251|1253] \
     [--max-input-bytes <bytes>] [--max-work-units <units>]
 
 Checks catalog records, user/system definitions, row counts, values, Memo/OLE chains,
@@ -52,6 +52,7 @@ pub fn parse_args(
             command.code_page = match value.to_str() {
                 Some("1252") => TextCodePage::Windows1252,
                 Some("1251") => TextCodePage::Windows1251,
+                Some("1253") => TextCodePage::Windows1253,
                 _ => return Err("invalid_code_page"),
             };
         } else {

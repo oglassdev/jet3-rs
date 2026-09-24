@@ -41,7 +41,6 @@ const USER_SOURCED_CONSTANT: u16 = 1;
 /// `EXP-0073`: system column records store zero in the constant field.
 const SYSTEM_SOURCED_CONSTANT: u16 = 0;
 /// `EXP-0059`: raw locale context bytes at column record bytes `[9,13)`.
-const ENCODING_CONTEXT: [u8; 4] = [0x09, 0x04, 0xe4, 0x04];
 /// `EXP-0059`: unused key slots hold ordinal `0xffff`.
 const UNUSED_SLOT_ORDINAL: u16 = u16::MAX;
 /// `EXP-0059`: physical flag bits `0x01` unique and `0x08` required.
@@ -216,12 +215,13 @@ pub(crate) fn resolve_column(
 }
 
 /// Writes one 18-byte column record.
-pub(crate) fn write_column_record(
+pub(crate) fn write_column_record_with_context(
     writer: &mut BinaryWriter<'_, '_>,
     ordinal: u16,
     column: &ColumnSpec<'_>,
     resolved: ResolvedColumn,
     definition_kind: TableDefinitionKind,
+    encoding_context: [u8; 4],
 ) -> Result<(), Error> {
     writer.write_u8(column.physical_type().raw())?;
     writer.write_u16_le(ordinal)?;
@@ -234,7 +234,7 @@ pub(crate) fn write_column_record(
         TableDefinitionKind::User => USER_SOURCED_CONSTANT,
         TableDefinitionKind::System => SYSTEM_SOURCED_CONSTANT,
     })?;
-    writer.write_exact(&ENCODING_CONTEXT)?;
+    writer.write_exact(&encoding_context)?;
     writer.write_u8(resolved.class)?;
     // EXP-0059: bytes [14,16) of variable records have no assigned meaning.
     let fixed_offset = match resolved.storage {

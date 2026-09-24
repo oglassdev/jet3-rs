@@ -6,11 +6,14 @@ use crate::{
 };
 
 pub(crate) fn compatible(parent: NumericKeyType, child: NumericKeyType) -> bool {
-    matches!(
-        (parent, child),
-        (NumericKeyType::Text { .. }, NumericKeyType::Text { .. })
-            | (NumericKeyType::Binary { .. }, NumericKeyType::Binary { .. })
-    ) || parent == child
+    match (parent, child) {
+        (
+            NumericKeyType::Text { sort_order: a, .. },
+            NumericKeyType::Text { sort_order: b, .. },
+        ) => a == b,
+        (NumericKeyType::Binary { .. }, NumericKeyType::Binary { .. }) => true,
+        _ => parent == child,
+    }
 }
 
 pub(crate) struct Key {

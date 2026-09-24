@@ -13,7 +13,6 @@ pub(crate) fn create(
     spec: RelationshipSpec<'_>,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    crate::schema_edit::name(spec.name, 63)?;
     let (parent_name, child_name) = match (spec.parent, spec.child) {
         (TableRef::Name(parent), TableRef::Name(child)) => (parent, child),
         _ => {
@@ -43,6 +42,8 @@ pub(crate) fn create(
         object_id,
         folder,
     ) = crate::schema_publish::apply(file, journal, budget, |database, budget| {
+        let order = database.header().sort_order();
+        crate::schema_edit::name(order, spec.name, 63)?;
         crate::relationship_catalog::validate(database, budget)?;
         let parent = crate::update::indexed_writable_table(database, parent_name, budget)?;
         let child = crate::update::indexed_writable_table(database, child_name, budget)?;
@@ -79,13 +80,20 @@ pub(crate) fn create(
             return Err(UpdateError::Unsupported("relationship index capacity"));
         }
         crate::schema_edit::distinct(
+            order,
             spec.name,
             child.indexes().iter().map(|index| index.name().raw_bytes()),
             budget,
         )?;
-        let ascending = select_parent(&parent, &parent_columns, false, budget)?;
+        let ascending = select_parent(order, &parent, &parent_columns, false, budget)?;
         let source = ascending
-            .or(select_parent(&parent, &parent_columns, true, budget)?)
+            .or(select_parent(
+                order,
+                &parent,
+                &parent_columns,
+                true,
+                budget,
+            )?)
             .ok_or(UpdateError::Unsupported(
                 "relationship requires ordered unique parent index",
             ))?;
@@ -222,6 +230,7 @@ fn selector(
     ))
 }
 fn select_parent(
+    order: crate::SortOrder,
     table: &TableDefinition,
     columns: &[ColumnOrdinal],
     descending: bool,
@@ -256,7 +265,7 @@ fn select_parent(
             continue;
         }
         budget.charge_work_units(1024)?;
-        let key = crate::catalog_name_key::NameKey::new(index.name().raw_bytes())
+        let key = crate::catalog_name_key::NameKey::for_order(index.name().raw_bytes(), order)
             .map_err(|_| UpdateError::Unsupported("relationship index name"))?;
         if selected
             .as_ref()
@@ -287,6 +296,7 @@ fn add_endpoint(
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
     crate::schema_publish::apply(file, journal, budget, |database, budget| {
+        let order = database.header().sort_order();
         let table = database.table_definition(endpoint.root, budget)?;
         if !table.physical_indexes().is_empty() {
             crate::index_mutation::load(database, &table, budget)?;
@@ -295,6 +305,7 @@ fn add_endpoint(
         let mut edits = PageEdits::new(database.geometry().page_count());
         let physical = if let Some(reused) = endpoint.reused {
             crate::schema_edit::distinct(
+                order,
                 endpoint.name,
                 table.indexes().iter().map(|index| index.name().raw_bytes()),
                 budget,
@@ -348,7 +359,7 @@ fn add_endpoint(
             .last_mut()
             .ok_or(UpdateError::Mismatch("new relationship index"))?
             .record = record;
-        crate::schema_index::sort_names(&mut definition, budget)?;
+        crate::schema_index::sort_names(order, &mut definition, budget)?;
         definition.stage(database, &table, &mut edits, budget)?;
         Ok((edits, ()))
     })

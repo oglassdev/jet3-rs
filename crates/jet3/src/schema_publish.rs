@@ -9,7 +9,7 @@ pub(crate) fn run(
     stage: impl FnOnce(&mut File, &mut PageEdits, &mut ResourceBudget) -> Result<(), UpdateError>,
 ) -> Result<(), UpdateError> {
     let database = DatabaseReader::open(path, budget)?;
-    crate::update::require_general_sort_order(&database)?;
+    crate::update::require_writable_sort_order(&database)?;
     let journal = Cell::new(Some(PageEdits::new(database.geometry().page_count())));
     let mut original = database.into_source();
     crate::atomic::atomic_update_budgeted(

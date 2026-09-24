@@ -248,7 +248,7 @@ fn unsupported_property_requests_are_refused_before_writing() -> TestResult {
 }
 
 #[test]
-fn non_general_sort_orders_are_readable_but_not_writable() -> TestResult {
+fn unknown_sort_orders_are_readable_but_not_writable() -> TestResult {
     let directory = TestDirectory::create()?;
     let path = directory.target();
     let columns = [ColumnSpec::new(b"A", ColumnType::Long)];
@@ -263,8 +263,8 @@ fn non_general_sort_orders_are_readable_but_not_writable() -> TestResult {
         crate::update::indexed_writable_table(&mut db, b"T", &mut work)?.root()
     };
     let mut bytes = fs::read(&path)?;
-    // EXP-0299: Nordic marks page zero at 0x3a and each column record's context.
-    bytes[0x3a] = 0xf9;
+    // A recognized Nordic column context does not authorize an unknown header order.
+    bytes[0x3a] = 1;
     let definition = root.get() as usize * crate::PAGE_BYTES;
     let page = &mut bytes[definition..definition + crate::PAGE_BYTES];
     let context = page
@@ -282,7 +282,7 @@ fn non_general_sort_orders_are_readable_but_not_writable() -> TestResult {
     assert_eq!(
         db.header().sort_order(),
         SortOrder::Other {
-            raw: [0xf9, 0xc7, 0x9f, 0x46]
+            raw: [1, 0xc7, 0x9f, 0x46]
         }
     );
     db.validate(TextCodePage::Windows1252, &mut work)?;

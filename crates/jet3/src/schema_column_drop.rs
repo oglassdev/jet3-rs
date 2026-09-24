@@ -13,6 +13,7 @@ pub(crate) fn drop_column(
     let table_name = table;
     let (catalog, row, properties, retired) =
         crate::schema_publish::apply(file, journal, budget, |database, budget| {
+            let order = database.header().sort_order();
             let table = crate::update::indexed_writable_table(database, table, budget)?;
             let column = table
                 .columns()
@@ -34,7 +35,9 @@ pub(crate) fn drop_column(
             // EXP-0301: DAO refuses to drop any relationship key column (3303/3280).
             for relation in crate::relationship_catalog::catalog(database, budget)? {
                 budget.charge_work_units(2048)?;
-                let equal = crate::catalog_name_key::catalog_names_equal;
+                let equal = |left: &[u8], right: &[u8]| {
+                    crate::catalog_name_key::catalog_names_equal_for(order, left, right)
+                };
                 if relation.fields().iter().any(|field| {
                     (equal(relation.parent_table(), table_name) && equal(field.parent(), name))
                         || (equal(relation.child_table(), table_name) && equal(field.child(), name))

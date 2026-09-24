@@ -27,7 +27,8 @@ pub(crate) fn component<S: ReadAt>(
                 .ok_or(UpdateError::Mismatch("empty relationship"))?;
             budget.charge_work_units((names.len() as u64).saturating_mul(1024))?;
             if !names.iter().any(|name| {
-                catalog_names_equal(name, &first.parent) || catalog_names_equal(name, &first.child)
+                catalog_names_equal_for(first.order, name, &first.parent)
+                    || catalog_names_equal_for(first.order, name, &first.child)
             }) {
                 continue;
             }
@@ -45,7 +46,7 @@ pub(crate) fn component<S: ReadAt>(
                         &record.child_column,
                     ]
                     .iter()
-                    .any(|name| validate_catalog_name(name).is_err())
+                    .any(|name| validate_catalog_name_for(name, record.order).is_err())
                 {
                     return Err(UpdateError::Unsupported("unresolved relationship name"));
                 }

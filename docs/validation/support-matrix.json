@@ -136,7 +136,18 @@
         "oracle/windows-dao/scripts/storage_preservation_plan.py",
         "oracle/windows-dao/scripts/storage_preservation.ps1",
         "oracle/windows-dao/scripts/storage_preservation.py",
-        "oracle/windows-dao/tests/test_storage_preservation.py"
+        "oracle/windows-dao/tests/test_storage_preservation.py",
+        "crates/jet3/src/locale_text_key.rs",
+        "crates/jet3/src/locale_text_weights.rs",
+        "crates/jet3/src/locale_text_key_tests.rs",
+        "oracle/windows-dao/scripts/locale_inventory.ps1",
+        "oracle/windows-dao/scripts/locale_inventory.py",
+        "oracle/windows-dao/scripts/locale_keys.py",
+        "oracle/windows-dao/scripts/locale_updates.py",
+        "oracle/windows-dao/scripts/locale_updates.ps1",
+        "oracle/windows-dao/scripts/locale_updates_compare.py",
+        "oracle/windows-dao/scripts/locale_continuation.ps1",
+        "oracle/windows-dao/scripts/locale_continuation_compare.py"
       ]
     },
     {
@@ -248,7 +259,18 @@
         "crates/jet3-cli/src/names.rs",
         "crates/jet3/src/column_definition.rs",
         "crates/jet3/src/database_header.rs",
-        "crates/jet3/src/creation/text_property_tests.rs"
+        "crates/jet3/src/creation/text_property_tests.rs",
+        "crates/jet3/src/locale_text_key.rs",
+        "crates/jet3/src/locale_text_weights.rs",
+        "crates/jet3/src/locale_text_key_tests.rs",
+        "oracle/windows-dao/scripts/locale_inventory.ps1",
+        "oracle/windows-dao/scripts/locale_inventory.py",
+        "oracle/windows-dao/scripts/locale_keys.py",
+        "oracle/windows-dao/scripts/locale_updates.py",
+        "oracle/windows-dao/scripts/locale_updates.ps1",
+        "oracle/windows-dao/scripts/locale_updates_compare.py",
+        "oracle/windows-dao/scripts/locale_continuation.ps1",
+        "oracle/windows-dao/scripts/locale_continuation_compare.py"
       ]
     },
     {
@@ -520,7 +542,18 @@
         "oracle/windows-dao/scripts/schema_candidate_observer.ps1",
         "oracle/windows-dao/scripts/combine_schema_readbacks.py",
         "oracle/windows-dao/scripts/compare_schema_candidates.py",
-        "oracle/windows-dao/scripts/candidate_continuations.ps1"
+        "oracle/windows-dao/scripts/candidate_continuations.ps1",
+        "crates/jet3/src/locale_text_key.rs",
+        "crates/jet3/src/locale_text_weights.rs",
+        "crates/jet3/src/locale_text_key_tests.rs",
+        "oracle/windows-dao/scripts/locale_inventory.ps1",
+        "oracle/windows-dao/scripts/locale_inventory.py",
+        "oracle/windows-dao/scripts/locale_keys.py",
+        "oracle/windows-dao/scripts/locale_updates.py",
+        "oracle/windows-dao/scripts/locale_updates.ps1",
+        "oracle/windows-dao/scripts/locale_updates_compare.py",
+        "oracle/windows-dao/scripts/locale_continuation.ps1",
+        "oracle/windows-dao/scripts/locale_continuation_compare.py"
       ]
     },
     {

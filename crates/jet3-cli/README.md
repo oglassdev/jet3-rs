@@ -21,7 +21,7 @@ limit. Its existing `pages`, `catalog`, `tables` and raw diagnostic fields remai
 available. Table entries include their catalog names. `--table` selects an exact
 Unicode table name for definition and row inspection; the page/catalog inventory
 still describes the file. Text values and metadata names use the selected code
-page (1252 by default, or 1251). Names containing undefined bytes retain their
+page (1252 by default, or 1251 or 1253). Names containing undefined bytes retain their
 raw hexadecimal representation. User tables also include `properties`:
 the table `validation_rule`/`validation_text` and, per column ordinal,
 `required`, `allow_zero_length`, `default_value`, `validation_rule`,
@@ -135,10 +135,13 @@ value object. The tag must match the column type (fixed text uses `text`):
 | `{"binary": [0, 255]}`, `{"long_binary": [0, 255]}` | Exact binary/OLE bytes |
 | `{"guid": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]}` | Sixteen bytes in conventional GUID display order |
 
-Names are Unicode JSON strings encoded strictly as Windows-1252. Table and
+Names are Unicode JSON strings encoded strictly as Windows-1252 for creation.
+Schema edits and row mutations use the existing database’s code page: 1252 for
+General/Nordic/Spanish/Dutch, 1251 for Cyrillic, and 1253 for Greek. Table and
 column names allow up to 64 encoded bytes; index and relationship names allow
 63. Names preserve their supplied bytes, including trailing spaces. Names with
-equal English-US/CP1252 collation keys collide (for example, `AE` and `Æ`).
+equal keys in the database’s collation collide (for example, `AE` and `Æ` in
+General).
 Controls, undefined bytes, leading ASCII spaces and `. ! [ ]` or backtick are
 refused. References to tables and columns use their exact supplied names.
 
@@ -160,7 +163,7 @@ present-empty values when both options are true.
 
 Columns also accept `"default_value"`, `"validation_rule"`, `"validation_text"`
 and `"description"` strings, and tables accept `"validation_rule"` and
-`"validation_text"`. They are stored as opaque CP1252 text of 1 to 2,048 bytes
+`"validation_text"`. They are stored as opaque database-code-page text of 1 to 2,048 bytes
 without NUL; expressions are never parsed or evaluated. Defaults are not applied:
 rows store exactly the supplied values, including null. A table storing a
 rule refuses initial rows and later inserts/updates. Binary, OLE and GUID
@@ -238,7 +241,7 @@ Use `--input -` for stdin. Index requests have these shapes:
 
 Index definitions use the same fields and defaults as `create`. A new index is
 built over existing rows; uniqueness and required-key violations refuse the
-edit. Targets use exact names encoded losslessly in Windows-1252. Relationship
+edit. Targets use exact names encoded losslessly in the database code page. Relationship
 indexes are subject to the library's relationship constraints.
 
 Rename a table and its relationship table-name references with:
@@ -365,8 +368,10 @@ Dropping a table also drops its relationships unless an enforced relationship
 from another table references it; columns named by any relationship cannot be
 dropped.
 
-Databases created with a sort order other than General are readable, but
-`schema` and `mutate` refuse them with the file unchanged.
+The six supported sort orders are General, Nordic, traditional Spanish, Dutch,
+Cyrillic and Greek. `schema` and `mutate` maintain their native Text and catalog
+keys, including Spanish CH/LL contractions. Other sort orders remain read-only.
+New database creation uses General.
 
 Each request calls `edit_schema` once with the default library resource budget.
 Success returns `ok`, `operation` and `file` on stdout. Invalid JSON, unknown
@@ -408,7 +413,7 @@ Page/slot locators come from the public row reader; column ordinals come from
 its table definition. They describe the unchanged source, not a primary key or
 row position. The CLI resolves the exact supplied table and locator with that
 reader before an update/replace/delete. Names must be losslessly representable
-in CP1252, and values use the same typed
+in the database code page, and values use the same typed
 JSON cells as creation. There is no batch, implicit retry or schema conversion. Each accepted request invokes its public mutation API once
 with the default library resource budget.
 

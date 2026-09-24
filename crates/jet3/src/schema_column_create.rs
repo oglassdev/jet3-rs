@@ -15,9 +15,11 @@ pub(crate) fn create(
 ) -> Result<(), UpdateError> {
     let (catalog_root, row, properties, root, ordinal, auto_record) =
         crate::schema_publish::apply(file, journal, budget, |database, budget| {
+            let order = database.header().sort_order();
             let definition = crate::update::indexed_writable_table(database, table, budget)?;
-            crate::schema_edit::name(column.name(), 64)?;
+            crate::schema_edit::name(order, column.name(), 64)?;
             crate::schema_edit::distinct(
+                order,
                 column.name(),
                 definition.columns().iter().map(|c| c.name().raw_bytes()),
                 budget,
@@ -41,7 +43,7 @@ pub(crate) fn create(
                 columns.push(spec(existing)?);
             }
             columns.push(column);
-            crate::creation::schema_plan::plan_table_schema(
+            crate::creation::schema_plan::plan_table_schema_for_order(
                 &TableSpec {
                     validation: crate::TableValidation::NONE,
                     name: table,
@@ -50,6 +52,9 @@ pub(crate) fn create(
                 },
                 database.geometry().page_count(),
                 false,
+                &[],
+                0,
+                order,
                 budget,
             )?;
             let (catalog, row, properties) =
@@ -73,12 +78,15 @@ pub(crate) fn create(
                 &mut variables,
             )?;
             let mut record = [0; 18];
-            crate::column_definition_writer::write_column_record(
+            crate::column_definition_writer::write_column_record_with_context(
                 &mut BinaryWriter::new(&mut record, budget)?,
                 ordinal,
                 &column,
                 resolved,
                 TableDefinitionKind::User,
+                order
+                    .encoding_context()
+                    .ok_or(UpdateError::Unsupported("column encoding context"))?,
             )?;
             let auto_record = (column.column_type() == ColumnType::AutoIncrement).then_some(record);
             if auto_record.is_some() {
@@ -93,12 +101,15 @@ pub(crate) fn create(
                     &mut offset,
                     &mut counter,
                 )?;
-                crate::column_definition_writer::write_column_record(
+                crate::column_definition_writer::write_column_record_with_context(
                     &mut BinaryWriter::new(&mut record, budget)?,
                     ordinal,
                     &plain,
                     resolved,
                     TableDefinitionKind::User,
+                    order
+                        .encoding_context()
+                        .ok_or(UpdateError::Unsupported("column encoding context"))?,
                 )?;
             }
             reserve(&mut edited.columns, 1, budget)?;

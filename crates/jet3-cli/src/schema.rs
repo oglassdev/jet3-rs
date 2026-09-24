@@ -13,7 +13,7 @@ pub(crate) const HELP: &str = "\
   jet3-cli schema <file.mdb> --input <request.json|->
 
 schema applies one table, column, index or relationship edit JSON request.
-Names use exact CP1252 bytes. Callers must exclude concurrent writers.
+Names use exact database-code-page bytes. Callers must exclude concurrent writers.
 See crates/jet3-cli/README.md for request shapes and current library bounds.
 ";
 
@@ -136,7 +136,7 @@ struct Table {
 }
 
 pub(crate) fn run(command: &SchemaCommand) -> Result<String, Failure> {
-    let request: Request = values::read_request(&command.input)?;
+    let request: Request = crate::names::read_request(&command.input, &command.path)?;
     let fields;
     let columns;
     let table_fields;

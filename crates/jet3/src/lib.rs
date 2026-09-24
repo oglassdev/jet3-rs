@@ -87,6 +87,7 @@ mod index_tree_rows;
 pub mod insert;
 pub mod jet3_page;
 pub mod limits;
+mod locale_text_key;
 mod long_index_key;
 pub mod long_value;
 pub mod long_value_map;

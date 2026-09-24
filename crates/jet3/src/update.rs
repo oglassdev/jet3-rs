@@ -69,8 +69,8 @@ pub enum UpdateError {
         /// Definition page of the referencing child table.
         child: crate::PageNumber,
     },
-    /// The database uses a sort order other than General; Rust writes only
-    /// General collation keys (EXP-0299). Reading remains supported.
+    /// The database uses a sort order outside the six observed single-byte
+    /// locales (EXP-0309). Reading remains supported.
     UnsupportedSortOrder {
         /// Raw page-zero sort-order marker.
         raw: [u8; 4],
@@ -205,7 +205,7 @@ conversion!(crate::IndexTreeError, Index);
 /// a DAO compatibility claim.
 /// Jet expressions are not evaluated: a table storing a field or table
 /// ValidationRule (EXP-0299) refuses with [`UpdateError::ValidationRule`], and a
-/// database whose sort order is not General with
+/// database whose sort order is unsupported (EXP-0309) with
 /// [`UpdateError::UnsupportedSortOrder`]. Both refusals preserve the file.
 pub fn update_field(
     path: impl AsRef<Path>,
@@ -226,7 +226,7 @@ where
     HE: StdError + Send + Sync + 'static,
 {
     let mut database = DatabaseReader::open(path, budget)?;
-    crate::update::require_general_sort_order(&database)?;
+    crate::update::require_writable_sort_order(&database)?;
     let definition = guarded_table(&mut database, request.table, true, budget)?;
     let options = crate::column_value_policy::options(&mut database, &definition, budget)?;
     crate::column_value_policy::refuse_rules(&options, &definition)?;
@@ -423,11 +423,13 @@ fn guarded_table(
 mod tests;
 
 /// Refuses writes to databases whose sort order Rust cannot maintain (EXP-0299).
-pub(crate) fn require_general_sort_order<S: crate::ReadAt>(
+pub(crate) fn require_writable_sort_order<S: crate::ReadAt>(
     database: &DatabaseReader<S>,
 ) -> Result<(), UpdateError> {
     match database.header().sort_order() {
-        crate::SortOrder::General => Ok(()),
-        crate::SortOrder::Other { raw } => Err(UpdateError::UnsupportedSortOrder { raw }),
+        order if order.code_page().is_some() => Ok(()),
+        order => Err(UpdateError::UnsupportedSortOrder {
+            raw: order.raw_marker(),
+        }),
     }
 }

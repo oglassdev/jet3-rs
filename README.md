@@ -82,7 +82,10 @@ Existing files can be edited through `edit_schema` or `jet3-cli schema`: create,
 rename and drop tables/columns/indexes; change Required and AllowZeroLength;
 and create, drop or atomically replace relationships and indexes. Deleted
 columns retain the surviving fields' storage identities, and all operations
-preserve unrelated objects. See the [CLI examples](crates/jet3-cli/README.md)
+preserve unrelated objects. Existing databases support General, Nordic,
+traditional Spanish, Dutch, Cyrillic and Greek collations for Text indexes and
+schema names. New databases use General; other sort orders remain read-only.
+See the [CLI examples](crates/jet3-cli/README.md)
 for request shapes and constraints.
 
 Creation and updates remain partial: schema combinations, index key types,

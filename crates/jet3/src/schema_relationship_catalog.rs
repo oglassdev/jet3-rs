@@ -145,6 +145,8 @@ pub(crate) fn object_identity(
     name: &[u8],
     budget: &mut ResourceBudget,
 ) -> Result<(i32, i32), UpdateError> {
+    let order = database.header().sort_order();
+    crate::schema_edit::name(order, name, 63)?;
     let mut catalog = database.catalog(budget)?;
     let mut folder = None;
     let mut next = 0x8000_0000_u32;
@@ -165,6 +167,7 @@ pub(crate) fn object_identity(
         }
         if record.kind().raw() == 8 {
             crate::schema_edit::distinct(
+                order,
                 name,
                 std::iter::once(record.name().raw_bytes()),
                 catalog.budget_mut(),

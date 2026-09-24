@@ -25,7 +25,7 @@ const SYSTEM_CLASSES: [u8; 3] = [0x12, 0x13, 0x32];
 const USER_COLUMN_CONSTANT: u16 = 1;
 /// Sort-order LCID then code page, both little-endian: `EXP-0059` General
 /// (0x0409, 1252) and the `EXP-0299` Nordic, Spanish, Dutch, Cyrillic (1251)
-/// and Greek (1253) databases. Only General text keys are interpreted.
+/// and Greek (1253) databases. EXP-0309 interprets Text keys in all six contexts.
 const ENCODING_CONTEXTS: [[u8; 4]; 6] = [
     [0x09, 0x04, 0xe4, 0x04],
     [0x1d, 0x04, 0xe4, 0x04],

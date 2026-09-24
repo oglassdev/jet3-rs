@@ -1,12 +1,12 @@
 //! `MSysObjects` ParentId/Name keys from EXP-0087/0101/0248/0277/0278.
 //!
-//! The Name field uses the English-US/CP1252 Text transform, including primary
-//! expansions and accent nibbles. EXP-0101 records catalog keys for every
-//! defined extended byte; EXP-0248 supplies the complete Text transformation.
+//! The Name field uses the database Text transform, including primary
+//! expansions and accent nibbles. EXP-0101/0248 cover General; EXP-0309
+//! supplies the remaining five observed locales and their catalog keys.
 
 use std::fmt;
 
-use crate::{IndexDirection, numeric_index_key::MAX_COMPONENT_BYTES};
+use crate::{IndexDirection, SortOrder, numeric_index_key::MAX_COMPONENT_BYTES};
 
 /// EXP-0062: marker and four-byte signed Long component.
 pub(crate) const LONG_COMPONENT_LEN: usize = 5;
@@ -64,16 +64,24 @@ impl fmt::Display for CatalogNameKeyError {
 impl std::error::Error for CatalogNameKeyError {}
 
 /// EXP-0087 excludes controls and the five punctuation bytes below; SRC-0025
-/// identifies undefined CP1252 bytes. EXP-0101 admits every defined extended byte.
-pub(crate) fn supported_name_byte(byte: u8) -> bool {
+/// and SRC-0027 identify undefined code-page bytes. EXP-0101/0309 admit defined
+/// extended bytes in the observed locales.
+pub(crate) fn supported_name_byte_for(byte: u8, order: SortOrder) -> bool {
     byte >= 0x20
-        && !matches!(
-            byte,
-            b'!' | b'.' | b'[' | b']' | b'`' | 0x7f | 0x81 | 0x8d | 0x8f | 0x90 | 0x9d
-        )
+        && !matches!(byte, b'!' | b'.' | b'[' | b']' | b'`' | 0x7f)
+        && order
+            .code_page()
+            .is_some_and(|page| crate::text::mapped_character(page, byte).is_some())
 }
 
 pub(crate) fn validate_catalog_name(name: &[u8]) -> Result<(), CatalogNameKeyError> {
+    validate_catalog_name_for(name, SortOrder::General)
+}
+
+pub(crate) fn validate_catalog_name_for(
+    name: &[u8],
+    order: SortOrder,
+) -> Result<(), CatalogNameKeyError> {
     if name.is_empty() {
         return Err(CatalogNameKeyError::EmptyName);
     }
@@ -90,7 +98,7 @@ pub(crate) fn validate_catalog_name(name: &[u8]) -> Result<(), CatalogNameKeyErr
         });
     }
     for (position, &byte) in name.iter().enumerate() {
-        if !supported_name_byte(byte) {
+        if !supported_name_byte_for(byte, order) {
             return Err(CatalogNameKeyError::UnmappedNameByte { position, byte });
         }
     }
@@ -99,13 +107,25 @@ pub(crate) fn validate_catalog_name(name: &[u8]) -> Result<(), CatalogNameKeyErr
 
 /// Names collide when the unique ParentId/Name catalog key is identical.
 pub(crate) fn catalog_names_equal(left: &[u8], right: &[u8]) -> bool {
+    catalog_names_equal_for(SortOrder::General, left, right)
+}
+
+pub(crate) fn catalog_names_equal_for(order: SortOrder, left: &[u8], right: &[u8]) -> bool {
     if left.len() > 64 || right.len() > 64 {
         return false;
     }
-    if left.is_ascii() && right.is_ascii() && !left.ends_with(b" ") && !right.ends_with(b" ") {
+    if order == SortOrder::General
+        && left.is_ascii()
+        && right.is_ascii()
+        && !left.ends_with(b" ")
+        && !right.ends_with(b" ")
+    {
         return left.eq_ignore_ascii_case(right);
     }
-    match (NameKey::new(left), NameKey::new(right)) {
+    match (
+        NameKey::for_order(left, order),
+        NameKey::for_order(right, order),
+    ) {
         (Ok(a), Ok(b)) => a.bytes() == b.bytes(),
         _ => false,
     }
@@ -120,26 +140,35 @@ pub(crate) struct NameKey {
 
 impl NameKey {
     pub(crate) fn new(name: &[u8]) -> Result<Self, CatalogNameKeyError> {
+        Self::for_order(name, SortOrder::General)
+    }
+
+    pub(crate) fn for_order(name: &[u8], order: SortOrder) -> Result<Self, CatalogNameKeyError> {
         if name.len() > 64 {
             return Err(CatalogNameKeyError::NameTooLong {
                 length: name.len(),
                 maximum: 64,
             });
         }
-        if let Some((position, &byte)) = name
-            .iter()
-            .enumerate()
-            .find(|(_, byte)| matches!(byte, 0x81 | 0x8d | 0x8f | 0x90 | 0x9d))
-        {
+        if let Some((position, &byte)) = name.iter().enumerate().find(|(_, byte)| {
+            !order
+                .code_page()
+                .is_some_and(|page| crate::text::mapped_character(page, **byte).is_some())
+        }) {
             return Err(CatalogNameKeyError::UnmappedNameByte { position, byte });
         }
         let mut component = [0; MAX_COMPONENT_BYTES];
-        let len =
-            crate::text_index_key::encode(name, 64, IndexDirection::Ascending, &mut component)
-                .ok_or(CatalogNameKeyError::NameTooLong {
-                    length: name.len(),
-                    maximum: 64,
-                })?;
+        let len = crate::locale_text_key::encode(
+            name,
+            64,
+            IndexDirection::Ascending,
+            order,
+            &mut component,
+        )
+        .ok_or(CatalogNameKeyError::NameTooLong {
+            length: name.len(),
+            maximum: 64,
+        })?;
         let mut key = Self {
             bytes: [0; MAX_CREATION_KEY_BYTES - LONG_COMPONENT_LEN],
             len,
