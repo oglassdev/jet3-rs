@@ -1,7 +1,9 @@
 //! One private publication for data, index and allocation changes.
 use crate::{
-    ByteCount, DatabaseReader, FileSource, MapRowLocator, PAGE_BYTES, PageImage, PageNumber,
-    PageOffset, PublishStage, ResourceBudget, UpdateError, row::data_page::DataPageEditor,
+    DatabaseReader, FileSource, MapRowLocator, PAGE_BYTES, PageImage, PageNumber, PageOffset,
+    PublishStage, ResourceBudget, UpdateError,
+    format::resource::{GrowError, grow},
+    row::data_page::DataPageEditor,
     write::update_pages::PageChange,
 };
 use std::{error::Error as StdError, mem::size_of, path::Path};
@@ -11,28 +13,14 @@ pub(crate) fn reserve<T>(
     additional: usize,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    let needed = items
-        .len()
-        .checked_add(additional)
-        .ok_or(UpdateError::Mismatch("edit allocation size"))?;
-    if needed <= items.capacity() {
-        return Ok(());
-    }
-    let capacity = needed.max(items.capacity().saturating_mul(2));
-    let bytes = (capacity - items.capacity())
-        .checked_mul(size_of::<T>())
-        .ok_or(UpdateError::Mismatch("edit allocation size"))?;
-    budget.charge_allocation(ByteCount::new(bytes as u64))?;
-    budget.charge_work_units((items.len() as u64).saturating_mul(size_of::<T>() as u64))?;
-    items
-        .try_reserve_exact(capacity - items.len())
-        .map_err(|_| {
-            UpdateError::Resource(crate::Error::Io {
-                operation: "reserve page edits",
-                kind: std::io::ErrorKind::OutOfMemory,
-            })
-        })?;
-    Ok(())
+    grow(items, additional, size_of::<T>() as u64, budget).map_err(|error| match error {
+        GrowError::Size => UpdateError::Mismatch("edit allocation size"),
+        GrowError::Budget(error) => error.into(),
+        GrowError::OutOfMemory => UpdateError::Resource(crate::Error::Io {
+            operation: "reserve page edits",
+            kind: std::io::ErrorKind::OutOfMemory,
+        }),
+    })
 }
 
 pub(super) struct Change {
