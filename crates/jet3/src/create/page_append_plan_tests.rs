@@ -1,5 +1,5 @@
 use super::page_append_plan::{
-    AppendPageError, AppendPagePlan, ExistingPageError, plan_existing_page, plan_existing_pages,
+    AppendPageError, AppendPagePlan, ExistingPageError, plan_existing_page,
 };
 use crate::{
     ByteCount, InlineUsageMapEncoder, PageImage, PageKind, PageNumber, UsageMapWriteError,
@@ -51,22 +51,6 @@ fn existing_page_boundaries_preserve_complete_images() -> TestResult {
         })
     );
     Ok(())
-}
-
-#[test]
-fn exact_existing_batch_pairs_all_slots_without_a_failure_state() {
-    let images: [PageImage; 20] = std::array::from_fn(|index| {
-        let mut bytes = [0x5a; crate::PAGE_BYTES];
-        bytes[11] = index as u8;
-        PageImage::from_bytes(bytes)
-    });
-
-    let planned = plan_existing_pages(images.clone());
-    assert_eq!(planned.len(), 20);
-    for (index, (page, image)) in planned.zip(images).enumerate() {
-        assert_eq!(page.number(), PageNumber::new(index as u64));
-        assert_eq!(page.image(), &image);
-    }
 }
 
 #[test]

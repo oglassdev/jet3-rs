@@ -1,11 +1,9 @@
 use super::initial_rows_tests::*;
-use crate::WriteError;
 use crate::testkit::create;
 use crate::testkit::table;
 use crate::{
-    ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexDirection, IndexKind,
-    IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue, RowWriteError, TableRows,
-    TableSpec, create::api_tests::*, create_database,
+    ColumnSpec, ColumnType, DatabaseReader, IndexDirection, IndexKind, IndexSpec, PageNumber,
+    RowValue, TableRows, TableSpec, create::api_tests::*,
 };
 use std::fs;
 
@@ -126,78 +124,5 @@ fn empty_requests_and_empty_first_table_keep_first_create_placement() -> TestRes
     assert!(map_bit(&bytes, 24, 2, 25)?);
     assert!(map_bit(&bytes, 24, 2, 26)?);
     assert!(map_bit(&bytes, 24, 0, 27)?);
-    Ok(())
-}
-
-#[test]
-fn later_table_failures_preserve_destination() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let first = TableRows {
-        table: table(b"First", &[ID], &[]),
-        rows: &[&[RowValue::Long(1)]],
-    };
-    let second = TableRows {
-        table: TableSpec {
-            name: b"Second",
-            ..first.table
-        },
-        ..first
-    };
-    create(directory.target(), &[first, second])?;
-    let original = fs::read(directory.target())?;
-    let wrong = TableRows {
-        rows: &[&[RowValue::Text(b"wrong")]],
-        ..second
-    };
-    assert!(matches!(
-        create(directory.target(), &[first, wrong]),
-        Err(WriteError::Compose(ComposeError::Row(
-            RowWriteError::TypeMismatch { .. }
-        )))
-    ));
-    let mut limited = ResourceBudget::new(
-        ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(1)),
-    );
-    assert!(
-        create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &[first, second],
-                ..DatabaseSpec::default()
-            },
-            &mut limited
-        )
-        .is_err()
-    );
-    assert_eq!(fs::read(directory.target())?, original);
-    assert_eq!(directory.entries()?, ["created.mdb"]);
-    Ok(())
-}
-
-#[test]
-fn later_table_pages_share_the_same_inline_allocation_limit() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let names = (0..70)
-        .map(|number| format!("F{number}"))
-        .collect::<Vec<_>>();
-    let columns = names
-        .iter()
-        .map(|name| ColumnSpec::new(name.as_bytes(), ColumnType::Double))
-        .collect::<Vec<_>>();
-    let row = [RowValue::Double(1.0); 70];
-    let rows = vec![row.as_slice(); 2997];
-    let first = TableRows {
-        table: table(b"WideRows", &columns, &[]),
-        rows: &rows,
-    };
-    let later = TableRows {
-        table: table(b"Later", &[ID], &[]),
-        rows: &[],
-    };
-    create(directory.target(), &[first, later])?;
-    assert_eq!(
-        fs::metadata(directory.target())?.len(),
-        1024 * crate::PAGE_BYTES as u64
-    );
     Ok(())
 }

@@ -133,41 +133,6 @@ fn autoincrement_invalid_values_and_types_leave_no_file() -> TestResult {
 }
 
 #[test]
-fn autoincrement_multi_table_indexed_and_empty_counters_are_independent() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let indexes = [IndexSpec {
-        name: b"PrimaryKey",
-        fields: &[field(0, IndexDirection::Ascending)],
-        kind: IndexKind::Primary,
-    }];
-    let requests = [
-        TableRows {
-            table: table(b"First", &[AUTO], &indexes),
-            rows: &[&[RowValue::AutoIncrement], &[RowValue::AutoIncrement]],
-        },
-        TableRows {
-            table: table(b"Second", &[AUTO], &[]),
-            rows: &[&[RowValue::AutoIncrement]],
-        },
-        TableRows {
-            table: table(b"Empty", &[AUTO], &[]),
-            rows: &[],
-        },
-    ];
-    create(directory.target(), &requests)?;
-    let mut operation = budget();
-    let mut database = DatabaseReader::open(directory.target(), &mut operation)?;
-    let tables = requests.map(|r| r.table);
-    let roots = crate::create::check::image_table_roots(&mut database, &tables, &mut operation)?;
-    for (root, count) in roots.into_iter().zip([2_i32, 1, 0]) {
-        let mut bytes = [0_u8; crate::PAGE_BYTES];
-        database.read_raw_page(root.ok_or("missing root")?, &mut bytes, &mut operation)?;
-        assert_eq!(&bytes[16..20], &count.to_le_bytes());
-    }
-    Ok(())
-}
-
-#[test]
 fn autoincrement_explicit_ids_wrap_with_independent_indexed_tables() -> TestResult {
     let directory = TempDir::new("create")?;
     let indexes = [

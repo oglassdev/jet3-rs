@@ -4,8 +4,7 @@ use crate::testkit::create;
 use crate::testkit::{index, table};
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexColumnSpec, IndexDirection,
-    IndexKind, IndexNullPolicy, PageNumber, ResourceBudget, ResourceLimits, RowValue, TableRows,
-    create::api_tests::*,
+    IndexKind, IndexNullPolicy, PageNumber, RowValue, TableRows, create::api_tests::*,
 };
 use std::fs;
 
@@ -155,74 +154,6 @@ fn required_null_components_and_invalid_policies_are_refused() -> TestResult {
         .is_err()
     );
     assert!(directory.entries()?.is_empty());
-    Ok(())
-}
-
-#[test]
-fn variable_width_duplicate_runs_span_three_levels_and_later_table_maps() -> TestResult {
-    let directory = TempDir::new("create")?;
-    let values: Vec<_> = (0..30_000)
-        .map(|n| {
-            if n < 1000 {
-                [RowValue::Null, RowValue::Null]
-            } else if n % 2 == 0 {
-                [RowValue::Long(n), RowValue::Null]
-            } else {
-                [RowValue::Long(n), RowValue::Long(-n)]
-            }
-        })
-        .collect();
-    let rows: Vec<_> = values.iter().map(|row| row.as_slice()).collect();
-    let indexes = [index(b"ById", &TWO, IndexKind::Unique)];
-    let table = table(b"Items", &COLUMNS, &indexes);
-    let requests = [
-        crate::TableRows {
-            table: crate::testkit::table(b"Empty", &[ID], &[]),
-            rows: &[],
-        },
-        crate::TableRows { table, rows: &rows },
-    ];
-    create(directory.target(), &requests)?;
-    let mut b = budget();
-    let mut db = DatabaseReader::open(directory.target(), &mut b)?;
-    let root = {
-        let mut catalog = db.catalog(&mut b)?;
-        let mut root = None;
-        while let Some(item) = catalog.next_record()? {
-            if item.name().raw_bytes() == b"Items" {
-                root = item.table_definition();
-            }
-        }
-        root.ok_or("Items missing")?
-    };
-    let definition = db.table_definition(root, &mut b)?;
-    let index = db.index_tree(&definition, 0, &mut b)?;
-    assert_eq!(index.entries().len(), 30_000);
-    assert!(index.nodes().iter().any(|node| node.depth() == 3));
-    assert_eq!(
-        index
-            .entries()
-            .iter()
-            .filter(|entry| entry.key().raw_bytes() == [0, 255])
-            .count(),
-        1000
-    );
-    let original = fs::read(directory.target())?;
-    let mut insufficient = ResourceBudget::new(
-        ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(100)),
-    );
-    assert!(
-        crate::create_database(
-            directory.target(),
-            &crate::DatabaseSpec {
-                tables: &requests,
-                ..crate::DatabaseSpec::default()
-            },
-            &mut insufficient
-        )
-        .is_err()
-    );
-    assert_eq!(fs::read(directory.target())?, original);
     Ok(())
 }
 

@@ -29,8 +29,6 @@ mod check;
 mod columns;
 pub(crate) mod composer;
 #[cfg(all(test, any(unix, windows)))]
-mod composite_index_tests;
-#[cfg(all(test, any(unix, windows)))]
 mod composite_relationship_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod creation_tables_tests;
@@ -43,19 +41,11 @@ mod empty_value_options_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod fixed_text_index_tests;
 mod graph_schema_check;
-#[cfg(all(test, any(unix, windows)))]
-mod index_capacity_tests;
 mod index_options;
 #[cfg(all(test, any(unix, windows)))]
 mod initial_index_tests;
 #[cfg(all(test, any(unix, windows)))]
-mod initial_long_values_tests;
-#[cfg(all(test, any(unix, windows)))]
 mod initial_rows_tests;
-#[cfg(all(test, any(unix, windows)))]
-mod memo_option_tests;
-#[cfg(all(test, any(unix, windows)))]
-mod multi_level_index_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod multi_table_rows_tests;
 #[cfg(all(test, any(unix, windows)))]

@@ -176,6 +176,15 @@ fn the_schema_candidates_decode_to_their_preregistered_shapes() -> TestResult {
     let indexed = indexed_candidate_bytes()?;
     assert_shared_candidate(&indexed, b"IdxTri")?;
     assert_eq!(indexed.len(), 26 * crate::PAGE_BYTES);
+    // Map rows 2 through 4 each own exactly their index root.
+    for (row, root) in [(2, 23), (3, 24), (4, 25)] {
+        assert_eq!(indexed[root as usize * crate::PAGE_BYTES], 4);
+        assert!(!inline_map_bit(&indexed, 1, 0, root)?);
+        for page in 23..26 {
+            assert_eq!(inline_map_bit(&indexed, 21, row, page)?, page == root);
+        }
+    }
+    assert!(inline_map_bit(&indexed, 1, 0, 26)?);
     let mut budget = read_budget(indexed.len());
     let source = SliceSource::new(&indexed, budget.read_budget())?;
     let mut database = DatabaseReader::from_source(source, &mut budget)?;

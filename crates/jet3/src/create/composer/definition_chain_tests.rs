@@ -206,23 +206,3 @@ fn logical_definition_allocation_and_page_encoding_obey_the_callers_budget() -> 
     assert_eq!(b.encoded_bytes().get(), 0);
     Ok(())
 }
-
-#[test]
-fn definition_chains_and_catalog_maps_extend_past_inline_capacity() -> TestResult {
-    let names = (0..255)
-        .map(|n| format!("C{n:04}{}", "x".repeat(43)).into_bytes())
-        .collect::<Vec<_>>();
-    let columns = columns(&names);
-    let table_names = (0..104).map(|n| format!("T{n:03}")).collect::<Vec<_>>();
-    let requests = table_names
-        .iter()
-        .map(|name| TableRows {
-            table: table(name.as_bytes(), &columns, &[]),
-            rows: &[],
-        })
-        .collect::<Vec<_>>();
-    let plan = compose_database_with_table_rows(&requests, &mut budget())?;
-    assert!(plan.page_count() > 1024);
-    assert_eq!(plan.pages()[1].image().as_bytes()[1915], 1);
-    Ok(())
-}

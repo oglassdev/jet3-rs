@@ -83,14 +83,20 @@ fn collation_equal_names_are_refused_before_publication() -> TestResult {
         (b"Q'", b"Q\x92"),
     ];
     for &(a, b) in pairs {
-        let tables = [a, b].map(|name| table(name, &[ID], &[]));
-        assert!(matches!(
-            create(directory.target(), &tables.map(TableRows::empty)),
-            Err(WriteError::Compose(ComposeError::DuplicateTableName {
-                first: 0,
-                second: 1
-            }))
-        ));
+        // Schema-only and initial-row creation check names separately.
+        for rows in [&[][..], &[&[RowValue::Long(1)][..]]] {
+            let tables = [a, b].map(|name| TableRows {
+                table: table(name, &[ID], &[]),
+                rows,
+            });
+            assert!(matches!(
+                create(directory.target(), &tables),
+                Err(WriteError::Compose(ComposeError::DuplicateTableName {
+                    first: 0,
+                    second: 1
+                }))
+            ));
+        }
         let columns = [a, b].map(|name| ColumnSpec::new(name, ColumnType::Long));
         let table = table(b"Items", &columns, &[]);
         assert!(matches!(

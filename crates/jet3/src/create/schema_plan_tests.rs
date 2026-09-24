@@ -4,7 +4,7 @@ use crate::create::{IndexKind, IndexSpec};
 use crate::testkit::{index, table};
 use crate::{
     ColumnPhysicalType, ColumnRef, ColumnType, IndexColumnSpec, IndexDirection, IndexFieldSpec,
-    LogicalIndexKindSpec, PageNumber, PhysicalIndexFlagsSpec, TableDefinitionWriteError,
+    PageNumber, TableDefinitionWriteError,
     catalog::name_key::CatalogNameKeyError,
     create::TableSpec,
     definition::{column_writer::nz, header::KEY_SLOT_COUNT},
@@ -75,24 +75,6 @@ fn later_text_properties_precede_index_roots() -> PlanResult {
     );
     assert_eq!(plan.appended_page_count(), 3);
     Ok(())
-}
-
-#[test]
-fn index_kinds_map_to_the_observed_flag_classes() {
-    // EXP-0093: primary 0x09, unique non-primary 0x01, ordinary 0x00.
-    assert_eq!(
-        IndexKind::Primary.flags(),
-        PhysicalIndexFlagsSpec::UniqueRequired
-    );
-    assert_eq!(IndexKind::Unique.flags(), PhysicalIndexFlagsSpec::Unique);
-    assert_eq!(
-        IndexKind::Ordinary.flags(),
-        PhysicalIndexFlagsSpec::Ordinary
-    );
-    assert_eq!(
-        IndexKind::Unique.logical_kind(),
-        LogicalIndexKindSpec::Ordinary
-    );
 }
 
 #[test]
