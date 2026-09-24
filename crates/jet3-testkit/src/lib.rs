@@ -1,20 +1,21 @@
 #![forbid(unsafe_code)]
 #![doc = "Test-only support for reproducible fixtures and independent checks."]
 
-mod classifier_snapshot;
 mod coverage;
+mod scenarios;
 mod semantic_reader;
 mod semantic_snapshot;
 pub mod semantic_values;
 pub mod synthetic;
+mod write_fixture;
 
-pub use classifier_snapshot::{
-    ClassifiedFixture, ClassifierSnapshot, ClassifierSnapshotError, CommitId, PageKindHistogram,
-    Sha256, classify_fixture,
-};
 pub use coverage::{
     Boundary, CoverageReceipt, Operation, PROTOCOL_SCENARIOS, Scenario, ScenarioCoverage, coverage,
     parse_scenarios,
+};
+pub use scenarios::{
+    CREATION_INDEX_SCENARIOS, INDEXED_UPDATE_SCENARIOS, ROW_ALLOCATION_SCENARIOS,
+    ROW_REPLACEMENT_SCENARIOS, ROW_UPDATE_SCENARIOS, UPDATE_SCENARIOS,
 };
 pub use semantic_reader::{Branches, SnapshotOptions, SnapshotOutcome, snapshot_bytes};
 pub use semantic_snapshot::{
@@ -23,30 +24,4 @@ pub use semantic_snapshot::{
     canonical_json, hex, reader_error, row_from_values, sha256_hex, validate_scenario_id,
     validate_source_revision,
 };
-
-/// Returns the format name used in fixture metadata.
-#[must_use]
-pub const fn fixture_format_name() -> &'static str {
-    jet3::FORMAT_NAME
-}
-
-mod write_fixture;
 pub use write_fixture::{WRITE_SCENARIOS, write_fixture};
-
-mod update_fixture;
-pub use update_fixture::{UPDATE_SCENARIOS, update_fixture};
-
-mod row_update_fixture;
-pub use row_update_fixture::{ROW_UPDATE_SCENARIOS, row_update_fixture};
-
-mod row_allocation_fixture;
-pub use row_allocation_fixture::{ROW_ALLOCATION_SCENARIOS, row_allocation_fixture};
-
-mod indexed_update_fixture;
-pub use indexed_update_fixture::{INDEXED_UPDATE_SCENARIOS, indexed_update_fixture};
-
-mod creation_index_fixture;
-pub use creation_index_fixture::{CREATION_INDEX_SCENARIOS, creation_index_fixture};
-
-mod row_replacement_fixture;
-pub use row_replacement_fixture::{ROW_REPLACEMENT_SCENARIOS, row_replacement_fixture};
