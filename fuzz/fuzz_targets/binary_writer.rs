@@ -2,7 +2,7 @@
 
 use std::hint::black_box;
 
-use jet3::limits::ReadLimits;
+use jet3::ReadLimits;
 use jet3::{BinaryWriter, ByteCount, ByteOffset, ResourceBudget, ResourceLimits};
 use libfuzzer_sys::fuzz_target;
 

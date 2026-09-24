@@ -1,18 +1,17 @@
+use crate::{
+    ByteCount, ByteOffset, CandidateError, DatabaseFormatError, DatabaseHeaderPageError,
+    DatabaseProtection, DatabaseVersion, Error, HeaderError, JET3_PAGE_SIZE, JetFileKind,
+    LimitKind, PAGE_BYTES, PageClassificationError, PageKind, PageNumber, ReadAt, ReadBudget,
+    ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
+};
 use std::error::Error as StdError;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use super::{DatabaseOpenError, DatabasePageError, DatabaseReader};
-use crate::{
-    ByteCount, ByteOffset, CandidateError, DatabaseFormatError, DatabaseHeaderPageError,
-    DatabaseProtection, DatabaseVersion, Error, HeaderError, JET3_PAGE_SIZE, JetFileKind,
-    LimitKind, PageClassificationError, PageKind, PageNumber, ReadAt, ReadBudget, ReadLimits,
-    ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
-};
+use super::database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 const SIGNATURE_START: usize = 4;
 const SIGNATURE_END: usize = 19;
 
@@ -33,10 +32,7 @@ fn budget(max_input: u64, max_single_read: u64, max_total_read: u64) -> Resource
 fn candidate_bytes(page_count: usize, signature: &[u8; 15]) -> Vec<u8> {
     let mut bytes = vec![0_u8; page_count * PAGE_BYTES];
     bytes[SIGNATURE_START..SIGNATURE_END].copy_from_slice(signature);
-    bytes[0x41] = 0x4e;
-    bytes[0x42..0x50].copy_from_slice(&[
-        0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
-    ]);
+    crate::testkit::write_jet3_header_fields(&mut bytes);
     bytes
 }
 

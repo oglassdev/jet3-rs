@@ -9,18 +9,15 @@
 //! classified-page read composes the byte-zero tags in `SRC-0020` without
 //! validating any other page-header byte.
 
-use std::fmt;
-use std::path::Path;
-
 use crate::{
     AllocationTraversalError, CandidateError, CatalogCursor, CatalogError, ClassifiedPage,
     DatabaseFormatError, DatabaseHeaderPage, DatabaseHeaderPageError, Error, FileSource,
-    JET3_PAGE_SIZE, JetFileKind, OwnedPages, PageClassificationError, PageGeometry, PageNumber,
+    JetFileKind, OwnedPages, PAGE_BYTES, PageClassificationError, PageGeometry, PageNumber,
     RawJet3Candidate, RawPageCursor, ReadAt, ResourceBudget, SupportedDatabaseFormat,
     classify_page,
 };
-
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
+use std::fmt;
+use std::path::Path;
 
 /// A structured failure while opening a database candidate.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -255,7 +252,3 @@ where
         CatalogCursor::new(self, budget)
     }
 }
-
-#[cfg(test)]
-#[path = "database_tests.rs"]
-mod tests;

@@ -4,11 +4,11 @@
 //! fixed-size page mapping. They make no claim about the meaning or validity
 //! of Jet page contents.
 
-use jet3::limits::{ReadBudget, ReadLimits};
 use jet3::{
     BinaryCursor, ByteCount, ByteOffset, Error, JET3_PAGE_SIZE, Jet3PageReader, PageGeometry,
     PageNumber, ReadAt, ResourceBudget, ResourceLimits, SliceSource,
 };
+use jet3::{ReadBudget, ReadLimits};
 use proptest::prelude::*;
 use proptest::test_runner::{Config, RngSeed};
 

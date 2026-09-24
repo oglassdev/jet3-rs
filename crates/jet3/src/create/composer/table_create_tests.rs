@@ -1,0 +1,516 @@
+//! Composition of arbitrary planned user tables, decoded back through the
+//! reader to check each `EXP-0093` structure lands where the plan says.
+
+use super::{
+    ComposeError, catalog_row_number, compose_database, compose_table_database, creation_counter,
+    tests::{compose_budget, inline_map_bit, read_budget},
+};
+use crate::{
+    ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec,
+    IndexDirection, MapRowLocator, PAGE_BYTES, PageKind, PageNumber, SliceSource,
+    create::schema_plan::{IndexKind, IndexSpec, TableSpec},
+    definition::column_writer::nz,
+    format::page_kind::page_tag,
+};
+
+type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+fn create_bytes(spec: &TableSpec<'_>) -> Result<Vec<u8>, ComposeError> {
+    let mut budget = compose_budget();
+    let plan = compose_table_database(spec, &mut budget)?;
+    let mut bytes = Vec::with_capacity(plan.pages().len() * PAGE_BYTES);
+    for page in plan.pages() {
+        bytes.extend_from_slice(page.image().as_bytes());
+    }
+    Ok(bytes)
+}
+
+fn page(bytes: &[u8], number: usize) -> &[u8] {
+    &bytes[number * PAGE_BYTES..(number + 1) * PAGE_BYTES]
+}
+
+const ID: ColumnSpec<'static> = ColumnSpec::new(b"Id", ColumnType::Long);
+const NAME: ColumnSpec<'static> = ColumnSpec::new(b"Name", ColumnType::Text { max_len: nz(50) });
+const CODE: ColumnSpec<'static> = ColumnSpec::new(b"Code", ColumnType::Text { max_len: nz(8) });
+const SEQUENCE: ColumnSpec<'static> = ColumnSpec::new(b"Sequence", ColumnType::Long);
+const NOTE: ColumnSpec<'static> = ColumnSpec::new(b"Note", ColumnType::Memo);
+
+const fn field(column: u16, direction: IndexDirection) -> IndexColumnSpec<'static> {
+    IndexColumnSpec {
+        column: ColumnRef::Ordinal(column),
+        direction,
+    }
+}
+
+/// Fixed Long columns with ten-byte names: 70 of them encode to the 2,075-byte
+/// definition `EXP-0105` observed needing one continuation.
+fn wide_names(count: usize) -> Vec<Vec<u8>> {
+    (0..count)
+        .map(|ordinal| format!("Field{ordinal:05}").into_bytes())
+        .collect()
+}
+
+fn wide_columns(names: &[Vec<u8>]) -> Vec<ColumnSpec<'_>> {
+    names
+        .iter()
+        .map(|name| ColumnSpec::new(name, ColumnType::Long))
+        .collect()
+}
+
+#[test]
+fn a_created_memo_table_carries_its_long_value_map_groups_on_its_map_page() -> TestResult {
+    // EXP-0087's Beta shape as a first create: root, map page, empty LvProp
+    // page, and one EXP-0077 map group for the Memo column.
+    let columns = [ID, NAME, NOTE];
+    let bytes = create_bytes(&TableSpec {
+        validation: crate::TableValidation::NONE,
+        name: b"Beta",
+        columns: &columns,
+        indexes: &[],
+    })?;
+    assert_eq!(bytes.len(), 23 * PAGE_BYTES);
+    assert_eq!(bytes[1538], 2);
+    assert_eq!(&page(&bytes, 22)[4..8], b"LVAL");
+    assert!(inline_map_bit(&bytes, 6, 10, 22)?);
+
+    let mut budget = read_budget(bytes.len());
+    let source = SliceSource::new(&bytes, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    let mut beta = None;
+    {
+        let mut catalog = database.catalog(&mut budget)?;
+        while let Some(record) = catalog.next_record()? {
+            if record.name().raw_bytes() == b"Beta" {
+                beta = Some((record.id().get(), record.table_definition()));
+            }
+        }
+    }
+    assert_eq!(beta, Some((20, Some(PageNumber::new(20)))));
+    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
+    assert_eq!(definition.columns().len(), 3);
+    assert!(definition.physical_indexes().is_empty());
+    let [group] = definition.long_value_maps() else {
+        return Err("expected exactly one long-value map group".into());
+    };
+    assert_eq!(group.column(), ColumnOrdinal::new(2));
+    assert_eq!(group.owned(), MapRowLocator::new(PageNumber::new(21), 2));
+    assert_eq!(
+        group.available(),
+        MapRowLocator::new(PageNumber::new(21), 3)
+    );
+    // The map page holds the table's two maps and the group's two.
+    assert_eq!(
+        u16::from_le_bytes([page(&bytes, 21)[8], page(&bytes, 21)[9]]),
+        4
+    );
+    Ok(())
+}
+
+#[test]
+fn a_three_index_first_create_follows_the_observed_page_and_record_order() -> TestResult {
+    // EXP-0093's `three` arm shape: primary, unique, and ordinary indexes
+    // appended in that order, the last one composite with a descending field.
+    let columns = [ID, CODE, SEQUENCE];
+    let indexes = [
+        IndexSpec {
+            name: b"ZPrimary",
+            fields: &[field(0, IndexDirection::Ascending)],
+            kind: IndexKind::Primary,
+        },
+        IndexSpec {
+            name: b"MUniqueX",
+            fields: &[field(1, IndexDirection::Ascending)],
+            kind: IndexKind::Unique,
+        },
+        IndexSpec {
+            name: b"ASecondx",
+            fields: &[
+                field(1, IndexDirection::Descending),
+                field(2, IndexDirection::Ascending),
+            ],
+            kind: IndexKind::Ordinary,
+        },
+    ];
+    let bytes = create_bytes(&TableSpec {
+        validation: crate::TableValidation::NONE,
+        name: b"Three",
+        columns: &columns,
+        indexes: &indexes,
+    })?;
+    assert_eq!(bytes.len(), 26 * PAGE_BYTES);
+    assert_eq!(page(&bytes, 20)[0], page_tag(PageKind::TableDefinition));
+    assert_eq!(page(&bytes, 21)[0], page_tag(PageKind::Data));
+    assert_eq!(&page(&bytes, 22)[4..8], b"LVAL");
+    for root in 23..26 {
+        assert_eq!(page(&bytes, root)[0], page_tag(PageKind::LeafIndex));
+        assert!(!inline_map_bit(&bytes, 1, 0, root as u64)?);
+    }
+    assert!(inline_map_bit(&bytes, 1, 0, 26)?);
+    assert!(inline_map_bit(&bytes, 6, 10, 22)?);
+    // Map rows 2 through 4 each map exactly their own root.
+    assert_eq!(
+        u16::from_le_bytes([page(&bytes, 21)[8], page(&bytes, 21)[9]]),
+        5
+    );
+    for (row, root) in [(2, 23), (3, 24), (4, 25)] {
+        for candidate in 23..26 {
+            assert_eq!(
+                inline_map_bit(&bytes, 21, row, candidate)?,
+                candidate == root
+            );
+        }
+    }
+
+    let mut budget = read_budget(bytes.len());
+    let source = SliceSource::new(&bytes, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
+    let physical = definition.physical_indexes();
+    assert_eq!(physical.len(), 3);
+    for (ordinal, (root, flags)) in [(23, 0x09), (24, 0x01), (25, 0x00)].into_iter().enumerate() {
+        assert_eq!(physical[ordinal].root(), PageNumber::new(root));
+        assert_eq!(physical[ordinal].usage_map().page(), PageNumber::new(21));
+        assert_eq!(physical[ordinal].usage_map().row(), 2 + ordinal as u8);
+        assert_eq!(physical[ordinal].raw_flags(), flags);
+        assert!(
+            database
+                .index_tree(&definition, ordinal as u16, &mut budget)?
+                .entries()
+                .is_empty()
+        );
+    }
+    let composite = physical[2].fields();
+    assert_eq!(composite.len(), 2);
+    assert_eq!(composite[0].column(), ColumnOrdinal::new(1));
+    assert_eq!(composite[0].direction(), IndexDirection::Descending);
+    assert_eq!(composite[1].column(), ColumnOrdinal::new(2));
+    assert_eq!(composite[1].direction(), IndexDirection::Ascending);
+    // Logical records in name order, referring back to physical ordinals.
+    let logical = definition
+        .indexes()
+        .iter()
+        .map(|index| (index.name().raw_bytes(), index.physical_index()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        logical,
+        [
+            (b"ASecondx".as_slice(), 2),
+            (b"MUniqueX".as_slice(), 1),
+            (b"ZPrimary".as_slice(), 0),
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn a_definition_needing_a_continuation_appends_it_after_the_property_page() -> TestResult {
+    // EXP-0107: the root names page 23 at [4,8), the continuation repeats the
+    // definition prefix with a zero next-page reference, and the payload
+    // starts at offset 8. The reader must decode all 70 columns through it.
+    let names = wide_names(70);
+    let columns = wide_columns(&names);
+    let bytes = create_bytes(&TableSpec {
+        validation: crate::TableValidation::NONE,
+        name: b"Wide",
+        columns: &columns,
+        indexes: &[],
+    })?;
+    assert_eq!(bytes.len(), 24 * PAGE_BYTES);
+    let root = page(&bytes, 20);
+    let continuation = page(&bytes, 23);
+    assert_eq!(&root[4..8], &23_u32.to_le_bytes());
+    assert_eq!(&continuation[..4], &root[..4]);
+    assert_eq!(&continuation[4..8], &[0, 0, 0, 0]);
+    assert!(continuation[8 + 27..].iter().all(|byte| *byte == 0));
+    assert!(!inline_map_bit(&bytes, 1, 0, 23)?);
+    assert_eq!(&page(&bytes, 22)[..4], b"\x01\x01\xf6\x07");
+    let mut budget = read_budget(bytes.len());
+    let source = SliceSource::new(&bytes, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    assert_eq!(database.geometry().page_count(), 24);
+    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
+    assert_eq!(definition.columns().len(), 70);
+    assert_eq!(definition.columns()[69].name().raw_bytes(), b"Field00069");
+    Ok(())
+}
+
+#[test]
+fn a_definition_needing_two_continuations_reopens_with_the_complete_column_inventory() -> TestResult
+{
+    let names = wide_names(140);
+    let columns = wide_columns(&names);
+    let bytes = create_bytes(&TableSpec {
+        validation: crate::TableValidation::NONE,
+        name: b"Wide",
+        columns: &columns,
+        indexes: &[],
+    })?;
+    assert_eq!(bytes.len(), 25 * PAGE_BYTES);
+    assert_eq!(&page(&bytes, 20)[4..8], &23_u32.to_le_bytes());
+    assert_eq!(&page(&bytes, 23)[4..8], &24_u32.to_le_bytes());
+    assert_eq!(&page(&bytes, 24)[4..8], &[0; 4]);
+    let mut budget = read_budget(bytes.len());
+    let source = SliceSource::new(&bytes, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
+    assert_eq!(definition.columns().len(), names.len());
+    for (column, name) in definition.columns().iter().zip(&names) {
+        assert_eq!(column.name().raw_bytes(), name);
+    }
+    Ok(())
+}
+
+#[test]
+fn a_long_value_map_pair_follows_the_index_map() -> TestResult {
+    let columns = [ID, NOTE];
+    let indexes = [IndexSpec {
+        name: b"ById",
+        fields: &[field(0, IndexDirection::Ascending)],
+        kind: IndexKind::Ordinary,
+    }];
+    let bytes = create_bytes(&TableSpec {
+        validation: crate::TableValidation::NONE,
+        name: b"Mixed",
+        columns: &columns,
+        indexes: &indexes,
+    })?;
+    let mut budget = read_budget(bytes.len());
+    let source = SliceSource::new(&bytes, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
+    let group = definition.long_value_maps().first().ok_or("missing maps")?;
+    assert_eq!(group.owned(), MapRowLocator::new(PageNumber::new(21), 3));
+    assert_eq!(
+        group.available(),
+        MapRowLocator::new(PageNumber::new(21), 4)
+    );
+    assert!(inline_map_bit(&bytes, 21, 2, 23)?);
+    assert!(!inline_map_bit(&bytes, 21, 3, 23)?);
+    Ok(())
+}
+
+#[test]
+fn a_create_that_cannot_be_planned_reports_the_schema_error() {
+    let columns = [ID];
+    let mut budget = compose_budget();
+    assert!(matches!(
+        compose_table_database(
+            &TableSpec {
+                validation: crate::TableValidation::NONE,
+                name: b"",
+                columns: &columns,
+                indexes: &[],
+            },
+            &mut budget,
+        ),
+        Err(ComposeError::Schema(_))
+    ));
+}
+
+#[test]
+fn multiple_long_value_map_pairs_follow_column_order() -> TestResult {
+    let columns = [ID, NOTE, ColumnSpec::new(b"Blob", ColumnType::LongBinary)];
+    let bytes = create_bytes(&TableSpec {
+        validation: crate::TableValidation::NONE,
+        name: b"Wide",
+        columns: &columns,
+        indexes: &[],
+    })?;
+    let mut budget = read_budget(bytes.len());
+    let source = SliceSource::new(&bytes, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    let definition = database.table_definition(PageNumber::new(20), &mut budget)?;
+    assert_eq!(definition.long_value_maps().len(), 2);
+    for (position, group) in definition.long_value_maps().iter().enumerate() {
+        assert_eq!(group.column(), ColumnOrdinal::new(position as u16 + 1));
+        assert_eq!(
+            group.owned(),
+            MapRowLocator::new(PageNumber::new(21), 2 + 2 * position as u8)
+        );
+        assert_eq!(
+            group.available(),
+            MapRowLocator::new(PageNumber::new(21), 3 + 2 * position as u8)
+        );
+    }
+    Ok(())
+}
+
+/// The exact `EXP-0087` create sequence: Alpha, Beta, Gamma, then Delta.
+fn exp_0087_tables<'a>(
+    gamma_indexes: &'a [IndexSpec<'a>],
+    delta_indexes: &'a [IndexSpec<'a>],
+    label: &'a [ColumnSpec<'a>],
+) -> [TableSpec<'a>; 4] {
+    [
+        TableSpec {
+            validation: crate::TableValidation::NONE,
+            name: b"Alpha",
+            columns: &[ID],
+            indexes: &[],
+        },
+        TableSpec {
+            validation: crate::TableValidation::NONE,
+            name: b"Beta",
+            columns: &[ID, NAME, NOTE],
+            indexes: &[],
+        },
+        TableSpec {
+            validation: crate::TableValidation::NONE,
+            name: b"Gamma",
+            columns: &[ID],
+            indexes: gamma_indexes,
+        },
+        TableSpec {
+            validation: crate::TableValidation::NONE,
+            name: b"Delta",
+            columns: label,
+            indexes: delta_indexes,
+        },
+    ]
+}
+
+fn database_bytes(specs: &[TableSpec<'_>]) -> Result<Vec<u8>, ComposeError> {
+    let mut budget = compose_budget();
+    let plan = compose_database(specs, &mut budget)?;
+    Ok(plan
+        .pages()
+        .iter()
+        .flat_map(|page| page.image().as_bytes().iter().copied())
+        .collect())
+}
+
+#[test]
+fn later_creates_keep_catalog_rows_and_explicit_text_properties() -> TestResult {
+    // EXP-0087 catalog rows/counters and EXP-0284 explicit text properties.
+    let gamma_indexes = [IndexSpec {
+        name: b"PrimaryKey",
+        fields: &[field(0, IndexDirection::Ascending)],
+        kind: IndexKind::Primary,
+    }];
+    let label = [ColumnSpec::new(
+        b"Label",
+        ColumnType::Text { max_len: nz(30) },
+    )];
+    let delta_indexes = [IndexSpec {
+        name: b"ByLabel",
+        fields: &[field(0, IndexDirection::Ascending)],
+        kind: IndexKind::Ordinary,
+    }];
+    let tables = exp_0087_tables(&gamma_indexes, &delta_indexes, &label);
+    for (count, pages) in [(1, 23), (2, 26), (3, 29), (4, 33)] {
+        let bytes = database_bytes(&tables[..count])?;
+        assert_eq!(bytes.len(), pages * PAGE_BYTES, "{count} tables");
+        assert_eq!(bytes[1538], 2 * count as u8);
+    }
+    let bytes = database_bytes(&tables)?;
+    // The first empty property page remains; Beta and Delta have named properties.
+    assert_eq!(&page(&bytes, 22)[..8], b"\x01\x01\xf6\x07LVAL");
+    for root in [20, 23, 26, 29] {
+        assert_eq!(page(&bytes, root)[0], 2, "definition root {root}");
+        assert_eq!(page(&bytes, root + 1)[0], 1, "map page after {root}");
+    }
+    for index_root in [28, 32] {
+        assert_eq!(page(&bytes, index_root)[0], 4, "index root {index_root}");
+    }
+    let mut budget = read_budget(bytes.len());
+    let source = SliceSource::new(&bytes, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, &mut budget)?;
+    let mut roots = Vec::new();
+    {
+        let mut catalog = database.catalog(&mut budget)?;
+        while let Some(record) = catalog.next_record()? {
+            if record.class() == crate::CatalogObjectClass::User {
+                roots.push((
+                    record.name().raw_bytes().to_vec(),
+                    record.id().get(),
+                    record.table_definition(),
+                ));
+            }
+        }
+    }
+    assert_eq!(
+        roots,
+        [
+            (b"Alpha".to_vec(), 20, Some(PageNumber::new(20))),
+            (b"Beta".to_vec(), 23, Some(PageNumber::new(23))),
+            (b"Gamma".to_vec(), 26, Some(PageNumber::new(26))),
+            (b"Delta".to_vec(), 29, Some(PageNumber::new(29))),
+        ]
+    );
+    let gamma = database.table_definition(PageNumber::new(26), &mut budget)?;
+    assert_eq!(gamma.physical_indexes()[0].root(), PageNumber::new(28));
+    assert_eq!(
+        gamma.physical_indexes()[0].usage_map().page(),
+        PageNumber::new(27)
+    );
+    let aces = database.table_definition(PageNumber::new(3), &mut budget)?;
+    let mut ace_rows = 0;
+    let mut rows = database.rows(&aces, &mut budget)?;
+    while rows.next_row()?.is_some() {
+        ace_rows += 1;
+    }
+    assert_eq!(ace_rows, 16 + 2 * 4);
+    Ok(())
+}
+
+#[test]
+fn a_case_folded_duplicate_name_is_refused() {
+    let mut budget = compose_budget();
+    let duplicate = [
+        TableSpec {
+            validation: crate::TableValidation::NONE,
+            name: b"Alpha",
+            columns: &[ID],
+            indexes: &[],
+        },
+        TableSpec {
+            validation: crate::TableValidation::NONE,
+            name: b"Beta",
+            columns: &[ID],
+            indexes: &[],
+        },
+        TableSpec {
+            validation: crate::TableValidation::NONE,
+            name: b"ALPHA",
+            columns: &[ID],
+            indexes: &[],
+        },
+    ];
+    assert!(matches!(
+        compose_database(&duplicate, &mut budget),
+        Err(ComposeError::DuplicateTableName {
+            first: 0,
+            second: 2
+        })
+    ));
+}
+
+#[test]
+fn creation_counter_and_catalog_locators_reject_overflow() -> Result<(), ComposeError> {
+    for (count, expected) in [
+        (0, 0x0100),
+        (127, 0x01fe),
+        (128, 0x0200),
+        (255, 0x02fe),
+        (256, 0x0300),
+        (32639, 0xfffe),
+    ] {
+        assert_eq!(creation_counter(count)?, expected);
+    }
+    assert!(matches!(
+        creation_counter(32640),
+        Err(ComposeError::TableCountOverflow {
+            count: 32640,
+            maximum: 32639
+        })
+    ));
+    assert_eq!(catalog_row_number(255)?, 255);
+    assert!(matches!(
+        catalog_row_number(256),
+        Err(ComposeError::Encoding(crate::Error::IntegerConversion {
+            value: 256,
+            target: "u8"
+        }))
+    ));
+    Ok(())
+}

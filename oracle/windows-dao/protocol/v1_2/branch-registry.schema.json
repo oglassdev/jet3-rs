@@ -17,7 +17,7 @@
         "required": ["id", "module", "description"],
         "properties": {
           "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$" },
-          "module": { "type": "string", "pattern": "^crates/jet3/src/[a-z_]+\\.rs$" },
+          "module": { "type": "string", "pattern": "^crates/jet3/src/[a-z_/]+\\.rs$" },
           "description": { "type": "string", "minLength": 1, "maxLength": 300 }
         }
       }
