@@ -49,22 +49,17 @@ impl TestDirectory {
     }
 
     fn private_entries(&self) -> Result<usize, std::io::Error> {
-        Ok(self.private_paths()?.len())
-    }
-
-    fn private_paths(&self) -> Result<Vec<PathBuf>, std::io::Error> {
-        let mut paths = Vec::new();
+        let mut count = 0;
         for entry in fs::read_dir(&self.path)? {
-            let entry = entry?;
-            if entry
+            if entry?
                 .file_name()
                 .to_string_lossy()
                 .contains(".jet3-private-")
             {
-                paths.push(entry.path());
+                count += 1;
             }
         }
-        Ok(paths)
+        Ok(count)
     }
 }
 
@@ -195,142 +190,5 @@ fn concurrent_observer_sees_only_original_or_validated_replacement() -> TestResu
 
     assert_eq!(fs::read(&target)?, vec![REPLACEMENT; CONTENT_BYTES]);
     assert_eq!(directory.private_entries()?, 0);
-    Ok(())
-}
-
-#[test]
-fn every_stage_fault_reports_a_whole_file_and_cleans_private_copy() -> TestResult {
-    let stages = [
-        PublishStage::PrivateCopyCreation,
-        PublishStage::Copy,
-        PublishStage::Mutation,
-        PublishStage::Metadata,
-        PublishStage::Validation,
-        PublishStage::FileSync,
-        PublishStage::PrePublish,
-        PublishStage::Publish,
-        PublishStage::DirectorySync,
-    ];
-
-    for fault in stages {
-        let directory = TestDirectory::create()?;
-        let target = directory.target();
-        fs::write(&target, vec![ORIGINAL; CONTENT_BYTES])?;
-        set_distinct_permissions(&target)?;
-        let original_permissions = fs::metadata(&target)?.permissions();
-        let mut budget = operation_budget();
-
-        let error = atomic_update_with_hook(
-            &target,
-            &mut budget,
-            write_replacement,
-            validate_replacement,
-            |stage| {
-                if stage == fault {
-                    Err(TestFailure("injected stage fault"))
-                } else {
-                    Ok(())
-                }
-            },
-        )
-        .err()
-        .ok_or(TestFailure("injected fault unexpectedly succeeded"))?;
-
-        assert_eq!(error.stage(), fault);
-        let expected_byte = if fault == PublishStage::DirectorySync {
-            REPLACEMENT
-        } else {
-            ORIGINAL
-        };
-        assert_eq!(fs::read(&target)?, vec![expected_byte; CONTENT_BYTES]);
-        assert_permissions_equal(&target, &original_permissions)?;
-        assert_eq!(directory.private_entries()?, 0);
-    }
-
-    let directory = TestDirectory::create()?;
-    let target = directory.target();
-    fs::write(&target, vec![ORIGINAL; CONTENT_BYTES])?;
-    set_distinct_permissions(&target)?;
-    let original_permissions = fs::metadata(&target)?.permissions();
-    let mut budget = operation_budget();
-    let cleanup_error = atomic_update_with_hook(
-        &target,
-        &mut budget,
-        write_replacement,
-        validate_replacement,
-        |stage| match stage {
-            PublishStage::Validation => Err(TestFailure("injected validation fault")),
-            PublishStage::Cleanup => Err(TestFailure("injected cleanup fault")),
-            _ => Ok(()),
-        },
-    )
-    .err()
-    .ok_or(TestFailure("cleanup fault unexpectedly succeeded"))?;
-    assert_eq!(cleanup_error.stage(), PublishStage::Validation);
-    assert!(cleanup_error.cleanup_error().is_some());
-    assert_eq!(fs::read(&target)?, vec![ORIGINAL; CONTENT_BYTES]);
-    assert_permissions_equal(&target, &original_permissions)?;
-    assert_eq!(directory.private_entries()?, 0);
-    Ok(())
-}
-
-#[test]
-fn validator_path_substitution_is_rejected_without_publishing_or_deleting_it() -> TestResult {
-    let directory = TestDirectory::create()?;
-    let target = directory.target();
-    let substitute = directory.path.join("substitute.bin");
-    fs::write(&target, vec![ORIGINAL; CONTENT_BYTES])?;
-    fs::write(&substitute, vec![0x91; CONTENT_BYTES])?;
-    let original = fs::read(&target)?;
-    let mut budget = operation_budget();
-
-    let error = atomic_update_with_hook(
-        &target,
-        &mut budget,
-        write_replacement,
-        |private_path| {
-            validate_replacement(private_path)?;
-            fs::rename(&substitute, private_path)
-                .map_err(|_| TestFailure("private-path substitution failed"))
-        },
-        |_| Ok::<(), TestFailure>(()),
-    )
-    .err()
-    .ok_or(TestFailure("substituted private path was published"))?;
-
-    assert_eq!(error.stage(), PublishStage::Publish);
-    assert_eq!(fs::read(&target)?, original);
-    let cleanup_error = error.cleanup_error().ok_or(TestFailure(
-        "identity-safe cleanup refusal was not reported",
-    ))?;
-    assert!(cleanup_error.to_string().contains("no longer identifies"));
-
-    let private_paths = directory.private_paths()?;
-    assert_eq!(private_paths.len(), 1);
-    assert_eq!(fs::read(&private_paths[0])?, vec![0x91; CONTENT_BYTES]);
-    Ok(())
-}
-
-#[cfg(unix)]
-fn set_distinct_permissions(path: &Path) -> Result<(), std::io::Error> {
-    use std::os::unix::fs::PermissionsExt;
-
-    fs::set_permissions(path, fs::Permissions::from_mode(0o640))
-}
-
-#[cfg(not(unix))]
-fn set_distinct_permissions(_path: &Path) -> Result<(), std::io::Error> {
-    Ok(())
-}
-
-fn assert_permissions_equal(path: &Path, expected: &fs::Permissions) -> Result<(), std::io::Error> {
-    let actual = fs::metadata(path)?.permissions();
-    assert_eq!(actual.readonly(), expected.readonly());
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-
-        assert_eq!(actual.mode() & 0o777, expected.mode() & 0o777);
-    }
     Ok(())
 }

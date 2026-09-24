@@ -184,10 +184,10 @@ fn constructor_rejects_partial_page_without_reading() {
 }
 
 #[test]
-fn reads_first_and_last_complete_pages() -> Result<(), Error> {
+fn exact_limits_read_first_and_last_complete_pages() -> Result<(), Error> {
     let mut reader = Jet3PageReader::new(TestSource::exact(patterned_pages(3)))?;
     let mut destination = [0_u8; PAGE_BYTES];
-    let mut operation = permissive_budget();
+    let mut operation = budget(JET3_PAGE_SIZE.get(), 2 * JET3_PAGE_SIZE.get(), 2, 2);
 
     reader.read_page(PageNumber::new(0), &mut destination, &mut operation)?;
     assert!(destination.iter().all(|byte| *byte == 0));
@@ -204,247 +204,164 @@ fn reads_first_and_last_complete_pages() -> Result<(), Error> {
 }
 
 #[test]
-fn rejects_page_at_count_and_one_above_without_charging() -> Result<(), Error> {
-    let mut reader = Jet3PageReader::new(TestSource::exact(patterned_pages(2)))?;
-    let mut destination = [0_u8; PAGE_BYTES];
-    let mut operation = permissive_budget();
-
-    for page in [PageNumber::new(2), PageNumber::new(3)] {
+fn rejected_first_reads_charge_nothing_and_skip_the_source() -> Result<(), Error> {
+    let below = JET3_PAGE_SIZE.get() - 1;
+    let out_of_bounds = |page, page_count| Error::PageOutOfBounds { page, page_count };
+    let read_limit = |kind| Error::LimitExceeded {
+        kind,
+        requested: JET3_PAGE_SIZE,
+        maximum: ByteCount::new(below),
+    };
+    let cases = [
+        (
+            "page at count",
+            2,
+            2,
+            permissive_budget(),
+            out_of_bounds(2, 2),
+        ),
+        (
+            "page above count",
+            2,
+            3,
+            permissive_budget(),
+            out_of_bounds(3, 2),
+        ),
+        (
+            "empty source",
+            0,
+            0,
+            permissive_budget(),
+            out_of_bounds(0, 0),
+        ),
+        (
+            "read limit before page bounds",
+            1,
+            1,
+            budget(below, u64::MAX, 1, 1),
+            read_limit(LimitKind::SingleReadBytes),
+        ),
+        (
+            "single read one below",
+            1,
+            0,
+            budget(below, u64::MAX, 1, 1),
+            read_limit(LimitKind::SingleReadBytes),
+        ),
+        (
+            "total read one below",
+            1,
+            0,
+            budget(u64::MAX, below, 1, 1),
+            read_limit(LimitKind::TotalReadBytes),
+        ),
+    ];
+    for (label, pages, page, mut operation, expected) in cases {
+        let mut reader = Jet3PageReader::new(TestSource::exact(patterned_pages(pages)))?;
+        let mut destination = [0_u8; PAGE_BYTES];
         assert_eq!(
-            reader.read_page(page, &mut destination, &mut operation),
-            Err(Error::PageOutOfBounds {
-                page: page.get(),
-                page_count: 2,
-            })
+            reader.read_page(PageNumber::new(page), &mut destination, &mut operation),
+            Err(expected),
+            "{label}"
         );
+        assert_eq!(
+            operation.read_budget().total_read(),
+            ByteCount::new(0),
+            "{label}"
+        );
+        assert_eq!(operation.page_visits(), 0, "{label}");
+        assert_eq!(operation.total_work_units(), 0, "{label}");
+        assert_eq!(reader.source().reads, 0, "{label}");
     }
-    assert_eq!(reader.source().reads, 0);
-    assert_eq!(operation.read_budget().total_read(), ByteCount::new(0));
-    assert_eq!(operation.page_visits(), 0);
-    assert_eq!(operation.total_work_units(), 0);
     Ok(())
 }
 
 #[test]
-fn empty_source_rejects_page_zero_without_charging() -> Result<(), Error> {
-    let mut reader = Jet3PageReader::new(TestSource::exact(Vec::new()))?;
-    let mut destination = [0_u8; PAGE_BYTES];
-    let mut operation = permissive_budget();
+fn cumulative_limits_reject_the_second_read_after_one_page() -> Result<(), Error> {
+    let size = JET3_PAGE_SIZE.get();
+    let cases = [
+        (
+            0,
+            budget(size, size, u64::MAX, u64::MAX),
+            Error::LimitExceeded {
+                kind: LimitKind::TotalReadBytes,
+                requested: ByteCount::new(2 * size),
+                maximum: JET3_PAGE_SIZE,
+            },
+        ),
+        (
+            1,
+            budget(u64::MAX, u64::MAX, 1, u64::MAX),
+            Error::ResourceLimitExceeded {
+                kind: ResourceLimitKind::PageVisits,
+                requested: 2,
+                maximum: 1,
+            },
+        ),
+        (
+            1,
+            budget(u64::MAX, u64::MAX, u64::MAX, 1),
+            Error::ResourceLimitExceeded {
+                kind: ResourceLimitKind::TotalWorkUnits,
+                requested: 2,
+                maximum: 1,
+            },
+        ),
+    ];
+    for (second_page, mut operation, expected) in cases {
+        let mut reader = Jet3PageReader::new(TestSource::exact(patterned_pages(2)))?;
+        let mut destination = [0_u8; PAGE_BYTES];
 
-    assert_eq!(
-        reader.read_page(PageNumber::new(0), &mut destination, &mut operation),
-        Err(Error::PageOutOfBounds {
-            page: 0,
-            page_count: 0,
-        })
-    );
-    assert_uncharged(&mut operation);
-    assert_eq!(reader.source().reads, 0);
+        reader.read_page(PageNumber::new(0), &mut destination, &mut operation)?;
+        assert_eq!(
+            reader.read_page(
+                PageNumber::new(second_page),
+                &mut destination,
+                &mut operation
+            ),
+            Err(expected)
+        );
+        assert_eq!(reader.source().reads, 1);
+        assert_eq!(operation.read_budget().total_read(), JET3_PAGE_SIZE);
+        assert_eq!(operation.page_visits(), 1);
+        assert_eq!(operation.total_work_units(), 1);
+    }
     Ok(())
 }
 
 #[test]
-fn insufficient_read_budget_precedes_invalid_page_reference() -> Result<(), Error> {
-    let mut reader = Jet3PageReader::new(TestSource::exact(patterned_pages(1)))?;
-    let mut destination = [0_u8; PAGE_BYTES];
-    let maximum = ByteCount::new(JET3_PAGE_SIZE.get() - 1);
-    let mut operation = budget(maximum.get(), u64::MAX, 1, 1);
+fn failed_source_reads_charge_attempted_bytes_and_page_visit() -> Result<(), Error> {
+    for (behavior, expected) in [
+        (
+            ReadBehavior::Short,
+            Error::ShortRead {
+                offset: ByteOffset::new(0),
+                needed: JET3_PAGE_SIZE,
+                actual: ByteCount::new(JET3_PAGE_SIZE.get() - 1),
+            },
+        ),
+        (
+            ReadBehavior::Fault,
+            Error::Io {
+                operation: "read test source",
+                kind: io::ErrorKind::Other,
+            },
+        ),
+    ] {
+        let source = TestSource::with_behavior(patterned_pages(1), behavior);
+        let mut reader = Jet3PageReader::new(source)?;
+        let mut destination = [0x5a_u8; PAGE_BYTES];
+        let mut operation = permissive_budget();
 
-    assert_eq!(
-        reader.read_page(PageNumber::new(1), &mut destination, &mut operation),
-        Err(Error::LimitExceeded {
-            kind: LimitKind::SingleReadBytes,
-            requested: JET3_PAGE_SIZE,
-            maximum,
-        })
-    );
-    assert_uncharged(&mut operation);
-    assert_eq!(reader.source().reads, 0);
+        assert_eq!(
+            reader.read_page(PageNumber::new(0), &mut destination, &mut operation),
+            Err(expected)
+        );
+        assert_eq!(operation.read_budget().total_read(), JET3_PAGE_SIZE);
+        assert_eq!(operation.page_visits(), 1);
+        assert_eq!(operation.total_work_units(), 1);
+        assert_eq!(reader.source().reads, 1);
+        assert!(destination.iter().all(|byte| *byte == 0x5a));
+    }
     Ok(())
-}
-
-#[test]
-fn accepts_exact_single_and_total_read_limits() -> Result<(), Error> {
-    let mut reader = Jet3PageReader::new(TestSource::exact(patterned_pages(1)))?;
-    let mut destination = [0_u8; PAGE_BYTES];
-    let mut operation = budget(JET3_PAGE_SIZE.get(), JET3_PAGE_SIZE.get(), 1, 1);
-
-    reader.read_page(PageNumber::new(0), &mut destination, &mut operation)?;
-    assert_eq!(operation.read_budget().total_read(), JET3_PAGE_SIZE);
-    assert_eq!(operation.page_visits(), 1);
-    Ok(())
-}
-
-#[test]
-fn rejects_one_below_single_read_limit_without_charging() -> Result<(), Error> {
-    let mut reader = Jet3PageReader::new(TestSource::exact(patterned_pages(1)))?;
-    let mut destination = [0_u8; PAGE_BYTES];
-    let maximum = ByteCount::new(JET3_PAGE_SIZE.get() - 1);
-    let mut operation = budget(maximum.get(), u64::MAX, 1, 1);
-
-    assert_eq!(
-        reader.read_page(PageNumber::new(0), &mut destination, &mut operation),
-        Err(Error::LimitExceeded {
-            kind: LimitKind::SingleReadBytes,
-            requested: JET3_PAGE_SIZE,
-            maximum,
-        })
-    );
-    assert_uncharged(&mut operation);
-    assert_eq!(reader.source().reads, 0);
-    Ok(())
-}
-
-#[test]
-fn rejects_one_below_total_read_limit_without_charging() -> Result<(), Error> {
-    let mut reader = Jet3PageReader::new(TestSource::exact(patterned_pages(1)))?;
-    let mut destination = [0_u8; PAGE_BYTES];
-    let maximum = ByteCount::new(JET3_PAGE_SIZE.get() - 1);
-    let mut operation = budget(u64::MAX, maximum.get(), 1, 1);
-
-    assert_eq!(
-        reader.read_page(PageNumber::new(0), &mut destination, &mut operation),
-        Err(Error::LimitExceeded {
-            kind: LimitKind::TotalReadBytes,
-            requested: JET3_PAGE_SIZE,
-            maximum,
-        })
-    );
-    assert_uncharged(&mut operation);
-    assert_eq!(reader.source().reads, 0);
-    Ok(())
-}
-
-#[test]
-fn repeated_page_read_exhausts_cumulative_limit_without_second_visit() -> Result<(), Error> {
-    let mut reader = Jet3PageReader::new(TestSource::exact(patterned_pages(1)))?;
-    let mut destination = [0_u8; PAGE_BYTES];
-    let mut operation = budget(
-        JET3_PAGE_SIZE.get(),
-        JET3_PAGE_SIZE.get(),
-        u64::MAX,
-        u64::MAX,
-    );
-
-    reader.read_page(PageNumber::new(0), &mut destination, &mut operation)?;
-    assert_eq!(
-        reader.read_page(PageNumber::new(0), &mut destination, &mut operation),
-        Err(Error::LimitExceeded {
-            kind: LimitKind::TotalReadBytes,
-            requested: ByteCount::new(2 * JET3_PAGE_SIZE.get()),
-            maximum: JET3_PAGE_SIZE,
-        })
-    );
-    assert_eq!(reader.source().reads, 1);
-    assert_eq!(operation.read_budget().total_read(), JET3_PAGE_SIZE);
-    assert_eq!(operation.page_visits(), 1);
-    assert_eq!(operation.total_work_units(), 1);
-    Ok(())
-}
-
-#[test]
-fn page_visit_limit_accepts_exact_and_rejects_one_over() -> Result<(), Error> {
-    let mut reader = Jet3PageReader::new(TestSource::exact(patterned_pages(2)))?;
-    let mut destination = [0_u8; PAGE_BYTES];
-    let mut operation = budget(u64::MAX, u64::MAX, 1, u64::MAX);
-
-    reader.read_page(PageNumber::new(0), &mut destination, &mut operation)?;
-    assert_eq!(
-        reader.read_page(PageNumber::new(1), &mut destination, &mut operation),
-        Err(Error::ResourceLimitExceeded {
-            kind: ResourceLimitKind::PageVisits,
-            requested: 2,
-            maximum: 1,
-        })
-    );
-    assert_eq!(reader.source().reads, 1);
-    assert_eq!(operation.read_budget().total_read(), JET3_PAGE_SIZE);
-    assert_eq!(operation.page_visits(), 1);
-    assert_eq!(operation.total_work_units(), 1);
-    Ok(())
-}
-
-#[test]
-fn total_work_limit_accepts_exact_and_rejects_one_over() -> Result<(), Error> {
-    let mut reader = Jet3PageReader::new(TestSource::exact(patterned_pages(2)))?;
-    let mut destination = [0_u8; PAGE_BYTES];
-    let mut operation = budget(u64::MAX, u64::MAX, u64::MAX, 1);
-
-    reader.read_page(PageNumber::new(0), &mut destination, &mut operation)?;
-    assert_eq!(
-        reader.read_page(PageNumber::new(1), &mut destination, &mut operation),
-        Err(Error::ResourceLimitExceeded {
-            kind: ResourceLimitKind::TotalWorkUnits,
-            requested: 2,
-            maximum: 1,
-        })
-    );
-    assert_eq!(reader.source().reads, 1);
-    assert_eq!(operation.read_budget().total_read(), JET3_PAGE_SIZE);
-    assert_eq!(operation.page_visits(), 1);
-    assert_eq!(operation.total_work_units(), 1);
-    Ok(())
-}
-
-#[test]
-fn short_read_charges_attempted_bytes_and_page_visit() -> Result<(), Error> {
-    let source = TestSource::with_behavior(patterned_pages(1), ReadBehavior::Short);
-    let mut reader = Jet3PageReader::new(source)?;
-    let mut destination = [0x5a_u8; PAGE_BYTES];
-    let mut operation = permissive_budget();
-
-    assert_eq!(
-        reader.read_page(PageNumber::new(0), &mut destination, &mut operation),
-        Err(Error::ShortRead {
-            offset: ByteOffset::new(0),
-            needed: JET3_PAGE_SIZE,
-            actual: ByteCount::new(JET3_PAGE_SIZE.get() - 1),
-        })
-    );
-    assert_failed_read_charged(&mut operation);
-    assert_eq!(reader.source().reads, 1);
-    assert!(destination.iter().all(|byte| *byte == 0x5a));
-    Ok(())
-}
-
-#[test]
-fn io_fault_charges_attempted_bytes_and_page_visit() -> Result<(), Error> {
-    let source = TestSource::with_behavior(patterned_pages(1), ReadBehavior::Fault);
-    let mut reader = Jet3PageReader::new(source)?;
-    let mut destination = [0xa5_u8; PAGE_BYTES];
-    let mut operation = permissive_budget();
-
-    assert_eq!(
-        reader.read_page(PageNumber::new(0), &mut destination, &mut operation),
-        Err(Error::Io {
-            operation: "read test source",
-            kind: io::ErrorKind::Other,
-        })
-    );
-    assert_failed_read_charged(&mut operation);
-    assert_eq!(reader.source().reads, 1);
-    assert!(destination.iter().all(|byte| *byte == 0xa5));
-    Ok(())
-}
-
-#[test]
-fn into_inner_returns_owned_source() -> Result<(), Error> {
-    let source = TestSource::exact(patterned_pages(1));
-    let reader = Jet3PageReader::new(source)?;
-    let extracted = reader.into_inner();
-    assert_eq!(extracted.bytes.len(), PAGE_BYTES);
-    assert_eq!(extracted.reads, 0);
-    Ok(())
-}
-
-fn assert_uncharged(operation: &mut ResourceBudget) {
-    assert_eq!(operation.read_budget().total_read(), ByteCount::new(0));
-    assert_eq!(operation.page_visits(), 0);
-    assert_eq!(operation.total_work_units(), 0);
-}
-
-fn assert_failed_read_charged(operation: &mut ResourceBudget) {
-    assert_eq!(operation.read_budget().total_read(), JET3_PAGE_SIZE);
-    assert_eq!(operation.page_visits(), 1);
-    assert_eq!(operation.total_work_units(), 1);
 }

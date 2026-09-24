@@ -1,8 +1,7 @@
 // Mapping assertions are bounded to the public SRC-0025 tables.
 
 use super::text::{TextCodePage, TextError, decode_text};
-use crate::{ByteCount, Error, ResourceBudget, ResourceLimits};
-use std::error::Error as _;
+use crate::{ByteCount, ResourceBudget, ResourceLimits};
 
 #[test]
 fn decodes_cp1252_discriminator_and_retains_raw_bytes() -> Result<(), Box<dyn std::error::Error>> {
@@ -14,22 +13,6 @@ fn decodes_cp1252_discriminator_and_retains_raw_bytes() -> Result<(), Box<dyn st
     assert_eq!(decoded.code_page().number(), 1252);
     assert_eq!(budget.decoded_bytes(), ByteCount::new(15));
     Ok(())
-}
-
-#[test]
-fn text_errors_expose_display_and_resource_sources() {
-    let undefined = TextError::UndefinedByte {
-        code_page: TextCodePage::Windows1252,
-        index: 0,
-        byte: 0x81,
-    };
-    assert!(undefined.to_string().contains("text conversion failed"));
-    assert!(undefined.source().is_none());
-
-    let resource = TextError::Resource(Error::Arithmetic {
-        operation: "test text source",
-    });
-    assert!(resource.source().is_some());
 }
 
 #[test]

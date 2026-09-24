@@ -55,65 +55,50 @@ fn exact_writes_and_rewrites_advance_cumulative_accounting() -> Result<(), Error
 }
 
 #[test]
-fn capacity_failure_preserves_bytes_position_and_budget() -> Result<(), Error> {
-    let mut output = [0xa5; 3];
-    let mut budget = ResourceBudget::new(limits(8, 8));
-    {
-        let mut writer = BinaryWriter::new(&mut output, &mut budget)?;
-        writer.seek(ByteOffset::new(2))?;
-        assert_eq!(
-            writer.write_exact(&[1, 2]),
-            Err(Error::OutputCapacityExceeded {
-                offset: ByteOffset::new(2),
+fn capacity_and_limit_failures_preserve_bytes_position_and_budget() -> Result<(), Error> {
+    let cases = [
+        (
+            1,
+            limits(8, 8),
+            Error::OutputCapacityExceeded {
+                offset: ByteOffset::new(1),
                 needed: ByteCount::new(2),
                 available: ByteCount::new(1),
-            })
-        );
-        assert_eq!(writer.position(), ByteOffset::new(2));
-        assert_eq!(writer.total_encoded(), ByteCount::new(0));
-    }
-    assert_eq!(output, [0xa5; 3]);
-    assert_eq!(budget.total_work_units(), 0);
-    Ok(())
-}
-
-#[test]
-fn encoded_and_aggregate_limit_failures_are_atomic() -> Result<(), Error> {
-    let mut encoded_output = [0xa5; 2];
-    let mut encoded_budget = ResourceBudget::new(limits(1, 2));
-    {
-        let mut encoded_writer = BinaryWriter::new(&mut encoded_output, &mut encoded_budget)?;
-        assert_eq!(
-            encoded_writer.write_exact(&[1, 2]),
-            Err(Error::ResourceLimitExceeded {
+            },
+        ),
+        (
+            0,
+            limits(1, 2),
+            Error::ResourceLimitExceeded {
                 kind: ResourceLimitKind::EncodedBytes,
                 requested: 2,
                 maximum: 1,
-            })
-        );
-        assert_eq!(encoded_writer.position(), ByteOffset::new(0));
-    }
-    assert_eq!(encoded_output, [0xa5; 2]);
-    assert_eq!(encoded_budget.encoded_bytes(), ByteCount::new(0));
-    assert_eq!(encoded_budget.total_work_units(), 0);
-
-    let mut work_output = [0xa5; 2];
-    let mut work_budget = ResourceBudget::new(limits(2, 1));
-    {
-        let mut work_writer = BinaryWriter::new(&mut work_output, &mut work_budget)?;
-        assert_eq!(
-            work_writer.write_exact(&[1, 2]),
-            Err(Error::ResourceLimitExceeded {
+            },
+        ),
+        (
+            0,
+            limits(2, 1),
+            Error::ResourceLimitExceeded {
                 kind: ResourceLimitKind::TotalWorkUnits,
                 requested: 2,
                 maximum: 1,
-            })
-        );
-        assert_eq!(work_writer.position(), ByteOffset::new(0));
+            },
+        ),
+    ];
+    for (start, policy, expected) in cases {
+        let mut output = [0xa5; 2];
+        let mut budget = ResourceBudget::new(policy);
+        {
+            let mut writer = BinaryWriter::new(&mut output, &mut budget)?;
+            writer.seek(ByteOffset::new(start))?;
+            assert_eq!(writer.write_exact(&[1, 2]), Err(expected));
+            assert_eq!(writer.position(), ByteOffset::new(start));
+            assert_eq!(writer.total_encoded(), ByteCount::new(0));
+        }
+        assert_eq!(output, [0xa5; 2]);
+        assert_eq!(budget.encoded_bytes(), ByteCount::new(0));
+        assert_eq!(budget.total_work_units(), 0);
     }
-    assert_eq!(work_output, [0xa5; 2]);
-    assert_eq!(work_budget.encoded_bytes(), ByteCount::new(0));
-    assert_eq!(work_budget.total_work_units(), 0);
     Ok(())
 }
 

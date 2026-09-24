@@ -1,9 +1,6 @@
 use super::tests::*;
 use crate::testkit::table;
-use crate::{
-    ColumnSpec, ColumnType, PAGE_BYTES, TableRows,
-    create::composer::compose_database_with_table_rows, validate::*,
-};
+use crate::{ColumnSpec, ColumnType, PAGE_BYTES, TableRows, validate::*};
 
 #[test]
 fn system_row_counts_layouts_and_index_values_are_checked() -> TestResult {
@@ -49,19 +46,10 @@ fn system_row_counts_layouts_and_index_values_are_checked() -> TestResult {
 #[test]
 fn catalog_property_payloads_are_traversed_and_owned() -> TestResult {
     let columns = [ColumnSpec::new(b"Body", ColumnType::Memo).with_allow_zero_length()];
-    let plan = compose_database_with_table_rows(
-        &[TableRows {
-            table: table(b"Items", &columns, &[]),
-            rows: &[],
-        }],
-        &mut budget(),
-    )?;
-    let original: Vec<_> = plan
-        .pages()
-        .iter()
-        .flat_map(|p| p.image().as_bytes())
-        .copied()
-        .collect();
+    let original = compose(&[TableRows {
+        table: table(b"Items", &columns, &[]),
+        rows: &[],
+    }])?;
     let report = validate(&original)??;
     assert_eq!(report.system_tables, 4);
     assert_eq!(report.long_values, 1);

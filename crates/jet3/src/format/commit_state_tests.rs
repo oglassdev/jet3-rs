@@ -116,17 +116,29 @@ fn sentinel_region() -> CommitRegion {
 }
 
 #[test]
-fn reads_once_and_only_inside_the_documented_range() -> Result<(), Error> {
+fn exact_limits_read_once_inside_the_documented_range() -> Result<(), Error> {
     let bytes = patterned_input();
     let expected = bytes[REGION_START..REGION_END].to_vec();
-    let mut source = RecordingSource::new(bytes, Behavior::Exact);
-    let mut budget = permissive_budget();
+    let exact = || {
+        ReadBudget::new(limits(
+            bytes.len() as u64,
+            COMMIT_REGION_LENGTH.get(),
+            COMMIT_REGION_LENGTH.get(),
+        ))
+    };
 
+    let mut source = RecordingSource::new(bytes.clone(), Behavior::Exact);
+    let mut budget = exact();
     let region = read_commit_region(&mut source, &mut budget)?;
-
     assert_eq!(source.requests, vec![(COMMIT_REGION_OFFSET, REGION_BYTES)]);
     assert_eq!(region.raw_bytes().as_slice(), expected);
     assert_eq!(budget.total_read(), COMMIT_REGION_LENGTH);
+
+    let mut source = RecordingSource::new(bytes.clone(), Behavior::Exact);
+    let mut destination = sentinel_region();
+    read_commit_region_into(&mut source, &mut destination, &mut exact())?;
+    assert_eq!(destination.raw_bytes().as_slice(), expected);
+    assert_eq!(source.requests, vec![(COMMIT_REGION_OFFSET, REGION_BYTES)]);
     Ok(())
 }
 
@@ -176,26 +188,6 @@ fn every_truncation_before_region_end_returns_structured_error() {
         }
         assert_eq!(budget.total_read(), ByteCount::new(0));
     }
-}
-
-#[test]
-fn exact_read_limits_are_accepted() -> Result<(), Error> {
-    let bytes = patterned_input();
-    let mut budget = ReadBudget::new(limits(
-        bytes.len() as u64,
-        COMMIT_REGION_LENGTH.get(),
-        COMMIT_REGION_LENGTH.get(),
-    ));
-    let mut source = SliceSource::new(&bytes, &budget)?;
-
-    let region = read_commit_region(&mut source, &mut budget)?;
-
-    assert_eq!(
-        region.raw_bytes().as_slice(),
-        &bytes[REGION_START..REGION_END]
-    );
-    assert_eq!(budget.total_read(), COMMIT_REGION_LENGTH);
-    Ok(())
 }
 
 #[test]
@@ -268,57 +260,37 @@ fn cumulative_budget_accounts_for_prior_reads_at_the_boundary() -> Result<(), Er
 }
 
 #[test]
-fn destination_is_unchanged_after_partial_short_read() {
-    let mut source = RecordingSource::new(patterned_input(), Behavior::PartialThenShort);
-    let mut budget = permissive_budget();
-    let original = sentinel_region();
-    let mut destination = original.clone();
+fn destination_is_unchanged_after_partial_source_failure() {
+    for (behavior, expected) in [
+        (
+            Behavior::PartialThenShort,
+            Error::ShortRead {
+                offset: COMMIT_REGION_OFFSET,
+                needed: COMMIT_REGION_LENGTH,
+                actual: ByteCount::new(17),
+            },
+        ),
+        (
+            Behavior::PartialThenFault,
+            Error::Io {
+                operation: "read recording source",
+                kind: io::ErrorKind::Other,
+            },
+        ),
+    ] {
+        let mut source = RecordingSource::new(patterned_input(), behavior);
+        let mut budget = permissive_budget();
+        let original = sentinel_region();
+        let mut destination = original.clone();
 
-    assert_eq!(
-        read_commit_region_into(&mut source, &mut destination, &mut budget),
-        Err(Error::ShortRead {
-            offset: COMMIT_REGION_OFFSET,
-            needed: COMMIT_REGION_LENGTH,
-            actual: ByteCount::new(17),
-        })
-    );
-    assert_eq!(destination, original);
-    assert_eq!(source.requests, vec![(COMMIT_REGION_OFFSET, REGION_BYTES)]);
-    assert_eq!(budget.total_read(), COMMIT_REGION_LENGTH);
-}
-
-#[test]
-fn destination_is_unchanged_after_partial_io_failure() {
-    let mut source = RecordingSource::new(patterned_input(), Behavior::PartialThenFault);
-    let mut budget = permissive_budget();
-    let original = sentinel_region();
-    let mut destination = original.clone();
-
-    assert_eq!(
-        read_commit_region_into(&mut source, &mut destination, &mut budget),
-        Err(Error::Io {
-            operation: "read recording source",
-            kind: io::ErrorKind::Other,
-        })
-    );
-    assert_eq!(destination, original);
-    assert_eq!(source.requests, vec![(COMMIT_REGION_OFFSET, REGION_BYTES)]);
-    assert_eq!(budget.total_read(), COMMIT_REGION_LENGTH);
-}
-
-#[test]
-fn destination_changes_only_after_complete_success() -> Result<(), Error> {
-    let bytes = patterned_input();
-    let expected = bytes[REGION_START..REGION_END].to_vec();
-    let mut source = RecordingSource::new(bytes, Behavior::Exact);
-    let mut budget = permissive_budget();
-    let mut destination = sentinel_region();
-
-    read_commit_region_into(&mut source, &mut destination, &mut budget)?;
-
-    assert_eq!(destination.raw_bytes().as_slice(), expected);
-    assert_eq!(source.requests, vec![(COMMIT_REGION_OFFSET, REGION_BYTES)]);
-    Ok(())
+        assert_eq!(
+            read_commit_region_into(&mut source, &mut destination, &mut budget),
+            Err(expected)
+        );
+        assert_eq!(destination, original);
+        assert_eq!(source.requests, vec![(COMMIT_REGION_OFFSET, REGION_BYTES)]);
+        assert_eq!(budget.total_read(), COMMIT_REGION_LENGTH);
+    }
 }
 
 #[test]

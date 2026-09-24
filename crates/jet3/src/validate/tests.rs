@@ -1,8 +1,9 @@
 use super::*;
 use crate::{
-    ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, PAGE_BYTES, PageNumber,
-    ResourceLimits, RowDirectoryError, RowValue, SliceSource, TableRows, TableSpec,
+    ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, PAGE_BYTES, PageNumber, ResourceLimits,
+    RowDirectoryError, RowValue, SliceSource, TableRows,
     create::composer::compose_database_with_table_rows,
+    testkit::{index, table},
 };
 
 pub(super) use crate::testkit::TestResult;
@@ -21,21 +22,13 @@ pub(super) fn open<'a>(
 
 pub(super) fn fixture() -> TestResult<Vec<u8>> {
     let id = ColumnSpec::new(b"Id", ColumnType::Long);
-    let index = IndexSpec {
-        name: b"PrimaryKey",
-        fields: &[IndexColumnSpec::ascending(b"Id")],
-        kind: IndexKind::Primary,
-    };
+    let key = [IndexColumnSpec::ascending(b"Id")];
+    let primary = [index(b"PrimaryKey", &key, IndexKind::Primary)];
     let middle = [b'b'; 512];
     let chained = [b'c'; 4096];
-    let requests = [
+    compose(&[
         TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Items",
-                columns: &[id],
-                indexes: &[index],
-            },
+            table: table(b"Items", &[id], &primary),
             rows: &[
                 &[RowValue::Long(2)],
                 &[RowValue::Long(0)],
@@ -43,12 +36,11 @@ pub(super) fn fixture() -> TestResult<Vec<u8>> {
             ],
         },
         TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Notes",
-                columns: &[id, ColumnSpec::new(b"Body", ColumnType::Memo)],
-                indexes: &[],
-            },
+            table: table(
+                b"Notes",
+                &[id, ColumnSpec::new(b"Body", ColumnType::Memo)],
+                &[],
+            ),
             rows: &[
                 &[RowValue::Long(1), RowValue::Memo(&[233])],
                 &[RowValue::Long(2), RowValue::Memo(&middle)],
@@ -56,16 +48,18 @@ pub(super) fn fixture() -> TestResult<Vec<u8>> {
             ],
         },
         TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Payload",
-                columns: &[ColumnSpec::new(b"Data", ColumnType::LongBinary)],
-                indexes: &[],
-            },
+            table: table(
+                b"Payload",
+                &[ColumnSpec::new(b"Data", ColumnType::LongBinary)],
+                &[],
+            ),
             rows: &[&[RowValue::LongBinary(&[42; 33])]],
         },
-    ];
-    let plan = compose_database_with_table_rows(&requests, &mut budget())?;
+    ])
+}
+
+pub(super) fn compose(tables: &[TableRows<'_>]) -> TestResult<Vec<u8>> {
+    let plan = compose_database_with_table_rows(tables, &mut budget())?;
     Ok(plan
         .pages()
         .iter()
