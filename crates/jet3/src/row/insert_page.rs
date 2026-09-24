@@ -1,9 +1,68 @@
-//! New-page row placement for inserts that no existing data page can hold.
+//! EXP-0162 appends within the EXP-0305 slot limit and EXP-0060 directory layout,
+//! and new-page placement when no existing data page can hold the row.
 use crate::{
     DatabaseReader, FileSource, PAGE_BYTES, PageImage, PageImageError, PageNumber, PageOffset,
     ResourceBudget, TableDefinition, UpdateError,
     alloc::patch::{AllocationChange, MapPatches},
+    format::{
+        data_page_directory::{ENTRY_LEN, ROW_COUNT_OFFSET},
+        page_image::MAX_BUILT_ROWS,
+    },
+    row::{
+        data_page::{DataPageEditor, write_free, write_slot},
+        directory::RowSlot,
+    },
 };
+
+impl DataPageEditor<'_> {
+    /// EXP-0162 append within the EXP-0305 slot limit; `None` when the row does not fit.
+    pub(crate) fn append(
+        &self,
+        row: &[u8],
+        physical: Option<RowSlot>,
+        budget: &mut ResourceBudget,
+    ) -> Result<Option<(PageImage, u8)>, UpdateError> {
+        let count = self.directory.row_count();
+        if count == 0 {
+            return Ok(None);
+        }
+        budget.charge_items(u64::from(count))?;
+        if self.live_rows(physical.is_some(), "page contains nonordinary row slots")? == 0 {
+            return Ok(None);
+        }
+        let packed = self.packed("data page free-byte count")?;
+        let state = physical.unwrap_or(RowSlot::Ordinary);
+        state.check_length(row.len())?;
+        if state == RowSlot::Deleted {
+            return Err(UpdateError::Mismatch("appending a deleted row"));
+        }
+        let needed = row
+            .len()
+            .checked_add(ENTRY_LEN)
+            .ok_or(UpdateError::Mismatch("row width"))?;
+        if count >= MAX_BUILT_ROWS || packed.free < needed {
+            return Ok(None);
+        }
+        let start = packed
+            .lowest
+            .checked_sub(row.len())
+            .ok_or(UpdateError::Mismatch("row start"))?;
+        let new_free =
+            u16::try_from(packed.free - needed).map_err(|_| UpdateError::Mismatch("free bytes"))?;
+        let word =
+            u16::try_from(start).map_err(|_| UpdateError::Mismatch("row offset"))? | state.flags();
+        let mut patched = PageImage::from_bytes(*self.source);
+        patched.write_at(PageOffset::new(start as u64), row, budget)?;
+        write_slot(&mut patched, count, word, budget)?;
+        write_free(&mut patched, new_free, budget)?;
+        patched.write_at(
+            PageOffset::new(ROW_COUNT_OFFSET as u64),
+            &(count + 1).to_le_bytes(),
+            budget,
+        )?;
+        Ok(Some((patched, count as u8)))
+    }
+}
 
 pub(crate) fn minimum_length(
     columns: &[crate::ColumnDefinition],

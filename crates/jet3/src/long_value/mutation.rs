@@ -10,7 +10,7 @@ use crate::{
         MAX_SINGLE_PAGE_PROPERTY_PAYLOAD, encode_chained_row, encode_inline_long_value,
         external_long_value_header,
     },
-    row::data_page::{DataPageEditor, Deletion},
+    row::{data_page::DataPageEditor, delete_page::Deletion},
     write::page_edits::{PageEdits, reserve},
 };
 

@@ -2,7 +2,7 @@
 use crate::{
     ByteCount, DataPageBuilder, DatabaseReader, ExtendedUsageMapEncoder, FileSource,
     InlineUsageMapEncoder, MapRowLocator, PageNumber, ResourceBudget, UpdateError,
-    row::data_page::{DataPageEditor, Deletion},
+    row::{data_page::DataPageEditor, delete_page::Deletion},
     schema::definition::allocate,
     write::page_edits::PageEdits,
 };

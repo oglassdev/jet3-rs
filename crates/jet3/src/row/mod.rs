@@ -1,6 +1,7 @@
 //! Data rows: directories, the row codec and layouts, and page-level row edits.
 
 pub(crate) mod data_page;
+pub(crate) mod delete_page;
 pub(crate) mod directory;
 #[cfg(test)]
 mod directory_tests;
@@ -15,6 +16,7 @@ pub(crate) mod reader_layout;
 #[cfg(test)]
 mod reader_tests;
 pub(crate) mod scalar_values;
+mod update_page;
 pub(crate) mod value;
 #[cfg(test)]
 mod value_tests;
