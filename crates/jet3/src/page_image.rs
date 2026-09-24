@@ -34,9 +34,8 @@ const ENTRY_LEN: usize = 2;
 // EXP-0060: the low 13 bits of a directory entry select the row start; the
 // remaining bits are flags, which this builder never sets.
 const OFFSET_MASK: u16 = 0x1fff;
-// Row slots are addressed publicly by `u8` (`RowLocator`), so a builder page
-// holds at most 256 rows.
-const MAX_BUILT_ROWS: u16 = 256;
+// EXP-0305: native index reads fail on table pages with 256 physical slots.
+pub(crate) const MAX_BUILT_ROWS: u16 = 255;
 
 /// Returns the `SRC-0020` byte-zero tag for a page classification.
 #[must_use]

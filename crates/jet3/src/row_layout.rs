@@ -90,7 +90,12 @@ impl RowLayout {
         if minimum_variables == 0 {
             // EXP-0297: deleted fields can leave fixed bytes and variable trailers.
             // No live field needs those bytes when no variable slot is referenced.
-            if null_start < fixed_boundary || (!deleted && null_start != fixed_boundary) {
+            // EXP-0306: native fixed-only rows reserve at least two fixed
+            // bytes. Compact fixed-only rows remain readable.
+            let padded_boundary = fixed_boundary.max(3);
+            if null_start < fixed_boundary
+                || (!deleted && null_start != fixed_boundary && null_start != padded_boundary)
+            {
                 return Err(RowError::InvalidFixedBoundary {
                     expected: fixed_boundary,
                     actual: null_start,

@@ -20843,6 +20843,121 @@ valid multi-hop overflow discovery, further payload/schema/object combinations
 and broader failure/publication inventories remain open. It makes no
 whole-format compatibility, query-execution or native crash-recovery claim.
 
+
+## EXP-0305 — Native table slot saturation and invalid 256-slot index reads
+
+On 2026-09-24 UTC, native x86 DAO 3.6 (DLL 03.60.9765.0, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`)
+on Windows 10.0.20348, en-US/ANSI 1252, repeatedly deleted and refilled a
+48-row table while preserving one live row. The source uses one Long and six
+one-byte Text values, a primary Long index and an ordinary Text index, plus
+the unrelated Watch and eleven QueryDefs of EXP-0304. Native run
+`20260924T011903Z-storage-native-85adff` retains complete closed checkpoints.
+The first lineage advances the original data page from 48 to 95, 142, 189,
+236 and then 255 physical slots. It appends subsequent rows to another page
+even though deleted slots and free bytes remain on the original live page.
+Another delete/refill preserves that 255-slot page and reuses the released
+second page. No deleted slot on the still-live page is reused.
+
+An unmodified Rust CLI from source `d9fd189da2215d6a4a56b17cfece16f24673788c`
+inserted twenty rows into the native 236-slot, one-live-row checkpoint,
+producing 256 slots. The retained candidate SHA-256 is
+`6c4b4c06e17d592e6d0ff29dc61f334d376e36a51d7ea2e57983d2324d685205`. Native readback
+`20260924T012729Z-storage-observe-0f0131` enumerates all 21 complete rows
+through a table scan, but both the primary and Text index traversals return
+21 rows whose every field is Null. Opening and Rust structural validation
+therefore do not establish native readability. The writer must cap new and
+appended data pages at 255 physical slots and mark saturated pages unavailable.
+This cap is also the conservative builder policy for external payload pages.
+
+Inputs, producer scripts, requests, unchanged readback bytes, provider receipt
+and the exact failed comparison are retained under the private
+`shared/checks/20260924-pre-simplification/storage-discovery-r1` directory.
+This records format discovery and the rejected candidate; corrected differential
+results and the completed replicated inventory will be recorded separately.
+
+
+### EXP-0306 — Native minimum fixed-row storage
+
+DAO 3.6 (`dao360.dll` 03.60.9765.0, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`)
+on Windows 10.0.20348, host ANSI 1252, produced 40 schemas in two replicas
+of 20 cases, each captured after insertion and after a fixed-field update.
+Run `20260924T022253Z-tiny-row-r1` retains its worker, inputs, complete DAO
+values, all 80 closed MDBs and `RAW.json` under the private
+`checks/20260924-pre-simplification/tiny-row-discovery-r1` bundle.
+
+Fixed-only rows reserve at least two bytes between the column-count byte
+and the null/Boolean bitmap. One Boolean true is `01 00 00 01`; one Byte 1
+is `01 01 00 01`; one Integer 1 is `01 01 00 01`. Boolean counts 7, 8, 9,
+16, 17, 24 and 25 retain the same two-byte fixed area as their bitmap grows.
+Two/three/four Byte fields and one through four Integer/Long fields retain
+exactly their ordinary fixed width once it is at least two. Updating F0
+retains the same shape. Both replicas agree, with complete native values.
+This observation covers fixed-only row padding, not variable-row padding.
+The padding has no field meaning and must survive unrelated assignments.
+
+The first corrected-slot churn preparation stopped at the first tiny-row
+delete: the reader expected fixed boundary 2 but the native boundary was 3.
+Its failed outcome and candidates remain under `storage-churn-r1`. These
+native observations establish the parser/writer layout; they do not by
+themselves establish Rust write compatibility.
+
+
+## EXP-0311 — Storage churn, slot saturation, and minimum-row DAO comparison
+
+The corrected Rust candidate from `14454c5` plus the fixed-only row minimum
+of EXP-0306 was compared with x86 DAO 3.6 (`dao360.dll` 03.60.9765.0,
+SHA-256 `4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`)
+on Windows NT 10.0.20348, en-US/ANSI 1252. Reproducible input plans,
+PowerShell worker copies and dispatch receipts, all closed native and Rust
+images, complete DAO readbacks, continuation outputs, the source snapshot and
+evaluator are retained under the private
+`shared/checks/20260924-pre-simplification/storage-churn-r2` directory.
+`storage_churn.py` creates two independent replicas each of wide Text,
+four-Memo/OLE payload, and tiny Byte plus six Boolean tables. The wide and
+payload cases begin with 48 rows, repeatedly delete and refill 47 while
+keeping one live row through six cycles, then release and reuse the complete
+table pages. The tiny cases begin with 256 rows, remove and refill 31, then
+release and reuse their pages. Each lineage ends with a native write
+continuation on the Rust and DAO outputs.
+
+`comparison/REPORT.json` passes all 76 pairs: 70 closed checkpoints and six
+continuations, with no failures. At each checkpoint the evaluator compares
+complete DAO table, field, index, query and relationship getters; raw
+row/index semantics and key locators; surviving unrelated pages and unassigned
+row bytes. It checks release and reuse within each side, including no file
+growth on reuse. The report records complete allocation inventories, but does
+not require Rust to choose the same pages as DAO: map records differ in 20
+checkpoints, page inventories in 14, and file size in two final payload
+continuations. These are semantic, preservation and native-readable reuse
+comparisons, not byte-identical allocation or file-size acceptance.
+The report SHA-256 is
+`362d752378a2f06f9c6bcc8f515b724bc8120c781917f14b751714c5acefedbd`.
+
+The separate fresh `Tiny256` Byte-ID plus six-Boolean creation in
+`fresh-tiny-r1` passes complete DAO table getters, all 256 rows, and primary
+and Boolean-index traversals against native creation. `COMPARISON2.json`
+normalizes only the two DAO-generated table timestamps. Native run
+`20260924T025956Z-fresh-tiny-r1` retains its request, worker, input script,
+both MDBs and readback. The corrected suite passed `just ready` with 1,800
+test executions, zero failures and ten ignored; 82 focused minimum-row tests
+and one focused integration test also passed.
+`COMPARISON2.json` SHA-256 is
+`2e2cd3b626b6c95568f399a1827ba3ff239b86feae1331178d5b64351be189aa`;
+the `just ready` log SHA-256 is
+`6bff5fd80dd186bf914057b4969ea98053641a348552d87c3365d4560a588dcd`.
+
+The first churn preparation failed on the native tiny-row fixed boundary and
+remains under `storage-churn-r1`; EXP-0305 retains the 256-slot candidate whose
+DAO index traversals returned Null rows. The corrected run does not relabel
+those files as successes. The accepted candidate caps a data page at 255
+physical slots and emits the observed two-byte minimum fixed area. It does
+not establish live-slot reuse on a page that still has live rows, a valid
+multi-hop overflow layout, identical placement, or universal storage behavior.
+The external archive inventory and source identities are in
+`storage-churn-r2/FINAL-SUMMARY.json` and `STORAGE-ARCHIVE-MANIFEST.json`.
+
 ## EXP-0307 — Native one-to-one child index selection
 
 On 2026-09-24, DAO 3.6 on the same Windows environment as EXP-0301

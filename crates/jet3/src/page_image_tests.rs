@@ -112,15 +112,15 @@ fn page_full_boundary_is_exact() -> TestResult {
 }
 
 #[test]
-fn slot_space_ends_at_256_rows() -> TestResult {
+fn slot_space_ends_at_255_rows() -> TestResult {
     let mut budget = budget();
     let mut builder = DataPageBuilder::new(PageNumber::new(20), &mut budget)?;
-    for _ in 0..256 {
+    for _ in 0..255 {
         builder.append_row(&[1], &mut budget)?;
     }
     assert_eq!(
         builder.append_row(&[1], &mut budget),
-        Err(PageImageError::RowSlotsExhausted { maximum: 256 })
+        Err(PageImageError::RowSlotsExhausted { maximum: 255 })
     );
     Ok(())
 }

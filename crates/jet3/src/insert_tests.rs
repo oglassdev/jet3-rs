@@ -359,7 +359,7 @@ fn physical_slot_limit_and_table_count_overflow_are_structured() -> TestResult {
     let mut bytes = [0; PAGE_BYTES];
     bytes[0] = 1;
     bytes[4..8].copy_from_slice(&20_u32.to_le_bytes());
-    for count in [255_u16, 256] {
+    for count in [254_u16, 255, 256] {
         bytes[8..10].copy_from_slice(&count.to_le_bytes());
         for slot in 0..count as usize {
             bytes[10 + 2 * slot..12 + 2 * slot]
@@ -375,7 +375,11 @@ fn physical_slot_limit_and_table_count_overflow_are_structured() -> TestResult {
                 &mut budget()
             )?
             .is_some(),
-            count == 255
+            count == 254
+        );
+        assert_eq!(
+            crate::row_insert_page::has_capacity(&bytes, 2),
+            count == 254
         );
     }
     bytes[12..16].copy_from_slice(&u32::MAX.to_le_bytes());
@@ -384,6 +388,54 @@ fn physical_slot_limit_and_table_count_overflow_are_structured() -> TestResult {
         Err(UpdateError::Mismatch("table row count overflow"))
     ));
     Ok(())
+}
+
+#[test]
+fn saturated_page_keeps_its_rows_and_moves_insertion_to_another_page() -> TestResult {
+    let values: Vec<_> = (0..255).map(|id| [RowValue::Byte(id)]).collect();
+    let rows: Vec<_> = values.iter().map(|row| row.as_slice()).collect();
+    let fixture = Fixture::new(&[ColumnSpec::new(b"Id", ColumnType::Byte)], &rows)?;
+    assert_eq!(fixture.pages.len(), 1);
+    let page = fixture.pages[0];
+    // EXP-0305: a live page remains saturated even after a row is deleted.
+    crate::delete_row(
+        fixture.path(),
+        crate::RowDelete {
+            table: b"Rows",
+            row: RowLocator::new(page, 1),
+        },
+        &mut budget(),
+    )?;
+    let before = fs::read(fixture.path())?;
+    let inserted = insert_row(
+        fixture.path(),
+        b"Rows",
+        &[RowValue::Byte(255)],
+        &mut budget(),
+    )?;
+    assert_ne!(inserted.page(), page);
+    assert_eq!(inserted.slot(), 0);
+    let after = fs::read(fixture.path())?;
+    let base = page.get() as usize * PAGE_BYTES;
+    assert_eq!(
+        before[base..base + PAGE_BYTES],
+        after[base..base + PAGE_BYTES]
+    );
+    let mut resources = budget();
+    let mut database = DatabaseReader::open(fixture.path(), &mut resources)?;
+    let definition = database.table_definition(fixture.root, &mut resources)?;
+    let mut rows = database.rows(&definition, &mut resources)?;
+    let mut ids = Vec::new();
+    while let Some(row) = rows.next_row()? {
+        ids.push(
+            row.field(crate::ColumnOrdinal::new(0))
+                .and_then(|field| field.raw_bytes())
+                .ok_or("Id absent")?[0],
+        );
+    }
+    ids.sort_unstable();
+    assert_eq!(ids, (0_u8..=255).filter(|id| *id != 1).collect::<Vec<_>>());
+    fixture.clean()
 }
 
 #[path = "insert_eof_tests.rs"]
