@@ -92,7 +92,9 @@ pub(crate) fn minimum_row(
     budget: &mut ResourceBudget,
 ) -> Result<usize, WriteError> {
     let nulls = [crate::RowValue::Null; u8::MAX as usize];
-    let nulls = nulls.get(..layout.len()).unwrap_or(&nulls);
+    let nulls = nulls
+        .get(..layout.len())
+        .ok_or(WriteError::Unsupported("row column count"))?;
     Ok(crate::encode_row(layout, nulls, output, budget)?.get() as usize)
 }
 
@@ -204,4 +206,29 @@ fn find_released_page(
         return Ok(Some((number, candidate)));
     }
     Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::minimum_row;
+    use crate::{
+        ColumnPhysicalType, ColumnStorageClass, PAGE_BYTES, ResourceBudget, ResourceLimits,
+        RowColumnLayout, WriteError,
+    };
+
+    #[test]
+    fn minimum_row_refuses_more_columns_than_a_row_can_hold() {
+        let column = RowColumnLayout::new(
+            ColumnPhysicalType::Boolean,
+            ColumnStorageClass::Fixed { offset: 0 },
+            0,
+        );
+        let layout = [column; u8::MAX as usize + 1];
+        let mut output = [0; PAGE_BYTES];
+        let mut budget = ResourceBudget::new(ResourceLimits::default());
+        assert!(matches!(
+            minimum_row(&layout, &mut output, &mut budget),
+            Err(WriteError::Unsupported("row column count"))
+        ));
+    }
 }
