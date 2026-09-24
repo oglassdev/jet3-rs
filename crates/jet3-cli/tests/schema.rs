@@ -1,36 +1,11 @@
 #![cfg(any(unix, windows))]
 #![forbid(unsafe_code)]
 
+mod common;
+
+use common::{Result, cli, request};
 use serde_json::{Value, json};
-use std::{
-    fs,
-    io::Write,
-    path::Path,
-    process::{Command, Output, Stdio},
-};
-
-type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-fn cli() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_jet3-cli"))
-}
-
-fn request(command: &str, path: &Path, request: &Value) -> Result<Output> {
-    let mut process = cli()
-        .arg(command)
-        .arg(path)
-        .args(["--input", "-"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
-    process
-        .stdin
-        .take()
-        .ok_or("missing stdin")?
-        .write_all(request.to_string().as_bytes())?;
-    Ok(process.wait_with_output()?)
-}
+use std::{fs, path::Path, process::Output};
 
 fn success(output: &Output) -> Result<Value> {
     assert!(

@@ -1,31 +1,20 @@
 #![cfg(any(unix, windows))]
+mod common;
+
+use common::{Result, cli, request};
 use serde_json::{Value, json};
-use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Output, Stdio};
-type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
-fn cli() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_jet3-cli"))
-}
+use std::process::Output;
+
 fn create(path: &Path) -> Result {
-    let request = json!({"tables": [
-        {"name":"Items", "columns":[{"name":"Id","type":"long"},{"name":"Label","type":"text","size":20}],"rows":[[{"long":1},{"text":[233]}],[{"long":2},null]]},
-        {"name":"Other", "columns":[{"name":"error","type":"long"}],"rows":[[{"long":7}]]}
-    ]});
-    let mut process = cli()
-        .arg("create")
-        .arg(path)
-        .args(["--input", "-"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
-    process
-        .stdin
-        .take()
-        .ok_or("missing stdin")?
-        .write_all(request.to_string().as_bytes())?;
-    let output = process.wait_with_output()?;
+    let output = request(
+        "create",
+        path,
+        &json!({"tables": [
+            {"name":"Items", "columns":[{"name":"Id","type":"long"},{"name":"Label","type":"text","size":20}],"rows":[[{"long":1},{"text":[233]}],[{"long":2},null]]},
+            {"name":"Other", "columns":[{"name":"error","type":"long"}],"rows":[[{"long":7}]]}
+        ]}),
+    )?;
     assert!(
         output.status.success(),
         "{}",

@@ -26,8 +26,6 @@ JSON includes ok=false and issues on partial decode failure (exit 1).
 --page dumps one page's classification, and --hex adds its bytes.
 ";
 
-const MAX_INPUT_BYTES: u64 = 256 * 1024 * 1024;
-
 #[derive(Debug)]
 pub(crate) struct InspectCommand {
     path: PathBuf,
@@ -95,8 +93,8 @@ pub(crate) fn parse_args(
 
 fn budget() -> ResourceBudget {
     let read = ReadLimits::new(
-        ByteCount::new(MAX_INPUT_BYTES),
-        ByteCount::new(MAX_INPUT_BYTES),
+        ByteCount::new(crate::DEFAULT_MAX_INPUT_BYTES),
+        ByteCount::new(crate::DEFAULT_MAX_INPUT_BYTES),
         ByteCount::new(u64::MAX),
     );
     ResourceBudget::new(ResourceLimits::new(read))
