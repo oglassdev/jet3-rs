@@ -8,7 +8,7 @@ HERE = Path(__file__).resolve().parent
 import system_catalog as catalog
 import numeric_index_mutation_structure as index_tree
 from relationship_mutation_structure import rows as raw_rows, long_key, logical_relation, map_info
-from relationship_create import leaf_entries
+from dao_common import leaf_entries
 
 def req(condition, message):
     if not condition: raise AssertionError(message)

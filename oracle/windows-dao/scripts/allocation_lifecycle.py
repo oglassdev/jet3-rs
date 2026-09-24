@@ -8,7 +8,7 @@ import shutil
 import struct
 import subprocess
 
-from field_update import identity, canonical
+from dao_common import identity, canonical
 import allocation_lifecycle_structure as raw
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -82,7 +82,7 @@ def stages(case):
 def inputs():
     names = ['allocation_lifecycle.py', 'allocation_lifecycle.ps1', 'allocation_lifecycle.cs',
              'allocation_lifecycle_structure.py', 'numeric_index_mutation_structure.py',
-             'numeric_index_mutation.ps1', 'field_update.py', 'field_update.ps1',
+             'numeric_index_mutation.ps1', 'dao_common.py', 'field_update.ps1',
              'system_catalog.py', 'index_tree_mutation_structure.py', 'multi_level_index_structure.py']
     paths = [SCRIPT.with_name(n) for n in names]
     paths += [ROOT / 'crates/jet3/examples/allocation_candidate.rs', ROOT / 'crates/jet3/examples/allocation_support/reader.rs']

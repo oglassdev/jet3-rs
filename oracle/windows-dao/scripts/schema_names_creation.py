@@ -4,7 +4,7 @@ import argparse, copy, hashlib, json
 from pathlib import Path
 HERE = Path(__file__).resolve().parent
 import system_catalog as catalog
-import schema_generalization as schema
+import catalog_keys as schema
 catalog.MAX_TABLES = 64
 
 def req(v, m):

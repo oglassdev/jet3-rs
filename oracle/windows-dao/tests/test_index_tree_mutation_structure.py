@@ -4,12 +4,12 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import index_tree_mutation_structure as structure
-import test_multi_level_index as fixtures
+from test_multi_level_index_structure import tree_image
 
 
 class MutationTreeBoundsTests(unittest.TestCase):
     def test_retained_fence_accepts_deletion_but_rejects_misrouting_and_wrong_width(self):
-        image, entries = fixtures.MultiLevelIndexTests().tree_image()
+        image, entries = tree_image()
         # Remove key 2 from the compressed left leaf; its root separator remains.
         image[2 * 2048 + 22 + 15 // 8] &= ~(1 << (15 % 8))
         image[2 * 2048 + 2:2 * 2048 + 4] = (1800 - 9).to_bytes(2, 'little')

@@ -5,7 +5,7 @@ from pathlib import Path
 import system_catalog as catalog
 import numeric_index_mutation_structure as indexes
 import allocation_lifecycle_structure as allocation
-import relationship_create as relationships
+import dao_common as relationships
 for module in (catalog,indexes.catalog,allocation.catalog):
     module.MAX_PAGES=8192;module.MAX_ROWS_PER_PAGE=1019;module.MAX_TABLES=64;module.MAX_COLUMNS=255;module.MAX_TEXT=10000
 

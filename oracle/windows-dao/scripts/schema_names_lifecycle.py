@@ -4,7 +4,7 @@ import argparse, copy, hashlib, json
 from pathlib import Path
 HERE = Path(__file__).resolve().parent
 import system_catalog as catalog
-import schema_generalization as schema
+import catalog_keys as schema
 import numeric_index_mutation_structure as indexes
 import relationship_mutation_structure as structure
 catalog.MAX_TABLES = 64

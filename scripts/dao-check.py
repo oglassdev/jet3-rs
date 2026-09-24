@@ -16,7 +16,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 ORACLE = ROOT / "oracle/windows-dao/scripts"
 sys.path.insert(0, str(ORACLE))
-from field_update import canonical, identity
+from dao_common import canonical, identity, validate_environment
 
 SUITES = {
     "indexed-boundary": ("indexed_boundary", "indexed_boundary_candidate"),
@@ -156,7 +156,6 @@ def capture(name, root, args, revision, module, images, input_path):
         environment = json.loads(environment_path.read_text(encoding="utf-8-sig"))
         report["environment"] = environment
         report["environment_identity"] = identity(environment_path)
-        from hosted_write_reanalysis import validate_environment
         validate_environment(environment)
         if hasattr(module, "aggregate"):
             module.aggregate(outbox)
