@@ -567,6 +567,15 @@ terminal controls that fail strict validation. Rust refusals remain byte-exact.
 The finite observations add no live-slot-reuse or multi-hop overflow support;
 the rejected EXP-0276 representation remains excluded.
 
+EXP-0305/0306/0311 add a 255-slot data-page bound and native fixed-only-row
+padding. Six replicated wide, payload, and tiny-row churn lineages pass 70
+closed-checkpoint comparisons and six DAO continuations. They cover repeated
+delete/refill, whole-page release/reuse, complete surviving values and indexes,
+payload reachability, saved-query preservation, and unassigned storage. Rust
+and DAO sometimes choose different valid allocation placements. Deleted slots
+on a page that still has live rows are not reused; the unobserved multi-hop
+overflow shape remains unsupported.
+
 EXP-0273/0274 extends mutation comparisons to five graph shapes, a shared-FK
 physical index, atomic self-references and Memo growth/shrink/Null transitions,
 each replicated twice. The portable evaluator compares 92 complete Rust/DAO

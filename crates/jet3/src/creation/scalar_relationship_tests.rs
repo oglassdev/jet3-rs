@@ -60,6 +60,7 @@ fn schema(
             },
         ],
         &[RelationshipSpec {
+            unique: false,
             enforce: true,
             join: crate::RelationshipJoin::Inner,
             cascade_updates: false,

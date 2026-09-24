@@ -333,6 +333,26 @@ pub fn table_definition_len(
     )
 }
 
+/// EXP-0308: a newly generated foreign relationship index counts the child
+/// rows present when DAO adds the relationship.
+pub(crate) fn set_initial_foreign_count(
+    output: &mut [u8],
+    physical_ordinal: u16,
+    count: u32,
+) -> Result<(), TableDefinitionWriteError> {
+    let offset = 43 + usize::from(physical_ordinal) * 8;
+    let available = output.len();
+    let prefix =
+        output
+            .get_mut(offset..offset + 4)
+            .ok_or(TableDefinitionWriteError::OutputTooSmall {
+                needed: offset + 4,
+                available,
+            })?;
+    prefix.copy_from_slice(&count.to_le_bytes());
+    Ok(())
+}
+
 /// Encodes the logical definition into `output`, returning the encoded length.
 ///
 /// Bytes `[4,8)` (next definition page) are written as zero for the page

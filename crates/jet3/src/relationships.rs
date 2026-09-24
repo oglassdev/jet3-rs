@@ -220,7 +220,7 @@ impl CatalogRelationship {
 
     /// Returns whether row writes and schema edits interpret this relationship.
     ///
-    /// One-to-one, unknown and invalid attribute combinations are preserved
+    /// Unknown and invalid attribute combinations are preserved
     /// but make writes to their tables refuse.
     #[must_use]
     pub const fn interpreted(&self) -> bool {

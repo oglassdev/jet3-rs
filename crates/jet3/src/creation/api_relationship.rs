@@ -17,7 +17,8 @@ use crate::{
 ///
 /// Other columns retain the normal table planner's properties, AutoIncrement,
 /// Memo/OLE maps and definition chains. Keys of other types, additional child
-/// indexes, cascades, self-references and more than two tables are refused.
+/// indexes, one-to-one relationships, cascades, self-references and more than two tables
+/// are refused; use [`create_database_with_relationships`] for those forms.
 /// Written pages and reciprocal relationships are checked before atomic
 /// publication. The budget and existing-destination guarantees of
 /// [`create_database`] apply. Format encoders use EXP-0059/0114/0268; combining

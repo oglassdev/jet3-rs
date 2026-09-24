@@ -176,7 +176,7 @@ fn exhausted_row_slots_spill_to_the_next_page() -> TestResult {
     create_database_with_rows(directory.target(), &table, &rows, &mut budget())?;
     let bytes = fs::read(directory.target())?;
     assert_eq!(bytes.len(), 25 * crate::PAGE_BYTES);
-    assert_eq!((page_rows(&bytes, 23), page_rows(&bytes, 24)), (256, 1));
+    assert_eq!((page_rows(&bytes, 23), page_rows(&bytes, 24)), (255, 2));
     assert!(!map_bit(&bytes, 21, 1, 23)?);
     assert!(map_bit(&bytes, 21, 1, 24)?);
     Ok(())

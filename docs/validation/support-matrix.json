@@ -102,7 +102,8 @@
         "oracle/windows-dao/scripts/schema_candidate_observer.ps1",
         "oracle/windows-dao/scripts/combine_schema_readbacks.py",
         "oracle/windows-dao/scripts/compare_schema_candidates.py",
-        "oracle/windows-dao/scripts/candidate_continuations.ps1"
+        "oracle/windows-dao/scripts/candidate_continuations.ps1",
+        "oracle/windows-dao/scripts/storage_churn.py"
       ]
     },
     {
@@ -137,6 +138,7 @@
         "oracle/windows-dao/scripts/storage_preservation.ps1",
         "oracle/windows-dao/scripts/storage_preservation.py",
         "oracle/windows-dao/tests/test_storage_preservation.py",
+        "oracle/windows-dao/scripts/storage_churn.py",
         "crates/jet3/src/locale_text_key.rs",
         "crates/jet3/src/locale_text_weights.rs",
         "crates/jet3/src/locale_text_key_tests.rs",
@@ -245,7 +247,8 @@
         "oracle/windows-dao/scripts/wide_row_lifecycle.py",
         "oracle/windows-dao/scripts/wide_row_lifecycle_structure.py",
         "crates/jet3/src/row_schema_gap_tests.rs",
-        "crates/jet3/src/row_writer_layout.rs"
+        "crates/jet3/src/row_writer_layout.rs",
+        "crates/jet3/src/row_minimum_tests.rs"
       ]
     },
     {
@@ -303,7 +306,8 @@
         "oracle/windows-dao/scripts/storage_preservation_plan.py",
         "oracle/windows-dao/scripts/storage_preservation.ps1",
         "oracle/windows-dao/scripts/storage_preservation.py",
-        "oracle/windows-dao/tests/test_storage_preservation.py"
+        "oracle/windows-dao/tests/test_storage_preservation.py",
+        "oracle/windows-dao/scripts/storage_churn.py"
       ]
     },
     {
@@ -455,7 +459,9 @@
         "oracle/windows-dao/scripts/storage_preservation.ps1",
         "oracle/windows-dao/scripts/storage_preservation.py",
         "oracle/windows-dao/tests/test_storage_preservation.py",
-        "oracle/windows-dao/scripts/storage_preservation_failures.py"
+        "oracle/windows-dao/scripts/storage_preservation_failures.py",
+        "oracle/windows-dao/scripts/storage_churn.py",
+        "crates/jet3/src/row_minimum_tests.rs"
       ]
     },
     {
@@ -671,7 +677,30 @@
       ]
     },
     {
-      "id": "relationships.one_to_one_and_unknown_attributes",
+      "id": "relationships.one_to_one",
+      "implementation": "implemented",
+      "verification": "dao_differential",
+      "evidence": [
+        "docs/PROVENANCE.md",
+        "crates/jet3/src/relationship_flags.rs",
+        "crates/jet3/src/relationship_catalog.rs",
+        "crates/jet3/src/relationships.rs",
+        "crates/jet3/src/schema_relationship_form_tests.rs",
+        "crates/jet3/src/creation/relationship_index_tests.rs",
+        "crates/jet3/src/creation/composer/relationship_graph_plan.rs",
+        "crates/jet3/src/creation/relationship_indexes.rs",
+        "crates/jet3/src/schema_relationship_create.rs",
+        "oracle/windows-dao/scripts/one_to_one.py",
+        "oracle/windows-dao/scripts/one_to_one_creation_structure.py",
+        "oracle/windows-dao/scripts/one_to_one_semantic_residue.py",
+        "oracle/windows-dao/scripts/schema_candidate_observer.ps1",
+        "oracle/windows-dao/scripts/compare_schema_candidates.py",
+        "oracle/windows-dao/scripts/compare_schema_structure.py",
+        "oracle/windows-dao/scripts/schema_edit_structure.py"
+      ]
+    },
+    {
+      "id": "relationships.unknown_attributes",
       "implementation": "partial",
       "verification": "dao_differential",
       "evidence": [

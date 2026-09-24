@@ -1,4 +1,5 @@
-//! Appending physical slots from EXP-0162, using EXP-0060 directory/row layout.
+//! EXP-0162 appends within the EXP-0305 slot limit and EXP-0060 directory layout.
+use crate::page_image::MAX_BUILT_ROWS;
 use crate::row_directory::RowDirectory;
 use crate::row_slot::RowSlot;
 use crate::{PAGE_BYTES, PageImage, PageNumber, PageOffset, ResourceBudget, UpdateError};
@@ -84,7 +85,7 @@ fn append_inner(
         .len()
         .checked_add(ENTRY_BYTES)
         .ok_or(UpdateError::Mismatch("row width"))?;
-    if count > u16::from(u8::MAX) || free < needed {
+    if count >= MAX_BUILT_ROWS || free < needed {
         return Ok(None);
     }
     let start = packed_start
@@ -138,7 +139,7 @@ pub(crate) fn increment_count(
 pub(crate) fn has_capacity(page: &[u8; PAGE_BYTES], minimum: usize) -> bool {
     let count = u16::from_le_bytes([page[SLOT_COUNT], page[SLOT_COUNT + 1]]);
     let free = usize::from(u16::from_le_bytes([page[FREE_BYTES], page[FREE_BYTES + 1]]));
-    count <= u16::from(u8::MAX) && minimum.checked_add(ENTRY_BYTES).is_some_and(|n| free >= n)
+    count < MAX_BUILT_ROWS && minimum.checked_add(ENTRY_BYTES).is_some_and(|n| free >= n)
 }
 
 pub(crate) fn minimum_length(

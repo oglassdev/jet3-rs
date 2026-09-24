@@ -97,7 +97,8 @@ pub(super) fn validate(
             }
         }
     }
-    let fixed_size = usize::from(next_fixed_offset);
+    // EXP-0306: fixed-only rows retain a two-byte minimum fixed area.
+    let fixed_size = usize::from(next_fixed_offset).max(if variable_count == 0 { 2 } else { 0 });
     // Indexes are unique, so any index at or beyond the count leaves a hole.
     for (ordinal, column) in (0_u16..).zip(columns) {
         if let ColumnStorageClass::Variable { index } = column.storage
