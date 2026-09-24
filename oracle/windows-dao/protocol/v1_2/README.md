@@ -134,11 +134,9 @@ When the reader rejects the header (`unsupported_version`,
 python3 -B oracle/windows-dao/scripts/build_v1_2_inventory.py --check
 python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py schemas
 python3 -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory oracle/windows-dao/protocol/v1_2/scenarios.json
-python3 -B oracle/windows-dao/scripts/dao_read_diff.py synthetic-dry-run /tmp/jet3-dao-read-dry-run.json
 python3 -B -m unittest discover -s oracle/windows-dao/tests -p 'test_protocol_validation.py' -v
 ```
 
-The acquisition plan remains unchanged as the consumed input for the accepted
-result recorded by `EXP-0064`; it is not re-pinned or checked against later
-working trees. The protocol and synthetic documents do not independently move
-a capability.
+The hosted DAO read, write and update harnesses that consumed this contract
+(`EXP-0064` onward) are archived at tag `oracle-archive-2026-09`. The protocol
+documents do not independently move a capability.

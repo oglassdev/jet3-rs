@@ -18,9 +18,9 @@ GitHub issues; there is no phase plan to follow.
 
 ## Everyday commands
 
-`just` lists recipes. `just ready` (fmt, clippy, tests, docs, quick
-acceptance) is the pre-PR check. Use focused checks while iterating; run
-`just ready` once on the final candidate.
+`just` lists recipes. `just ready` (fmt, clippy, tests, docs, source size,
+support matrix and Python checks) is the pre-PR check. Use focused checks
+while iterating; run `just ready` once on the final candidate.
 
 ## Rules for `crates/jet3` (the parser)
 

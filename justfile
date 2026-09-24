@@ -1,6 +1,7 @@
 # Run `just` to list recipes.
 
 PYTHON := env_var_or_default("PYTHON", "python3")
+NIGHTLY := "nightly-2026-07-20"
 
 default:
     @just --list
@@ -20,98 +21,29 @@ test:
 doc:
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps --locked
 
-quick:
-    PYTHON="{{PYTHON}}" ./scripts/acceptance.sh quick
+# Parser source files stay under 800 lines.
+source-size:
+    ./scripts/check-source-size.sh
 
-# Full release check for one DAO differential bundle.
-accept:
-    PYTHON="{{PYTHON}}" ./scripts/acceptance.sh full
+# Support matrix, protocol contract and portable Python tests.
+contracts:
+    "{{PYTHON}}" -B tools/validate_contract.py
+    "{{PYTHON}}" -B -m unittest discover -s tools/tests
+    "{{PYTHON}}" -B oracle/windows-dao/scripts/build_v1_2_inventory.py --check
+    "{{PYTHON}}" -B oracle/windows-dao/scripts/validate_protocol_v1_2.py schemas
+    "{{PYTHON}}" -B oracle/windows-dao/scripts/validate_protocol_v1_2.py inventory oracle/windows-dao/protocol/v1_2/scenarios.json
+    "{{PYTHON}}" -B -m unittest discover -s oracle/windows-dao/tests
 
-# Everything currently green-able; run before publishing changes.
-ready: fmt-check lint test doc quick
+# Everything CI checks; run once before publishing changes.
+ready: fmt-check lint test doc source-size contracts
 
-# Exploratory only; output cannot satisfy release evidence or compatibility claims.
-windows-dev-probe:
-    "{{PYTHON}}" scripts/windows-dao-dev.py provider-probe
+bench:
+    cargo bench --manifest-path benches/Cargo.toml --locked
 
-# Create and reopen one private empty Jet 3 database through local DAO.
-windows-dev-empty:
-    "{{PYTHON}}" scripts/windows-dao-dev.py create-empty
+# Run every fuzz target for the given number of seconds.
+fuzz seconds="60":
+    for target in $(cargo +{{NIGHTLY}} fuzz list --fuzz-dir fuzz); do mkdir -p "fuzz/target/corpus/$target" && cargo +{{NIGHTLY}} fuzz run --fuzz-dir fuzz "$target" "fuzz/target/corpus/$target" "fuzz/corpus/$target" -- -max_total_time={{seconds}} || exit 1; done
 
-# Create the private Jet 3/4, encryption, and password opening matrix.
-windows-dev-opening:
-    "{{PYTHON}}" scripts/windows-dao-dev.py opening-matrix
-
-# Discover allocation-map transitions without assuming a conversion threshold.
-windows-dev-allocation:
-    "{{PYTHON}}" scripts/windows-dao-dev.py allocation-map --timeout 900
-
-# Discover catalog location and records with bounded create/drop/recreate checkpoints.
-windows-dev-catalog:
-    "{{PYTHON}}" scripts/windows-dao-dev.py catalog --timeout 180
-
-# Discover table-definition, column, index, and relationship metadata.
-windows-dev-table-definition:
-    "{{PYTHON}}" scripts/windows-dao-dev.py table-definition --timeout 300
-
-windows-dev-row:
-    "{{PYTHON}}" scripts/windows-dao-dev.py row --timeout 300
-
-windows-dev-value:
-    "{{PYTHON}}" scripts/windows-dao-dev.py value --timeout 600
-
-# Discover index-tree pages, key encodings, and relationship metadata.
-windows-dev-index:
-    "{{PYTHON}}" scripts/windows-dao-dev.py index --timeout 600
-
-# Run the preregistered writer-bootstrap layout experiment in the local VM.
-windows-dev-bootstrap-layout:
-    "{{PYTHON}}" scripts/windows-dao-dev.py bootstrap-layout --timeout 900
-
-# Run the preregistered system-catalog semantics experiment in the local VM.
-windows-dev-system-catalog:
-    "{{PYTHON}}" scripts/windows-dao-dev.py system-catalog --timeout 900
-
-# Run the preregistered long-value column-map experiment in the local VM.
-windows-dev-long-value-maps:
-    "{{PYTHON}}" scripts/windows-dao-dev.py long-value-maps --timeout 900
-
-# Run the preregistered corrected long-value column-map experiment.
-windows-dev-long-value-maps-followup:
-    "{{PYTHON}}" scripts/windows-dao-dev.py long-value-maps-followup --timeout 900
-
-# Run the preregistered fixed bootstrap-composer semantics experiment.
-windows-dev-bootstrap-composer-semantics:
-    "{{PYTHON}}" scripts/windows-dao-dev.py bootstrap-composer-semantics --timeout 900
-
-# Run the preregistered schema-generalization experiment in the local VM.
-windows-dev-schema-generalization:
-    "{{PYTHON}}" scripts/windows-dao-dev.py schema-generalization --timeout 900
-
-# Run the preregistered multiple-index page-assignment experiment in the local VM.
-windows-dev-multiple-indexes:
-    "{{PYTHON}}" scripts/windows-dao-dev.py multiple-indexes --timeout 900
-
-# Run the preregistered table-definition continuation placement experiment.
-windows-dev-definition-continuation:
-    "{{PYTHON}}" scripts/windows-dao-dev.py definition-continuation --timeout 900
-
-# Run the preregistered CP1252 extended catalog-name experiment.
-windows-dev-extended-names:
-    "{{PYTHON}}" scripts/windows-dao-dev.py extended-names --timeout 900
-
-# Run the preregistered null-LvProp acceptance experiment in the local VM.
-windows-dev-lvprop-null:
-    "{{PYTHON}}" scripts/windows-dao-dev.py lvprop-null --timeout 900
-
-# Run the preregistered null-LvProp schema experiment in the local VM.
-windows-dev-lvprop-null-schemas:
-    "{{PYTHON}}" scripts/windows-dao-dev.py lvprop-null-schemas --timeout 900
-
-# Run the preregistered multi-table create experiment in the local VM.
-windows-dev-multi-table-create:
-    "{{PYTHON}}" scripts/windows-dao-dev.py multi-table-create --timeout 900
-
-# Run one ad-hoc PowerShell script under x86 DAO in the local VM (discovery only).
+# Run one PowerShell script under x86 DAO in the local VM.
 windows-dev-ps script *args:
     "{{PYTHON}}" scripts/windows-dao-ps.py {{script}} {{args}}

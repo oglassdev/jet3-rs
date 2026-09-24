@@ -8,7 +8,7 @@ import system_catalog as catalog
 import relationship_mutation_structure as structure
 import numeric_index_mutation_structure as indexes
 import allocation_lifecycle_structure as allocation
-import relationship_create as relationships
+import dao_common as relationships
 for m in (catalog,indexes.catalog,allocation.catalog):m.MAX_PAGES=8192;m.MAX_ROWS_PER_PAGE=1019;m.MAX_TABLES=64;m.MAX_COLUMNS=255;m.MAX_TEXT=10000
 BASE=RUN_DIR=OUT=PLAN=RUN=REPORT=None
 PRESERVE_QUERIES=False

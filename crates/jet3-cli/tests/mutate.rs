@@ -1,27 +1,10 @@
 #![cfg(any(unix, windows))]
+mod common;
+
+use common::{Result, cli, request};
 use serde_json::{Value, json};
-use std::{
-    io::Write,
-    path::Path,
-    process::{Command, Output, Stdio},
-};
-type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
-fn request(command: &str, path: &Path, input: &Value) -> Result<Output> {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_jet3-cli"))
-        .arg(command)
-        .arg(path)
-        .args(["--input", "-"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
-    child
-        .stdin
-        .take()
-        .ok_or("stdin")?
-        .write_all(input.to_string().as_bytes())?;
-    Ok(child.wait_with_output()?)
-}
+use std::path::Path;
+
 fn create(path: &Path) -> Result {
     let output = request(
         "create",
@@ -103,11 +86,7 @@ fn public_create_update_and_typed_errors_preserve_source() -> Result {
             String::from_utf8_lossy(&output.stderr)
         );
         if value.is_null() {
-            let inspection = Command::new(env!("CARGO_BIN_EXE_jet3-cli"))
-                .arg("inspect")
-                .arg(&path)
-                .arg("--rows")
-                .output()?;
+            let inspection = cli().arg("inspect").arg(&path).arg("--rows").output()?;
             assert!(inspection.status.success());
             let document: Value = serde_json::from_slice(&inspection.stdout)?;
             assert!(
@@ -311,11 +290,7 @@ fn cascade_options_flow_from_create_through_update_and_delete() -> Result {
         "{}",
         String::from_utf8_lossy(&changed.stderr)
     );
-    let snapshot = Command::new(env!("CARGO_BIN_EXE_jet3-cli"))
-        .arg("inspect")
-        .arg(&path)
-        .arg("--rows")
-        .output()?;
+    let snapshot = cli().arg("inspect").arg(&path).arg("--rows").output()?;
     assert!(snapshot.status.success());
     let document: Value = serde_json::from_slice(&snapshot.stdout)?;
     assert!(
@@ -335,11 +310,7 @@ fn cascade_options_flow_from_create_through_update_and_delete() -> Result {
         "{}",
         String::from_utf8_lossy(&deleted.stderr)
     );
-    let snapshot = Command::new(env!("CARGO_BIN_EXE_jet3-cli"))
-        .arg("inspect")
-        .arg(&path)
-        .arg("--rows")
-        .output()?;
+    let snapshot = cli().arg("inspect").arg(&path).arg("--rows").output()?;
     assert!(snapshot.status.success());
     let document: Value = serde_json::from_slice(&snapshot.stdout)?;
     assert!(

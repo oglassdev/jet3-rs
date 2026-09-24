@@ -8,7 +8,9 @@ from pathlib import Path
 import shutil
 import subprocess
 
-import multiple_index as indexes
+import dao_common
+
+CATALOG = dao_common.load_catalog('_numeric_catalog', MAX_ROWS_PER_PAGE=256)
 
 ROOT = Path(__file__).resolve().parents[3]
 PRODUCER = ROOT / 'oracle/windows-dao/scripts/creation_tables.ps1'
@@ -111,7 +113,7 @@ def native_arm(arm):
 
 
 def native_contents(data, arm):
-    catalog = indexes.catalog
+    catalog = CATALOG
     from catalog_pages_native import inspect
     system = inspect(data)
     objects = system['MSysObjects']
@@ -128,7 +130,7 @@ def native_contents(data, arm):
         owned = set(pages)
         for index in spec['indexes']:
             physical = table['physical_indexes'][logical[index['name']]]
-            nodes, entries = indexes.tree(data, physical['root'], table['root'])
+            nodes, entries = dao_common.index_tree(catalog, data, physical['root'], table['root'])
             wanted = sorted(long_key(row['values'][index['column']], index['descending']) +
                             row['page'].to_bytes(3, 'big') + bytes([row['row']]) for row in rows)
             require(entries == wanted, 'Native complete index key/locator records')
@@ -138,8 +140,7 @@ def native_contents(data, arm):
 
 
 def raw_layout(data, arm):
-    catalog = indexes.catalog
-    catalog.MAX_ROWS_PER_PAGE = 256
+    catalog = CATALOG
     definition, _, records = catalog._discover_catalog(data)
     name_slot, id_slot = [catalog._ordinal(definition, n) for n in ('Name', 'Id')]
     roots = {r['values'][name_slot]: r['values'][id_slot] for r in records}
@@ -166,7 +167,7 @@ def raw_layout(data, arm):
             require(physical['root'] == root and physical['map'] == dict(page=next_root + 1, row=2 + ordinal), 'Index placement')
             require(physical['flags'] == int(index['unique']) + 8 * int(index['primary']) and
                     physical['keys'] == [dict(column=index['column'], direction=int(not index['descending']))], 'Raw index definition')
-            nodes, entries = indexes.tree(data, root, next_root)
+            nodes, entries = dao_common.index_tree(catalog, data, root, next_root)
             wanted = sorted(long_key(row['values'][index['column']], index['descending']) +
                             row['page'].to_bytes(3, 'big') + bytes([row['row']]) for row in rows)
             require(entries == wanted and len(nodes) == 1, 'Complete index key/locator entries')

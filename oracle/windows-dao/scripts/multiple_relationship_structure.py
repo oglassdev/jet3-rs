@@ -5,7 +5,7 @@ import hashlib
 import system_catalog as catalog
 import relationship_mutation_structure as structure
 import numeric_index_mutation_structure as indexes
-import relationship_create as relcreate
+import dao_common as relcreate
 import allocation_lifecycle_structure as allocation
 for module in (catalog, indexes.catalog, allocation.catalog):
     module.MAX_PAGES = 8192

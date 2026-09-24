@@ -25,22 +25,20 @@ compatibility or completion of the v1 release gates.
 ## Start here
 
 ```sh
-./scripts/acceptance.sh quick
+just ready
 ```
 
-Validate one DAO differential bundle with the full entry point:
-
-```sh
-./scripts/acceptance.sh full path/to/canonical-snapshot.json
-```
-
-Without a bundle argument or `JET3_DAO_BUNDLE`, `full` exits nonzero with a
-one-line reason.
+`just` lists the other recipes (benchmarks, fuzzing, the DAO VM runner).
 
 See [validation/README.md](docs/validation/README.md) for capability status and
 the three v1 release gates.
 See [TOOLING.md](docs/TOOLING.md) for the pinned mise-managed developer tools
 and the remaining host prerequisites.
+
+Two design rules hold across the library: one caller-owned `ResourceBudget`
+covers a whole public operation (modules never start a nested budget), and the
+structural validator may share safe primitives with the writer but never its
+encoders or a successful self-read as proof of validity.
 
 ## Status
 
@@ -113,5 +111,5 @@ hosted DAO differential runs establish evidence for their recorded capabilities
 and source revisions. AutoIncrement comparisons include explicit IDs, negative
 IDs and signed-boundary wrap, with failed Rust requests preserving the source.
 
-See the [current checkpoint and remaining work](docs/plans/V1_SCOPE.md#current-checkpoint)
-for exact evidence boundaries and the GitHub issues tracking completion.
+See [remaining work](docs/plans/V1_SCOPE.md#remaining-work) and
+`docs/PROVENANCE.md` for exact evidence boundaries; GitHub issues track completion.

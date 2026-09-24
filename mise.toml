@@ -7,5 +7,5 @@ jq = "1.8.2"
 "cargo:cargo-fuzz" = "0.13.2"
 
 [hooks.postinstall]
-run = "rustup toolchain install nightly-2026-07-20 --profile minimal --component miri"
-run_windows = "rustup toolchain install nightly-2026-07-20 --profile minimal --component miri"
+run = "rustup toolchain install nightly-2026-07-20 --profile minimal"
+run_windows = "rustup toolchain install nightly-2026-07-20 --profile minimal"

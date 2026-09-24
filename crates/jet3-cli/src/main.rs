@@ -41,14 +41,30 @@ const FNV1A64_PRIME: u64 = 0x0000_0100_0000_01b3;
 const IO_ERROR_EXIT: u8 = 74;
 
 const HELP: &str = "\
-jet3-cli — bounded diagnostics for local database files
+jet3-cli — bounded tools for local Jet 3 database files
 
 Usage:
-  jet3-cli probe <file> [--max-input-bytes <bytes>]
-  jet3-cli probe <file> [--max-input-bytes <bytes>] --scan-pages \
-    --max-scan-bytes <bytes> --max-pages <count>
+  jet3-cli probe <file> [--max-input-bytes <bytes>] \
+    [--scan-pages --max-scan-bytes <bytes> --max-pages <count>]
+  jet3-cli inspect <file> [--table <name>] [--rows] [--code-page <cp>]
+  jet3-cli inspect <file> --page <number> [--hex]
+  jet3-cli validate <file> [--code-page <cp>] [--max-input-bytes <bytes>] \
+    [--max-work-units <units>]
+  jet3-cli snapshot <file> --out <dir> --scenario <id> [options]
+  jet3-cli create <output.mdb> --input <request.json|->
+  jet3-cli mutate <file.mdb> --input <request.json|->
+  jet3-cli schema <file.mdb> --input <request.json|->
   jet3-cli --help
   jet3-cli --version
+
+Commands:
+  probe     check the supported header state and page geometry
+  inspect   list pages, catalog records, table definitions and rows
+  validate  check table data, indexes, storage and relationships read-only
+  snapshot  write a protocol 1.2 semantic snapshot and coverage receipt
+  create    create a new database from a typed JSON request
+  mutate    insert, update, replace or delete one row
+  schema    edit tables, columns, indexes and relationships
 
 probe accepts only the supported Jet 3, unencrypted, no-password header state
 and reports 2 KiB geometry. --scan-pages rereads every complete page with a

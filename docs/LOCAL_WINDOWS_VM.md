@@ -3,7 +3,7 @@
 The local VM runs the independent DAO oracle. Its disk, provider, credentials,
 SSH keys, MDB files and raw captures stay outside the repository. Local and
 hosted differential runs use the same evidence standard in
-[validation/EVIDENCE.md](validation/EVIDENCE.md).
+[validation/README.md](validation/README.md).
 
 ## Configuration
 
@@ -81,10 +81,8 @@ failure images remain terminal controls, including relationship refusals whose
 catalog counters remain inconsistent after rollback; Rust's validator stays
 strict and Rust refusals must preserve the complete original file.
 
-`just windows-dev-probe` and the existing `windows-dev-*` recipes remain useful
-for specific format discovery. Their historical acquisition plans and outcome
-records describe earlier runs. New verification should use reproducible suites
-without the old preregistration/approval workflow.
+The earlier `windows-dev-*` discovery jobs are archived at tag
+`oracle-archive-2026-09`; see `oracle/windows-dao/README.md`.
 
 For an ad-hoc x86 PowerShell script:
 
