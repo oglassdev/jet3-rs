@@ -3,8 +3,8 @@ use super::api_relationship_graph_tests::*;
 use crate::{
     ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec,
     IndexDirection, IndexKind, IndexSpec, RelationshipField, RelationshipSpec, RowLocator,
-    RowValue, TableRef, TableSpec, TextCodePage, UpdateError, ValueKind,
-    create::{DatabaseSpec, TableRows, api::*, composer::ComposeError, create_database},
+    RowValue, TableRef, TableSpec, TextCodePage, ValueKind, WriteError,
+    create::{DatabaseSpec, TableRows, composer::ComposeError, create_database},
 };
 use std::fs;
 use std::path::Path;
@@ -36,7 +36,7 @@ fn schema(
     parent_rows: &[&[RowValue<'_>]],
     child_rows: &[&[RowValue<'_>]],
     path: &Path,
-) -> Result<(), CreateDatabaseError> {
+) -> Result<(), WriteError> {
     create_database(
         path,
         &DatabaseSpec {
@@ -197,8 +197,8 @@ fn scalar_relationship_lifecycles_enforce_keys_and_preserve_refused_inputs() -> 
         assert!(
             matches!(
                 orphan,
-                Err(UpdateError::ScalarRelationshipConstraint { .. }
-                    | UpdateError::RelationshipConstraint { .. })
+                Err(WriteError::ScalarRelationshipConstraint { .. }
+                    | WriteError::RelationshipConstraint { .. })
             ),
             "{kind:?}: {orphan:?}"
         );
@@ -214,8 +214,8 @@ fn scalar_relationship_lifecycles_enforce_keys_and_preserve_refused_inputs() -> 
         assert!(
             matches!(
                 referenced,
-                Err(UpdateError::ScalarRelationshipConstraint { .. }
-                    | UpdateError::RelationshipConstraint { .. })
+                Err(WriteError::ScalarRelationshipConstraint { .. }
+                    | WriteError::RelationshipConstraint { .. })
             ),
             "{kind:?}: {referenced:?}"
         );
@@ -232,8 +232,8 @@ fn scalar_relationship_lifecycles_enforce_keys_and_preserve_refused_inputs() -> 
         assert!(
             matches!(
                 repeated,
-                Err(UpdateError::ScalarRelationshipConstraint { .. }
-                    | UpdateError::RelationshipConstraint { .. })
+                Err(WriteError::ScalarRelationshipConstraint { .. }
+                    | WriteError::RelationshipConstraint { .. })
             ),
             "{kind:?}: {repeated:?}"
         );
@@ -251,7 +251,7 @@ fn scalar_relationship_lifecycles_enforce_keys_and_preserve_refused_inputs() -> 
             );
             assert!(matches!(
                 repeated,
-                Err(UpdateError::RelationshipConstraint { .. })
+                Err(WriteError::RelationshipConstraint { .. })
             ));
             assert_eq!(fs::read(&path)?, original);
         }
@@ -317,7 +317,7 @@ fn scalar_relationship_creation_rejects_incompatible_endpoint_types() -> TestRes
         let directory = Directory::new()?;
         assert!(matches!(
             schema(parent, child, &[], &[], &directory.target()),
-            Err(CreateDatabaseError::Compose(
+            Err(WriteError::Compose(
                 ComposeError::UnsupportedRelationship { .. }
             ))
         ));
@@ -378,7 +378,7 @@ fn scalar_relationship_widths_and_text_storage_can_differ() -> TestResult {
                 &[&[RowValue::Long(11), absent, RowValue::Null]],
                 &absent_path
             ),
-            Err(CreateDatabaseError::Compose(
+            Err(WriteError::Compose(
                 ComposeError::OrphanInitialScalarRelationshipKey { row: 0 }
             ))
         ));
@@ -426,7 +426,7 @@ fn scalar_relationship_fixed_field_change_checks_parent_keys_before_publication(
     assert!(
         matches!(
             refusal,
-            Err(UpdateError::ScalarRelationshipConstraint { .. })
+            Err(WriteError::ScalarRelationshipConstraint { .. })
         ),
         "{refusal:?}"
     );
@@ -455,7 +455,7 @@ fn scalar_relationship_boolean_null_is_false_and_binary_empty_is_null() -> TestR
             &[RowValue::Long(2), RowValue::Boolean(false)],
             &mut budget()
         ),
-        Err(UpdateError::Unsupported("duplicate unique key"))
+        Err(WriteError::Unsupported("duplicate unique key"))
     ));
     assert_eq!(fs::read(directory.target())?, original);
     let absent = directory.0.join("no-false.mdb");
@@ -467,7 +467,7 @@ fn scalar_relationship_boolean_null_is_false_and_binary_empty_is_null() -> TestR
             &[&[RowValue::Long(11), RowValue::Null, RowValue::Null]],
             &absent
         ),
-        Err(CreateDatabaseError::Compose(
+        Err(WriteError::Compose(
             ComposeError::OrphanInitialScalarRelationshipKey { row: 0 }
         ))
     ));

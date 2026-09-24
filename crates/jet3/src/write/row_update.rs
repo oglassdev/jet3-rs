@@ -1,6 +1,6 @@
 //! Full scalar and long-value row replacement using the checked row encoder and exact publication.
 use crate::{
-    DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget, RowLocator, RowValue, UpdateError,
+    DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget, RowLocator, RowValue, WriteError,
 };
 use std::{convert::Infallible, error::Error as StdError, path::Path};
 
@@ -26,7 +26,7 @@ pub struct RowUpdate<'a> {
 ///
 /// # Errors
 ///
-/// Returns [`UpdateError`] when the file or request is outside the supported
+/// Returns [`WriteError`] when the file or request is outside the supported
 /// scope, a key or relationship constraint refuses the change, the table
 /// stores a validation rule (rules are not evaluated), or `budget` is
 /// exhausted; the original file is then unchanged. Publication failures
@@ -35,7 +35,7 @@ pub fn update_row(
     path: impl AsRef<Path>,
     request: RowUpdate<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     update_with_hook(path.as_ref(), request, budget, |_| Ok::<(), Infallible>(()))
 }
 
@@ -44,7 +44,7 @@ pub(super) fn update_with_hook<H, HE>(
     request: RowUpdate<'_>,
     budget: &mut ResourceBudget,
     hook: H,
-) -> Result<(), UpdateError>
+) -> Result<(), WriteError>
 where
     H: FnMut(PublishStage) -> Result<(), HE>,
     HE: StdError + Send + Sync + 'static,
@@ -59,7 +59,7 @@ pub(crate) fn plan(
     request: RowUpdate<'_>,
     check_relationships: bool,
     budget: &mut ResourceBudget,
-) -> Result<crate::write::page_edits::PageEdits, UpdateError> {
+) -> Result<crate::write::page_edits::PageEdits, WriteError> {
     let graph = crate::row::mutation_graph::RowGraph::load(
         database,
         definition,
@@ -85,7 +85,7 @@ pub(crate) fn plan(
         while let Some(mut row) = rows.next_row()? {
             observed = observed
                 .checked_add(1)
-                .ok_or(UpdateError::Mismatch("row count overflow"))?;
+                .ok_or(WriteError::Mismatch("row count overflow"))?;
             if let Some(auto) = auto {
                 let value = auto.read(&mut row)?;
                 if row.locator() == request.row {
@@ -96,7 +96,7 @@ pub(crate) fn plan(
         }
     }
     if !found {
-        return Err(UpdateError::NotFound("row"));
+        return Err(WriteError::NotFound("row"));
     }
     let values = if auto.is_some() {
         &lowered[..request.values.len()]

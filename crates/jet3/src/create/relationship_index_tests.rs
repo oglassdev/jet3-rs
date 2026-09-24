@@ -1,4 +1,5 @@
 use super::api_relationship_graph_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec,
     RelationshipField, RelationshipSpec, RowValue, TableSpec, TextCodePage,
@@ -125,7 +126,7 @@ fn graph_selects_later_unique_parent_and_preserves_declared_foreign_indexes() ->
                     &[RowValue::Long(12), RowValue::Long(99)],
                     &mut budget()
                 ),
-                Err(crate::UpdateError::RelationshipConstraint { value: 99, .. })
+                Err(crate::WriteError::RelationshipConstraint { value: 99, .. })
             ));
             assert!(matches!(
                 crate::delete_row(
@@ -136,7 +137,7 @@ fn graph_selects_later_unique_parent_and_preserves_declared_foreign_indexes() ->
                     },
                     &mut budget()
                 ),
-                Err(crate::UpdateError::RelationshipConstraint { value: 1, .. })
+                Err(crate::WriteError::RelationshipConstraint { value: 1, .. })
             ));
             assert_eq!(fs::read(directory.target())?, before);
             let mut db = DatabaseReader::open(directory.target(), &mut budget())?;
@@ -185,7 +186,7 @@ fn relationship_alias_consumes_a_logical_index_slot_when_reusing_a_tree() -> Tes
             if count == 32 {
                 assert!(matches!(
                     result,
-                    Err(CreateDatabaseError::Compose(ComposeError::Schema(
+                    Err(WriteError::Compose(ComposeError::Schema(
                         crate::TableSchemaPlanError::UnobservedIndexCount {
                             count: 33,
                             observed: 32
@@ -322,7 +323,7 @@ fn graph_nullable_unique_parent_allows_duplicate_nulls_and_null_foreign_keys() -
             ],
             &mut budget()
         ),
-        Err(crate::UpdateError::RelationshipConstraint { value: 99, .. })
+        Err(crate::WriteError::RelationshipConstraint { value: 99, .. })
     ));
     assert_eq!(fs::read(directory.target())?, before);
     let mut db = DatabaseReader::open(directory.target(), &mut budget())?;
@@ -374,7 +375,7 @@ fn graph_parent_hidden_names_cross_the_native_nibble_boundary() -> TestResult {
         if count == 32 {
             assert!(matches!(
                 result,
-                Err(CreateDatabaseError::Compose(ComposeError::Schema(
+                Err(WriteError::Compose(ComposeError::Schema(
                     crate::TableSchemaPlanError::UnobservedIndexCount {
                         count: 33,
                         observed: 32

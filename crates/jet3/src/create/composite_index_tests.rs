@@ -1,9 +1,8 @@
 use super::initial_index_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseSpec, IndexDirection, IndexKind, IndexSpec,
-    PageNumber, RowValue, TableRows, TableSpec,
-    create::{api::CreateDatabaseError, api_tests::*},
-    create_database,
+    PageNumber, RowValue, TableRows, TableSpec, create::api_tests::*, create_database,
     definition::column_writer::nz,
 };
 use std::fs;
@@ -60,7 +59,7 @@ fn descending_signed_boundaries_encode_and_sort_with_original_locators() -> Test
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
+        Err(WriteError::Compose(
             ComposeError::DuplicateInitialIndexKey { value: i32::MIN }
         ))
     ));
@@ -134,7 +133,7 @@ fn mixed_components_respect_declared_order_and_count_complete_duplicate_keys() -
                     },
                     &mut budget()
                 ),
-                Err(CreateDatabaseError::Compose(
+                Err(WriteError::Compose(
                     ComposeError::DuplicateInitialCompositeIndexKey { values: [-1, 0] }
                 ))
             ));
@@ -256,9 +255,9 @@ fn required_null_second_component_is_refused_without_publication() -> TestResult
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::NullInitialIndexKey { row: 0 }
-        ))
+        Err(WriteError::Compose(ComposeError::NullInitialIndexKey {
+            row: 0
+        }))
     ));
     assert!(directory.entries()?.is_empty());
     Ok(())

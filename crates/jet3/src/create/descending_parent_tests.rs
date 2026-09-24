@@ -1,5 +1,6 @@
 //! EXP-0286 generated ascending parent trees and retained mutation counters.
 use super::api_relationship_graph_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexDirection, IndexKind,
     IndexNullPolicy, IndexSpec, RelationshipField, RelationshipSide, RelationshipSpec, RowValue,
@@ -270,7 +271,7 @@ fn generated_parent_capacity_and_hidden_names_remain_bounded() -> TestResult {
         } else {
             assert!(matches!(
                 result,
-                Err(CreateDatabaseError::Compose(ComposeError::Schema(
+                Err(WriteError::Compose(ComposeError::Schema(
                     crate::TableSchemaPlanError::UnobservedIndexCount { .. }
                 )))
             ));
@@ -569,7 +570,7 @@ fn null_parent_mutations_require_no_remaining_null_children() -> TestResult {
                 if null_child {
                     assert!(matches!(
                         result,
-                        Err(crate::UpdateError::NullRelationshipConstraint { .. })
+                        Err(crate::WriteError::NullRelationshipConstraint { .. })
                     ));
                     assert_eq!(fs::read(directory.target())?, before);
                 } else {

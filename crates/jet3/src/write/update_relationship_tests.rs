@@ -2,8 +2,9 @@ use super::update_tests::*;
 use crate::{
     ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, FileSource, IndexColumnSpec,
     IndexKind, IndexSpec, PAGE_BYTES, RelationshipField, RelationshipSpec, ResourceBudget,
-    RowLocator, RowValue, TableRef, TableRows, TableSpec, row::directory::RowDirectory,
-    write::update::*,
+    RowLocator, RowValue, TableRef, TableRows, TableSpec,
+    row::directory::RowDirectory,
+    write::{error::WriteError, update::*},
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -306,7 +307,7 @@ fn orphan_and_referenced_parent_requests_preserve_the_complete_file() -> TestRes
     ];
     for result in results {
         assert!(
-            matches!(result, Err(UpdateError::RelationshipConstraint { .. })),
+            matches!(result, Err(WriteError::RelationshipConstraint { .. })),
             "{result:?}"
         );
     }
@@ -479,7 +480,7 @@ fn damaged_reciprocal_metadata_and_stale_parent_index_are_refused() -> TestResul
         assert!(
             matches!(
                 result,
-                Err(UpdateError::Unsupported(_) | UpdateError::Mismatch(_))
+                Err(WriteError::Unsupported(_) | WriteError::Mismatch(_))
             ),
             "{result:?}"
         );
@@ -539,7 +540,7 @@ fn missing_catalog_and_parent_records_cannot_hide_an_incoming_relationship() -> 
     assert!(
         matches!(
             result,
-            Err(UpdateError::Mismatch(
+            Err(WriteError::Mismatch(
                 "unresolved incoming relationship record"
             ))
         ),
@@ -605,10 +606,7 @@ fn an_existing_orphan_is_not_silently_repaired_by_a_later_write() -> TestResult 
         &mut budget(),
     );
     assert!(
-        matches!(
-            result,
-            Err(UpdateError::Mismatch("orphan relationship key"))
-        ),
+        matches!(result, Err(WriteError::Mismatch("orphan relationship key"))),
         "{result:?}"
     );
     assert_eq!(fs::read(fixture.path())?, damaged);
@@ -651,7 +649,7 @@ fn duplicate_reciprocal_relationship_records_are_refused() -> TestResult {
     assert!(
         matches!(
             result,
-            Err(UpdateError::Mismatch(
+            Err(WriteError::Mismatch(
                 "ambiguous reciprocal relationship index"
             ))
         ),

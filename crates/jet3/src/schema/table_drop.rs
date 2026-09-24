@@ -1,6 +1,6 @@
 //! Table and grant removal using EXP-0073/0087/0297 catalog identities.
 use crate::{
-    ResourceBudget, RowValue, UpdateError,
+    ResourceBudget, RowValue, WriteError,
     write::page_edits::{PageEdits, reserve},
 };
 use std::fs::File;
@@ -10,7 +10,7 @@ pub(crate) fn drop_table(
     journal: &mut PageEdits,
     name: &[u8],
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let relationships = crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let order = database.header().sort_order();
         crate::write::update::indexed_writable_table(database, name, budget)?;
@@ -28,10 +28,10 @@ pub(crate) fn drop_table(
                 continue;
             }
             if !relation.interpreted() {
-                return Err(UpdateError::Unsupported("relationship catalog flags"));
+                return Err(WriteError::Unsupported("relationship catalog flags"));
             }
             if relation.enforced() && parent && !child {
-                return Err(UpdateError::Unsupported(
+                return Err(WriteError::Unsupported(
                     "table is referenced by a relationship",
                 ));
             }
@@ -51,7 +51,7 @@ pub(crate) fn drop_table(
             let table = crate::write::update::indexed_writable_table(database, name, budget)?;
             crate::relationship::catalog::validate(database, budget)?;
             if table.relationships().next().is_some() {
-                return Err(UpdateError::Unsupported(
+                return Err(WriteError::Unsupported(
                     "drop relationships before their table",
                 ));
             }

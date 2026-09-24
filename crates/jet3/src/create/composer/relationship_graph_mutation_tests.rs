@@ -4,7 +4,7 @@ use super::*;
 use crate::{
     ColumnOrdinal, DatabaseReader, FieldUpdate, FileSource, IndexColumnSpec, IndexFieldSpec,
     IndexKind, IndexSpec, PAGE_BYTES, RowDelete, RowLocator, TableDefinition, TableRows,
-    TextCodePage, UpdateError, ValueKind,
+    TextCodePage, ValueKind, WriteError,
 };
 use std::{fs, path::PathBuf};
 pub(super) type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -297,8 +297,8 @@ pub(super) fn field(
     id: i32,
     column: u16,
     value: RowValue<'_>,
-) -> std::result::Result<(), UpdateError> {
-    let row = locator(fixture, table, id).map_err(|_| UpdateError::Mismatch("test row absent"))?;
+) -> std::result::Result<(), WriteError> {
+    let row = locator(fixture, table, id).map_err(|_| WriteError::Mismatch("test row absent"))?;
     crate::update_field(
         fixture.path(),
         FieldUpdate {
@@ -342,12 +342,12 @@ fn two_foreign_keys_and_both_parent_endpoints_enforce_every_constraint() -> Resu
         for column in [1, 2] {
             assert!(matches!(
                 field(&fixture, 1, 2, column, RowValue::Long(999)),
-                Err(UpdateError::RelationshipConstraint { .. })
+                Err(WriteError::RelationshipConstraint { .. })
             ));
         }
         assert!(matches!(
             field(&fixture, second_parent, 1, 0, RowValue::Long(99)),
-            Err(UpdateError::RelationshipConstraint { .. })
+            Err(WriteError::RelationshipConstraint { .. })
         ));
         assert_eq!(fs::read(fixture.path())?, before);
         field(&fixture, 1, 2, 1, RowValue::Long(3))?;
@@ -383,11 +383,11 @@ fn chain_middle_table_is_checked_as_both_parent_and_child() -> Result {
     let before = fs::read(fixture.path())?;
     assert!(matches!(
         field(&fixture, 1, 2, 1, RowValue::Long(999)),
-        Err(UpdateError::RelationshipConstraint { .. })
+        Err(WriteError::RelationshipConstraint { .. })
     ));
     assert!(matches!(
         field(&fixture, 1, 2, 0, RowValue::Long(99)),
-        Err(UpdateError::RelationshipConstraint { .. })
+        Err(WriteError::RelationshipConstraint { .. })
     ));
     assert_eq!(fs::read(fixture.path())?, before);
     field(&fixture, 1, 3, 0, RowValue::Long(33))?;
@@ -411,7 +411,7 @@ fn self_reference_checks_the_resulting_row_set_once_per_side() -> Result {
     let before = fs::read(fixture.path())?;
     assert!(matches!(
         field(&fixture, 0, 4, 0, RowValue::Long(44)),
-        Err(UpdateError::RelationshipConstraint { .. })
+        Err(WriteError::RelationshipConstraint { .. })
     ));
     assert_eq!(fs::read(fixture.path())?, before);
     crate::update_row(
@@ -458,7 +458,7 @@ fn parent_remains_protected_until_both_children_release_its_key() -> Result {
     };
     assert!(matches!(
         crate::delete_row(fixture.path(), request, &mut budget()),
-        Err(UpdateError::RelationshipConstraint { .. })
+        Err(WriteError::RelationshipConstraint { .. })
     ));
     assert_eq!(fs::read(fixture.path())?, before);
     field(&fixture, 2, 2, 1, RowValue::Long(3))?;
@@ -478,9 +478,7 @@ fn duplicate_catalog_bindings_cannot_hide_a_different_target_record() -> Result 
     let before = fs::read(fixture.path())?;
     assert!(matches!(
         field(&fixture, 0, 3, 2, RowValue::Long(8)),
-        Err(UpdateError::Mismatch(
-            "relationship catalog component count"
-        ))
+        Err(WriteError::Mismatch("relationship catalog component count"))
     ));
     assert_eq!(fs::read(fixture.path())?, before);
     Ok(())
@@ -513,7 +511,7 @@ fn shared_foreign_index_still_requires_the_key_in_both_parent_tables() -> Result
     let before = fs::read(fixture.path())?;
     assert!(matches!(
         field(&fixture, 1, 2, 1, RowValue::Long(3)),
-        Err(UpdateError::RelationshipConstraint { .. })
+        Err(WriteError::RelationshipConstraint { .. })
     ));
     assert_eq!(fs::read(fixture.path())?, before);
     field(&fixture, 1, 2, 1, RowValue::Long(2))?;

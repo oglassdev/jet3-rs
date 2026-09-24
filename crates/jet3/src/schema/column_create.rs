@@ -1,7 +1,7 @@
 //! Appended columns use EXP-0059 records, EXP-0077 maps and EXP-0257/0297 old rows.
 use crate::{
     BinaryWriter, ColumnDefinition, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnType,
-    ResourceBudget, RowValue, TableDefinitionKind, TableSpec, UpdateError,
+    ResourceBudget, RowValue, TableDefinitionKind, TableSpec, WriteError,
     definition::header::{
         COLUMN_COUNT, DEFINITION_HEADER_LEN, STORAGE_COLUMN_COUNT, STORAGE_VARIABLE_COUNT,
     },
@@ -15,7 +15,7 @@ pub(crate) fn create(
     table: &[u8],
     column: ColumnSpec<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let (catalog_root, row, properties, root, ordinal, auto_record) =
         crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let order = database.header().sort_order();
@@ -30,7 +30,7 @@ pub(crate) fn create(
             if column.allow_zero_length()
                 && !crate::properties::column::has_zero_length_property(column.physical_type())
             {
-                return Err(UpdateError::Unsupported("AllowZeroLength column type"));
+                return Err(WriteError::Unsupported("AllowZeroLength column type"));
             }
             if column.column_type() == ColumnType::AutoIncrement
                 && definition
@@ -38,7 +38,7 @@ pub(crate) fn create(
                     .iter()
                     .any(ColumnDefinition::auto_increment)
             {
-                return Err(UpdateError::Unsupported("multiple AutoIncrement columns"));
+                return Err(WriteError::Unsupported("multiple AutoIncrement columns"));
             }
             let mut columns = Vec::new();
             reserve(&mut columns, definition.columns().len() + 1, budget)?;
@@ -71,7 +71,7 @@ pub(crate) fn create(
             ]);
             let ordinal = definition.storage_column_count();
             if ordinal >= 255 || variables >= 255 {
-                return Err(UpdateError::Unsupported("column storage capacity"));
+                return Err(WriteError::Unsupported("column storage capacity"));
             }
             let live_count = definition.columns().len() as u16 + 1;
             let fixed_before = fixed;
@@ -92,7 +92,7 @@ pub(crate) fn create(
                 TableDefinitionKind::User,
                 order
                     .encoding_context()
-                    .ok_or(UpdateError::Unsupported("column encoding context"))?,
+                    .ok_or(WriteError::Unsupported("column encoding context"))?,
             )?;
             let auto_record = (column.column_type() == ColumnType::AutoIncrement).then_some(record);
             if auto_record.is_some() {
@@ -115,7 +115,7 @@ pub(crate) fn create(
                     TableDefinitionKind::User,
                     order
                         .encoding_context()
-                        .ok_or(UpdateError::Unsupported("column encoding context"))?,
+                        .ok_or(WriteError::Unsupported("column encoding context"))?,
                 )?;
             }
             reserve(&mut edited.columns, 1, budget)?;
@@ -186,7 +186,7 @@ fn backfill_auto(
     ordinal: u16,
     record: [u8; 18],
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let locators = crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let table = database.table_definition(root, budget)?;
         let mut locators = Vec::new();
@@ -228,7 +228,7 @@ fn backfill_auto(
         edited
             .columns
             .get_mut(usize::from(ordinal))
-            .ok_or(UpdateError::NotFound("AutoIncrement column"))?
+            .ok_or(WriteError::NotFound("AutoIncrement column"))?
             .record = record;
         let mut page = [0; crate::PAGE_BYTES];
         database.read_raw_page(root, &mut page, budget)?;
@@ -242,12 +242,12 @@ fn backfill_auto(
     })
 }
 
-pub(crate) fn spec(column: &ColumnDefinition) -> Result<ColumnSpec<'_>, UpdateError> {
+pub(crate) fn spec(column: &ColumnDefinition) -> Result<ColumnSpec<'_>, WriteError> {
     let width = || {
         u8::try_from(column.size())
             .ok()
             .and_then(std::num::NonZeroU8::new)
-            .ok_or(UpdateError::Mismatch("column width"))
+            .ok_or(WriteError::Mismatch("column width"))
     };
     let kind = match column.physical_type() {
         ColumnPhysicalType::Boolean => ColumnType::Boolean,
@@ -278,7 +278,7 @@ fn fixed_offset(
     table: &crate::TableDefinition,
     column: ColumnSpec<'_>,
     budget: &mut ResourceBudget,
-) -> Result<u16, UpdateError> {
+) -> Result<u16, WriteError> {
     let size = match column.column_type() {
         ColumnType::Boolean
         | ColumnType::Text { .. }
@@ -300,7 +300,7 @@ fn fixed_offset(
         budget.charge_items(table.columns().len() as u64)?;
         let end = offset
             .checked_add(size)
-            .ok_or(UpdateError::Unsupported("fixed column storage capacity"))?;
+            .ok_or(WriteError::Unsupported("fixed column storage capacity"))?;
         let overlap = table
             .columns()
             .iter()

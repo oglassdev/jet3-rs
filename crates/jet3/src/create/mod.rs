@@ -101,7 +101,7 @@ mod whole_file_plan_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod wide_variable_tests;
 
-pub use api::{CreateDatabaseError, DatabaseSpec, RelationshipLayout, TableRows, create_database};
+pub use api::{DatabaseSpec, RelationshipLayout, TableRows, create_database};
 pub use columns::{ColumnSpec, ColumnStorageKind, ColumnType};
 pub use composer::ComposeError;
 pub use index_options::{IndexKind, IndexNullPolicy};

@@ -139,18 +139,24 @@ impl Properties {
             Payload::External(reference) => {
                 let owned = match &self.owned {
                     Some(owned) => owned,
-                    None => self.owned.insert(crate::properties::ownership::load(
-                        database,
-                        &self.catalog,
-                        self.property,
-                        budget,
-                    )?),
+                    None => self.owned.insert(
+                        crate::properties::ownership::load(
+                            database,
+                            &self.catalog,
+                            self.property,
+                            budget,
+                        )
+                        .map_err(ColumnPropertyError::from_ownership_check)?,
+                    ),
                 };
                 let mut rows = database.rows(&self.catalog, budget)?;
                 let mut stream = rows.long_value(*reference)?;
                 let mut bytes = buffer(reference.length() as usize, stream.budget_mut())?;
                 while let Some(chunk) = stream.next_chunk()? {
-                    if !owned.contains(chunk.locator().page())? {
+                    if !owned
+                        .contains(chunk.locator().page())
+                        .map_err(ColumnPropertyError::from_ownership_check)?
+                    {
                         return Err(ColumnPropertyError::Invalid(
                             "property reference outside column map",
                         ));

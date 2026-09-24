@@ -2,7 +2,7 @@ use super::insert::*;
 use crate::{
     ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec, PAGE_BYTES,
     PublishStage, ResourceBudget, ResourceLimits, RowDelete, RowLocator, RowValue, TableRows,
-    TableSpec, UpdateError,
+    TableSpec, WriteError,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -263,7 +263,7 @@ fn indexed_rows_retain_deleted_key_counters_and_reject_overflow() -> TestResult 
         if initial == u32::MAX {
             assert!(matches!(
                 result,
-                Err(UpdateError::Unsupported("index counter overflow"))
+                Err(WriteError::Unsupported("index counter overflow"))
             ));
             assert_eq!(fs::read(f.path())?, before);
         } else {
@@ -583,7 +583,7 @@ fn indexed_eof_private_leaf_and_append_corruption_preserve_original() -> TestRes
             },
         );
         assert!(
-            matches!(result, Err(UpdateError::Publish(e)) if e.stage() == PublishStage::Validation)
+            matches!(result, Err(WriteError::Publish(e)) if e.stage() == PublishStage::Validation)
         );
         assert_eq!(fs::read(f.path())?, before);
         assert_eq!(fs::read_dir(&f.directory)?.count(), 1);
@@ -609,7 +609,7 @@ fn indexed_rows_reject_corrupt_branch_separator_before_publication() -> TestResu
     );
     assert!(matches!(
         error,
-        Err(UpdateError::Mismatch("invalid branch separator bounds"))
+        Err(WriteError::Mismatch("invalid branch separator bounds"))
     ));
     assert!(
         crate::delete_row(
@@ -762,7 +762,7 @@ fn indexed_rows_accept_retained_separator_and_reject_wrong_subtree_bounds() -> T
                     &[RowValue::Long(-1), RowValue::Long(5)],
                     &mut budget()
                 ),
-                Err(UpdateError::Mismatch("invalid branch separator bounds"))
+                Err(WriteError::Mismatch("invalid branch separator bounds"))
             ));
             assert_eq!(fs::read(f.path())?, damaged);
         }

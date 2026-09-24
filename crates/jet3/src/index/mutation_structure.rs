@@ -1,7 +1,7 @@
 //! EXP-0062/0126/0148/0225: bounded numeric records and subtree separator fences.
 use crate::{
     DatabaseReader, IndexNodeKind, IndexNullPolicy, IndexTree, PAGE_BYTES, PageNumber, ReadAt,
-    ResourceBudget, TableDefinition, UpdateError,
+    ResourceBudget, TableDefinition, WriteError,
     index::{
         entry::{ENTRY_CAPACITY, ScalarIndexField, valid_key_shape},
         tree::page::{ENTRY_AREA_OFFSET, boundaries, parse_node, u32_at_be},
@@ -27,7 +27,7 @@ pub(crate) fn validate<S: ReadAt>(
     fields: &[ScalarIndexField],
     null_policy: IndexNullPolicy,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let mut ranges: Vec<(PageNumber, Option<Bounds>)> = Vec::new();
     crate::write::page_edits::reserve(&mut ranges, tree.nodes().len(), budget)?;
     ranges.extend(tree.nodes().iter().map(|n| (n.page(), None)));
@@ -63,13 +63,13 @@ pub(crate) fn validate<S: ReadAt>(
             let key_size = size
                 .checked_sub(if branch { 4 } else { 0 })
                 .filter(|n| (5..=ENTRY_CAPACITY).contains(n))
-                .ok_or(UpdateError::Mismatch("numeric index record width"))?;
+                .ok_or(WriteError::Mismatch("numeric index record width"))?;
             let mut record = [0; ENTRY_CAPACITY + 4];
             record[..prefix.len()].copy_from_slice(prefix);
             record[prefix.len()..size].copy_from_slice(suffix);
             budget.charge_work_units(key_size as u64)?;
             if !valid_key_shape(fields, null_policy, &record[..key_size - 4]) {
-                return Err(UpdateError::Mismatch("numeric index key shape"));
+                return Err(WriteError::Mismatch("numeric index key shape"));
             }
             let mut key = Record {
                 bytes: [0; ENTRY_CAPACITY],
@@ -82,12 +82,12 @@ pub(crate) fn validate<S: ReadAt>(
                 if range.1.bytes() > key.bytes()
                     || previous.is_some_and(|p| p.bytes() >= range.0.bytes())
                 {
-                    return Err(UpdateError::Mismatch("invalid branch separator bounds"));
+                    return Err(WriteError::Mismatch("invalid branch separator bounds"));
                 }
                 range
             } else {
                 if previous.is_some_and(|p| p.bytes() >= key.bytes()) {
-                    return Err(UpdateError::Mismatch("unordered numeric index records"));
+                    return Err(WriteError::Mismatch("unordered numeric index records"));
                 }
                 (key, key)
             };
@@ -98,13 +98,13 @@ pub(crate) fn validate<S: ReadAt>(
         if branch {
             let (minimum, maximum) = child_bounds(&ranges, parsed.tail_child, budget)?;
             if previous.is_some_and(|p| p.bytes() >= minimum.bytes()) {
-                return Err(UpdateError::Mismatch("invalid branch separator bounds"));
+                return Err(WriteError::Mismatch("invalid branch separator bounds"));
             }
             bounds = Some((bounds.map_or(minimum, |(first, _)| first), maximum));
         }
         let position = ranges
             .binary_search_by_key(&node.page(), |n| n.0)
-            .map_err(|_| UpdateError::Mismatch("index node inventory"))?;
+            .map_err(|_| WriteError::Mismatch("index node inventory"))?;
         ranges[position].1 = bounds;
     }
     Ok(())
@@ -114,12 +114,12 @@ fn child_bounds(
     ranges: &[(PageNumber, Option<Bounds>)],
     page: PageNumber,
     budget: &mut ResourceBudget,
-) -> Result<Bounds, UpdateError> {
+) -> Result<Bounds, WriteError> {
     budget.charge_work_units((ranges.len().max(1).ilog2() + 1) as u64)?;
     let position = ranges
         .binary_search_by_key(&page, |n| n.0)
-        .map_err(|_| UpdateError::Mismatch("missing index child"))?;
+        .map_err(|_| WriteError::Mismatch("missing index child"))?;
     ranges[position]
         .1
-        .ok_or(UpdateError::Mismatch("empty index child"))
+        .ok_or(WriteError::Mismatch("empty index child"))
 }

@@ -96,7 +96,7 @@ pub enum ComposeError {
     /// A catalog name could not be encoded into an index key.
     NameKey(CatalogNameKeyError),
     /// The table's property payload could not be encoded.
-    Properties(crate::ColumnPropertyError),
+    Properties(Box<crate::ColumnPropertyError>),
     /// Initial rows were requested for a table with a ValidationRule, which
     /// Rust does not evaluate.
     ValidationRuleRows,

@@ -1,4 +1,5 @@
 use super::api_relationship_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec,
     IndexDirection, IndexKind, IndexSpec, InlineLongValue, LongValue, LongValueChunkValue,
@@ -363,7 +364,7 @@ fn relationship_names_cannot_replace_declared_primary_indexes() -> TestResult {
                 },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(ComposeError::Schema(_)))
+            Err(WriteError::Compose(ComposeError::Schema(_)))
         ));
         assert!(directory.empty()?);
     }

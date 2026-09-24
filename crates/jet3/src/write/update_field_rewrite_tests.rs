@@ -1,7 +1,8 @@
 use super::update_tests::*;
 use crate::{
     ColumnOrdinal, ColumnSpec, ColumnStorageClass, ColumnType, DatabaseReader, PAGE_BYTES,
-    PublishStage, RowValue, TextCodePage, write::update::*,
+    PublishStage, RowValue, TextCodePage,
+    write::{error::WriteError, update::*},
 };
 use std::fs;
 use std::num::NonZeroU8;
@@ -128,7 +129,7 @@ fn field_rewrites_enforce_column_options_and_preserve_failed_publications() -> T
         },
     );
     assert!(
-        matches!(result, Err(UpdateError::Publish(error)) if error.stage() == PublishStage::PrePublish)
+        matches!(result, Err(WriteError::Publish(error)) if error.stage() == PublishStage::PrePublish)
     );
     assert_eq!(fs::read(fixture.path())?, original);
     fixture.assert_only_original()

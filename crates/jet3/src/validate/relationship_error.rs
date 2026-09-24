@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::{
-    CatalogError, Error, PageNumber, RowError, TableDefinitionError, UpdateError, ValueError,
+    CatalogError, Error, PageNumber, RowError, TableDefinitionError, ValueError, WriteError,
 };
 
 /// The first failed relationship catalog, metadata or key-inclusion check.
@@ -38,18 +38,18 @@ pub enum RelationshipValidationError {
     },
 }
 
-impl From<UpdateError> for RelationshipValidationError {
-    fn from(error: UpdateError) -> Self {
+impl From<WriteError> for RelationshipValidationError {
+    fn from(error: WriteError) -> Self {
         match error {
-            UpdateError::Catalog(source) => Self::Catalog(source),
-            UpdateError::Definition(source) => Self::Definition(source),
-            UpdateError::Rows(source) => Self::Rows(source),
-            UpdateError::Value(source) => Self::Value(source),
-            UpdateError::Resource(source) => Self::Resource(source),
-            UpdateError::Mismatch(detail)
-            | UpdateError::Unsupported(detail)
-            | UpdateError::NotFound(detail) => Self::Metadata(detail),
-            UpdateError::RelationshipConstraint {
+            WriteError::Catalog(source) => Self::Catalog(source),
+            WriteError::Definition(source) => Self::Definition(source),
+            WriteError::Rows(source) => Self::Rows(source),
+            WriteError::Value(source) => Self::Value(source),
+            WriteError::Resource(source) => Self::Resource(source),
+            WriteError::Mismatch(detail)
+            | WriteError::Unsupported(detail)
+            | WriteError::NotFound(detail) => Self::Metadata(detail),
+            WriteError::RelationshipConstraint {
                 parent,
                 child,
                 value,
@@ -58,7 +58,7 @@ impl From<UpdateError> for RelationshipValidationError {
                 child,
                 value,
             },
-            UpdateError::ScalarRelationshipConstraint { parent, child } => {
+            WriteError::ScalarRelationshipConstraint { parent, child } => {
                 Self::ScalarOrphan { parent, child }
             }
             _ => Self::Metadata("unexpected relationship reader failure"),

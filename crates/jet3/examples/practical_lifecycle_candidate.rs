@@ -3,7 +3,7 @@ use jet3::{
     ByteCount, ColumnSpec, ColumnType, DatabaseReader, FileSource, IndexColumnSpec, IndexKind,
     IndexSpec, InlineLongValue, LongValue, LongValueChunkValue, ResourceBudget, ResourceLimits,
     RowDelete, RowLocator, RowUpdate, RowValue, TableDefinition, TableRows, TableSpec,
-    TextCodePage, UpdateError, ValueKind,
+    TextCodePage, ValueKind, WriteError,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -462,14 +462,14 @@ fn refusals(directory: &Path, source: &Path) -> Result<()> {
             .ok_or("refusal was accepted")?,
         };
         let expected = match case {
-            "duplicate" => matches!(error, UpdateError::Unsupported("duplicate unique key")),
+            "duplicate" => matches!(error, WriteError::Unsupported("duplicate unique key")),
             "wrong-value" => matches!(
                 error,
-                UpdateError::Encoding(jet3::RowWriteError::TypeMismatch { .. })
+                WriteError::Encoding(jet3::RowWriteError::TypeMismatch { .. })
             ),
             "malformed-source" => matches!(
                 error,
-                UpdateError::Mismatch("mapped index page kind or owner")
+                WriteError::Mismatch("mapped index page kind or owner")
             ),
             _ => {
                 let mut cause: &dyn std::error::Error = &error;
@@ -483,7 +483,7 @@ fn refusals(directory: &Path, source: &Path) -> Result<()> {
             }
         };
         if !expected
-            || matches!(error, UpdateError::Publish(_))
+            || matches!(error, WriteError::Publish(_))
             || fs::read(&before)? != fs::read(&after)?
         {
             return Err(format!("refusal {case}: {error}").into());

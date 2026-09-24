@@ -1,7 +1,7 @@
 //! Detached mutable-map inputs from SRC-0020 and EXP-0051/0057/0254.
 use crate::{
     DatabaseReader, FileSource, MapRowLocator, PAGE_BYTES, PageImage, PageKind, PageNumber, ReadAt,
-    ResourceBudget, UpdateError,
+    ResourceBudget, WriteError,
     alloc::map::{AllocationMapLayout, EXTENDED_BITMAP_BITS, decode_allocation_map_layout},
     write::page_edits::{PageEdits, reserve},
 };
@@ -27,19 +27,19 @@ impl MapBits {
         database: &mut DatabaseReader<S>,
         locator: MapRowLocator,
         budget: &mut ResourceBudget,
-    ) -> Result<Self, UpdateError> {
+    ) -> Result<Self, WriteError> {
         let mut bytes = [0; PAGE_BYTES];
         let page = database
             .read_classified_page(locator.page(), &mut bytes, budget)
             .map_err(crate::TableDefinitionError::Page)?;
         let record =
-            crate::locate_usage_map(page, locator, budget).map_err(UpdateError::UsageMap)?;
+            crate::locate_usage_map(page, locator, budget).map_err(WriteError::UsageMap)?;
         let layout =
-            decode_allocation_map_layout(record.raw(), budget).map_err(UpdateError::Allocation)?;
+            decode_allocation_map_layout(record.raw(), budget).map_err(WriteError::Allocation)?;
         if locator == global_locator()
             && matches!(layout, AllocationMapLayout::Inline { start_page, .. } if start_page.get() != 0)
         {
-            return Err(UpdateError::Mismatch("global inline map base"));
+            return Err(WriteError::Mismatch("global inline map base"));
         }
         let mut row = Vec::new();
         reserve(&mut row, record.raw().len(), budget)?;
@@ -63,9 +63,7 @@ impl MapBits {
             }
             AllocationMapLayout::Indirect { references } => {
                 if result.row.len() != crate::alloc::usage_map_writer::INDIRECT_ROW_BYTES {
-                    return Err(UpdateError::Unsupported(
-                        "indirect allocation map row width",
-                    ));
+                    return Err(WriteError::Unsupported("indirect allocation map row width"));
                 }
                 let mut zero_seen = false;
                 for (slot, raw) in record.raw()[references].chunks_exact(4).enumerate() {
@@ -76,7 +74,7 @@ impl MapBits {
                         continue;
                     }
                     if zero_seen {
-                        return Err(UpdateError::Mismatch(
+                        return Err(WriteError::Mismatch(
                             "nonzero bitmap reference after empty slot",
                         ));
                     }
@@ -85,7 +83,7 @@ impl MapBits {
                     if number == locator.page()
                         || result.spans.iter().any(|span| span.page == number)
                     {
-                        return Err(UpdateError::Mismatch("aliased indirect bitmap page"));
+                        return Err(WriteError::Mismatch("aliased indirect bitmap page"));
                     }
                     let mut extended = [0; PAGE_BYTES];
                     let page = database
@@ -93,11 +91,11 @@ impl MapBits {
                         .map_err(crate::TableDefinitionError::Page)?;
                     if page.kind() != PageKind::ExtendedUsageBitmap || extended[..4] != [5, 1, 0, 0]
                     {
-                        return Err(UpdateError::Mismatch("indirect bitmap page header"));
+                        return Err(WriteError::Mismatch("indirect bitmap page header"));
                     }
                     let first = (slot as u64)
                         .checked_mul(EXTENDED_BITMAP_BITS)
-                        .ok_or(UpdateError::Mismatch("indirect bitmap slot"))?;
+                        .ok_or(WriteError::Mismatch("indirect bitmap slot"))?;
                     result.push_span(first, number, 4, &extended[4..], budget)?;
                 }
             }
@@ -112,7 +110,7 @@ impl MapBits {
         offset: usize,
         input: &[u8],
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         reserve(&mut self.spans, 1, budget)?;
         let mut bytes = Vec::new();
         reserve(&mut bytes, input.len(), budget)?;
@@ -136,7 +134,7 @@ impl MapBits {
     }
 
     /// A missing indirect slot or a page outside an inline window has no set bit.
-    pub fn contains(&self, page: PageNumber) -> Result<bool, UpdateError> {
+    pub fn contains(&self, page: PageNumber) -> Result<bool, WriteError> {
         let position = self.spans.partition_point(|span| span.first <= page.get());
         let Some(span) = position.checked_sub(1).and_then(|n| self.spans.get(n)) else {
             return Ok(false);
@@ -148,7 +146,7 @@ impl MapBits {
         Ok(span.bytes[(bit / 8) as usize] & (1 << (bit % 8)) != 0)
     }
 
-    pub fn overlaps(&self, other: &Self, budget: &mut ResourceBudget) -> Result<bool, UpdateError> {
+    pub fn overlaps(&self, other: &Self, budget: &mut ResourceBudget) -> Result<bool, WriteError> {
         budget.charge_work_units(
             (self.spans.len() as u64 + 1).saturating_mul(other.spans.len() as u64 + 1),
         )?;
@@ -176,7 +174,7 @@ impl MapBits {
         page_count: u64,
         allow_future: bool,
         budget: &mut ResourceBudget,
-    ) -> Result<Vec<PageNumber>, UpdateError> {
+    ) -> Result<Vec<PageNumber>, WriteError> {
         let mut pages = Vec::new();
         for span in &self.spans {
             budget.charge_items(span.bytes.len() as u64 * 8)?;
@@ -188,12 +186,12 @@ impl MapBits {
                     let page = span
                         .first
                         .checked_add(byte as u64 * 8 + bit)
-                        .ok_or(UpdateError::Mismatch("allocation map page number"))?;
+                        .ok_or(WriteError::Mismatch("allocation map page number"))?;
                     if page >= page_count {
                         if allow_future {
                             continue;
                         }
-                        return Err(UpdateError::Mismatch("owned page outside file"));
+                        return Err(WriteError::Mismatch("owned page outside file"));
                     }
                     reserve(&mut pages, 1, budget)?;
                     pages.push(PageNumber::new(page));
@@ -225,7 +223,7 @@ impl PendingMap {
         desired: bool,
         eof: u64,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         budget.charge_work_units(self.changes.len() as u64 + 1)?;
         let global = self.is_global();
         let prior = self.changes.iter_mut().find(|(member, _)| *member == page);
@@ -235,7 +233,7 @@ impl PendingMap {
             None => self.bits.contains(page)?,
         };
         if old != expected {
-            return Err(UpdateError::Mismatch("allocation map membership"));
+            return Err(WriteError::Mismatch("allocation map membership"));
         }
         if let Some((_, value)) = prior {
             *value = desired;
@@ -255,7 +253,7 @@ impl PendingMap {
         database: &mut DatabaseReader<FileSource>,
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         let global = self.is_global();
         let mut original = Vec::new();
         reserve(&mut original, self.bits.row.len(), budget)?;
@@ -319,13 +317,13 @@ impl MapBits {
         eof: u64,
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         budget.charge_work_units(1)?;
         if let Some(bit) = self.inline_bit(page) {
             let span = self
                 .spans
                 .first_mut()
-                .ok_or(UpdateError::Mismatch("inline bitmap span"))?;
+                .ok_or(WriteError::Mismatch("inline bitmap span"))?;
             put_bit(&mut span.bytes, bit, desired)?;
             return Ok(());
         }
@@ -366,7 +364,7 @@ impl MapBits {
         eof: u64,
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         let length = crate::alloc::usage_map_writer::INDIRECT_ROW_BYTES;
         if self.row.len() < length {
             let additional = length - self.row.len();
@@ -389,7 +387,7 @@ impl MapBits {
                     let page = span
                         .first
                         .checked_add(byte as u64 * 8 + bit)
-                        .ok_or(UpdateError::Mismatch("converted allocation bit"))?;
+                        .ok_or(WriteError::Mismatch("converted allocation bit"))?;
                     let position =
                         self.ensure_slot(page / EXTENDED_BITMAP_BITS, global, eof, edits, budget)?;
                     put_bit(
@@ -410,9 +408,9 @@ impl MapBits {
         eof: u64,
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
-    ) -> Result<usize, UpdateError> {
+    ) -> Result<usize, WriteError> {
         if slot >= crate::alloc::usage_map_writer::INDIRECT_REFERENCE_SLOTS as u64 {
-            return Err(UpdateError::Unsupported(
+            return Err(WriteError::Unsupported(
                 "indirect allocation reference capacity",
             ));
         }
@@ -434,7 +432,7 @@ impl MapBits {
             let page = edits.append(PageImage::new(PageKind::ExtendedUsageBitmap), budget)?;
             let offset = 1 + ordinal * 4;
             let reference = u32::try_from(page.get())
-                .map_err(|_| UpdateError::Mismatch("bitmap reference width"))?;
+                .map_err(|_| WriteError::Mismatch("bitmap reference width"))?;
             self.row[offset..offset + 4].copy_from_slice(&reference.to_le_bytes());
             self.spans.push(BitSpan {
                 first,
@@ -452,13 +450,13 @@ impl MapBits {
         edits: &mut PageEdits,
         original: &[u8],
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         match self.layout {
             AllocationMapLayout::Inline { bitmap, .. } => {
                 let span = self
                     .spans
                     .first()
-                    .ok_or(UpdateError::Mismatch("inline map storage"))?;
+                    .ok_or(WriteError::Mismatch("inline map storage"))?;
                 self.row[bitmap].copy_from_slice(&span.bytes);
                 edits.map_record(database, self.locator, original, &self.row, budget)?;
             }
@@ -474,10 +472,10 @@ impl MapBits {
     }
 }
 
-fn put_bit(bytes: &mut [u8], bit: usize, desired: bool) -> Result<(), UpdateError> {
+fn put_bit(bytes: &mut [u8], bit: usize, desired: bool) -> Result<(), WriteError> {
     let target = bytes
         .get_mut(bit / 8)
-        .ok_or(UpdateError::Mismatch("allocation bit offset"))?;
+        .ok_or(WriteError::Mismatch("allocation bit offset"))?;
     let mask = 1 << (bit % 8);
     if desired {
         *target |= mask;

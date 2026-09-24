@@ -1,10 +1,9 @@
 use super::initial_rows_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexDirection, IndexKind,
     IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue, RowWriteError, TableRows,
-    TableSpec,
-    create::{api::CreateDatabaseError, api_tests::*},
-    create_database,
+    TableSpec, create::api_tests::*, create_database,
 };
 use std::fs;
 
@@ -211,9 +210,10 @@ fn table_limit_duplicate_names_and_later_failure_preserve_destination() -> TestR
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::TableCountOverflow { count: 32640, .. }
-        ))
+        Err(WriteError::Compose(ComposeError::TableCountOverflow {
+            count: 32640,
+            ..
+        }))
     ));
     let duplicate = TableRows {
         table: TableSpec {
@@ -231,12 +231,10 @@ fn table_limit_duplicate_names_and_later_failure_preserve_destination() -> TestR
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::DuplicateTableName {
-                first: 0,
-                second: 1
-            }
-        ))
+        Err(WriteError::Compose(ComposeError::DuplicateTableName {
+            first: 0,
+            second: 1
+        }))
     ));
     let wrong = TableRows {
         rows: &[&[RowValue::Text(b"wrong")]],
@@ -251,7 +249,7 @@ fn table_limit_duplicate_names_and_later_failure_preserve_destination() -> TestR
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(ComposeError::Row(
+        Err(WriteError::Compose(ComposeError::Row(
             RowWriteError::TypeMismatch { .. }
         )))
     ));

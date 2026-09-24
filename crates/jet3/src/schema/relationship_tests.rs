@@ -237,7 +237,7 @@ fn vary_parent_spelling(fixture: &Fixture) -> TestResult {
             let mut rows = database.rows(&table, budget)?;
             let row = rows
                 .next_row()?
-                .ok_or(UpdateError::NotFound("relationship row"))?
+                .ok_or(WriteError::NotFound("relationship row"))?
                 .locator();
             drop(rows);
             let graph =

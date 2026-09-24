@@ -1,4 +1,5 @@
 use super::api_relationship_graph::*;
+use crate::WriteError;
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexDirection, IndexKind,
     IndexSpec, RelationshipField, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue,
@@ -181,7 +182,7 @@ fn graph_creation_rejects_orphans_and_duplicate_names_before_publication() -> Te
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
+        Err(WriteError::Compose(
             ComposeError::OrphanInitialRelationshipKey { row: 0, value: 2 }
         ))
     ));
@@ -195,7 +196,7 @@ fn graph_creation_rejects_orphans_and_duplicate_names_before_publication() -> Te
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
+        Err(WriteError::Compose(
             ComposeError::UnsupportedRelationship { .. }
         ))
     ));
@@ -249,7 +250,7 @@ fn graph_creation_preserves_destination_and_empty_graph_matches_normal_creation(
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Publish(_))
+        Err(WriteError::CreatePublish(_))
     ));
     assert_eq!(fs::read(directory.target())?, original);
     Ok(())
@@ -392,7 +393,7 @@ fn graph_creation_resolves_generated_parent_keys_before_foreign_checks() -> Test
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
+        Err(WriteError::Compose(
             ComposeError::OrphanInitialRelationshipKey { row: 0, value: 3 }
         ))
     ));

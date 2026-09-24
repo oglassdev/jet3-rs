@@ -1,8 +1,9 @@
 use super::api_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexDirection, IndexKind,
     IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec,
-    create::api::{CreateDatabaseError, create_database},
+    create::api::create_database,
 };
 use std::fs;
 
@@ -141,12 +142,10 @@ fn creation_counter_overflow_is_refused_before_allocating_or_writing() -> TestRe
             },
             &mut budget
         ),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::TableCountOverflow {
-                count: 32640,
-                maximum: 32639
-            }
-        ))
+        Err(WriteError::Compose(ComposeError::TableCountOverflow {
+            count: 32640,
+            maximum: 32639
+        }))
     ));
     assert_eq!(budget.allocation_bytes().get(), 0);
     assert!(directory.entries()?.is_empty());

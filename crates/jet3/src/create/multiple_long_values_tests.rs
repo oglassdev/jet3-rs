@@ -1,14 +1,10 @@
+use crate::WriteError;
 use crate::{
     ByteCount, ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, ComposeError, DatabaseReader,
     DatabaseSpec, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec, InlineLongValue,
     LongValue, LongValueChunkValue, MapRowLocator, PageNumber, ResourceBudget, ResourceLimits,
     RowValue, TableRows, TableSpec, TextCodePage, ValueKind,
-    create::{
-        api::{CreateDatabaseError, create_database},
-        api_tests::*,
-        check::ImageCheckError,
-        initial_rows_tests::*,
-    },
+    create::{api::create_database, api_tests::*, check::ImageCheckError, initial_rows_tests::*},
 };
 use std::fs;
 
@@ -407,7 +403,7 @@ fn every_external_column_is_checked_and_refusals_preserve_the_destination() -> T
                 },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(_))
+            Err(WriteError::Compose(_))
         ));
     }
     let invalid_option = [NOTE, columns[1].with_allow_zero_length(), columns[2]];
@@ -426,9 +422,7 @@ fn every_external_column_is_checked_and_refusals_preserve_the_destination() -> T
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::UnsupportedMemoOption
-        ))
+        Err(WriteError::Compose(ComposeError::UnsupportedMemoOption))
     ));
     let mut limited = ResourceBudget::new(
         ResourceLimits::default().with_max_allocation_bytes(ByteCount::new(2048)),
@@ -442,7 +436,7 @@ fn every_external_column_is_checked_and_refusals_preserve_the_destination() -> T
             },
             &mut limited
         ),
-        Err(CreateDatabaseError::Compose(_))
+        Err(WriteError::Compose(_))
     ));
     assert_eq!(fs::read(directory.target())?, original);
     assert_eq!(directory.entries()?, ["created.mdb"]);

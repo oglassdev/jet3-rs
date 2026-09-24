@@ -1,10 +1,9 @@
 use super::api_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, PageNumber, ResourceBudget,
-    ResourceLimits, RowValue, RowWriteError, TableRows, TableSpec,
-    create::{api::CreateDatabaseError, check::ImageCheckError},
-    create_database,
-    definition::column_writer::nz,
+    ResourceLimits, RowValue, RowWriteError, TableRows, TableSpec, create::check::ImageCheckError,
+    create_database, definition::column_writer::nz,
 };
 use std::fs;
 
@@ -84,7 +83,7 @@ fn rows_with_wrong_types_leave_no_file() -> TestResult {
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(ComposeError::Row(
+        Err(WriteError::Compose(ComposeError::Row(
             RowWriteError::TypeMismatch { ordinal: 0, .. }
         )))
     ));
@@ -100,7 +99,7 @@ fn rows_with_wrong_types_leave_no_file() -> TestResult {
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(ComposeError::Row(
+        Err(WriteError::Compose(ComposeError::Row(
             RowWriteError::ValueCountMismatch { .. }
         )))
     ));
@@ -131,7 +130,7 @@ fn unsupported_initial_row_schemas_leave_no_file() -> TestResult {
                 },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(
+            Err(WriteError::Compose(
                 ComposeError::InitialAutoIncrement { .. }
             ))
         ));
@@ -188,7 +187,7 @@ fn initial_rows_preserve_existing_destination_and_enforce_budget() -> TestResult
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Publish(_))
+        Err(WriteError::CreatePublish(_))
     ));
     assert_eq!(fs::read(directory.target())?, b"keep me");
     let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(0));
@@ -204,7 +203,7 @@ fn initial_rows_preserve_existing_destination_and_enforce_budget() -> TestResult
             },
             &mut limited
         ),
-        Err(CreateDatabaseError::Compose(_))
+        Err(WriteError::Compose(_))
     ));
     assert_eq!(directory.entries()?, ["created.mdb"]);
     Ok(())
@@ -508,7 +507,7 @@ fn oversized_rows_and_page_storage_budget_fail_before_publication() -> TestResul
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(ComposeError::Row(_)))
+        Err(WriteError::Compose(ComposeError::Row(_)))
     ));
     let mut limited = ResourceBudget::new(
         ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(2000)),
@@ -525,7 +524,7 @@ fn oversized_rows_and_page_storage_budget_fail_before_publication() -> TestResul
             },
             &mut limited
         ),
-        Err(CreateDatabaseError::Compose(ComposeError::Encoding(
+        Err(WriteError::Compose(ComposeError::Encoding(
             crate::Error::ResourceLimitExceeded {
                 kind: crate::ResourceLimitKind::AllocationBytes,
                 ..

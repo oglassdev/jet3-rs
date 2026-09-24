@@ -23,7 +23,7 @@ use std::path::Path;
 /// A structural difference between the written candidate and the request,
 /// found when the candidate was reopened before publication.
 #[derive(Debug)]
-pub enum ImageCheckError {
+pub(crate) enum ImageCheckError {
     /// Reading a candidate page or charging comparison work failed.
     Read(crate::Error),
     /// The candidate index tree could not be read.
@@ -31,7 +31,7 @@ pub enum ImageCheckError {
     /// The candidate fails the catalogued allocation and user-table validator.
     Validation(Box<crate::ValidationError>),
     /// A candidate allocation inventory is malformed.
-    AllocationState(crate::UpdateError),
+    AllocationState(Box<crate::WriteError>),
     /// A candidate long-value field could not be decoded.
     Value(crate::ValueError),
     /// A candidate external payload could not be streamed.
@@ -327,10 +327,10 @@ fn check_initial_index_map(
         crate::MapRowLocator::new(location.page(), location.row()),
         budget,
     )
-    .map_err(ImageCheckError::AllocationState)?;
+    .map_err(|error| ImageCheckError::AllocationState(Box::new(error)))?;
     let pages = map
         .existing_pages(database.geometry().page_count(), false, budget)
-        .map_err(ImageCheckError::AllocationState)?;
+        .map_err(|error| ImageCheckError::AllocationState(Box::new(error)))?;
     let count = pages.len();
     for page in pages {
         budget

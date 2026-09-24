@@ -156,7 +156,7 @@ impl<'a> PlannedCreate<'a> {
             crate::SortOrder::General,
             budget,
         )
-        .map_err(ComposeError::Properties)?;
+        .map_err(|error| ComposeError::Properties(Box::new(error)))?;
         Ok(Self {
             spec,
             plan,

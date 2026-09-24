@@ -1,7 +1,7 @@
 //! EXP-0297 Boolean and EXP-0299 text property edits. They affect future writes
 //! only, preserving existing rows and every unrelated LvProp byte.
 use crate::{
-    PropertyChange, ResourceBudget, UpdateError,
+    PropertyChange, ResourceBudget, WriteError,
     properties::{
         blob::{Block, FIELD_BLOCK, MEMO, PropertyBlob, Record, TABLE_BLOCK, TEXT},
         column::TextProperty,
@@ -26,7 +26,7 @@ pub(crate) fn set(
     table: &[u8],
     edit: PropertyEdit<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let (catalog, row, bytes) =
         crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let table = crate::write::update::indexed_writable_table(database, table, budget)?;
@@ -37,7 +37,7 @@ pub(crate) fn set(
                     .iter()
                     .all(|change| matches!(change, PropertyChange::Keep))
             {
-                return Err(UpdateError::Unsupported("no properties requested"));
+                return Err(WriteError::Unsupported("no properties requested"));
             }
             for (property, change) in TextProperty::FIELD_ORDER.into_iter().zip(edit.text) {
                 if let PropertyChange::Set(value) = change {
@@ -45,14 +45,14 @@ pub(crate) fn set(
                         value,
                         database.header().sort_order(),
                     )
-                    .map_err(UpdateError::Unsupported)?;
+                    .map_err(WriteError::Unsupported)?;
                     if edit.column.is_none()
                         && !matches!(
                             property,
                             TextProperty::ValidationRule | TextProperty::ValidationText
                         )
                     {
-                        return Err(UpdateError::Unsupported("table property name"));
+                        return Err(WriteError::Unsupported("table property name"));
                     }
                 }
             }
@@ -61,12 +61,12 @@ pub(crate) fn set(
                     .columns()
                     .iter()
                     .find(|field| field.name().raw_bytes() == column)
-                    .ok_or(UpdateError::NotFound("column"))?;
+                    .ok_or(WriteError::NotFound("column"))?;
                 let kind = selected.physical_type();
                 if edit.allow_zero_length.is_some()
                     && !crate::properties::column::has_zero_length_property(kind)
                 {
-                    return Err(UpdateError::Unsupported("AllowZeroLength column type"));
+                    return Err(WriteError::Unsupported("AllowZeroLength column type"));
                 }
                 if TextProperty::FIELD_ORDER
                     .into_iter()
@@ -75,7 +75,7 @@ pub(crate) fn set(
                         matches!(change, PropertyChange::Set(_)) && !property.eligible(kind)
                     })
                 {
-                    return Err(UpdateError::Unsupported("validation property column type"));
+                    return Err(WriteError::Unsupported("validation property column type"));
                 }
             }
             let (catalog, row, bytes) = crate::schema::properties::load(database, &table, budget)?;
@@ -112,7 +112,7 @@ pub(crate) fn apply(
     blob: &mut PropertyBlob,
     edit: PropertyEdit<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let (kind, name) = match edit.column {
         Some(column) => (FIELD_BLOCK, column),
         None => (TABLE_BLOCK, b"".as_slice()),
@@ -192,7 +192,7 @@ fn text_record(
     name: u16,
     value: &[u8],
     budget: &mut ResourceBudget,
-) -> Result<Record, UpdateError> {
+) -> Result<Record, WriteError> {
     let record = if block == TABLE_BLOCK {
         let kind = if property == TextProperty::ValidationRule {
             MEMO

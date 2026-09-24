@@ -1,7 +1,7 @@
 use super::mutation::*;
 use crate::{
     DatabaseReader, FileSource, IndexNullPolicy, MapRowLocator, PAGE_BYTES, PageNumber,
-    ResourceBudget, TableDefinition, UpdateError,
+    ResourceBudget, TableDefinition, WriteError,
     alloc::mutation_map::MapBits,
     index::{
         entry::{ScalarIndexField, record_capacity, sort_cost},
@@ -14,12 +14,12 @@ pub(crate) fn load(
     database: &mut DatabaseReader<FileSource>,
     table: &TableDefinition,
     budget: &mut ResourceBudget,
-) -> Result<Indexes, UpdateError> {
+) -> Result<Indexes, WriteError> {
     if !(1..=crate::create::schema_plan::MAX_OBSERVED_INDEXES)
         .contains(&table.physical_indexes().len())
         || table.columns().len() > u8::MAX as usize
     {
-        return Err(UpdateError::Unsupported(
+        return Err(WriteError::Unsupported(
             "mutation requires one to 32 scalar indexes",
         ));
     }
@@ -30,7 +30,7 @@ pub(crate) fn load(
     reserve(&mut result.indexes, table.physical_indexes().len(), budget)?;
     for (ordinal, physical) in (0_u16..).zip(table.physical_indexes()) {
         if !(1..=crate::index::entry::MAX_FIELDS).contains(&physical.fields().len()) {
-            return Err(UpdateError::Unsupported(
+            return Err(WriteError::Unsupported(
                 "mutation requires one to ten scalar key fields",
             ));
         }
@@ -41,9 +41,9 @@ pub(crate) fn load(
             let column = table
                 .columns()
                 .get(ordinal)
-                .ok_or(UpdateError::NotFound("key column"))?;
+                .ok_or(WriteError::NotFound("key column"))?;
             let kind = ScalarKeyType::from_definition(column)
-                .ok_or(UpdateError::Unsupported("unsupported index key schema"))?;
+                .ok_or(WriteError::Unsupported("unsupported index key schema"))?;
             result.columns[ordinal] = true;
             fields.push(ScalarIndexField {
                 column: ordinal,
@@ -68,7 +68,7 @@ pub(crate) fn load(
                 .iter()
                 .any(|i| i.usage_map() == location)
         {
-            return Err(UpdateError::Mismatch("aliased index allocation map"));
+            return Err(WriteError::Mismatch("aliased index allocation map"));
         }
         let mapped = mapped_index_pages(database, table.root(), map, budget)?;
         for previous in &result.indexes {
@@ -80,7 +80,7 @@ pub(crate) fn load(
                 .iter()
                 .any(|p| previous.mapped.binary_search(p).is_ok())
             {
-                return Err(UpdateError::Mismatch("overlapping index page ownership"));
+                return Err(WriteError::Mismatch("overlapping index page ownership"));
             }
         }
         budget.charge_work_units((table.indexes().len() as u64) * 2)?;
@@ -126,11 +126,11 @@ pub(crate) fn load(
         }
         count = count
             .checked_add(1)
-            .ok_or(UpdateError::Mismatch("table row count overflow"))?;
+            .ok_or(WriteError::Mismatch("table row count overflow"))?;
     }
     drop(cursor);
     if table.row_count() != count {
-        return Err(UpdateError::Mismatch("table row count"));
+        return Err(WriteError::Mismatch("table row count"));
     }
     for index in &mut result.indexes {
         budget.charge_work_units(
@@ -147,7 +147,7 @@ pub(crate) fn load(
                 .windows(2)
                 .any(|w| !w[0].has_null() && w[0].key() == w[1].key())
         {
-            return Err(UpdateError::Mismatch("duplicate non-null unique index key"));
+            return Err(WriteError::Mismatch("duplicate non-null unique index key"));
         }
         let tree = database.index_tree(table, index.ordinal, budget)?;
         crate::index::mutation_structure::validate(
@@ -168,7 +168,7 @@ pub(crate) fn load(
             .iter()
             .any(|n| index.mapped.binary_search(&n.page()).is_err())
         {
-            return Err(UpdateError::Mismatch("index page absent from map"));
+            return Err(WriteError::Mismatch("index page absent from map"));
         }
         if tree.entries().len() != index.entries.len()
             || tree
@@ -179,9 +179,7 @@ pub(crate) fn load(
                     actual.row() != expected.locator() || actual.key().raw_bytes() != expected.key()
                 })
         {
-            return Err(UpdateError::Mismatch(
-                "index row/key/locator correspondence",
-            ));
+            return Err(WriteError::Mismatch("index row/key/locator correspondence"));
         }
     }
     Ok(result)
@@ -193,7 +191,7 @@ pub(crate) fn mapped_index_pages(
     root: PageNumber,
     location: MapRowLocator,
     budget: &mut ResourceBudget,
-) -> Result<Vec<PageNumber>, UpdateError> {
+) -> Result<Vec<PageNumber>, WriteError> {
     let map = MapBits::load(database, location, budget)?;
     let mapped = map.existing_pages(database.geometry().page_count(), false, budget)?;
     let global = MapBits::load(
@@ -202,19 +200,18 @@ pub(crate) fn mapped_index_pages(
         budget,
     )?;
     if map.overlaps(&global, budget)? {
-        return Err(UpdateError::Mismatch("aliased index and global maps"));
+        return Err(WriteError::Mismatch("aliased index and global maps"));
     }
     let mut bytes = [0; PAGE_BYTES];
-    let owner =
-        u32::try_from(root.get()).map_err(|_| UpdateError::Mismatch("index owner width"))?;
+    let owner = u32::try_from(root.get()).map_err(|_| WriteError::Mismatch("index owner width"))?;
     for page in &mapped {
         budget.charge_items(1)?;
         if global.contains(*page)? {
-            return Err(UpdateError::Mismatch("mapped index page is globally free"));
+            return Err(WriteError::Mismatch("mapped index page is globally free"));
         }
         database.read_raw_page(*page, &mut bytes, budget)?;
         if !crate::alloc::mutation_map::owned_page(&bytes, &[3, 4], owner.to_le_bytes()) {
-            return Err(UpdateError::Mismatch("mapped index page kind or owner"));
+            return Err(WriteError::Mismatch("mapped index page kind or owner"));
         }
     }
     Ok(mapped)

@@ -1,5 +1,6 @@
 //! EXP-0290 ordered composite fields and partial-null key matching.
 use super::api_relationship_graph_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexDirection, IndexKind,
     IndexSpec, RelationshipField, RelationshipSpec, RowValue, TableRef, TableSpec, TextCodePage,
@@ -139,7 +140,7 @@ fn composite_relationship_creation_checks_full_tuple_and_catalog_inventory() -> 
                 },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(
+            Err(WriteError::Compose(
                 ComposeError::OrphanInitialScalarRelationshipKey { row: 0 }
             ))
         ));
@@ -169,7 +170,7 @@ fn composite_relationship_requires_aligned_unique_fields_and_distinct_components
                 },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(
+            Err(WriteError::Compose(
                 ComposeError::UnsupportedRelationship { .. }
             ))
         ));
@@ -212,7 +213,7 @@ fn self_relationship_creation_refuses_identical_keys_but_admits_partial_overlap(
                 },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(
+            Err(WriteError::Compose(
                 ComposeError::UnsupportedRelationship { .. }
             ))
         ));
@@ -342,7 +343,7 @@ fn referenced_parent_payload_field_edit_does_not_assign_its_composite_key() -> T
             },
             &mut budget()
         ),
-        Err(crate::UpdateError::ScalarRelationshipConstraint { .. })
+        Err(crate::WriteError::ScalarRelationshipConstraint { .. })
     ));
     assert_eq!(fs::read(&path)?, original);
     crate::update_field(
@@ -473,7 +474,7 @@ fn composite_mutations_protect_assigned_parent_rows_and_admit_all_null_children(
         .ok_or("referenced parent assignment accepted")?;
         assert!(matches!(
             error,
-            crate::UpdateError::ScalarRelationshipConstraint { .. }
+            crate::WriteError::ScalarRelationshipConstraint { .. }
         ));
         assert_eq!(fs::read(&path)?, original);
     }
@@ -492,7 +493,7 @@ fn composite_mutations_protect_assigned_parent_rows_and_admit_all_null_children(
     .ok_or("partial orphan accepted")?;
     assert!(matches!(
         error,
-        crate::UpdateError::ScalarRelationshipConstraint { .. }
+        crate::WriteError::ScalarRelationshipConstraint { .. }
     ));
     assert_eq!(fs::read(&path)?, original);
     assert!(delete(b"Alpha", 4).is_err());
@@ -610,9 +611,9 @@ fn full_self_replacement_excludes_only_its_own_child_from_parent_guards() -> Tes
                 .ok_or("equal parent field assignment accepted")?;
                 assert!(matches!(
                     error,
-                    crate::UpdateError::RelationshipConstraint { .. }
-                        | crate::UpdateError::ScalarRelationshipConstraint { .. }
-                        | crate::UpdateError::NullRelationshipConstraint { .. }
+                    crate::WriteError::RelationshipConstraint { .. }
+                        | crate::WriteError::ScalarRelationshipConstraint { .. }
+                        | crate::WriteError::NullRelationshipConstraint { .. }
                 ));
                 assert_eq!(fs::read(&path)?, before);
                 let result = crate::update_row(
@@ -627,9 +628,9 @@ fn full_self_replacement_excludes_only_its_own_child_from_parent_guards() -> Tes
                 if external_child {
                     assert!(matches!(
                         result,
-                        Err(crate::UpdateError::RelationshipConstraint { .. }
-                            | crate::UpdateError::ScalarRelationshipConstraint { .. }
-                            | crate::UpdateError::NullRelationshipConstraint { .. })
+                        Err(crate::WriteError::RelationshipConstraint { .. }
+                            | crate::WriteError::ScalarRelationshipConstraint { .. }
+                            | crate::WriteError::NullRelationshipConstraint { .. })
                     ));
                     assert_eq!(fs::read(&path)?, before);
                 } else {
@@ -654,8 +655,8 @@ fn full_self_replacement_excludes_only_its_own_child_from_parent_guards() -> Tes
                             },
                             &mut budget(),
                         ),
-                        Err(crate::UpdateError::RelationshipConstraint { .. }
-                            | crate::UpdateError::ScalarRelationshipConstraint { .. })
+                        Err(crate::WriteError::RelationshipConstraint { .. }
+                            | crate::WriteError::ScalarRelationshipConstraint { .. })
                     ));
                     assert_eq!(fs::read(&path)?, before);
                 }

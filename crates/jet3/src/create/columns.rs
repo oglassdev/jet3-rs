@@ -164,7 +164,7 @@ impl<'a> ColumnSpec<'a> {
     /// Stores a ValidationRule expression as opaque database-code-page bytes.
     ///
     /// Rust never evaluates the rule: inserts and updates on a table storing a
-    /// rule fail with [`crate::UpdateError::ValidationRule`], and creation
+    /// rule fail with [`crate::WriteError::ValidationRule`], and creation
     /// with initial rows is refused. DAO refuses validation properties on
     /// Binary, OLE and GUID columns (EXP-0299), so those are rejected.
     #[must_use]

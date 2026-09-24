@@ -1,7 +1,9 @@
 use super::update_tests::*;
 use crate::{
     ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, PAGE_BYTES, RowValue,
-    TableRows, TableSpec, create_database, row::directory::RowDirectory, write::update::*,
+    TableRows, TableSpec, create_database,
+    row::directory::RowDirectory,
+    write::{error::WriteError, update::*},
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -87,7 +89,7 @@ fn nonkey_update_preserves_every_index_and_unrelated_byte() -> TestResult {
     let mut db = DatabaseReader::open(fixture.path(), &mut b)?;
     assert!(matches!(
         writable_table(&mut db, b"Items", &mut b),
-        Err(UpdateError::Unsupported(_))
+        Err(WriteError::Unsupported(_))
     ));
     for column in [0, 1] {
         update_field(
@@ -144,7 +146,7 @@ fn out_of_range_index_mapping_refuses_publication() -> TestResult {
                 },
                 &mut budget()
             ),
-            Err(UpdateError::Definition(_))
+            Err(WriteError::Definition(_))
         ));
         assert_eq!(fs::read(fixture.path())?, damaged);
         fixture.assert_only_original()?;

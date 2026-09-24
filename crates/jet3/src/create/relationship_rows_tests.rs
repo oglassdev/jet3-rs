@@ -1,9 +1,9 @@
 use super::api_relationship_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, PageNumber, RelationshipLayout,
     ResourceBudget, ResourceLimits, RowLocator, RowValue, TableRows,
     create::{
-        api::*,
         api_relationship::*,
         composer::{ComposeError, compose_relationship_with_rows},
     },
@@ -193,13 +193,13 @@ fn orphan_null_duplicate_and_unsupported_parent_shapes_are_refused() -> TestResu
             (expected, error),
             (
                 "orphan",
-                CreateDatabaseError::Compose(ComposeError::OrphanInitialRelationshipKey { .. })
+                WriteError::Compose(ComposeError::OrphanInitialRelationshipKey { .. })
             ) | (
                 "null",
-                CreateDatabaseError::Compose(ComposeError::NullInitialIndexKey { .. })
+                WriteError::Compose(ComposeError::NullInitialIndexKey { .. })
             ) | (
                 "duplicate",
-                CreateDatabaseError::Compose(ComposeError::DuplicateInitialIndexKey { .. })
+                WriteError::Compose(ComposeError::DuplicateInitialIndexKey { .. })
             )
         ));
     }
@@ -223,7 +223,7 @@ fn orphan_null_duplicate_and_unsupported_parent_shapes_are_refused() -> TestResu
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
+        Err(WriteError::Compose(
             ComposeError::UnsupportedRelationship { .. }
         ))
     ));
@@ -262,7 +262,7 @@ fn foreign_branch_growth_and_publication_budget_preserve_destination() -> TestRe
             },
             &mut limited
         ),
-        Err(CreateDatabaseError::Publish(_))
+        Err(WriteError::CreatePublish(_))
     ));
     assert!(directory.empty()?);
     create_database(

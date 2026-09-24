@@ -4,7 +4,7 @@ use std::fmt;
 use crate::{
     AllocationTraversalError, ColumnOrdinal, DatabaseReader, Error, MapRowLocator, PAGE_BYTES,
     PageNumber, ReadAt, ResourceBudget, RowDirectoryError, RowError, RowLocator, TableDefinition,
-    TableDefinitionError, UpdateError, VisitedPages, alloc::mutation_map::MapBits,
+    TableDefinitionError, VisitedPages, WriteError, alloc::mutation_map::MapBits,
     format::resource::reserve,
 };
 
@@ -83,29 +83,29 @@ fn conflict(page: PageNumber, detail: &'static str) -> StorageValidationError {
     StorageValidationError::Page { page, detail }
 }
 
-pub(super) fn shared(source: UpdateError, locator: MapRowLocator) -> StorageValidationError {
+pub(super) fn shared(source: WriteError, locator: MapRowLocator) -> StorageValidationError {
     match source {
-        UpdateError::Resource(source) => StorageValidationError::Resource(source),
-        UpdateError::Definition(TableDefinitionError::Page(source)) => {
+        WriteError::Resource(source) => StorageValidationError::Resource(source),
+        WriteError::Definition(TableDefinitionError::Page(source)) => {
             StorageValidationError::Read(source)
         }
-        UpdateError::Definition(source) => StorageValidationError::Definition {
+        WriteError::Definition(source) => StorageValidationError::Definition {
             root: locator.page(),
             source,
         },
-        UpdateError::Rows(source) => StorageValidationError::Rows(source),
-        UpdateError::Directory(source) => StorageValidationError::Directory(source),
-        UpdateError::UsageMap(source) => StorageValidationError::Map {
+        WriteError::Rows(source) => StorageValidationError::Rows(source),
+        WriteError::Directory(source) => StorageValidationError::Directory(source),
+        WriteError::UsageMap(source) => StorageValidationError::Map {
             locator,
             source: AllocationTraversalError::UsageMap(source),
         },
-        UpdateError::Allocation(source) => StorageValidationError::Map {
+        WriteError::Allocation(source) => StorageValidationError::Map {
             locator,
             source: AllocationTraversalError::AllocationMap(source),
         },
-        UpdateError::NotFound(detail)
-        | UpdateError::Mismatch(detail)
-        | UpdateError::Unsupported(detail) => {
+        WriteError::NotFound(detail)
+        | WriteError::Mismatch(detail)
+        | WriteError::Unsupported(detail) => {
             StorageValidationError::MapInvariant { locator, detail }
         }
         // The shared map and row-graph readers do not perform file publication,

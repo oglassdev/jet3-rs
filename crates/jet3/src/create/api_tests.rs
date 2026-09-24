@@ -1,3 +1,4 @@
+use crate::WriteError;
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexColumnSpec,
     IndexDirection, IndexKind, IndexSpec, PageNumber, PublishStage, TableSpec,
@@ -7,7 +8,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use super::{
-    api::{CreateDatabaseError, DatabaseSpec, TableRows, create_database},
+    api::{DatabaseSpec, TableRows, create_database},
     check::{ImageCheckError, check_image},
 };
 
@@ -253,7 +254,7 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
             },
             &mut budget(),
         ) {
-            Err(CreateDatabaseError::Compose(error)) if accepts(&error) => {}
+            Err(WriteError::Compose(error)) if accepts(&error) => {}
             other => return Err(format!("unexpected result: {other:?}").into()),
         }
         assert!(directory.entries()?.is_empty());
@@ -281,7 +282,7 @@ fn an_existing_destination_is_refused_and_left_unchanged() -> TestResult {
         },
         &mut budget(),
     ) {
-        Err(CreateDatabaseError::Publish(error)) => {
+        Err(WriteError::CreatePublish(error)) => {
             assert_eq!(error.stage(), PublishStage::PrivateCopyCreation);
         }
         other => return Err(format!("unexpected result: {other:?}").into()),
@@ -345,7 +346,7 @@ fn case_folded_duplicates_are_refused_before_writing() -> TestResult {
         },
         &mut budget(),
     ) {
-        Err(CreateDatabaseError::Compose(ComposeError::DuplicateTableName {
+        Err(WriteError::Compose(ComposeError::DuplicateTableName {
             first: 0,
             second: 1,
         })) => {}

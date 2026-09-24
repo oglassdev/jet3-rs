@@ -1,7 +1,7 @@
 //! Scalar index mutations use EXP-0062/0126/0148/0150, with EXP-0230/0268 counters.
 use crate::{
     DatabaseReader, FieldUpdate, FileSource, IndexNullPolicy, MapRowLocator, PAGE_BYTES, PageImage,
-    PageNumber, PageOffset, ResourceBudget, RowLocator, RowValue, TableDefinition, UpdateError,
+    PageNumber, PageOffset, ResourceBudget, RowLocator, RowValue, TableDefinition, WriteError,
     index::{
         entry::{EntryError, ScalarIndexEntry, ScalarIndexField, record_capacity},
         tree::builder::{ScalarIndexPages, TreeBuildError},
@@ -28,21 +28,21 @@ pub(super) struct MutableIndex {
     pub(super) counter: Option<CounterChange>,
 }
 
-pub(crate) fn entry_error(error: EntryError) -> UpdateError {
+pub(crate) fn entry_error(error: EntryError) -> WriteError {
     match error {
-        EntryError::Encoding(error) => UpdateError::Resource(error),
-        EntryError::NullRequired => UpdateError::Unsupported("null required index key"),
-        EntryError::MissingColumn { .. } => UpdateError::Mismatch("missing index key column"),
-        EntryError::FieldCount { .. } => UpdateError::Unsupported("numeric index field count"),
-        EntryError::UnsupportedValue { .. } => UpdateError::Unsupported("numeric index value"),
+        EntryError::Encoding(error) => WriteError::Resource(error),
+        EntryError::NullRequired => WriteError::Unsupported("null required index key"),
+        EntryError::MissingColumn { .. } => WriteError::Mismatch("missing index key column"),
+        EntryError::FieldCount { .. } => WriteError::Unsupported("numeric index field count"),
+        EntryError::UnsupportedValue { .. } => WriteError::Unsupported("numeric index value"),
     }
 }
 
-pub(crate) fn tree_error(error: TreeBuildError) -> UpdateError {
+pub(crate) fn tree_error(error: TreeBuildError) -> WriteError {
     match error {
-        TreeBuildError::Encoding(error) => UpdateError::Resource(error),
-        TreeBuildError::NodeLimit { .. } => UpdateError::Unsupported("numeric index node limit"),
-        TreeBuildError::Layout(detail) => UpdateError::Mismatch(detail),
+        TreeBuildError::Encoding(error) => WriteError::Resource(error),
+        TreeBuildError::NodeLimit { .. } => WriteError::Unsupported("numeric index node limit"),
+        TreeBuildError::Layout(detail) => WriteError::Mismatch(detail),
     }
 }
 
@@ -52,7 +52,7 @@ impl MutableIndex {
         values: &[RowValue<'_>],
         row: RowLocator,
         budget: &mut ResourceBudget,
-    ) -> Result<Option<ScalarIndexEntry>, UpdateError> {
+    ) -> Result<Option<ScalarIndexEntry>, WriteError> {
         ScalarIndexEntry::encode(&self.fields, values, self.null_policy, row, budget)
             .map_err(entry_error)
     }
@@ -62,7 +62,7 @@ impl MutableIndex {
         entry: ScalarIndexEntry,
         update_counter: bool,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         budget.charge_work_units(
             self.entries.len() as u64
                 * (2 * record_capacity(&self.fields) + size_of::<ScalarIndexEntry>()) as u64,
@@ -73,7 +73,7 @@ impl MutableIndex {
             .get(first)
             .is_some_and(|r| r.key() == entry.key());
         if self.unique && !entry.has_null() && present {
-            return Err(UpdateError::Unsupported("duplicate unique key"));
+            return Err(WriteError::Unsupported("duplicate unique key"));
         }
         let position = self
             .entries
@@ -87,7 +87,7 @@ impl MutableIndex {
         Ok(())
     }
 
-    fn remove(&mut self, row: RowLocator, budget: &mut ResourceBudget) -> Result<(), UpdateError> {
+    fn remove(&mut self, row: RowLocator, budget: &mut ResourceBudget) -> Result<(), WriteError> {
         budget.charge_work_units(
             self.entries.len() as u64
                 * (2 * record_capacity(&self.fields) + size_of::<ScalarIndexEntry>()) as u64,
@@ -96,7 +96,7 @@ impl MutableIndex {
             self.entries.remove(position);
             self.changed = true;
         } else if self.null_policy != IndexNullPolicy::IgnoreAllNull {
-            return Err(UpdateError::NotFound("indexed row"));
+            return Err(WriteError::NotFound("indexed row"));
         }
         Ok(())
     }
@@ -107,7 +107,7 @@ impl MutableIndex {
         table: &TableDefinition,
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         if self.changed {
             self.stage_tree(database, table, edits, budget)?;
         }
@@ -127,7 +127,7 @@ impl MutableIndex {
         table: &TableDefinition,
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         let physical = &table.physical_indexes()[usize::from(self.ordinal)];
         let root = physical.root();
         let layout =
@@ -190,7 +190,7 @@ impl Indexes {
         values: &[RowValue<'_>],
         row: RowLocator,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         for index in &mut self.indexes {
             if let Some(entry) = index.encode(values, row, budget)? {
                 index.insert(entry, true, budget)?;
@@ -203,7 +203,7 @@ impl Indexes {
         &mut self,
         row: RowLocator,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         for index in &mut self.indexes {
             index.remove(row, budget)?;
             if index.relationship_counter {
@@ -218,7 +218,7 @@ impl Indexes {
         row: RowLocator,
         values: &[RowValue<'_>],
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         self.replace_selected(row, values, None, budget)
     }
 
@@ -228,7 +228,7 @@ impl Indexes {
         values: &[RowValue<'_>],
         columns: Option<&[crate::ColumnOrdinal]>,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         for index in &mut self.indexes {
             let new = index.encode(values, row, budget)?;
             budget.charge_work_units(
@@ -265,7 +265,7 @@ impl Indexes {
         table: &TableDefinition,
         request: FieldUpdate<'_>,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         self.replace_fields(
             database,
             table,
@@ -282,10 +282,10 @@ impl Indexes {
         selected: RowLocator,
         assignments: &[(crate::ColumnOrdinal, RowValue<'_>)],
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         let mut columns = [crate::ColumnOrdinal::new(0); u8::MAX as usize];
         if assignments.len() > columns.len() {
-            return Err(UpdateError::Unsupported("field assignment count"));
+            return Err(WriteError::Unsupported("field assignment count"));
         }
         for (target, &(column, _)) in columns.iter_mut().zip(assignments) {
             *target = column;
@@ -298,7 +298,7 @@ impl Indexes {
                 for &(column, value) in assignments {
                     *values
                         .get_mut(usize::from(column.get()))
-                        .ok_or(UpdateError::NotFound("column"))? = value;
+                        .ok_or(WriteError::NotFound("column"))? = value;
                 }
                 return self.replace_selected(
                     selected,
@@ -308,7 +308,7 @@ impl Indexes {
                 );
             }
         }
-        Err(UpdateError::NotFound("indexed row"))
+        Err(WriteError::NotFound("indexed row"))
     }
 
     pub(crate) fn stage(
@@ -317,7 +317,7 @@ impl Indexes {
         table: &TableDefinition,
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         for index in &self.indexes {
             index.stage(database, table, edits, budget)?;
         }
@@ -331,7 +331,7 @@ pub(crate) fn plan_field_update(
     table: &TableDefinition,
     request: FieldUpdate<'_>,
     budget: &mut ResourceBudget,
-) -> Result<Option<Indexes>, UpdateError> {
+) -> Result<Option<Indexes>, WriteError> {
     let mut indexed = false;
     for index in table.physical_indexes() {
         for key in index.fields() {
@@ -359,21 +359,21 @@ fn change_counter(
     ordinal: u16,
     change: CounterChange,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let offset = crate::definition::header::physical_prefix_offset(ordinal);
     let raw: [u8; 8] = image
         .as_bytes()
         .get(offset..offset + 8)
-        .ok_or(UpdateError::Mismatch("index counter offset"))?
+        .ok_or(WriteError::Mismatch("index counter offset"))?
         .try_into()
-        .map_err(|_| UpdateError::Mismatch("index counter width"))?;
+        .map_err(|_| WriteError::Mismatch("index counter width"))?;
     let mut first = u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]);
     let mut second = u32::from_le_bytes([raw[4], raw[5], raw[6], raw[7]]);
     match change {
         CounterChange::Increment => {
             second = second
                 .checked_add(1)
-                .ok_or(UpdateError::Unsupported("index counter overflow"))?
+                .ok_or(WriteError::Unsupported("index counter overflow"))?
         }
         CounterChange::RemoveRelationshipEntry if first > 0 => {
             first -= 1;

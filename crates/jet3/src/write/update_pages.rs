@@ -1,7 +1,7 @@
 //! Exact prefix publication with planned EOF pages.
 use crate::{
     ByteOffset, FileSource, PAGE_BYTES, PageNumber, PublishStage, ReadAt, ResourceBudget,
-    UpdateError,
+    WriteError,
 };
 use std::error::Error as StdError;
 use std::io::{Seek, SeekFrom, Write};
@@ -21,7 +21,7 @@ pub(crate) fn publish_changes_with_appends<H, HE>(
     append: &[crate::PageImage],
     budget: &mut ResourceBudget,
     hook: H,
-) -> Result<(), UpdateError>
+) -> Result<(), WriteError>
 where
     H: FnMut(PublishStage) -> Result<(), HE>,
     HE: StdError + Send + Sync + 'static,
@@ -29,16 +29,16 @@ where
     let length = original.len();
     let expected_length = if !append.is_empty() {
         if !length.get().is_multiple_of(PAGE_BYTES as u64) {
-            return Err(UpdateError::Mismatch("unaligned append"));
+            return Err(WriteError::Mismatch("unaligned append"));
         }
         let bytes = (append.len() as u64)
             .checked_mul(PAGE_BYTES as u64)
-            .ok_or(UpdateError::Mismatch("append length overflow"))?;
+            .ok_or(WriteError::Mismatch("append length overflow"))?;
         budget.charge_encoded_bytes(crate::ByteCount::new(bytes))?;
         length
             .get()
             .checked_add(bytes)
-            .ok_or(UpdateError::Mismatch("append length overflow"))?
+            .ok_or(WriteError::Mismatch("append length overflow"))?
     } else {
         length.get()
     };
@@ -54,19 +54,19 @@ where
             .get()
             .checked_add(1)
             .and_then(|p| p.checked_mul(PAGE_BYTES as u64))
-            .ok_or(UpdateError::Mismatch("page offset"))?;
+            .ok_or(WriteError::Mismatch("page offset"))?;
         if end > length.get()
             || changes[..index]
                 .iter()
                 .any(|prior| prior.page == change.page)
         {
-            return Err(UpdateError::Mismatch("duplicate or absent patch page"));
+            return Err(WriteError::Mismatch("duplicate or absent patch page"));
         }
     }
     crate::write::atomic::atomic_update_budgeted(
         path,
         budget,
-        |file, budget| -> Result<(), UpdateError> {
+        |file, budget| -> Result<(), WriteError> {
             for change in changes {
                 budget.charge_work_units(PAGE_BYTES as u64)?;
                 let mut offset = 0;
@@ -94,7 +94,7 @@ where
             }
             Ok(())
         },
-        |private, budget| -> Result<(), UpdateError> {
+        |private, budget| -> Result<(), WriteError> {
             let mut candidate = FileSource::open(private, budget.read_budget())?;
             verify_changes(
                 &mut original,
@@ -117,10 +117,10 @@ pub(crate) fn verify_changes(
     append: &[crate::PageImage],
     expected_length: u64,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let length = original.len();
     if candidate.len().get() != expected_length {
-        return Err(UpdateError::Mismatch("file length"));
+        return Err(WriteError::Mismatch("file length"));
     }
     let mut expected = [0; PAGE_BYTES];
     let mut actual = [0; PAGE_BYTES];
@@ -140,14 +140,14 @@ pub(crate) fn verify_changes(
         for change in changes {
             if position == change.page.get() * PAGE_BYTES as u64 {
                 if &expected != change.before {
-                    return Err(UpdateError::Mismatch("original page changed"));
+                    return Err(WriteError::Mismatch("original page changed"));
                 }
                 expected = *change.after;
             }
         }
         budget.charge_work_units(count as u64 + changes.len() as u64)?;
         if expected[..count] != actual[..count] {
-            return Err(UpdateError::Mismatch("unrelated or requested bytes"));
+            return Err(WriteError::Mismatch("unrelated or requested bytes"));
         }
         position += count as u64;
     }
@@ -159,7 +159,7 @@ pub(crate) fn verify_changes(
         )?;
         budget.charge_work_units(PAGE_BYTES as u64)?;
         if &actual != image.as_bytes() {
-            return Err(UpdateError::Mismatch("appended page bytes"));
+            return Err(WriteError::Mismatch("appended page bytes"));
         }
     }
     Ok(())

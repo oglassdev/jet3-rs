@@ -101,7 +101,7 @@ fn thirty_two_indexes_span_maps_and_validate_the_final_unique_index() -> TestRes
     incoming[9] = RowValue::Long(9);
     assert!(matches!(
         crate::insert_row(directory.target(), b"Items", &incoming, &mut budget()),
-        Err(crate::UpdateError::Unsupported("duplicate unique key"))
+        Err(crate::WriteError::Unsupported("duplicate unique key"))
     ));
     assert_eq!(fs::read(directory.target())?, original);
     incoming[9] = RowValue::Long(10009);

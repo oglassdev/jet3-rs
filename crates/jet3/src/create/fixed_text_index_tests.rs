@@ -130,7 +130,7 @@ fn fixed_text_indexes_enforce_collisions_and_follow_public_mutations() -> TestRe
             };
             assert!(matches!(
                 result,
-                Err(crate::UpdateError::Unsupported("duplicate unique key"))
+                Err(crate::WriteError::Unsupported("duplicate unique key"))
             ));
             assert_eq!(fs::read(directory.target())?, original);
         }

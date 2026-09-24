@@ -1,11 +1,9 @@
 use super::api_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnOrdinal, ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, PageNumber,
     RawField, RowValue, SliceSource, TableRows, TableSpec,
-    create::{
-        api::{CreateDatabaseError, create_database},
-        schema_plan::TableSchemaPlanError,
-    },
+    create::{api::create_database, schema_plan::TableSchemaPlanError},
     definition::column_writer::nz,
 };
 use std::fs;
@@ -83,7 +81,7 @@ fn fixed_schema_capacity_includes_the_presence_map() -> TestResult {
                 },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(ComposeError::Schema(
+            Err(WriteError::Compose(ComposeError::Schema(
                 TableSchemaPlanError::Definition(
                     crate::TableDefinitionWriteError::RowLayoutTooLarge {
                         minimum: 2004,

@@ -203,7 +203,7 @@ fn malformed_properties_and_disabled_empty_values_preserve_input() -> Result<(),
         if offset == 81 && value == 0 {
             assert!(matches!(
                 error,
-                crate::UpdateError::Encoding(crate::RowWriteError::ZeroLengthNotAllowed {
+                crate::WriteError::Encoding(crate::RowWriteError::ZeroLengthNotAllowed {
                     ordinal: 1,
                     ..
                 })
@@ -211,7 +211,7 @@ fn malformed_properties_and_disabled_empty_values_preserve_input() -> Result<(),
         } else {
             assert!(matches!(
                 error,
-                crate::UpdateError::ColumnProperties(crate::ColumnPropertyError::Invalid(_))
+                crate::WriteError::ColumnProperties(crate::ColumnPropertyError::Invalid(_))
             ));
         }
         assert_eq!(fs::read(&path)?, changed);
@@ -261,7 +261,7 @@ fn malformed_properties_and_disabled_empty_values_preserve_input() -> Result<(),
                 &[RowValue::Long(2), RowValue::Memo(b"")],
                 &mut budget()
             ),
-            Err(crate::UpdateError::ColumnProperties(
+            Err(crate::WriteError::ColumnProperties(
                 crate::ColumnPropertyError::Invalid(_)
             ))
         ));
@@ -349,7 +349,7 @@ fn chained_properties_keep_options_independent() -> Result<(), Box<dyn StdError>
     initial[2] = RowValue::Text(b"");
     assert!(matches!(
         crate::insert_row(&path, b"Rows", &initial, &mut budget()),
-        Err(crate::UpdateError::Encoding(
+        Err(crate::WriteError::Encoding(
             crate::RowWriteError::ZeroLengthNotAllowed { ordinal: 2, .. }
         ))
     ));
@@ -358,7 +358,7 @@ fn chained_properties_keep_options_independent() -> Result<(), Box<dyn StdError>
     initial[2] = RowValue::Text(b"value");
     assert!(matches!(
         crate::insert_row(&path, b"Rows", &initial, &mut budget()),
-        Err(crate::UpdateError::Encoding(
+        Err(crate::WriteError::Encoding(
             crate::RowWriteError::RequiredValueMissing { ordinal: 1, .. }
         ))
     ));
@@ -437,7 +437,7 @@ fn text_only_properties_are_checked_before_publication() -> Result<(), Box<dyn S
     fs::write(&alias, &changed)?;
     assert!(matches!(
         crate::insert_row(&alias, b"Rows", &[RowValue::Text(b"")], &mut budget()),
-        Err(crate::UpdateError::ColumnProperties(
+        Err(crate::WriteError::ColumnProperties(
             crate::ColumnPropertyError::Invalid("property page belongs to another object")
         ))
     ));

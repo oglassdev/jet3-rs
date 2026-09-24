@@ -1,7 +1,7 @@
 //! Lossless definition edits using EXP-0059/0077 record layouts and EXP-0247 chains.
 use crate::{
     DatabaseReader, FileSource, PAGE_BYTES, PageImage, PageNumber, PageOffset, ResourceBudget,
-    TableDefinition, UpdateError,
+    TableDefinition, WriteError,
     definition::header::{LOGICAL_INDEX_COUNT, PHYSICAL_INDEX_COUNT},
     write::page_edits::{PageEdits, reserve},
 };
@@ -23,7 +23,7 @@ impl<'a> DefinitionEdit<'a> {
     pub fn new(
         table: &'a TableDefinition,
         budget: &mut ResourceBudget,
-    ) -> Result<Self, UpdateError> {
+    ) -> Result<Self, WriteError> {
         let mut columns = Vec::new();
         let mut physical = Vec::new();
         let mut indexes = Vec::new();
@@ -56,11 +56,11 @@ impl<'a> DefinitionEdit<'a> {
         })
     }
 
-    fn encode(&mut self, budget: &mut ResourceBudget) -> Result<Vec<u8>, UpdateError> {
+    fn encode(&mut self, budget: &mut ResourceBudget) -> Result<Vec<u8>, WriteError> {
         let logical = u16::try_from(self.indexes.len())
-            .map_err(|_| UpdateError::Unsupported("logical index count"))?;
+            .map_err(|_| WriteError::Unsupported("logical index count"))?;
         let physical = u16::try_from(self.physical.len())
-            .map_err(|_| UpdateError::Unsupported("physical index count"))?;
+            .map_err(|_| WriteError::Unsupported("physical index count"))?;
         self.header[LOGICAL_INDEX_COUNT..LOGICAL_INDEX_COUNT + 2]
             .copy_from_slice(&logical.to_le_bytes());
         self.header[PHYSICAL_INDEX_COUNT..PHYSICAL_INDEX_COUNT + 2]
@@ -87,8 +87,8 @@ impl<'a> DefinitionEdit<'a> {
         }
         append(&mut bytes, &self.suffix, budget)?;
         append(&mut bytes, &[0xff, 0xff], budget)?;
-        let length = u32::try_from(bytes.len())
-            .map_err(|_| UpdateError::Unsupported("definition length"))?;
+        let length =
+            u32::try_from(bytes.len()).map_err(|_| WriteError::Unsupported("definition length"))?;
         bytes[8..12].copy_from_slice(&length.to_le_bytes());
         Ok(bytes)
     }
@@ -99,7 +99,7 @@ impl<'a> DefinitionEdit<'a> {
         table: &TableDefinition,
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         let bytes = self.encode(budget)?;
         stage_bytes(database, table.pages(), &bytes, edits, budget)
     }
@@ -111,9 +111,9 @@ pub(crate) fn stage_bytes(
     bytes: &[u8],
     edits: &mut PageEdits,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     if original_pages.is_empty() {
-        return Err(UpdateError::Mismatch("definition root missing"));
+        return Err(WriteError::Mismatch("definition root missing"));
     }
     let count = 1 + bytes
         .len()
@@ -169,7 +169,7 @@ pub(crate) fn allocate(
     edits: &mut PageEdits,
     image: PageImage,
     budget: &mut ResourceBudget,
-) -> Result<PageNumber, UpdateError> {
+) -> Result<PageNumber, WriteError> {
     let page = edits.append(image, budget)?;
     edits.map_bit(
         database,
@@ -186,16 +186,16 @@ fn append(
     bytes: &mut Vec<u8>,
     value: &[u8],
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     reserve(bytes, value.len(), budget)?;
     budget.charge_work_units(value.len() as u64)?;
     bytes.extend_from_slice(value);
     Ok(())
 }
 
-fn name(bytes: &mut Vec<u8>, value: &[u8], budget: &mut ResourceBudget) -> Result<(), UpdateError> {
-    let length = u8::try_from(value.len())
-        .map_err(|_| UpdateError::Unsupported("definition name length"))?;
+fn name(bytes: &mut Vec<u8>, value: &[u8], budget: &mut ResourceBudget) -> Result<(), WriteError> {
+    let length =
+        u8::try_from(value.len()).map_err(|_| WriteError::Unsupported("definition name length"))?;
     append(bytes, &[length], budget)?;
     append(bytes, value, budget)
 }

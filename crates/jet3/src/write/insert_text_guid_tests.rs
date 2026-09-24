@@ -1,7 +1,7 @@
 use super::insert_indexed_tests::*;
 use crate::{
     ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec, RowDelete,
-    RowValue, TableSpec, UpdateError, write::insert::*,
+    RowValue, TableSpec, WriteError, write::insert::*,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -84,7 +84,7 @@ fn text_uniqueness_uses_collation_and_preserves_file_on_refusal() -> TestResult 
         .err()
         .ok_or("duplicate accepted")?;
         assert!(
-            matches!(error, UpdateError::Unsupported("duplicate unique key")),
+            matches!(error, WriteError::Unsupported("duplicate unique key")),
             "{error:?}"
         );
         assert_eq!(fs::read(f.path())?, before);
@@ -103,7 +103,7 @@ fn text_uniqueness_uses_collation_and_preserves_file_on_refusal() -> TestResult 
     .ok_or("duplicate update accepted")?;
     assert!(matches!(
         error,
-        UpdateError::Unsupported("duplicate unique key")
+        WriteError::Unsupported("duplicate unique key")
     ));
     assert_eq!(fs::read(f.path())?, before);
     for (id, value) in [(10, b"e".as_slice()), (11, b"a\xa0"), (12, b"a\n")] {

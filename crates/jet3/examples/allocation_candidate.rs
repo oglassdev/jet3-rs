@@ -3,7 +3,7 @@ use jet3::{
     ByteCount, ColumnSpec, ColumnType, DatabaseReader, FileSource, IndexColumnSpec, IndexKind,
     IndexSpec, InlineLongValue, LongValue, LongValueChunkValue, ResourceBudget, ResourceLimits,
     RowDelete, RowLocator, RowUpdate, RowValue, TableDefinition, TableRows, TableSpec,
-    TextCodePage, UpdateError, ValueKind,
+    TextCodePage, ValueKind, WriteError,
 };
 use std::{
     collections::BTreeMap,
@@ -296,13 +296,13 @@ fn refusal(source: &Path, after: &Path, case: Case) -> Result<()> {
         .ok_or("damaged map accepted")?;
     if !matches!(
         error,
-        UpdateError::Mismatch(_)
-            | UpdateError::Allocation(_)
-            | UpdateError::UsageMap(_)
-            | UpdateError::Definition(_)
-            | UpdateError::Rows(_)
-            | UpdateError::Index(_)
-            | UpdateError::LongValue(_)
+        WriteError::Mismatch(_)
+            | WriteError::Allocation(_)
+            | WriteError::UsageMap(_)
+            | WriteError::Definition(_)
+            | WriteError::Rows(_)
+            | WriteError::Index(_)
+            | WriteError::LongValue(_)
     ) {
         return Err(format!("wrong refusal category: {error:?}").into());
     }

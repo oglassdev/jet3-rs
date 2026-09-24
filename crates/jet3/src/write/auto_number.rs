@@ -1,7 +1,7 @@
 //! Generated/explicit insertion and immutable existing AutoNumber fields (EXP-0237).
 use crate::{
     ColumnPhysicalType, Error, PAGE_BYTES, PageImage, PageOffset, ResourceBudget, RowValue,
-    RowView, TableDefinition, TextCodePage, UpdateError, ValueKind,
+    RowView, TableDefinition, TextCodePage, ValueKind, WriteError,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -12,7 +12,7 @@ pub(crate) struct AutoNumber {
 }
 
 impl AutoNumber {
-    pub fn load(table: &TableDefinition) -> Result<Option<Self>, UpdateError> {
+    pub fn load(table: &TableDefinition) -> Result<Option<Self>, WriteError> {
         let mut columns = table
             .columns()
             .iter()
@@ -21,7 +21,7 @@ impl AutoNumber {
             return Ok(None);
         };
         if columns.next().is_some() || column.physical_type() != ColumnPhysicalType::Long {
-            return Err(UpdateError::Unsupported("AutoNumber schema"));
+            return Err(WriteError::Unsupported("AutoNumber schema"));
         }
         Ok(Some(Self {
             column: column.ordinal(),
@@ -35,7 +35,7 @@ impl AutoNumber {
         values: &[RowValue<'a>],
         lowered: &mut [RowValue<'a>; u8::MAX as usize],
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         if values.len() != self.columns {
             return Err(crate::RowWriteError::ValueCountMismatch {
                 expected: self.columns,
@@ -44,22 +44,22 @@ impl AutoNumber {
             .into());
         }
         if values.len() > lowered.len() {
-            return Err(UpdateError::Unsupported("AutoNumber row column count"));
+            return Err(WriteError::Unsupported("AutoNumber row column count"));
         }
         budget.charge_work_units(values.len() as u64)?;
         lowered[..values.len()].copy_from_slice(values);
         Ok(())
     }
 
-    pub fn insert(self, values: &mut [RowValue<'_>]) -> Result<Self, UpdateError> {
+    pub fn insert(self, values: &mut [RowValue<'_>]) -> Result<Self, WriteError> {
         let target = values
             .get_mut(usize::from(self.column.get()))
-            .ok_or(UpdateError::NotFound("AutoNumber insertion value"))?;
+            .ok_or(WriteError::NotFound("AutoNumber insertion value"))?;
         let explicit = match target {
             RowValue::AutoIncrement => None,
             RowValue::Long(value) => Some(*value),
             _ => {
-                return Err(UpdateError::Unsupported(
+                return Err(WriteError::Unsupported(
                     "AutoNumber requires generation or an explicit Long",
                 ));
             }
@@ -69,27 +69,27 @@ impl AutoNumber {
         Ok(Self { state, ..self })
     }
 
-    pub fn read(self, row: &mut RowView<'_, '_>) -> Result<i32, UpdateError> {
+    pub fn read(self, row: &mut RowView<'_, '_>) -> Result<i32, WriteError> {
         let value = row
             .value(self.column, TextCodePage::Windows1252)?
-            .ok_or(UpdateError::NotFound("AutoNumber column"))?;
+            .ok_or(WriteError::NotFound("AutoNumber column"))?;
         match value.kind() {
             ValueKind::Long(value) => Ok(*value),
-            _ => Err(UpdateError::Mismatch(
+            _ => Err(WriteError::Mismatch(
                 "AutoNumber row value is not a present Long",
             )),
         }
     }
 
-    pub fn retain(self, values: &mut [RowValue<'_>], original: i32) -> Result<(), UpdateError> {
+    pub fn retain(self, values: &mut [RowValue<'_>], original: i32) -> Result<(), WriteError> {
         let value = values
             .get_mut(usize::from(self.column.get()))
-            .ok_or(UpdateError::NotFound("AutoNumber replacement value"))?;
+            .ok_or(WriteError::NotFound("AutoNumber replacement value"))?;
         match value {
             RowValue::AutoIncrement => *value = RowValue::Long(original),
             RowValue::Long(value) if *value == original => (),
             _ => {
-                return Err(UpdateError::Unsupported(
+                return Err(WriteError::Unsupported(
                     "AutoNumber field cannot be updated",
                 ));
             }
@@ -101,7 +101,7 @@ impl AutoNumber {
         self,
         page: &mut PageImage,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         self.state.write(page, budget)?;
         Ok(())
     }

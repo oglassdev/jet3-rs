@@ -1,7 +1,7 @@
 //! Finite public row/index mutation candidates for EXP-0215.
 use jet3::{
     ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec, ResourceBudget,
-    ResourceLimits, RowDelete, RowLocator, RowValue, TableSpec, UpdateError,
+    ResourceLimits, RowDelete, RowLocator, RowValue, TableSpec, WriteError,
 };
 use std::{env, fs, path::Path};
 fn budget() -> ResourceBudget {
@@ -132,7 +132,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .err()
         .ok_or("duplicate accepted")?;
         let refusal = match error {
-            UpdateError::Unsupported("duplicate unique key") => "duplicate",
+            WriteError::Unsupported("duplicate unique key") => "duplicate",
             _ => return Err("unexpected refusal".into()),
         };
         if fs::read(&candidate)? != before {

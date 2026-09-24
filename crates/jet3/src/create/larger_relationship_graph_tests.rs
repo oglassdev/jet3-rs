@@ -1,4 +1,5 @@
 use super::api_relationship_graph_tests::*;
+use crate::WriteError;
 use crate::{
     DatabaseReader, PageNumber, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue,
     TableSpec, TextCodePage,
@@ -242,7 +243,7 @@ fn relationship_capacity_is_per_table_and_counts_both_self_sides() -> TestResult
             } else {
                 assert!(matches!(
                     result,
-                    Err(CreateDatabaseError::Compose(ComposeError::Schema(
+                    Err(WriteError::Compose(ComposeError::Schema(
                         crate::TableSchemaPlanError::UnobservedIndexCount {
                             count: 33,
                             observed: 32
@@ -333,7 +334,7 @@ fn third_shared_parent_constraint_is_enforced_on_mutation() -> TestResult {
             ],
             &mut budget()
         ),
-        Err(crate::UpdateError::RelationshipConstraint { value: 2, .. })
+        Err(crate::WriteError::RelationshipConstraint { value: 2, .. })
     ));
     assert_eq!(fs::read(directory.target())?, before);
     let mut work = budget();

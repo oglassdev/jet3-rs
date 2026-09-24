@@ -1,9 +1,8 @@
 use super::initial_rows_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseSpec, ResourceBudget, ResourceLimits, RowValue,
-    RowWriteError, TableRows, TableSpec,
-    create::{api::CreateDatabaseError, api_tests::*},
-    create_database,
+    RowWriteError, TableRows, TableSpec, create::api_tests::*, create_database,
 };
 use std::fs;
 
@@ -175,9 +174,7 @@ fn payload_refusals_and_resource_limits_preserve_destination() -> TestResult {
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
-            ComposeError::InitialLongValue { .. }
-        ))
+        Err(WriteError::Compose(ComposeError::InitialLongValue { .. }))
     ));
     assert!(matches!(
         create_database(
@@ -191,7 +188,7 @@ fn payload_refusals_and_resource_limits_preserve_destination() -> TestResult {
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(ComposeError::Row(
+        Err(WriteError::Compose(ComposeError::Row(
             RowWriteError::TypeMismatch { .. }
         )))
     ));

@@ -4,7 +4,7 @@
 use crate::{
     ByteCount, ColumnOrdinal, ColumnPhysicalType, DatabaseReader, ExternalLongValueStorage,
     FileSource, LongValueMapDefinition, PAGE_BYTES, PageImage, PageNumber, PageOffset,
-    ResourceBudget, RowColumnLayout, RowLocator, RowValue, TableDefinition, UpdateError,
+    ResourceBudget, RowColumnLayout, RowLocator, RowValue, TableDefinition, WriteError,
     long_value::writer::{
         HEADER_LEN, MAX_CHAINED_FRAGMENT, MAX_SINGLE_PAGE_PAYLOAD,
         MAX_SINGLE_PAGE_PROPERTY_PAYLOAD, encode_chained_row, encode_inline_long_value,
@@ -44,8 +44,8 @@ struct PayloadHeader {
     length: usize,
 }
 
-fn write_error(_: crate::PageImageError) -> UpdateError {
-    UpdateError::Unsupported("long-value fragment does not fit a page")
+fn write_error(_: crate::PageImageError) -> WriteError {
+    WriteError::Unsupported("long-value fragment does not fit a page")
 }
 
 impl LongValues {
@@ -54,7 +54,7 @@ impl LongValues {
         table: &TableDefinition,
         selected: Option<RowLocator>,
         budget: &mut ResourceBudget,
-    ) -> Result<Self, UpdateError> {
+    ) -> Result<Self, WriteError> {
         super::mutation_load::load(database, table, selected.map(|row| (row, None)), budget)
     }
 
@@ -64,11 +64,11 @@ impl LongValues {
         row: RowLocator,
         columns: &[ColumnOrdinal],
         budget: &mut ResourceBudget,
-    ) -> Result<Self, UpdateError> {
+    ) -> Result<Self, WriteError> {
         super::mutation_load::load(database, table, Some((row, Some(columns))), budget)
     }
 
-    pub fn remove_selected(&mut self, budget: &mut ResourceBudget) -> Result<(), UpdateError> {
+    pub fn remove_selected(&mut self, budget: &mut ResourceBudget) -> Result<(), WriteError> {
         for page in &mut self.pages {
             budget.charge_work_units(256)?;
             for slot in (0..=u8::MAX).rev() {
@@ -95,7 +95,7 @@ impl LongValues {
         values: &[RowValue<'_>],
         output: &mut [u8],
         budget: &mut ResourceBudget,
-    ) -> Result<usize, UpdateError> {
+    ) -> Result<usize, WriteError> {
         self.encode(layout, values, None, output, budget)
     }
 
@@ -107,7 +107,7 @@ impl LongValues {
         selected: &[ColumnOrdinal],
         output: &mut [u8],
         budget: &mut ResourceBudget,
-    ) -> Result<usize, UpdateError> {
+    ) -> Result<usize, WriteError> {
         self.encode(layout, values, Some(selected), output, budget)
     }
 
@@ -118,7 +118,7 @@ impl LongValues {
         selected: Option<&[ColumnOrdinal]>,
         output: &mut [u8],
         budget: &mut ResourceBudget,
-    ) -> Result<usize, UpdateError> {
+    ) -> Result<usize, WriteError> {
         if values.len() != layout.len() || values.len() > u8::MAX as usize {
             return Ok(crate::encode_row(layout, values, output, budget)?.get() as usize);
         }
@@ -139,9 +139,7 @@ impl LongValues {
                     continue;
                 }
                 RowValue::LongValue(_) => {
-                    return Err(UpdateError::Unsupported(
-                        "caller-supplied long-value header",
-                    ));
+                    return Err(WriteError::Unsupported("caller-supplied long-value header"));
                 }
                 _ => continue,
             };
@@ -162,7 +160,7 @@ impl LongValues {
                 .maps
                 .iter()
                 .position(|m| usize::from(m.column().get()) == ordinal)
-                .ok_or(UpdateError::Mismatch("missing long-value column map"))?;
+                .ok_or(WriteError::Mismatch("missing long-value column map"))?;
             let mut header = PayloadHeader {
                 ordinal,
                 bytes: [0; HEADER_LEN + INLINE_LIMIT],
@@ -171,7 +169,7 @@ impl LongValues {
             if payload.len() <= INLINE_LIMIT {
                 budget.charge_work_units((HEADER_LEN + payload.len()) as u64)?;
                 header.length = encode_inline_long_value(payload, &mut header.bytes)
-                    .map_err(|_| UpdateError::Unsupported("inline long-value encoding"))?;
+                    .map_err(|_| WriteError::Unsupported("inline long-value encoding"))?;
             } else {
                 // Validate the 24-bit declared length before reserving any fragments.
                 let limit = if self.property_column == Some(ordinal) {
@@ -189,7 +187,7 @@ impl LongValues {
                     storage,
                     RowLocator::new(PageNumber::new(1), 0),
                 )
-                .map_err(|_| UpdateError::Unsupported("long-value declared length"))?;
+                .map_err(|_| WriteError::Unsupported("long-value declared length"))?;
                 let target = if storage == ExternalLongValueStorage::SinglePage {
                     self.place(column, storage, payload, budget)?
                 } else {
@@ -200,14 +198,14 @@ impl LongValues {
                         budget.charge_items(1)?;
                         budget.charge_work_units(fragment.len() as u64)?;
                         let length = encode_chained_row(fragment, next, &mut bytes)
-                            .map_err(|_| UpdateError::Unsupported("long-value chain encoding"))?;
+                            .map_err(|_| WriteError::Unsupported("long-value chain encoding"))?;
                         next = Some(self.place(column, storage, &bytes[..length], budget)?);
                     }
-                    next.ok_or(UpdateError::Mismatch("empty long-value chain"))?
+                    next.ok_or(WriteError::Mismatch("empty long-value chain"))?
                 };
                 header.bytes[..HEADER_LEN].copy_from_slice(
                     &external_long_value_header(payload.len(), storage, target)
-                        .map_err(|_| UpdateError::Unsupported("long-value reference encoding"))?,
+                        .map_err(|_| WriteError::Unsupported("long-value reference encoding"))?,
                 );
             }
             headers.push(header);
@@ -224,7 +222,7 @@ impl LongValues {
         storage: ExternalLongValueStorage,
         bytes: &[u8],
         budget: &mut ResourceBudget,
-    ) -> Result<RowLocator, UpdateError> {
+    ) -> Result<RowLocator, WriteError> {
         for page in &mut self.pages {
             budget.charge_items(1)?;
             if page.column != Some(column)
@@ -245,7 +243,7 @@ impl LongValues {
         let mut builder = crate::DataPageBuilder::new_long_value(budget).map_err(write_error)?;
         builder.append_row(bytes, budget).map_err(write_error)?;
         let free = u16::try_from(builder.free_bytes().get())
-            .map_err(|_| UpdateError::Mismatch("long-value free bytes"))?;
+            .map_err(|_| WriteError::Mismatch("long-value free bytes"))?;
         let mut image = builder.finish();
         let [lo, hi] = free.to_le_bytes();
         image.write_at(PageOffset::new(1), &[1, lo, hi], budget)?;
@@ -269,7 +267,7 @@ impl LongValues {
             .first_append
             .checked_add(self.append_count)
             .filter(|page| *page <= 0x00ff_ffff)
-            .ok_or(UpdateError::Unsupported("long-value page reference width"))?;
+            .ok_or(WriteError::Unsupported("long-value page reference width"))?;
         self.append_count += 1;
         let page = PageNumber::new(number);
         reserve(&mut self.pages, 1, budget)?;
@@ -292,7 +290,7 @@ impl LongValues {
         database: &mut DatabaseReader<FileSource>,
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         let global = crate::alloc::mutation_map::global_locator();
         for page in self.pages {
             if !page.changed {
@@ -300,7 +298,7 @@ impl LongValues {
             }
             if page.page.get() >= self.first_append {
                 if edits.append(page.image.clone(), budget)? != page.page {
-                    return Err(UpdateError::Mismatch("long-value append placement"));
+                    return Err(WriteError::Mismatch("long-value append placement"));
                 }
             } else {
                 edits.set_image(database, page.page, page.image.clone(), budget)?;
@@ -338,7 +336,7 @@ impl LongValues {
     }
 }
 
-fn payload_budget(length: usize, budget: &mut ResourceBudget) -> Result<(), UpdateError> {
+fn payload_budget(length: usize, budget: &mut ResourceBudget) -> Result<(), WriteError> {
     budget.check_decoded_value(ByteCount::new(length as u64))?;
     Ok(())
 }

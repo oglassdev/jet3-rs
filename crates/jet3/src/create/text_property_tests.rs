@@ -3,11 +3,8 @@ use super::api_tests::*;
 use crate::{
     ColumnOrdinal, ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, FieldUpdate,
     PropertyChange, RowDelete, RowUpdate, RowValue, SchemaEdit, SortOrder, TableRows, TableSpec,
-    TableValidation, TextCodePage, UpdateError,
-    create::{
-        api::{CreateDatabaseError, create_database},
-        schema_plan::TableSchemaPlanError,
-    },
+    TableValidation, TextCodePage, WriteError,
+    create::{api::create_database, schema_plan::TableSchemaPlanError},
     delete_row, edit_schema, insert_row, update_field, update_row,
 };
 use std::fs;
@@ -46,12 +43,12 @@ fn properties(
     Ok(db.table_properties(&table, &mut work)?)
 }
 
-fn unsupported(result: Result<(), UpdateError>) -> bool {
+fn unsupported(result: Result<(), WriteError>) -> bool {
     match result {
-        Err(UpdateError::Unsupported(_)) => true,
-        Err(UpdateError::Publish(error)) => std::error::Error::source(&error)
-            .and_then(|source| source.downcast_ref::<UpdateError>())
-            .is_some_and(|source| matches!(source, UpdateError::Unsupported(_))),
+        Err(WriteError::Unsupported(_)) => true,
+        Err(WriteError::Publish(error)) => std::error::Error::source(&error)
+            .and_then(|source| source.downcast_ref::<WriteError>())
+            .is_some_and(|source| matches!(source, WriteError::Unsupported(_))),
         _ => false,
     }
 }
@@ -100,7 +97,7 @@ fn stored_rules_refuse_row_writes_and_preserve_the_file() -> TestResult {
         Some(b">0\0".as_slice())
     );
     let before = fs::read(&path)?;
-    let refused = |error: UpdateError| matches!(error, UpdateError::ValidationRule { column: Some(column) } if column == ColumnOrdinal::new(1));
+    let refused = |error: WriteError| matches!(error, WriteError::ValidationRule { column: Some(column) } if column == ColumnOrdinal::new(1));
     let values = [RowValue::Long(3), RowValue::Long(1)];
     assert!(insert_row(&path, b"Items", &values, &mut budget()).is_err_and(refused));
     let request = RowUpdate {
@@ -164,9 +161,7 @@ fn table_rules_refuse_initial_and_later_rows() -> TestResult {
     );
     assert!(matches!(
         error,
-        Err(CreateDatabaseError::Compose(
-            ComposeError::ValidationRuleRows
-        ))
+        Err(WriteError::Compose(ComposeError::ValidationRuleRows))
     ));
     assert!(!path.exists());
     create_database(
@@ -183,7 +178,7 @@ fn table_rules_refuse_initial_and_later_rows() -> TestResult {
     let before = fs::read(&path)?;
     assert!(matches!(
         insert_row(&path, b"Checked", &[RowValue::Long(1)], &mut budget()),
-        Err(UpdateError::ValidationRule { column: None })
+        Err(WriteError::ValidationRule { column: None })
     ));
     assert_eq!(fs::read(&path)?, before);
     let clear = SchemaEdit::SetTableProperties {
@@ -235,7 +230,7 @@ fn unsupported_property_requests_are_refused_before_writing() -> TestResult {
         );
         assert!(matches!(
             result,
-            Err(CreateDatabaseError::Compose(ComposeError::Schema(
+            Err(WriteError::Compose(ComposeError::Schema(
                 TableSchemaPlanError::InvalidTextProperty {
                     column: Some(0),
                     ..
@@ -335,7 +330,7 @@ fn unknown_sort_orders_are_readable_but_not_writable() -> TestResult {
         }
     );
     db.validate(TextCodePage::Windows1252, &mut work)?;
-    let refused = |error: UpdateError| matches!(error, UpdateError::UnsupportedSortOrder { .. });
+    let refused = |error: WriteError| matches!(error, WriteError::UnsupportedSortOrder { .. });
     assert!(insert_row(&path, b"T", &[RowValue::Long(1)], &mut budget()).is_err_and(refused));
     let edit = SchemaEdit::DropColumn {
         table: b"T",
@@ -421,7 +416,7 @@ fn rules_refuse_cascaded_updates_and_autoincrement_backfill() -> TestResult {
     };
     assert!(matches!(
         update_row(&path, request, &mut budget()),
-        Err(UpdateError::ValidationRule { column: None })
+        Err(WriteError::ValidationRule { column: None })
     ));
     let edit = SchemaEdit::CreateColumn {
         table: b"Child",

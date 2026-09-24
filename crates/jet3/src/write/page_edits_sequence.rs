@@ -2,7 +2,7 @@
 use super::page_edits::*;
 use crate::{
     ByteCount, DatabaseReader, FileSource, PAGE_BYTES, PageImage, PageNumber, ResourceBudget,
-    UpdateError, write::update_pages::PageChange,
+    WriteError, write::update_pages::PageChange,
 };
 use std::fs::File;
 use std::io::{Seek, SeekFrom, Write};
@@ -14,11 +14,11 @@ impl PageEdits {
         file: &mut File,
         combined: &mut Self,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         if self.first_append != combined.next_append_page()?.get()
             || file.metadata()?.len() != self.first_append * PAGE_BYTES as u64
         {
-            return Err(UpdateError::Mismatch("sequential page plan length"));
+            return Err(WriteError::Mismatch("sequential page plan length"));
         }
         self.finish_maps(database, budget)?;
         let final_pages = self.next_append_page()?.get();
@@ -33,7 +33,7 @@ impl PageEdits {
             let image = combined
                 .append
                 .last()
-                .ok_or(UpdateError::Mismatch("missing sequential append"))?;
+                .ok_or(WriteError::Mismatch("missing sequential append"))?;
             write(file, page, image, budget)?;
         }
         Ok(())
@@ -44,17 +44,17 @@ impl PageEdits {
         change: Change,
         file: &mut File,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         if change.page.get() >= self.first_append {
             let position = usize::try_from(change.page.get() - self.first_append)
-                .map_err(|_| UpdateError::Mismatch("sequential append ordinal"))?;
+                .map_err(|_| WriteError::Mismatch("sequential append ordinal"))?;
             let previous = self
                 .append
                 .get_mut(position)
-                .ok_or(UpdateError::Mismatch("sequential appended page absent"))?;
+                .ok_or(WriteError::Mismatch("sequential appended page absent"))?;
             budget.charge_work_units(PAGE_BYTES as u64)?;
             if previous.as_bytes() != &change.before {
-                return Err(UpdateError::Mismatch("sequential appended page changed"));
+                return Err(WriteError::Mismatch("sequential appended page changed"));
             }
             write(file, change.page, &change.after, budget)?;
             *previous = change.after;
@@ -62,7 +62,7 @@ impl PageEdits {
             budget.charge_work_units(self.changes.len() as u64 + PAGE_BYTES as u64)?;
             if let Some(previous) = self.changes.iter_mut().find(|c| c.page == change.page) {
                 if previous.after.as_bytes() != &change.before {
-                    return Err(UpdateError::Mismatch("sequential source page changed"));
+                    return Err(WriteError::Mismatch("sequential source page changed"));
                 }
                 write(file, change.page, &change.after, budget)?;
                 previous.after = change.after;
@@ -80,7 +80,7 @@ impl PageEdits {
         original: &mut FileSource,
         candidate: &mut FileSource,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         let mut changes = Vec::new();
         reserve(&mut changes, self.changes.len(), budget)?;
         changes.extend(self.changes.iter().map(|change| PageChange {
@@ -104,7 +104,7 @@ fn write(
     page: PageNumber,
     image: &PageImage,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     budget.charge_encoded_bytes(ByteCount::new(PAGE_BYTES as u64))?;
     budget.charge_work_units(PAGE_BYTES as u64)?;
     file.seek(SeekFrom::Start(page.get() * PAGE_BYTES as u64))?;

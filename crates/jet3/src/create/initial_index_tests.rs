@@ -1,9 +1,10 @@
 use super::initial_rows_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexColumnSpec,
     IndexDirection, IndexKind, IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue,
     TableRows, TableSpec,
-    create::{api::CreateDatabaseError, api_tests::*, check::ImageCheckError},
+    create::{api_tests::*, check::ImageCheckError},
     create_database,
     definition::column_writer::nz,
 };
@@ -118,7 +119,7 @@ fn duplicate_keys_are_distinct_counted_for_ordinary_and_rejected_for_unique() ->
         } else {
             assert!(matches!(
                 result,
-                Err(CreateDatabaseError::Compose(
+                Err(WriteError::Compose(
                     ComposeError::DuplicateInitialIndexKey { value: 2 }
                 ))
             ));
@@ -208,7 +209,7 @@ fn leaf_capacity_spills_into_a_branch_root() -> TestResult {
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Publish(_))
+        Err(WriteError::CreatePublish(_))
     ));
     assert_eq!(fs::read(directory.target())?, original);
     let directory = TestDirectory::create()?;
@@ -254,9 +255,9 @@ fn required_null_keys_fail_before_publication() -> TestResult {
                 },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(
-                ComposeError::NullInitialIndexKey { row: 0 }
-            ))
+            Err(WriteError::Compose(ComposeError::NullInitialIndexKey {
+                row: 0
+            }))
         ));
     }
     assert!(directory.entries()?.is_empty());
@@ -337,7 +338,7 @@ fn index_storage_budget_and_empty_index_are_handled() -> TestResult {
             },
             &mut limited
         ),
-        Err(CreateDatabaseError::Compose(ComposeError::Encoding(
+        Err(WriteError::Compose(ComposeError::Encoding(
             crate::Error::ResourceLimitExceeded {
                 kind: crate::ResourceLimitKind::AllocationBytes,
                 ..

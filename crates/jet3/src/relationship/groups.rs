@@ -1,13 +1,13 @@
 //! EXP-0290 groups ordered component rows into one relationship.
 use super::catalog::*;
 use crate::{
-    ResourceBudget, UpdateError, catalog::name_key::catalog_names_equal, write::page_edits::reserve,
+    ResourceBudget, WriteError, catalog::name_key::catalog_names_equal, write::page_edits::reserve,
 };
 
 pub(super) fn groups<'a>(
     records: &'a [Record],
     budget: &mut ResourceBudget,
-) -> Result<Vec<Vec<&'a Record>>, UpdateError> {
+) -> Result<Vec<Vec<&'a Record>>, WriteError> {
     let mut groups: Vec<Vec<&Record>> = Vec::new();
     for record in records {
         budget.charge_work_units((groups.len() as u64).saturating_mul(512))?;
@@ -32,14 +32,12 @@ pub(super) fn groups<'a>(
 pub(super) fn ordered<'a>(
     group: &[&'a Record],
     budget: &mut ResourceBudget,
-) -> Result<Vec<&'a Record>, UpdateError> {
+) -> Result<Vec<&'a Record>, WriteError> {
     let first = group
         .first()
-        .ok_or(UpdateError::Mismatch("empty relationship catalog group"))?;
+        .ok_or(WriteError::Mismatch("empty relationship catalog group"))?;
     if usize::try_from(first.metadata[1]).ok() != Some(group.len()) {
-        return Err(UpdateError::Mismatch(
-            "relationship catalog component count",
-        ));
+        return Err(WriteError::Mismatch("relationship catalog component count"));
     }
     let mut slots = Vec::new();
     reserve(&mut slots, group.len(), budget)?;
@@ -50,17 +48,17 @@ pub(super) fn ordered<'a>(
             || !catalog_names_equal(&record.parent, &first.parent, first.order)
             || !catalog_names_equal(&record.child, &first.child, first.order)
         {
-            return Err(UpdateError::Mismatch(
+            return Err(WriteError::Mismatch(
                 "relationship component metadata differs",
             ));
         }
         let ordinal = usize::try_from(record.metadata[2])
-            .map_err(|_| UpdateError::Mismatch("relationship component ordinal"))?;
+            .map_err(|_| WriteError::Mismatch("relationship component ordinal"))?;
         let slot = slots
             .get_mut(ordinal)
-            .ok_or(UpdateError::Mismatch("relationship component ordinal"))?;
+            .ok_or(WriteError::Mismatch("relationship component ordinal"))?;
         if slot.replace(record).is_some() {
-            return Err(UpdateError::Mismatch(
+            return Err(WriteError::Mismatch(
                 "duplicate relationship component ordinal",
             ));
         }
@@ -68,7 +66,7 @@ pub(super) fn ordered<'a>(
     let mut result = Vec::new();
     reserve(&mut result, group.len(), budget)?;
     for record in &slots {
-        result.push(record.ok_or(UpdateError::Mismatch(
+        result.push(record.ok_or(WriteError::Mismatch(
             "missing relationship component ordinal",
         ))?);
     }
@@ -92,7 +90,7 @@ mod tests {
     use crate::testkit::budget;
     #[test]
     fn component_ordinals_define_order_and_must_form_a_complete_unique_set()
-    -> Result<(), UpdateError> {
+    -> Result<(), WriteError> {
         let first = record(2, 0);
         let second = record(2, 1);
         let sorted = ordered(&[&second, &first], &mut budget())?;

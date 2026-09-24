@@ -2,7 +2,8 @@ use super::update_tests::*;
 use crate::{
     ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, PAGE_BYTES, PublishStage,
     ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec, create_database,
-    row::directory::RowDirectory, write::update::*,
+    row::directory::RowDirectory,
+    write::{error::WriteError, update::*},
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -152,7 +153,7 @@ fn duplicate_noop_multilevel_and_budget_bounds_preserve_source() -> TestResult {
             request(row, RowValue::Long(2)),
             &mut budget()
         ),
-        Err(UpdateError::Unsupported("duplicate unique key"))
+        Err(WriteError::Unsupported("duplicate unique key"))
     ));
     assert_eq!(fs::read(fixture.path())?, original);
     update_field(
@@ -244,7 +245,7 @@ fn two_page_patch_failure_preserves_original() -> TestResult {
             }
         },
     );
-    assert!(matches!(result, Err(UpdateError::Publish(_))));
+    assert!(matches!(result, Err(WriteError::Publish(_))));
     assert_eq!(fs::read(fixture.path())?, original);
     fixture.assert_only_original()
 }
@@ -294,7 +295,7 @@ fn branch_fences_require_schema_width_even_when_their_bounds_are_valid() -> Test
         fs::write(f.path(), &bad)?;
         assert!(matches!(
             update_field(f.path(), request(row, RowValue::Long(1000)), &mut budget()),
-            Err(UpdateError::Mismatch("numeric index key shape"))
+            Err(WriteError::Mismatch("numeric index key shape"))
         ));
         assert_eq!(fs::read(f.path())?, bad);
         f.assert_only_original()?;

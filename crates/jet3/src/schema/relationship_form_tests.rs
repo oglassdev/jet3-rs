@@ -163,7 +163,7 @@ fn unenforced_relationships_are_catalog_only_and_follow_table_edits() -> TestRes
             ],
             &mut budget(),
         ),
-        Err(UpdateError::RelationshipConstraint { .. })
+        Err(WriteError::RelationshipConstraint { .. })
     ));
     assert_eq!(fs::read(fixture.path())?, orphan);
 
@@ -327,7 +327,7 @@ fn database_creation_stores_joins_and_refuses_unenforced_relationships() -> Test
     );
     assert!(matches!(
         result,
-        Err(CreateDatabaseError::Compose(
+        Err(WriteError::Compose(
             ComposeError::UnsupportedRelationship { .. }
         ))
     ));

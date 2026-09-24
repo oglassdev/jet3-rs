@@ -1,9 +1,10 @@
 use super::initial_index_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexColumnSpec,
     IndexDirection, IndexKind, IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue,
     TableRows, TableSpec,
-    create::{api::CreateDatabaseError, api_tests::*, initial_rows_tests::*},
+    create::{api_tests::*, initial_rows_tests::*},
     create_database,
     definition::column_writer::nz,
 };
@@ -319,7 +320,7 @@ fn second_unique_index_refuses_duplicates_on_first_and_later_tables() -> TestRes
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
+        Err(WriteError::Compose(
             ComposeError::DuplicateInitialScalarIndexKey
         ))
     ));
@@ -344,7 +345,7 @@ fn second_unique_index_refuses_duplicates_on_first_and_later_tables() -> TestRes
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
+        Err(WriteError::Compose(
             ComposeError::DuplicateInitialScalarIndexKey
         ))
     ));

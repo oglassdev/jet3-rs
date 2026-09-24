@@ -455,27 +455,27 @@ fn aliases_unreferenced_fragments_and_broken_chains_are_refused() -> TestResult 
         match case {
             0 => assert!(matches!(
                 result,
-                Err(UpdateError::Mismatch("aliased long-value fragment"))
+                Err(WriteError::Mismatch("aliased long-value fragment"))
             )),
             1 => assert!(matches!(
                 result,
-                Err(UpdateError::Mismatch(
+                Err(WriteError::Mismatch(
                     "long-value reference has wrong column owner"
                 ))
             )),
             2 => assert!(matches!(
                 result,
-                Err(UpdateError::Mismatch(
+                Err(WriteError::Mismatch(
                     "unreferenced live long-value fragment"
                 ))
             )),
             3 => assert!(matches!(
                 result,
-                Err(UpdateError::LongValue(LongValueError::Cycle { .. }))
+                Err(WriteError::LongValue(LongValueError::Cycle { .. }))
             )),
             4 => assert!(matches!(
                 result,
-                Err(UpdateError::LongValue(LongValueError::MissingRow { .. }))
+                Err(WriteError::LongValue(LongValueError::MissingRow { .. }))
             )),
             _ => unreachable!(),
         }

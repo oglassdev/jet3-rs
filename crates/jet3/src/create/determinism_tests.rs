@@ -1,17 +1,15 @@
 use super::api_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexDirection, IndexKind,
     IndexSpec, RelationshipField, RelationshipLayout, RelationshipSpec, ResourceBudget,
-    ResourceLimits, RowValue, TableRef, TableRows, TableSpec,
-    create::api::{CreateDatabaseError, create_database},
+    ResourceLimits, RowValue, TableRef, TableRows, TableSpec, create::api::create_database,
     definition::column_writer::nz,
 };
 use std::fs;
 use std::path::Path;
 
-fn repeats(
-    create: impl Fn(&Path, &mut ResourceBudget) -> Result<(), CreateDatabaseError>,
-) -> TestResult {
+fn repeats(create: impl Fn(&Path, &mut ResourceBudget) -> Result<(), WriteError>) -> TestResult {
     let first = TestDirectory::create()?;
     let second = TestDirectory::create()?;
     let mut measured = budget();

@@ -70,7 +70,7 @@ fn deleting_the_only_null_self_reference_removes_its_child_reference() -> TestRe
             },
             &mut budget()
         ),
-        Err(crate::UpdateError::NullRelationshipConstraint { .. })
+        Err(crate::WriteError::NullRelationshipConstraint { .. })
     ));
     assert_eq!(fs::read(directory.target())?, before);
     crate::delete_row(
@@ -163,7 +163,7 @@ fn parent_tree_after_foreign_requires_existing_self_keys() -> TestResult {
         };
         assert!(matches!(
             result,
-            Err(crate::UpdateError::RelationshipConstraint { value: 4, .. })
+            Err(crate::WriteError::RelationshipConstraint { value: 4, .. })
         ));
         assert_eq!(fs::read(directory.target())?, before);
     }
@@ -344,7 +344,7 @@ fn self_key_checks_follow_physical_order_for_generated_and_declared_parents() ->
             } else {
                 assert!(matches!(
                     result,
-                    Err(crate::UpdateError::RelationshipConstraint { value: 4, .. })
+                    Err(crate::WriteError::RelationshipConstraint { value: 4, .. })
                 ));
                 assert_eq!(fs::read(directory.target())?, before);
             }

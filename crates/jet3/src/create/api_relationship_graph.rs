@@ -1,8 +1,9 @@
 //! Atomic relationship graph creation using EXP-0273/0279 endpoint records.
 use super::{
-    api::{CreateDatabaseError, TableRows, write_pages},
+    api::{TableRows, write_pages},
     check::{ImageCheckError, check_columns, check_initial_table_rows_from},
 };
+use crate::WriteError;
 use crate::{
     CatalogObjectClass, CatalogObjectKind, DatabaseReader, PageNumber, RelationshipSpec,
     ResourceBudget, TableRef, TextCodePage,
@@ -23,19 +24,19 @@ pub(super) fn create(
     requests: &[TableRows<'_>],
     relationships: &[RelationshipSpec<'_>],
     budget: &mut ResourceBudget,
-) -> Result<(), CreateDatabaseError> {
-    let GraphImage { image, tables } = compose_relationship_graph(requests, relationships, budget)
-        .map_err(CreateDatabaseError::Compose)?;
+) -> Result<(), WriteError> {
+    let GraphImage { image, tables } =
+        compose_relationship_graph(requests, relationships, budget).map_err(WriteError::Compose)?;
     let pages = image.into_pages();
     budget
         .charge_work_units((pages.len() as u64).saturating_mul(crate::PAGE_BYTES as u64))
-        .map_err(|error| CreateDatabaseError::Compose(error.into()))?;
+        .map_err(|error| WriteError::Compose(error.into()))?;
     atomic_create(
         path,
         |file| write_pages(file, &pages),
         |candidate| check_graph(candidate, requests, relationships, &tables, &pages, budget),
     )
-    .map_err(CreateDatabaseError::Publish)
+    .map_err(WriteError::CreatePublish)
 }
 
 pub(super) fn check_graph(

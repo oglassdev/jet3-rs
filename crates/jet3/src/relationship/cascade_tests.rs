@@ -1,7 +1,6 @@
 use super::cascade::*;
 use crate::{
-    DatabaseReader, FileSource, PAGE_BYTES, RowValue, UpdateError, relationship::mutation::Change,
-    *,
+    DatabaseReader, FileSource, PAGE_BYTES, RowValue, WriteError, relationship::mutation::Change, *,
 };
 use std::{error::Error, fs, path::Path};
 
@@ -273,7 +272,7 @@ fn cascade_chain_changes_every_level_and_rolls_back_the_whole_publication() -> T
         }
     });
     assert!(
-        matches!(result, Err(UpdateError::Publish(error)) if error.stage() == PublishStage::PrePublish)
+        matches!(result, Err(WriteError::Publish(error)) if error.stage() == PublishStage::PrePublish)
     );
     assert_eq!(fs::read(&path)?, original);
     assert_eq!(fs::read_dir(directory.path())?.count(), 1);
@@ -640,7 +639,7 @@ fn cascade_journal_merges_successive_and_appended_pages_and_rejects_stale_plans(
         )?;
         assert!(matches!(
             plan.apply_private(&mut db, &mut file, &mut combined, &mut work),
-            Err(UpdateError::Mismatch(_))
+            Err(WriteError::Mismatch(_))
         ));
         assert_eq!(fs::read(&private_path)?, expected);
     }
@@ -704,7 +703,7 @@ fn cascade_autoincrement_marker_requires_an_autonumber_row_replacement() -> Test
             },
             &mut budget(),
         );
-        assert!(matches!(result, Err(UpdateError::Unsupported(_))));
+        assert!(matches!(result, Err(WriteError::Unsupported(_))));
         assert_eq!(fs::read(&path)?, before);
         let result = update_row(
             &path,
@@ -725,7 +724,7 @@ fn cascade_autoincrement_marker_requires_an_autonumber_row_replacement() -> Test
             assert_eq!(keys(&path, b"Child", &[1])?, vec![vec![Some(10)]]);
             validate_file(&path)?;
         } else {
-            assert!(matches!(result, Err(UpdateError::Unsupported(_))));
+            assert!(matches!(result, Err(WriteError::Unsupported(_))));
             assert_eq!(fs::read(&path)?, before);
         }
     }

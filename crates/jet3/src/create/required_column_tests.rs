@@ -2,10 +2,8 @@ use super::api_tests::*;
 use crate::{
     ColumnOrdinal, ColumnPropertyError, ColumnSpec, ColumnType, ComposeError, DatabaseReader,
     DatabaseSpec, RowUpdate, RowValue, RowWriteError, TableRows, TableSpec, TableValidationError,
-    TextCodePage, UpdateError, ValidationError, ValueKind,
-    create::api::{CreateDatabaseError, create_database},
-    definition::column_writer::nz,
-    insert_row, update_row,
+    TextCodePage, ValidationError, ValueKind, WriteError, create::api::create_database,
+    definition::column_writer::nz, insert_row, update_row,
 };
 use std::fs;
 
@@ -56,7 +54,7 @@ fn required_columns_enforce_nulls_without_indexes_and_keep_scalar_exceptions() -
     assert!(
         matches!(
             error,
-            CreateDatabaseError::Compose(ComposeError::Row(RowWriteError::RequiredValueMissing {
+            WriteError::Compose(ComposeError::Row(RowWriteError::RequiredValueMissing {
                 ordinal: 0,
                 ..
             }))
@@ -102,7 +100,7 @@ fn required_columns_enforce_nulls_without_indexes_and_keep_scalar_exceptions() -
     ] {
         assert!(matches!(
             result,
-            Err(UpdateError::Encoding(RowWriteError::RequiredValueMissing {
+            Err(WriteError::Encoding(RowWriteError::RequiredValueMissing {
                 ordinal: 0,
                 ..
             }))
@@ -209,7 +207,7 @@ fn required_payloads_distinguish_empty_strings_from_storage_nulls() -> TestResul
                 physical_type: columns[column].physical_type(),
             }
         };
-        assert!(matches!(error, UpdateError::Encoding(actual) if actual == expected));
+        assert!(matches!(error, WriteError::Encoding(actual) if actual == expected));
         assert_eq!(fs::read(&path)?, original);
     }
     insert_row(&path, b"Rows", &values, &mut budget())?;
@@ -260,7 +258,7 @@ fn required_property_corruption_and_stored_nulls_are_reported() -> TestResult {
     fs::write(&path, &changed)?;
     assert!(matches!(
         insert_row(&path, b"Rows", &[RowValue::Null], &mut budget()),
-        Err(UpdateError::ColumnProperties(ColumnPropertyError::Invalid(
+        Err(WriteError::ColumnProperties(ColumnPropertyError::Invalid(
             "named Boolean property record"
         )))
     ));

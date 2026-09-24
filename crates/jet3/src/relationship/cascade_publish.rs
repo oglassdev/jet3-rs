@@ -2,7 +2,7 @@
 use super::cascade::*;
 use crate::{
     ColumnOrdinal, DatabaseReader, FieldUpdate, FileSource, PublishStage, ResourceBudget,
-    RowDelete, RowUpdate, RowValue, UpdateError, relationship::mutation::Change,
+    RowDelete, RowUpdate, RowValue, WriteError, relationship::mutation::Change,
     write::page_edits::PageEdits,
 };
 use std::{cell::Cell, error::Error as StdError, fs::File, path::Path};
@@ -14,7 +14,7 @@ impl Plan<'_> {
         database: DatabaseReader<FileSource>,
         budget: &mut ResourceBudget,
         hook: H,
-    ) -> Result<(), UpdateError>
+    ) -> Result<(), WriteError>
     where
         H: FnMut(PublishStage) -> Result<(), HE>,
         HE: StdError + Send + Sync + 'static,
@@ -24,10 +24,10 @@ impl Plan<'_> {
         crate::write::atomic::atomic_update_budgeted(
             path,
             budget,
-            |file, budget| -> Result<(), UpdateError> {
+            |file, budget| -> Result<(), WriteError> {
                 let mut combined = journal
                     .take()
-                    .ok_or(UpdateError::Mismatch("cascade journal absent"))?;
+                    .ok_or(WriteError::Mismatch("cascade journal absent"))?;
                 self.stage(self.selected, file, &mut combined, budget)?;
                 for (position, row) in self.rows.iter().enumerate() {
                     budget.charge_work_units(row.fields.len() as u64 + 1)?;
@@ -40,10 +40,10 @@ impl Plan<'_> {
                 journal.set(Some(combined));
                 Ok(())
             },
-            |private, budget| -> Result<(), UpdateError> {
+            |private, budget| -> Result<(), WriteError> {
                 let combined = journal
                     .take()
-                    .ok_or(UpdateError::Mismatch("cascade journal absent"))?;
+                    .ok_or(WriteError::Mismatch("cascade journal absent"))?;
                 let mut candidate = FileSource::open(private, budget.read_budget())?;
                 combined.verify_private(&mut original, &mut candidate, budget)?;
                 let mut candidate = DatabaseReader::from_source(candidate, budget)?;
@@ -61,7 +61,7 @@ impl Plan<'_> {
         file: &mut File,
         combined: &mut PageEdits,
         budget: &mut ResourceBudget,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         let row = &self.rows[position];
         let source = FileSource::from_file(file.try_clone()?, budget.read_budget())?;
         let mut database = DatabaseReader::from_source(source, budget)?;
@@ -82,15 +82,14 @@ impl Plan<'_> {
         {
             let mut values = [RowValue::Null; u8::MAX as usize];
             if original.len() > values.len() {
-                return Err(UpdateError::Unsupported("cascade replacement column count"));
+                return Err(WriteError::Unsupported("cascade replacement column count"));
             }
             values[..original.len()].copy_from_slice(original);
             for field in &row.fields {
                 if let Some(after) = &field.after {
                     *values
                         .get_mut(usize::from(field.column.get()))
-                        .ok_or(UpdateError::Mismatch("cascade replacement column"))? =
-                        after.value();
+                        .ok_or(WriteError::Mismatch("cascade replacement column"))? = after.value();
                 }
             }
             crate::write::row_update::plan(
@@ -121,7 +120,7 @@ impl Plan<'_> {
                     } else {
                         *assignments
                             .get_mut(count)
-                            .ok_or(UpdateError::Unsupported("cascade assignment count"))? =
+                            .ok_or(WriteError::Unsupported("cascade assignment count"))? =
                             (field.column, value);
                         count += 1;
                     }

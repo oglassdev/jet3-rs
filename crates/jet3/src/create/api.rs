@@ -12,7 +12,7 @@
 //! they do not establish arbitrary schemas, values, or general compatibility.
 //! Local and hosted differential results govern the support matrix.
 use crate::{
-    PublishError, RelationshipSpec, ResourceBudget, RowValue, TableSpec,
+    RelationshipSpec, ResourceBudget, RowValue, TableSpec, WriteError,
     create::{
         check::{check_image, check_initial_tables, check_long_value_written_pages},
         composer::{ComposeError, compose_database, compose_database_with_table_rows},
@@ -21,8 +21,6 @@ use crate::{
     write::atomic::atomic_create,
 };
 
-use std::error::Error as StdError;
-use std::fmt;
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
@@ -72,34 +70,6 @@ pub enum RelationshipLayout {
     SingleLong,
 }
 
-/// Structured failure of [`create_database`].
-#[derive(Debug)]
-pub enum CreateDatabaseError {
-    /// The tables could not be composed into a database image; nothing was
-    /// written.
-    Compose(ComposeError),
-    /// The composed image could not be written, checked, or published.
-    Publish(PublishError),
-}
-
-impl fmt::Display for CreateDatabaseError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Compose(source) => write!(formatter, "database composition failed: {source}"),
-            Self::Publish(source) => write!(formatter, "database publication failed: {source}"),
-        }
-    }
-}
-
-impl StdError for CreateDatabaseError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            Self::Compose(source) => Some(source),
-            Self::Publish(source) => Some(source),
-        }
-    }
-}
-
 /// Creates the database described by `spec` at `path`.
 ///
 /// Tables, their rows, indexes, AutoNumber state, Memo/OLE payloads and
@@ -109,8 +79,8 @@ impl StdError for CreateDatabaseError {
 ///
 /// # Errors
 ///
-/// Returns [`CreateDatabaseError::Compose`] before writing anything when the
-/// request is outside the supported scope, and [`CreateDatabaseError::Publish`]
+/// Returns [`WriteError::Compose`] before writing anything when the
+/// request is outside the supported scope, and [`WriteError::CreatePublish`]
 /// when writing, checking or publication fails; an existing `path` is left
 /// unchanged and reported as `AlreadyExists`. See `docs/plans/V1_SCOPE.md` for
 /// the supported scope.
@@ -118,14 +88,14 @@ pub fn create_database(
     path: impl AsRef<Path>,
     spec: &DatabaseSpec<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), CreateDatabaseError> {
+) -> Result<(), WriteError> {
     let requests = spec.tables;
     let has_rows = requests.iter().any(|request| !request.rows.is_empty());
     match (spec.relationship_layout, spec.relationships) {
         (RelationshipLayout::Graph, []) if has_rows => create_table_rows(path, requests, budget),
         (RelationshipLayout::Graph, []) => {
             crate::create::composer::table_count_limit(requests.len())
-                .map_err(CreateDatabaseError::Compose)?;
+                .map_err(WriteError::Compose)?;
             create_tables(path, &schemas(requests, budget)?, budget)
         }
         (RelationshipLayout::Graph, relationships) => {
@@ -146,21 +116,21 @@ pub fn create_database(
             };
             super::api_relationship::create(path, tables, relationship, budget)
         }
-        (RelationshipLayout::SingleLong, _) => Err(CreateDatabaseError::Compose(
-            ComposeError::UnsupportedRelationship {
+        (RelationshipLayout::SingleLong, _) => {
+            Err(WriteError::Compose(ComposeError::UnsupportedRelationship {
                 detail: "the single Long layout requires exactly one relationship",
-            },
-        )),
+            }))
+        }
     }
 }
 
 fn schemas<'a>(
     requests: &[TableRows<'a>],
     budget: &mut ResourceBudget,
-) -> Result<Vec<TableSpec<'a>>, CreateDatabaseError> {
+) -> Result<Vec<TableSpec<'a>>, WriteError> {
     let mut tables = Vec::new();
     crate::format::resource::reserve(&mut tables, requests.len(), budget)
-        .map_err(|error| CreateDatabaseError::Compose(error.into()))?;
+        .map_err(|error| WriteError::Compose(error.into()))?;
     tables.extend(requests.iter().map(|request| request.table));
     Ok(tables)
 }
@@ -169,14 +139,14 @@ fn create_tables(
     path: impl AsRef<Path>,
     tables: &[TableSpec<'_>],
     budget: &mut ResourceBudget,
-) -> Result<(), CreateDatabaseError> {
+) -> Result<(), WriteError> {
     let pages = compose_database(tables, budget)
-        .map_err(CreateDatabaseError::Compose)?
+        .map_err(WriteError::Compose)?
         .into_pages();
     let page_count = pages.len() as u64;
     budget
         .charge_work_units(page_count.saturating_mul(crate::PAGE_BYTES as u64))
-        .map_err(|error| CreateDatabaseError::Compose(ComposeError::Encoding(error)))?;
+        .map_err(|error| WriteError::Compose(ComposeError::Encoding(error)))?;
     atomic_create(
         path,
         |file| write_pages(file, &pages),
@@ -185,7 +155,7 @@ fn create_tables(
             check_image(candidate, tables, page_count, budget)
         },
     )
-    .map_err(CreateDatabaseError::Publish)
+    .map_err(WriteError::CreatePublish)
 }
 
 /// Tables, their LVAL pages and their row pages are placed sequentially in
@@ -194,18 +164,18 @@ fn create_table_rows(
     path: impl AsRef<Path>,
     requests: &[TableRows<'_>],
     budget: &mut ResourceBudget,
-) -> Result<(), CreateDatabaseError> {
+) -> Result<(), WriteError> {
     let pages = compose_database_with_table_rows(requests, budget)
-        .map_err(CreateDatabaseError::Compose)?
+        .map_err(WriteError::Compose)?
         .into_pages();
     budget
         .charge_allocation(crate::ByteCount::new(
             (requests.len() * std::mem::size_of::<TableSpec<'_>>()) as u64,
         ))
-        .map_err(|error| CreateDatabaseError::Compose(error.into()))?;
+        .map_err(|error| WriteError::Compose(error.into()))?;
     let mut tables = Vec::new();
     tables.try_reserve_exact(requests.len()).map_err(|_| {
-        CreateDatabaseError::Compose(ComposeError::Encoding(crate::Error::Io {
+        WriteError::Compose(ComposeError::Encoding(crate::Error::Io {
             operation: "reserve initial table schemas",
             kind: io::ErrorKind::OutOfMemory,
         }))
@@ -214,7 +184,7 @@ fn create_table_rows(
     let page_count = pages.len() as u64;
     budget
         .charge_work_units(page_count.saturating_mul(crate::PAGE_BYTES as u64))
-        .map_err(|error| CreateDatabaseError::Compose(ComposeError::Encoding(error)))?;
+        .map_err(|error| WriteError::Compose(ComposeError::Encoding(error)))?;
     atomic_create(
         path,
         |file| write_pages(file, &pages),
@@ -224,7 +194,7 @@ fn create_table_rows(
             check_initial_tables(candidate, &tables, requests, budget)
         },
     )
-    .map_err(CreateDatabaseError::Publish)
+    .map_err(WriteError::CreatePublish)
 }
 
 /// Writes every page in physical order and sets the exact final length.

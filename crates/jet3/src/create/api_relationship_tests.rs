@@ -1,9 +1,9 @@
 use super::api_relationship::*;
+use crate::WriteError;
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, RelationshipField,
     RelationshipSpec, ResourceBudget, ResourceLimits, TableRef, TableSpec,
     create::{
-        api::*,
         check::*,
         composer::{ComposeError, compose_relationship},
     },
@@ -127,7 +127,7 @@ fn unsupported_references_and_schema_leave_no_destination() -> TestResult {
                 },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(
+            Err(WriteError::Compose(
                 ComposeError::UnsupportedRelationship { .. }
             ))
         ));
@@ -179,7 +179,7 @@ fn existing_destination_and_exhausted_budget_are_preserved() -> TestResult {
             },
             &mut limited
         ),
-        Err(CreateDatabaseError::Compose(_))
+        Err(WriteError::Compose(_))
     ));
     assert!(directory.empty()?);
     let mut composition = budget();
@@ -198,7 +198,7 @@ fn existing_destination_and_exhausted_budget_are_preserved() -> TestResult {
             },
             &mut check_limited
         ),
-        Err(CreateDatabaseError::Publish(_))
+        Err(WriteError::CreatePublish(_))
     ));
     assert!(directory.empty()?);
     fs::write(directory.target(), b"keep me")?;
@@ -212,7 +212,7 @@ fn existing_destination_and_exhausted_budget_are_preserved() -> TestResult {
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Publish(_))
+        Err(WriteError::CreatePublish(_))
     ));
     assert_eq!(fs::read(directory.target())?, b"keep me");
     assert_eq!(fs::read_dir(&directory.0)?.count(), 1);

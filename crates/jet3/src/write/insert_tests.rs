@@ -1,7 +1,7 @@
 use super::insert::*;
 use crate::{
     ByteCount, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PageNumber, PublishStage,
-    ResourceBudget, ResourceLimits, RowLocator, RowValue, TableSpec, UpdateError,
+    ResourceBudget, ResourceLimits, RowLocator, RowValue, TableSpec, WriteError,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -313,7 +313,7 @@ fn corrupt_metadata_values_and_resources_preserve_original() -> TestResult {
             Ok(())
         },
     );
-    assert!(matches!(error,Err(UpdateError::Publish(e)) if e.stage()==PublishStage::Validation));
+    assert!(matches!(error,Err(WriteError::Publish(e)) if e.stage()==PublishStage::Validation));
     assert_eq!(fs::read(f.path())?, original);
     f.clean()
 }
@@ -379,7 +379,7 @@ fn physical_slot_limit_and_table_count_overflow_are_structured() -> TestResult {
     bytes[12..16].copy_from_slice(&u32::MAX.to_le_bytes());
     assert!(matches!(
         crate::row::data_page::count_table_row(&bytes, u32::MAX, true, &mut budget()),
-        Err(UpdateError::Mismatch("table row count overflow"))
+        Err(WriteError::Mismatch("table row count overflow"))
     ));
     Ok(())
 }

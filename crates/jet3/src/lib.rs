@@ -3,14 +3,14 @@
 //! Safe, clean-room primitives for Access 97 / Jet 3 databases.
 //!
 //! Reading starts at [`DatabaseReader`]. Creating a fresh database holding
-//! empty user tables starts at [`create_database`]:
+//! user tables, their rows and relationships starts at [`create_database`]:
 //!
 //! ```no_run
 //! use std::num::NonZeroU8;
 //!
 //! use jet3::{
-//!     ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, ResourceBudget,
-//!     ResourceLimits, TableSpec, TableValidation, create_database,
+//!     ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexKind, IndexSpec,
+//!     ResourceBudget, ResourceLimits, TableRows, TableSpec, TableValidation, create_database,
 //! };
 //!
 //! const NAME_LEN: NonZeroU8 = NonZeroU8::new(50).unwrap();
@@ -30,8 +30,12 @@
 //!     validation: TableValidation::NONE,
 //! };
 //! let mut budget = ResourceBudget::new(ResourceLimits::default());
-//! create_database("people.mdb", &DatabaseSpec { tables: &[TableRows::empty(people)], ..DatabaseSpec::default() }, &mut budget)?;
-//! # Ok::<(), jet3::CreateDatabaseError>(())
+//! let spec = DatabaseSpec {
+//!     tables: &[TableRows::empty(people)],
+//!     ..DatabaseSpec::default()
+//! };
+//! create_database("people.mdb", &spec, &mut budget)?;
+//! # Ok::<(), jet3::WriteError>(())
 //! ```
 //!
 //! The created image is reopened structurally before publication. That
@@ -78,10 +82,10 @@ pub use catalog::record_writer::CatalogRecordWriteError;
 pub use create::page_append_plan::AppendPageError;
 pub use create::whole_file_plan::WholeFilePlanError;
 pub use create::{
-    ColumnRef, ColumnSpec, ColumnStorageKind, ColumnType, ComposeError, CreateDatabaseError,
-    DatabaseSpec, IndexColumnSpec, IndexKind, IndexNullPolicy, IndexSpec, RelationshipField,
-    RelationshipJoin, RelationshipLayout, RelationshipSpec, TableRef, TableRows,
-    TableSchemaPlanError, TableSpec, TableValidation, create_database,
+    ColumnRef, ColumnSpec, ColumnStorageKind, ColumnType, ComposeError, DatabaseSpec,
+    IndexColumnSpec, IndexKind, IndexNullPolicy, IndexSpec, RelationshipField, RelationshipJoin,
+    RelationshipLayout, RelationshipSpec, TableRef, TableRows, TableSchemaPlanError, TableSpec,
+    TableValidation, create_database,
 };
 pub use database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 pub use definition::column::{
@@ -152,9 +156,10 @@ pub use validate::{
 };
 pub use write::atomic::{PublishError, PublishStage, atomic_update_with_hook};
 pub use write::delete::{RowDelete, delete_row};
+pub use write::error::WriteError;
 pub use write::insert::insert_row;
 pub use write::row_update::{RowUpdate, update_row};
-pub use write::update::{FieldUpdate, UpdateError, update_field};
+pub use write::update::{FieldUpdate, update_field};
 
 pub(crate) use alloc::traverse::VisitedPages;
 pub(crate) use alloc::usage_map_writer::{

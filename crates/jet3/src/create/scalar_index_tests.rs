@@ -1,9 +1,8 @@
 use super::initial_index_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseSpec, IndexDirection, IndexKind, IndexSpec,
-    RowValue, TableRows, TableSpec,
-    create::{api::CreateDatabaseError, api_tests::*},
-    create_database,
+    RowValue, TableRows, TableSpec, create::api_tests::*, create_database,
 };
 use std::fs;
 
@@ -180,9 +179,9 @@ fn nullable_numeric_composites_reuse_full_key_policy_and_scalar_duplicate_error(
         if policy == crate::IndexNullPolicy::Required {
             assert!(matches!(
                 result,
-                Err(CreateDatabaseError::Compose(
-                    ComposeError::NullInitialIndexKey { row: 0 }
-                ))
+                Err(WriteError::Compose(ComposeError::NullInitialIndexKey {
+                    row: 0
+                }))
             ));
             assert!(directory.entries()?.is_empty());
             continue;
@@ -214,7 +213,7 @@ fn nullable_numeric_composites_reuse_full_key_policy_and_scalar_duplicate_error(
                 },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(
+            Err(WriteError::Compose(
                 ComposeError::DuplicateInitialScalarIndexKey
             ))
         ));

@@ -1,7 +1,7 @@
 //! Failures while reading the EXP-0266/0283 named column-property payloads.
 use crate::{
     AllocationMapError, CatalogError, Error, LongValueError, RowDirectoryError, RowError,
-    TableDefinitionError, UpdateError, UsageMapError, ValueError,
+    TableDefinitionError, UsageMapError, ValueError, WriteError,
 };
 use std::fmt;
 
@@ -70,22 +70,24 @@ conversion!(RowError, Rows);
 conversion!(ValueError, Value);
 conversion!(LongValueError, LongValue);
 
-impl From<UpdateError> for ColumnPropertyError {
-    fn from(source: UpdateError) -> Self {
+impl ColumnPropertyError {
+    /// Maps a failure of the shared allocation-map checks that verify property
+    /// ownership onto the property reader's variants.
+    pub(crate) fn from_ownership_check(source: WriteError) -> Self {
         match source {
-            UpdateError::Resource(source) => Self::Resource(source),
-            UpdateError::Catalog(source) => Self::Catalog(source),
-            UpdateError::Definition(source) => Self::Definition(source),
-            UpdateError::Rows(source) => Self::Rows(source),
-            UpdateError::Directory(source) => Self::Directory(source),
-            UpdateError::Value(source) => Self::Value(source),
-            UpdateError::LongValue(source) => Self::LongValue(source),
-            UpdateError::UsageMap(source) => Self::UsageMap(source),
-            UpdateError::Allocation(source) => Self::Allocation(source),
-            UpdateError::ColumnProperties(source) => source,
-            UpdateError::NotFound(detail)
-            | UpdateError::Unsupported(detail)
-            | UpdateError::Mismatch(detail) => Self::Invalid(detail),
+            WriteError::Resource(source) => Self::Resource(source),
+            WriteError::Catalog(source) => Self::Catalog(source),
+            WriteError::Definition(source) => Self::Definition(source),
+            WriteError::Rows(source) => Self::Rows(source),
+            WriteError::Directory(source) => Self::Directory(source),
+            WriteError::Value(source) => Self::Value(source),
+            WriteError::LongValue(source) => Self::LongValue(source),
+            WriteError::UsageMap(source) => Self::UsageMap(source),
+            WriteError::Allocation(source) => Self::Allocation(source),
+            WriteError::ColumnProperties(source) => source,
+            WriteError::NotFound(detail)
+            | WriteError::Unsupported(detail)
+            | WriteError::Mismatch(detail) => Self::Invalid(detail),
             _ => Self::Invalid("unexpected property storage reader failure"),
         }
     }

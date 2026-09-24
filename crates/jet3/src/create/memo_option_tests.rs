@@ -1,4 +1,5 @@
 use super::{api::*, api_tests::TestDirectory, check::*};
+use crate::WriteError;
 use crate::{
     ByteCount, ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, PageNumber, ResourceBudget,
     ResourceLimits, RowValue, TableSpec,
@@ -194,9 +195,7 @@ fn memo_option_refuses_nontext_types_and_default_empty() -> Result<(), Box<dyn S
                 },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(
-                ComposeError::UnsupportedMemoOption
-            ))
+            Err(WriteError::Compose(ComposeError::UnsupportedMemoOption))
         ));
         assert!(!path.exists());
     }

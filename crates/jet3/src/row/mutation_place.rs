@@ -1,7 +1,7 @@
 //! EXP-0262 one-link growth, source collapse and direct hidden-target relocation.
 use crate::{
     DatabaseReader, FileSource, PAGE_BYTES, ResourceBudget, RowLocator, TableDefinition,
-    UpdateError,
+    WriteError,
     row::{directory::RowSlot, mutation_pages::RowPages},
     write::page_edits::PageEdits,
 };
@@ -14,10 +14,10 @@ pub(crate) fn replace(
     minimum: &[u8],
     edits: &mut PageEdits,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
-    let logical = *chain.first().ok_or(UpdateError::NotFound("row"))?;
+) -> Result<(), WriteError> {
+    let logical = *chain.first().ok_or(WriteError::NotFound("row"))?;
     if chain.len() > 2 {
-        return Err(UpdateError::Unsupported(
+        return Err(WriteError::Unsupported(
             "mutation of multi-hop overflow chain",
         ));
     }
@@ -63,7 +63,7 @@ pub(crate) fn replace(
             RowSlot::Link,
             budget,
         )? {
-            return Err(UpdateError::Unsupported(
+            return Err(WriteError::Unsupported(
                 "logical slot cannot hold overflow pointer",
             ));
         }
@@ -82,13 +82,13 @@ fn allocate(
     pages: &mut RowPages,
     edits: &mut PageEdits,
     budget: &mut ResourceBudget,
-) -> Result<RowLocator, UpdateError> {
+) -> Result<RowLocator, WriteError> {
     let owned =
         crate::alloc::mutation_map::MapBits::load(database, definition.maps().owned(), budget)?;
     let available =
         crate::alloc::mutation_map::MapBits::load(database, definition.maps().available(), budget)?;
     if owned.overlaps(&available, budget)? {
-        return Err(UpdateError::Mismatch("aliased table maps"));
+        return Err(WriteError::Mismatch("aliased table maps"));
     }
     let owned_pages = owned.existing_pages(database.geometry().page_count(), false, budget)?;
     let mut source = [0; PAGE_BYTES];
@@ -97,7 +97,7 @@ fn allocate(
             (owned_pages.len().max(1).ilog2() + 1) as u64 + chain.len() as u64,
         )?;
         if owned_pages.binary_search(&page).is_err() {
-            return Err(UpdateError::Mismatch("available page not owned"));
+            return Err(WriteError::Mismatch("available page not owned"));
         }
         if chain.iter().any(|row| row.page() == page) {
             continue;
@@ -125,7 +125,7 @@ fn allocate(
     if plan.page.get() < database.geometry().page_count() {
         edits.set_image(database, plan.page, plan.image, budget)?;
     } else if edits.append(plan.image, budget)? != plan.page {
-        return Err(UpdateError::Mismatch("overflow EOF placement"));
+        return Err(WriteError::Mismatch("overflow EOF placement"));
     }
     Ok(RowLocator::new(plan.page, 0))
 }

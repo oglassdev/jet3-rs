@@ -2,7 +2,7 @@ use super::insert_indexed_tests::*;
 use crate::{
     ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind,
     IndexNullPolicy, IndexSpec, PAGE_BYTES, ResourceBudget, ResourceLimits, RowDelete, RowUpdate,
-    RowValue, TableSpec, UpdateError, write::insert::*,
+    RowValue, TableSpec, WriteError, write::insert::*,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -262,7 +262,7 @@ fn numeric_overlapping_index_maps_and_free_index_pages_are_refused() -> TestResu
         .err()
         .ok_or("expected map failure")?;
         assert!(
-            matches!(error,UpdateError::Mismatch(detail) if detail==message),
+            matches!(error,WriteError::Mismatch(detail) if detail==message),
             "{error:?}"
         );
         assert_eq!(fs::read(f.path())?, bad);
@@ -297,7 +297,7 @@ fn numeric_late_counter_and_encoding_limits_preserve_the_entire_file() -> TestRe
     fs::write(f.path(), &exhausted)?;
     assert!(matches!(
         insert_row(f.path(), b"Rows", &values, &mut budget()),
-        Err(UpdateError::Unsupported("index counter overflow"))
+        Err(WriteError::Unsupported("index counter overflow"))
     ));
     assert_eq!(fs::read(f.path())?, exhausted);
     f.validate()

@@ -1,9 +1,10 @@
 //! Atomic publication of the bounded EXP-0118/0122 relationship construction.
 
 use super::{
-    api::{CreateDatabaseError, TableRows, write_pages},
+    api::{TableRows, write_pages},
     check::{ImageCheckError, check_initial_table_rows_from},
 };
+use crate::WriteError;
 use crate::{
     CatalogObjectClass, CatalogObjectKind, DatabaseReader, IndexColumnSpec, IndexDirection,
     IndexKind, IndexSpec, RelationshipSide, RelationshipSpec, ResourceBudget, TableSpec,
@@ -20,19 +21,19 @@ pub(super) fn create(
     tables: &[TableSpec<'_>],
     relationship: &RelationshipSpec<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), CreateDatabaseError> {
+) -> Result<(), WriteError> {
     let pages = compose_relationship(tables, relationship, budget)
-        .map_err(CreateDatabaseError::Compose)?
+        .map_err(WriteError::Compose)?
         .into_pages();
     budget
         .charge_work_units((pages.len() as u64).saturating_mul(crate::PAGE_BYTES as u64))
-        .map_err(|error| CreateDatabaseError::Compose(ComposeError::Encoding(error)))?;
+        .map_err(|error| WriteError::Compose(ComposeError::Encoding(error)))?;
     atomic_create(
         path,
         |file| write_pages(file, &pages),
         |candidate| check_relationship_image(candidate, tables, relationship, &pages, budget),
     )
-    .map_err(CreateDatabaseError::Publish)
+    .map_err(WriteError::CreatePublish)
 }
 
 pub(super) fn create_with_rows(
@@ -40,21 +41,19 @@ pub(super) fn create_with_rows(
     requests: &[TableRows<'_>],
     relationship: &RelationshipSpec<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), CreateDatabaseError> {
+) -> Result<(), WriteError> {
     let [parent, child] = requests else {
-        return Err(CreateDatabaseError::Compose(
-            ComposeError::UnsupportedRelationship {
-                detail: "exactly two tables required",
-            },
-        ));
+        return Err(WriteError::Compose(ComposeError::UnsupportedRelationship {
+            detail: "exactly two tables required",
+        }));
     };
     let tables = [parent.table, child.table];
     let pages = compose_relationship_with_rows(requests, relationship, budget)
-        .map_err(CreateDatabaseError::Compose)?
+        .map_err(WriteError::Compose)?
         .into_pages();
     budget
         .charge_work_units((pages.len() as u64).saturating_mul(crate::PAGE_BYTES as u64))
-        .map_err(|error| CreateDatabaseError::Compose(error.into()))?;
+        .map_err(|error| WriteError::Compose(error.into()))?;
     atomic_create(
         path,
         |file| write_pages(file, &pages),
@@ -69,7 +68,7 @@ pub(super) fn create_with_rows(
             )
         },
     )
-    .map_err(CreateDatabaseError::Publish)
+    .map_err(WriteError::CreatePublish)
 }
 
 pub(super) fn check_relationship_image(

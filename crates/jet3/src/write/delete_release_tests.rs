@@ -1,7 +1,7 @@
 use super::delete_tests::*;
 use crate::{
     ByteCount, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PageNumber, PublishStage,
-    ResourceBudget, ResourceLimits, RowValue, TableSpec, UpdateError, write::delete::*,
+    ResourceBudget, ResourceLimits, RowValue, TableSpec, WriteError, write::delete::*,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -147,7 +147,7 @@ fn release_budget_and_private_verification_failures_preserve_original() -> Resul
             },
         );
         assert!(
-            matches!(result,Err(UpdateError::Publish(e)) if e.stage()==PublishStage::Validation)
+            matches!(result,Err(WriteError::Publish(e)) if e.stage()==PublishStage::Validation)
         );
         assert_eq!(fs::read(f.path())?, before);
         f.clean()?;

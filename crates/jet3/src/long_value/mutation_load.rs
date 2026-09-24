@@ -4,7 +4,7 @@ use super::mutation::{LongValues, OWNER, PayloadPage};
 use crate::{
     ColumnOrdinal, DatabaseReader, FileSource, LongValue, LongValueReference, MapRowLocator,
     PAGE_BYTES, PageImage, PageNumber, ResourceBudget, RowLocator, TableDefinition, TextCodePage,
-    UpdateError, ValueKind, alloc::mutation_map::MapBits, write::page_edits::reserve,
+    ValueKind, WriteError, alloc::mutation_map::MapBits, write::page_edits::reserve,
 };
 
 pub(super) fn load(
@@ -12,7 +12,7 @@ pub(super) fn load(
     table: &TableDefinition,
     selected: Option<(RowLocator, Option<&[ColumnOrdinal]>)>,
     budget: &mut ResourceBudget,
-) -> Result<LongValues, UpdateError> {
+) -> Result<LongValues, WriteError> {
     let mut result = LongValues {
         maps: Vec::new(),
         pages: Vec::new(),
@@ -34,7 +34,7 @@ pub(super) fn load(
         for locator in [map.owned(), map.available()] {
             budget.charge_work_units(map_locators.len() as u64)?;
             if locator == global_locator || map_locators.contains(&locator) {
-                return Err(UpdateError::Mismatch("aliased long-value allocation map"));
+                return Err(WriteError::Mismatch("aliased long-value allocation map"));
             }
             map_locators.push(locator);
         }
@@ -43,12 +43,12 @@ pub(super) fn load(
         let owned_pages = owned.existing_pages(result.first_append, false, budget)?;
         for page in available.existing_pages(result.first_append, false, budget)? {
             if !owned.contains(page)? {
-                return Err(UpdateError::Mismatch("available long-value page not owned"));
+                return Err(WriteError::Mismatch("available long-value page not owned"));
             }
         }
         for page in owned_pages {
             if global.contains(page)? {
-                return Err(UpdateError::Mismatch(
+                return Err(WriteError::Mismatch(
                     "owned long-value page is globally free",
                 ));
             }
@@ -104,7 +104,7 @@ pub(super) fn load(
         .windows(2)
         .any(|pair| pair[0].page == pair[1].page)
     {
-        return Err(UpdateError::Mismatch(
+        return Err(WriteError::Mismatch(
             "overlapping long-value page ownership",
         ));
     }
@@ -115,7 +115,7 @@ pub(super) fn load(
             .binary_search_by_key(&locator.page(), |p| p.page)
             .is_ok()
         {
-            return Err(UpdateError::Mismatch(
+            return Err(WriteError::Mismatch(
                 "long-value map page contains payload fragments",
             ));
         }
@@ -131,9 +131,9 @@ fn live_slots(
     owned: bool,
     reserved_empty: bool,
     budget: &mut ResourceBudget,
-) -> Result<[u64; 4], UpdateError> {
+) -> Result<[u64; 4], WriteError> {
     if image[1] != 1 || (owned && image[0] != 1) {
-        return Err(UpdateError::Mismatch("owned long-value page kind"));
+        return Err(WriteError::Mismatch("owned long-value page kind"));
     }
     let directory = crate::row::directory::RowDirectory::validate(page, OWNER, image, budget)?;
     let count = directory.row_count();
@@ -142,12 +142,12 @@ fn live_slots(
         if reserved_empty && image[2..4] == ((PAGE_BYTES - 10) as u16).to_le_bytes() {
             return Ok([0; 4]);
         }
-        return Err(UpdateError::Mismatch("empty long-value directory"));
+        return Err(WriteError::Mismatch("empty long-value directory"));
     }
     let lowest = directory.entry(image, (count - 1) as u8)?.range().start;
     if usize::from(u16::from_le_bytes([image[2], image[3]])) != lowest - 10 - 2 * usize::from(count)
     {
-        return Err(UpdateError::Mismatch("long-value free-byte count"));
+        return Err(WriteError::Mismatch("long-value free-byte count"));
     }
     let mut live = [0; 4];
     budget.charge_items(u64::from(count))?;
@@ -157,12 +157,12 @@ fn live_slots(
             continue;
         }
         if entry.hidden() || entry.overflow() || entry.range().is_empty() || image[0] != 1 {
-            return Err(UpdateError::Unsupported("long-value directory flags"));
+            return Err(WriteError::Unsupported("long-value directory flags"));
         }
         live[usize::from(slot) / 64] |= 1 << (slot % 64);
     }
     if owned && live == [0; 4] {
-        return Err(UpdateError::Mismatch(
+        return Err(WriteError::Mismatch(
             "owned long-value page has no live fragments",
         ));
     }
@@ -175,7 +175,7 @@ fn exclude_other_ownership(
     target_maps: &[MapRowLocator],
     payloads: &[PayloadPage],
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let mut roots = Vec::new();
     {
         let mut catalog = database.catalog(budget)?;
@@ -211,7 +211,7 @@ fn exclude_other_ownership(
                 target_maps.len() as u64 + (payloads.len().max(1).ilog2() + 1) as u64,
             )?;
             if target_maps.contains(&locator) {
-                return Err(UpdateError::Mismatch(
+                return Err(WriteError::Mismatch(
                     "long-value map aliases another object map",
                 ));
             }
@@ -219,7 +219,7 @@ fn exclude_other_ownership(
                 .binary_search_by_key(&locator.page(), |p| p.page)
                 .is_ok()
             {
-                return Err(UpdateError::Mismatch(
+                return Err(WriteError::Mismatch(
                     "object map page contains long-value fragments",
                 ));
             }
@@ -227,7 +227,7 @@ fn exclude_other_ownership(
             for page in map.existing_pages(database.geometry().page_count(), false, budget)? {
                 budget.charge_work_units((payloads.len().max(1).ilog2() + 1) as u64)?;
                 if payloads.binary_search_by_key(&page, |p| p.page).is_ok() {
-                    return Err(UpdateError::Mismatch(
+                    return Err(WriteError::Mismatch(
                         "long-value page belongs to another object",
                     ));
                 }
@@ -243,7 +243,7 @@ fn references(
     selected: Option<(RowLocator, Option<&[ColumnOrdinal]>)>,
     result: &mut LongValues,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let mut pending: Vec<(usize, LongValueReference)> = Vec::new();
     reserve(&mut pending, result.maps.len(), budget)?;
     let mut cursor = database.rows(table, budget)?;
@@ -264,7 +264,7 @@ fn references(
                 .unwrap_or(TextCodePage::Windows1252);
             let value = row
                 .value(map.column(), page)?
-                .ok_or(UpdateError::NotFound("long-value field"))?;
+                .ok_or(WriteError::NotFound("long-value field"))?;
             if let ValueKind::LongValue(LongValue::External(reference)) = value.kind() {
                 pending.push((column, *reference));
             }
@@ -282,12 +282,10 @@ fn references(
                 let index = result
                     .pages
                     .binary_search_by_key(&locator.page(), |p| p.page)
-                    .map_err(|_| {
-                        UpdateError::Mismatch("long-value reference outside column map")
-                    })?;
+                    .map_err(|_| WriteError::Mismatch("long-value reference outside column map"))?;
                 let page = &mut result.pages[index];
                 if page.column != Some(column) {
-                    return Err(UpdateError::Mismatch(
+                    return Err(WriteError::Mismatch(
                         "long-value reference has wrong column owner",
                     ));
                 }
@@ -295,7 +293,7 @@ fn references(
                     .storage
                     .is_some_and(|storage| storage != reference.storage())
                 {
-                    return Err(UpdateError::Unsupported(
+                    return Err(WriteError::Unsupported(
                         "mixed single and chained fragment page",
                     ));
                 }
@@ -303,7 +301,7 @@ fn references(
                 let word = usize::from(locator.slot()) / 64;
                 let mask = 1 << (locator.slot() % 64);
                 if page.seen[word] & mask != 0 {
-                    return Err(UpdateError::Mismatch("aliased long-value fragment"));
+                    return Err(WriteError::Mismatch("aliased long-value fragment"));
                 }
                 page.seen[word] |= mask;
                 if remove_row
@@ -318,11 +316,11 @@ fn references(
         }
         count = count
             .checked_add(1)
-            .ok_or(UpdateError::Mismatch("table row count overflow"))?;
+            .ok_or(WriteError::Mismatch("table row count overflow"))?;
     }
     drop(cursor);
     if count != table.row_count() {
-        return Err(UpdateError::Mismatch("table row count"));
+        return Err(WriteError::Mismatch("table row count"));
     }
     for page in &result.pages {
         if page.column.is_some()
@@ -337,7 +335,7 @@ fn references(
                     budget,
                 )?
         {
-            return Err(UpdateError::Mismatch(
+            return Err(WriteError::Mismatch(
                 "unreferenced live long-value fragment",
             ));
         }

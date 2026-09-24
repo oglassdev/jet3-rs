@@ -1,8 +1,9 @@
 use super::initial_rows_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexDirection, IndexKind,
     IndexSpec, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec,
-    create::{api::CreateDatabaseError, api_tests::*, check::ImageCheckError},
+    create::{api_tests::*, check::ImageCheckError},
     create_database,
 };
 use std::fs;
@@ -95,7 +96,7 @@ fn autoincrement_invalid_values_and_types_leave_no_file() -> TestResult {
                 },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(
+            Err(WriteError::Compose(
                 ComposeError::InitialAutoIncrement { .. }
             ))
         ));
@@ -238,7 +239,7 @@ fn autoincrement_budget_and_existing_destination_are_preserved() -> TestResult {
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Publish(_))
+        Err(WriteError::CreatePublish(_))
     ));
     assert_eq!(fs::read(directory.target())?, b"original");
     Ok(())

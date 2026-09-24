@@ -1,7 +1,7 @@
 //! Existing-database table creation using EXP-0073/0087 catalogs and EXP-0059/0077 definitions.
 use crate::{
     ByteCount, DatabaseReader, FileSource, LongValueMapSpec, PAGE_BYTES, PageImage, ResourceBudget,
-    RowValue, TableDefinitionKind, TableDefinitionSpec, TableSpec, UpdateError,
+    RowValue, TableDefinitionKind, TableDefinitionSpec, TableSpec, WriteError,
     catalog::system_rows::{AceRow, ObjectRow},
     write::page_edits::{PageEdits, reserve},
 };
@@ -12,7 +12,7 @@ pub(crate) fn create(
     journal: &mut PageEdits,
     spec: TableSpec<'_>,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     let (root, parent, order) =
         crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let order = database.header().sort_order();
@@ -38,7 +38,7 @@ pub(crate) fn create(
                         )
                 })
             {
-                return Err(UpdateError::Unsupported("column options"));
+                return Err(WriteError::Unsupported("column options"));
             }
             let parent = validate_name(database, spec.name, None, budget)?;
             let mut edits = PageEdits::new(database.geometry().page_count());
@@ -83,7 +83,7 @@ pub(crate) fn create(
                 &mut bytes,
                 order
                     .encoding_context()
-                    .ok_or(UpdateError::Unsupported("column encoding context"))?,
+                    .ok_or(WriteError::Unsupported("column encoding context"))?,
                 budget,
             )?;
             crate::schema::definition::stage_bytes(database, &[root], &bytes, &mut edits, budget)?;
@@ -102,7 +102,7 @@ pub(crate) fn create(
         description.encode(&mut properties, budget)?;
     }
     let id =
-        i32::try_from(root.get()).map_err(|_| UpdateError::Unsupported("table object identity"))?;
+        i32::try_from(root.get()).map_err(|_| WriteError::Unsupported("table object identity"))?;
     let property = if properties.is_empty() {
         RowValue::Null
     } else {
@@ -138,11 +138,11 @@ pub(crate) fn insert(
     name: &[u8],
     assigned: &[(&[u8], RowValue<'_>)],
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let table = crate::schema::catalog::table(database, name, budget)?;
         if table.columns().len() > 255 {
-            return Err(UpdateError::Unsupported("system column count"));
+            return Err(WriteError::Unsupported("system column count"));
         }
         let mut values = [RowValue::Null; 255];
         for &(name, value) in assigned {
@@ -166,7 +166,7 @@ pub(crate) fn validate_name(
     name: &[u8],
     except: Option<crate::PageNumber>,
     budget: &mut ResourceBudget,
-) -> Result<i32, UpdateError> {
+) -> Result<i32, WriteError> {
     let order = database.header().sort_order();
     crate::schema::edit::name(order, name, 64)?;
     let parent = {
@@ -177,7 +177,7 @@ pub(crate) fn validate_name(
                 parent = Some(record.id().get() as i32);
             }
         }
-        parent.ok_or(UpdateError::NotFound("Tables container"))?
+        parent.ok_or(WriteError::NotFound("Tables container"))?
     };
     let catalog = crate::schema::catalog::table(database, b"MSysObjects", budget)?;
     let parent_column = crate::schema::catalog::column(&catalog, b"ParentId")?;
@@ -197,9 +197,9 @@ pub(crate) fn validate_name(
         let existing = row
             .field(name_column)
             .and_then(|f| f.raw_bytes())
-            .ok_or(UpdateError::Mismatch("catalog name"))?;
+            .ok_or(WriteError::Mismatch("catalog name"))?;
         if existing.len() > saved.len() {
-            return Err(UpdateError::Mismatch("catalog name length"));
+            return Err(WriteError::Mismatch("catalog name length"));
         }
         let length = existing.len();
         saved[..length].copy_from_slice(existing);

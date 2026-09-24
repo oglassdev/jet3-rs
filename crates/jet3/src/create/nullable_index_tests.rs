@@ -1,10 +1,9 @@
 use super::initial_index_tests::*;
+use crate::WriteError;
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexColumnSpec,
     IndexDirection, IndexKind, IndexNullPolicy, IndexSpec, PageNumber, ResourceBudget,
-    ResourceLimits, RowValue, TableRows, TableSpec,
-    create::{api::CreateDatabaseError, api_tests::*},
-    create_database,
+    ResourceLimits, RowValue, TableRows, TableSpec, create::api_tests::*, create_database,
 };
 use std::fs;
 
@@ -172,9 +171,9 @@ fn required_null_and_present_duplicate_refusals_preserve_destination() -> TestRe
                 },
                 &mut budget()
             ),
-            Err(CreateDatabaseError::Compose(
-                ComposeError::NullInitialIndexKey { row: 0 }
-            ))
+            Err(WriteError::Compose(ComposeError::NullInitialIndexKey {
+                row: 0
+            }))
         ));
         assert_eq!(fs::read(directory.target())?, b"preserve");
     }
@@ -202,7 +201,7 @@ fn required_null_and_present_duplicate_refusals_preserve_destination() -> TestRe
             },
             &mut budget()
         ),
-        Err(CreateDatabaseError::Compose(
+        Err(WriteError::Compose(
             ComposeError::DuplicateInitialCompositeIndexKey { values: [1, 2] }
         ))
     ));

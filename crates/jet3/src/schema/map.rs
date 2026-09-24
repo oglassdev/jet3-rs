@@ -1,7 +1,7 @@
 //! New usage-map rows using EXP-0057/0254 inline and indirect layouts.
 use crate::{
     ByteCount, DataPageBuilder, DatabaseReader, ExtendedUsageMapEncoder, FileSource,
-    InlineUsageMapEncoder, MapRowLocator, PageNumber, ResourceBudget, UpdateError,
+    InlineUsageMapEncoder, MapRowLocator, PageNumber, ResourceBudget, WriteError,
     row::{data_page::DataPageEditor, delete_page::Deletion},
     schema::definition::allocate,
     write::page_edits::PageEdits,
@@ -12,7 +12,7 @@ pub(crate) fn create(
     edits: &mut PageEdits,
     members: &[PageNumber],
     budget: &mut ResourceBudget,
-) -> Result<MapRowLocator, UpdateError> {
+) -> Result<MapRowLocator, WriteError> {
     budget.charge_items(members.len() as u64)?;
     let highest = members.iter().map(|page| page.get()).max().unwrap_or(0);
     let mut row = [0; 133];
@@ -25,7 +25,7 @@ pub(crate) fn create(
     } else {
         let count = highest / crate::EXTENDED_BITMAP_BITS + 1;
         if count > crate::alloc::usage_map_writer::INDIRECT_REFERENCE_SLOTS as u64 {
-            return Err(UpdateError::Unsupported(
+            return Err(WriteError::Unsupported(
                 "indirect allocation reference capacity",
             ));
         }
@@ -46,7 +46,7 @@ pub(crate) fn create(
     let mut builder = DataPageBuilder::new(PageNumber::new(0), budget)?;
     builder.append_row(&row, budget)?;
     let free = u16::try_from(builder.free_bytes().get())
-        .map_err(|_| UpdateError::Mismatch("usage-map free bytes"))?;
+        .map_err(|_| WriteError::Mismatch("usage-map free bytes"))?;
     let mut image = builder.finish();
     image.write_at(crate::PageOffset::new(2), &free.to_le_bytes(), budget)?;
     let page = allocate(database, edits, image, budget)?;
@@ -59,14 +59,14 @@ pub(crate) fn retire(
     journal: &mut PageEdits,
     locator: MapRowLocator,
     budget: &mut ResourceBudget,
-) -> Result<(), UpdateError> {
+) -> Result<(), WriteError> {
     crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let removed = crate::alloc::mutation_map::MapBits::load(database, locator, budget)?;
         if !removed
             .existing_pages(database.geometry().page_count(), false, budget)?
             .is_empty()
         {
-            return Err(UpdateError::Mismatch("retired map still owns content"));
+            return Err(WriteError::Mismatch("retired map still owns content"));
         }
         let global = crate::alloc::mutation_map::MapBits::load(
             database,
@@ -74,7 +74,7 @@ pub(crate) fn retire(
             budget,
         )?;
         if removed.locator == global.locator || removed.overlaps(&global, budget)? {
-            return Err(UpdateError::Mismatch("retired map aliases allocation"));
+            return Err(WriteError::Mismatch("retired map aliases allocation"));
         }
         let mut roots = Vec::new();
         {
@@ -91,7 +91,7 @@ pub(crate) fn retire(
             for other in crate::schema::storage::locators(&table, budget)? {
                 let other = crate::alloc::mutation_map::MapBits::load(database, other, budget)?;
                 if other.locator == removed.locator || other.overlaps(&removed, budget)? {
-                    return Err(UpdateError::Mismatch("retired map remains referenced"));
+                    return Err(WriteError::Mismatch("retired map remains referenced"));
                 }
             }
         }

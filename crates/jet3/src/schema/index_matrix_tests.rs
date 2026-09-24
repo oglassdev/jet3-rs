@@ -42,7 +42,7 @@ fn create(
     kind: IndexKind,
     column: u16,
     rows: &[&[RowValue<'_>]],
-) -> Result<(), CreateDatabaseError> {
+) -> Result<(), WriteError> {
     let indexes = [IndexSpec {
         name: b"Key",
         kind,
@@ -66,7 +66,7 @@ fn create(
     )
 }
 
-fn replace(path: &std::path::Path, kind: IndexKind, column: u16) -> Result<(), UpdateError> {
+fn replace(path: &std::path::Path, kind: IndexKind, column: u16) -> Result<(), WriteError> {
     edit_schema(
         path,
         SchemaEdit::ReplaceIndex {

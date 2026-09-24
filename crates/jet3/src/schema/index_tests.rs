@@ -30,7 +30,7 @@ impl Fixture {
     pub(super) fn path(&self) -> PathBuf {
         self.0.join("source.mdb")
     }
-    pub(super) fn table(&self) -> Result<TableDefinition, UpdateError> {
+    pub(super) fn table(&self) -> Result<TableDefinition, WriteError> {
         let mut budget = budget();
         let mut database = DatabaseReader::open(self.path(), &mut budget)?;
         crate::write::update::indexed_writable_table(&mut database, b"Items", &mut budget)
@@ -40,7 +40,7 @@ impl Fixture {
         name: &[u8],
         kind: IndexKind,
         direction: IndexDirection,
-    ) -> Result<(), UpdateError> {
+    ) -> Result<(), WriteError> {
         edit_schema(
             self.path(),
             SchemaEdit::CreateIndex {
@@ -57,7 +57,7 @@ impl Fixture {
             &mut budget(),
         )
     }
-    pub(super) fn drop_index(&self, index: &[u8]) -> Result<(), UpdateError> {
+    pub(super) fn drop_index(&self, index: &[u8]) -> Result<(), WriteError> {
         edit_schema(
             self.path(),
             SchemaEdit::DropIndex {
