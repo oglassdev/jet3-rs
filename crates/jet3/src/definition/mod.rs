@@ -1,3 +1,5 @@
+//! Table definitions: header layout, column and index records, map locators, and their encoders.
+
 pub(crate) mod column;
 pub(crate) mod column_writer;
 pub(crate) mod header;

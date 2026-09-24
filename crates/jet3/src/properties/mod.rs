@@ -1,3 +1,5 @@
+//! Catalog `LvProp` property blobs and the column and table properties they carry.
+
 pub(crate) mod blob;
 #[cfg(test)]
 mod blob_tests;

@@ -1,3 +1,5 @@
+//! Schema edits to existing databases.
+
 pub(crate) mod catalog;
 pub(crate) mod column;
 pub(crate) mod column_create;

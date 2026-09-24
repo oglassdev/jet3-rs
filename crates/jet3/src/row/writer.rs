@@ -1,5 +1,5 @@
 //! Checked encoder for one logical Jet 3 data row, the inverse of the layout
-//! validated by `row.rs` (`EXP-0060/0172/0257/0258/0297`) with scalars of `EXP-0061`.
+//! validated by `row::reader` (`EXP-0060/0172/0257/0258/0297`) with scalars of `EXP-0061`.
 //!
 //! Memo and OLE values are supplied as already-encoded long-value bytes
 //! (12-byte header plus any inline payload); writing external LVAL pages is a

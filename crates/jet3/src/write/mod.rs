@@ -1,3 +1,5 @@
+//! Row writes to existing databases and their atomic, page-exact publication.
+
 pub(crate) mod atomic;
 #[cfg(all(test, any(unix, windows)))]
 mod atomic_tests;

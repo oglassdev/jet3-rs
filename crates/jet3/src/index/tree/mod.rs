@@ -1,3 +1,5 @@
+//! Index tree pages: traversal, row references and bulk building.
+
 pub(crate) mod builder;
 #[cfg(test)]
 mod builder_tests;

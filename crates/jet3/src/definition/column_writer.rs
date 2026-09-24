@@ -1,6 +1,6 @@
 //! Checked encoders for the fixed-size column and index records inside a Jet 3
-//! table definition: the inverse of `column_definition.rs`,
-//! `physical_index_definition.rs`, and `index_definition.rs`.
+//! table definition: the inverse of `definition::column`,
+//! `definition::physical_index`, and `definition::index`.
 //!
 //! User record layouts come from `EXP-0059`, system distinctions from
 //! `EXP-0073`, and relationship cascade bytes from `EXP-0062`. Names are raw

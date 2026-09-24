@@ -1,3 +1,5 @@
+//! The `MSysObjects` catalog: records, name keys and streaming discovery.
+
 pub(crate) mod cursor;
 #[cfg(test)]
 mod cursor_tests;

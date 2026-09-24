@@ -1,3 +1,5 @@
+//! Memo and OLE long values: streaming reads, payload encoding and mutation.
+
 pub(crate) mod mutation;
 #[cfg(all(test, any(unix, windows)))]
 mod mutation_empty_tests;

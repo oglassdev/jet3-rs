@@ -1,3 +1,5 @@
+//! Index key encoders for scalar, text, locale-text and binary components.
+
 pub(crate) mod binary;
 pub(crate) mod locale_text;
 #[cfg(test)]

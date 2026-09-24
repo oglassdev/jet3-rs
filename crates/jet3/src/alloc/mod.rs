@@ -1,3 +1,5 @@
+//! Allocation and usage maps: decoding, traversal, encoding and mutable bitmaps.
+
 pub(crate) mod map;
 #[cfg(test)]
 mod map_tests;

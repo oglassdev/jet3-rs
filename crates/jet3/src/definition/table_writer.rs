@@ -1,5 +1,5 @@
 //! Checked encoder for the logical bytes of a Jet 3 table definition, the
-//! inverse of `table_definition.rs` (`EXP-0059`, `EXP-0073`, `EXP-0077`).
+//! inverse of `definition::table` (`EXP-0059`, `EXP-0073`, `EXP-0077`).
 //!
 //! The output is the contiguous logical definition that `EXP-0059` describes:
 //! root bytes `[0,2048)` plus continuation payloads. Splitting a definition

@@ -1,3 +1,5 @@
+//! Byte-level primitives: checked binary access, page geometry and images, the file header, sources and resource limits.
+
 pub(crate) mod binary;
 pub(crate) mod binary_writer;
 #[cfg(test)]

@@ -1,5 +1,5 @@
 //! Encoders for Jet 3 long-value headers and `LVAL` payload rows, the inverse
-//! of `long_value.rs` (`EXP-0061`).
+//! of `long_value::reader` (`EXP-0061`).
 //!
 //! `EXP-0061` observed a 12-byte header whose first little-endian `u32` holds
 //! the 24-bit payload length and exactly one storage flag; inline headers

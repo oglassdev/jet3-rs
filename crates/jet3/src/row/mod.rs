@@ -1,3 +1,5 @@
+//! Data rows: directories, the row codec and layouts, and page-level row edits.
+
 pub(crate) mod delete_page;
 pub(crate) mod directory;
 #[cfg(test)]

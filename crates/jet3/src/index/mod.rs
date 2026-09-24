@@ -1,3 +1,5 @@
+//! Index trees, key encoders and index mutation.
+
 pub(crate) mod entry;
 #[cfg(test)]
 mod entry_tests;

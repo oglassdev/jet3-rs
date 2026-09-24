@@ -1,3 +1,5 @@
+//! Relationships: catalog records, key comparison, integrity checks and cascades.
+
 pub(crate) mod cascade;
 mod cascade_publish;
 mod cascade_rows;
