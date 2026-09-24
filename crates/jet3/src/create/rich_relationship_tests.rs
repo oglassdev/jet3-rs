@@ -105,14 +105,7 @@ fn rich_relationship_rows_keep_primary_null_keys_payloads_and_generated_ids() ->
                 rows: &rows,
             },
         ];
-        create_spec(
-            directory.target(),
-            &crate::DatabaseSpec {
-                tables: &requests,
-                relationships: std::slice::from_ref(&RELATION),
-                relationship_layout: crate::RelationshipLayout::SingleLong,
-            },
-        )?;
+        create_spec(directory.target(), &single(&requests, &RELATION))?;
         let mut operation = budget();
         let mut reader = DatabaseReader::open(directory.target(), &mut operation)?;
         let parent = reader.table_definition(PageNumber::new(20), &mut operation)?;
@@ -243,21 +236,13 @@ fn parent_relationship_record_at_definition_boundary_keeps_external_payload_star
                 &[b".rB".as_slice()],
                 parent.indexes.len(),
                 crate::SortOrder::General,
-                &mut crate::ResourceBudget::new(crate::ResourceLimits::default()),
+                &mut budget(),
             )?;
             if plan.definition_len() != 2048 {
                 continue;
             }
-            assert!(
-                plan_table_schema(
-                    &parent,
-                    20,
-                    true,
-                    &mut crate::ResourceBudget::new(crate::ResourceLimits::default())
-                )?
-                .continuation_page()
-                .is_none()
-            );
+            let plain = plan_table_schema(&parent, 20, true, &mut budget())?;
+            assert!(plain.continuation_page().is_none());
             assert!(plan.continuation_page().is_some());
             let payload = vec![b'p'; 4096];
             let mut values = vec![RowValue::Long(1), RowValue::Memo(&payload)];
@@ -268,23 +253,17 @@ fn parent_relationship_record_at_definition_boundary_keeps_external_payload_star
             ];
             let child = table(b"Child", &child_columns, PRIMARY);
             let directory = TempDir::new("create")?;
-            create_spec(
-                directory.target(),
-                &crate::DatabaseSpec {
-                    tables: &[
-                        TableRows {
-                            table: parent,
-                            rows: &[&values],
-                        },
-                        TableRows {
-                            table: child,
-                            rows: &[&[RowValue::Long(1), RowValue::Long(1)]],
-                        },
-                    ],
-                    relationships: std::slice::from_ref(&RELATION),
-                    relationship_layout: crate::RelationshipLayout::SingleLong,
+            let requests = [
+                TableRows {
+                    table: parent,
+                    rows: &[&values],
                 },
-            )?;
+                TableRows {
+                    table: child,
+                    rows: &[&[RowValue::Long(1), RowValue::Long(1)]],
+                },
+            ];
+            create_spec(directory.target(), &single(&requests, &RELATION))?;
             let raw = fs::read(directory.target())?;
             let continuation = plan.continuation_page().ok_or("continuation")?.get() as usize;
             assert_eq!(
@@ -314,8 +293,6 @@ fn relationship_names_cannot_replace_declared_primary_indexes() -> TestResult {
             table(b"Child", &child_columns, PRIMARY),
         ];
         let relation = crate::RelationshipSpec {
-            cascade_updates: false,
-            cascade_deletes: false,
             name: if parent_name == b".rB" {
                 b"ParentChild"
             } else {
@@ -327,11 +304,7 @@ fn relationship_names_cannot_replace_declared_primary_indexes() -> TestResult {
         assert!(matches!(
             create_spec(
                 directory.target(),
-                &crate::DatabaseSpec {
-                    tables: &tables.map(crate::TableRows::empty),
-                    relationships: std::slice::from_ref(&relation),
-                    relationship_layout: crate::RelationshipLayout::SingleLong
-                }
+                &single(&tables.map(TableRows::empty), &relation)
             ),
             Err(WriteError::Compose(ComposeError::Schema(_)))
         ));

@@ -1,4 +1,5 @@
 use super::index_tests::*;
+use super::relationship_form_tests::{edit, refused, verified, writable};
 use crate::testkit::index;
 use crate::testkit::table;
 use crate::*;
@@ -17,8 +18,8 @@ fn relationship_lifecycle_shares_indexes_preserves_rows_and_drops_with_child() -
                 IndexDirection::Ascending
             },
         )?;
-        edit_schema(
-            fixture.path(),
+        edit(
+            &fixture,
             SchemaEdit::CreateTable {
                 table: table(
                     b"Children",
@@ -33,7 +34,6 @@ fn relationship_lifecycle_shares_indexes_preserves_rows_and_drops_with_child() -
                     )],
                 ),
             },
-            &mut budget(),
         )?;
         insert_row(
             fixture.path(),
@@ -55,59 +55,36 @@ fn relationship_lifecycle_shares_indexes_preserves_rows_and_drops_with_child() -
             cascade_updates: false,
             cascade_deletes: false,
         };
-        edit_schema(
-            fixture.path(),
+        edit(
+            &fixture,
             SchemaEdit::CreateRelationship { relationship: spec },
-            &mut budget(),
         )?;
-        let mut b = budget();
-        let mut database = DatabaseReader::open(fixture.path(), &mut b)?;
-        assert_eq!(
-            crate::relationship::catalog::validate(&mut database, &mut b)?.verified,
-            1
-        );
-        let child =
-            crate::write::update::indexed_writable_table(&mut database, b"Children", &mut b)?;
+        assert_eq!(verified(&fixture)?, 1);
+        let child = writable(&fixture, b"Children")?;
         assert_eq!(child.physical_indexes().len(), 1);
-        edit_schema(
-            fixture.path(),
+        edit(
+            &fixture,
             SchemaEdit::DropIndex {
                 table: b"Children",
                 index: b"ExistingForeign",
             },
-            &mut budget(),
         )?;
-        let mut database = DatabaseReader::open(fixture.path(), &mut b)?;
-        let retained =
-            crate::write::update::indexed_writable_table(&mut database, b"Children", &mut b)?;
+        let retained = writable(&fixture, b"Children")?;
         assert_eq!(retained.physical_indexes(), child.physical_indexes());
         assert_eq!(retained.indexes().len(), 1);
-        let before = fs::read(fixture.path())?;
-        assert!(
-            edit_schema(
-                fixture.path(),
-                SchemaEdit::DropTable { table: b"Items" },
-                &mut budget()
-            )
-            .is_err()
-        );
-        assert!(
-            edit_schema(
-                fixture.path(),
-                SchemaEdit::ReplaceRelationship {
-                    name: b"Related",
-                    relationship: RelationshipSpec {
-                        child: TableRef::Name(b"Missing"),
-                        ..spec
-                    }
+        refused(&fixture, SchemaEdit::DropTable { table: b"Items" })?;
+        refused(
+            &fixture,
+            SchemaEdit::ReplaceRelationship {
+                name: b"Related",
+                relationship: RelationshipSpec {
+                    child: TableRef::Name(b"Missing"),
+                    ..spec
                 },
-                &mut budget()
-            )
-            .is_err()
-        );
-        assert_eq!(fs::read(fixture.path())?, before);
-        edit_schema(
-            fixture.path(),
+            },
+        )?;
+        edit(
+            &fixture,
             SchemaEdit::ReplaceRelationship {
                 name: b"Related",
                 relationship: RelationshipSpec {
@@ -117,39 +94,26 @@ fn relationship_lifecycle_shares_indexes_preserves_rows_and_drops_with_child() -
                     ..spec
                 },
             },
-            &mut budget(),
         )?;
         vary_parent_spelling(&fixture)?;
-        edit_schema(
-            fixture.path(),
+        edit(
+            &fixture,
             SchemaEdit::RenameColumn {
                 table: b"Items",
                 column: b"Id",
                 name: b"ParentId",
             },
-            &mut budget(),
         )?;
-        edit_schema(
-            fixture.path(),
+        edit(
+            &fixture,
             SchemaEdit::RenameTable {
                 table: b"Items",
                 name: b"Parents",
             },
-            &mut budget(),
         )?;
-        edit_schema(
-            fixture.path(),
-            SchemaEdit::DropTable { table: b"Children" },
-            &mut budget(),
-        )?;
-        let mut b = budget();
-        let mut database = DatabaseReader::open(fixture.path(), &mut b)?;
-        assert_eq!(
-            crate::relationship::catalog::validate(&mut database, &mut b)?.verified,
-            0
-        );
-        let parent =
-            crate::write::update::indexed_writable_table(&mut database, b"Parents", &mut b)?;
+        edit(&fixture, SchemaEdit::DropTable { table: b"Children" })?;
+        assert_eq!(verified(&fixture)?, 0);
+        let parent = writable(&fixture, b"Parents")?;
         assert_eq!(parent.indexes().len(), 1);
         assert_eq!(parent.row_count(), 1);
     }
@@ -160,13 +124,12 @@ fn relationship_lifecycle_shares_indexes_preserves_rows_and_drops_with_child() -
 fn self_relationship_add_drop_and_orphan_refusal_are_atomic() -> TestResult {
     let fixture = Fixture::new(&[&[RowValue::Long(7), RowValue::Null]])?;
     fixture.create(b"PrimaryKey", IndexKind::Primary, IndexDirection::Ascending)?;
-    edit_schema(
-        fixture.path(),
+    edit(
+        &fixture,
         SchemaEdit::CreateColumn {
             table: b"Items",
             column: ColumnSpec::new(b"Parent", ColumnType::Long),
         },
-        &mut budget(),
     )?;
     let spec = RelationshipSpec {
         unique: false,
@@ -182,10 +145,9 @@ fn self_relationship_add_drop_and_orphan_refusal_are_atomic() -> TestResult {
         cascade_updates: true,
         cascade_deletes: true,
     };
-    edit_schema(
-        fixture.path(),
+    edit(
+        &fixture,
         SchemaEdit::CreateRelationship { relationship: spec },
-        &mut budget(),
     )?;
     let table = fixture.table()?;
     assert_eq!(table.indexes().len(), 3);
@@ -202,12 +164,11 @@ fn self_relationship_add_drop_and_orphan_refusal_are_atomic() -> TestResult {
         .is_err()
     );
     assert_eq!(fs::read(fixture.path())?, before);
-    edit_schema(
-        fixture.path(),
+    edit(
+        &fixture,
         SchemaEdit::DropRelationship {
             name: b"SelfParent",
         },
-        &mut budget(),
     )?;
     assert_eq!(fixture.table()?.indexes().len(), 1);
     insert_row(
@@ -216,16 +177,10 @@ fn self_relationship_add_drop_and_orphan_refusal_are_atomic() -> TestResult {
         &[RowValue::Long(8), RowValue::Null, RowValue::Long(99)],
         &mut budget(),
     )?;
-    let before = fs::read(fixture.path())?;
-    assert!(
-        edit_schema(
-            fixture.path(),
-            SchemaEdit::CreateRelationship { relationship: spec },
-            &mut budget()
-        )
-        .is_err()
-    );
-    assert_eq!(fs::read(fixture.path())?, before);
+    refused(
+        &fixture,
+        SchemaEdit::CreateRelationship { relationship: spec },
+    )?;
     Ok(())
 }
 
@@ -273,8 +228,8 @@ fn relationships_reuse_zero_logical_identity_after_index_drop() -> TestResult {
     fixture.create(b"Discard", IndexKind::Ordinary, IndexDirection::Ascending)?;
     fixture.create(b"Retain", IndexKind::Unique, IndexDirection::Ascending)?;
     fixture.drop_index(b"Discard")?;
-    edit_schema(
-        fixture.path(),
+    edit(
+        &fixture,
         SchemaEdit::CreateTable {
             table: table(
                 b"Child",
@@ -282,7 +237,6 @@ fn relationships_reuse_zero_logical_identity_after_index_drop() -> TestResult {
                 &[],
             ),
         },
-        &mut budget(),
     )?;
     let spec = RelationshipSpec {
         unique: false,
@@ -298,21 +252,16 @@ fn relationships_reuse_zero_logical_identity_after_index_drop() -> TestResult {
         cascade_updates: false,
         cascade_deletes: false,
     };
-    edit_schema(
-        fixture.path(),
+    edit(
+        &fixture,
         SchemaEdit::CreateRelationship { relationship: spec },
-        &mut budget(),
     )?;
     let parent = fixture.table()?;
     let relation = parent.relationships().next().ok_or("relation")?;
     assert_eq!(relation.name().raw_bytes(), b".r");
     assert_eq!(relation.raw_selector(), 0);
     assert_eq!(relation.raw_relation_ordinal(), 0);
-    edit_schema(
-        fixture.path(),
-        SchemaEdit::DropRelationship { name: b"Relation" },
-        &mut budget(),
-    )?;
+    edit(&fixture, SchemaEdit::DropRelationship { name: b"Relation" })?;
     assert_eq!(fixture.table()?.indexes()[0].name().raw_bytes(), b"Retain");
     Ok(())
 }

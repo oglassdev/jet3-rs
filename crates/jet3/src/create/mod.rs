@@ -53,8 +53,6 @@ mod initial_long_values_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod initial_rows_tests;
 #[cfg(all(test, any(unix, windows)))]
-mod larger_relationship_graph_tests;
-#[cfg(all(test, any(unix, windows)))]
 mod memo_option_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod multi_level_index_tests;

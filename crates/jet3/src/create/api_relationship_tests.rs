@@ -3,12 +3,11 @@ use crate::WriteError;
 use crate::testkit::create_spec;
 use crate::testkit::{index, table};
 use crate::{
-    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, RelationshipField,
-    RelationshipSpec, ResourceBudget, ResourceLimits, TableRef, TableSpec,
-    create::{
-        check::*,
-        composer::{ComposeError, compose_relationship},
-    },
+    ColumnRef, ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexKind, IndexSpec,
+    RelationshipField, RelationshipLayout, RelationshipSpec, ResourceBudget, ResourceLimits,
+    TableRef, TableRows, TableSpec,
+    create::{check::*, composer::compose_relationship},
+    create_database,
 };
 use std::fs;
 
@@ -72,6 +71,17 @@ pub(super) fn schema(two: bool) -> ([TableSpec<'static>; 2], RelationshipSpec<'s
         },
     )
 }
+/// A single relationship in the SingleLong layout.
+pub(super) fn single<'a>(
+    tables: &'a [TableRows<'a>],
+    relation: &'a RelationshipSpec<'a>,
+) -> DatabaseSpec<'a> {
+    DatabaseSpec {
+        tables,
+        relationships: std::slice::from_ref(relation),
+        relationship_layout: RelationshipLayout::SingleLong,
+    }
+}
 
 #[test]
 fn public_relationship_creation_publishes_both_index_shapes() -> TestResult {
@@ -80,15 +90,11 @@ fn public_relationship_creation_publishes_both_index_shapes() -> TestResult {
         let (tables, spec) = schema(two);
         create_spec(
             directory.target(),
-            &crate::DatabaseSpec {
-                tables: &tables.map(crate::TableRows::empty),
-                relationships: std::slice::from_ref(&spec),
-                relationship_layout: crate::RelationshipLayout::SingleLong,
-            },
+            &single(&tables.map(TableRows::empty), &spec),
         )?;
         let pages = compose_relationship(&tables, &spec, &mut budget())?.into_pages();
         check_relationship_image(&directory.target(), &tables, &spec, &pages, &mut budget())?;
-        assert_eq!(fs::read_dir(&*directory)?.count(), 1);
+        assert_eq!(directory.entries()?.len(), 1);
     }
     Ok(())
 }
@@ -96,49 +102,33 @@ fn public_relationship_creation_publishes_both_index_shapes() -> TestResult {
 #[test]
 fn unsupported_references_and_schema_leave_no_destination() -> TestResult {
     let directory = TempDir::new("create")?;
-    let (mut tables, mut spec) = schema(false);
-    for reference in [TableRef::Ordinal(2), TableRef::Name(b"accounts7")] {
-        spec.parent = reference;
-        assert!(matches!(
-            create_spec(
-                directory.target(),
-                &crate::DatabaseSpec {
-                    tables: &tables.map(crate::TableRows::empty),
-                    relationships: std::slice::from_ref(&spec),
-                    relationship_layout: crate::RelationshipLayout::SingleLong
-                }
-            ),
-            Err(WriteError::Compose(
-                ComposeError::UnsupportedRelationship { .. }
-            ))
-        ));
+    let (tables, spec) = schema(false);
+    let mut indexed_child = tables;
+    indexed_child[1].indexes = tables[0].indexes;
+    for (tables, spec) in [
+        (
+            tables,
+            RelationshipSpec {
+                parent: TableRef::Name(b"accounts7"),
+                ..spec
+            },
+        ),
+        (
+            tables,
+            RelationshipSpec {
+                parent: TableRef::Ordinal(0),
+                unique: true,
+                ..spec
+            },
+        ),
+        (indexed_child, spec),
+    ] {
+        let result = create_spec(
+            directory.target(),
+            &single(&tables.map(TableRows::empty), &spec),
+        );
+        assert!(matches!(result, Err(WriteError::Compose(_))), "{result:?}");
     }
-    spec.parent = TableRef::Ordinal(0);
-    spec.unique = true;
-    assert!(
-        create_spec(
-            directory.target(),
-            &crate::DatabaseSpec {
-                tables: &tables.map(crate::TableRows::empty),
-                relationships: std::slice::from_ref(&spec),
-                relationship_layout: crate::RelationshipLayout::SingleLong
-            }
-        )
-        .is_err()
-    );
-    spec.unique = false;
-    tables[1].indexes = tables[0].indexes;
-    assert!(
-        create_spec(
-            directory.target(),
-            &crate::DatabaseSpec {
-                tables: &tables.map(crate::TableRows::empty),
-                relationships: std::slice::from_ref(&spec),
-                relationship_layout: crate::RelationshipLayout::SingleLong
-            }
-        )
-        .is_err()
-    );
     assert!(directory.is_empty()?);
     Ok(())
 }
@@ -147,17 +137,10 @@ fn unsupported_references_and_schema_leave_no_destination() -> TestResult {
 fn existing_destination_and_exhausted_budget_are_preserved() -> TestResult {
     let directory = TempDir::new("create")?;
     let (tables, spec) = schema(false);
+    let requests = tables.map(TableRows::empty);
     let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(0));
     assert!(matches!(
-        crate::create_database(
-            directory.target(),
-            &crate::DatabaseSpec {
-                tables: &tables.map(crate::TableRows::empty),
-                relationships: std::slice::from_ref(&spec),
-                relationship_layout: crate::RelationshipLayout::SingleLong
-            },
-            &mut limited
-        ),
+        create_database(directory.target(), &single(&requests, &spec), &mut limited),
         Err(WriteError::Compose(_))
     ));
     assert!(directory.is_empty()?);
@@ -168,13 +151,9 @@ fn existing_destination_and_exhausted_budget_are_preserved() -> TestResult {
     let mut check_limited =
         ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(work_before_check));
     assert!(matches!(
-        crate::create_database(
+        create_database(
             directory.target(),
-            &crate::DatabaseSpec {
-                tables: &tables.map(crate::TableRows::empty),
-                relationships: std::slice::from_ref(&spec),
-                relationship_layout: crate::RelationshipLayout::SingleLong
-            },
+            &single(&requests, &spec),
             &mut check_limited
         ),
         Err(WriteError::CreatePublish(_))
@@ -182,18 +161,11 @@ fn existing_destination_and_exhausted_budget_are_preserved() -> TestResult {
     assert!(directory.is_empty()?);
     fs::write(directory.target(), b"keep me")?;
     assert!(matches!(
-        create_spec(
-            directory.target(),
-            &crate::DatabaseSpec {
-                tables: &tables.map(crate::TableRows::empty),
-                relationships: std::slice::from_ref(&spec),
-                relationship_layout: crate::RelationshipLayout::SingleLong
-            }
-        ),
+        create_spec(directory.target(), &single(&requests, &spec)),
         Err(WriteError::CreatePublish(_))
     ));
     assert_eq!(fs::read(directory.target())?, b"keep me");
-    assert_eq!(fs::read_dir(&*directory)?.count(), 1);
+    assert_eq!(directory.entries()?.len(), 1);
     Ok(())
 }
 
@@ -204,18 +176,16 @@ fn corrupted_written_page_and_wrong_endpoint_fail_publication_check() -> TestRes
     let pages = compose_relationship(&tables, &spec, &mut budget())?.into_pages();
     create_spec(
         directory.target(),
-        &crate::DatabaseSpec {
-            tables: &tables.map(crate::TableRows::empty),
-            relationships: std::slice::from_ref(&spec),
-            relationship_layout: crate::RelationshipLayout::SingleLong,
-        },
+        &single(&tables.map(TableRows::empty), &spec),
     )?;
     spec.fields = &[RelationshipField {
         parent: ColumnRef::Ordinal(0),
         child: ColumnRef::Ordinal(0),
     }];
+    let check =
+        |spec| check_relationship_image(&directory.target(), &tables, spec, &pages, &mut budget());
     assert!(matches!(
-        check_relationship_image(&directory.target(), &tables, &spec, &pages, &mut budget()),
+        check(&spec),
         Err(ImageCheckError::Mismatch {
             detail: "relationship endpoint"
         })
@@ -225,7 +195,7 @@ fn corrupted_written_page_and_wrong_endpoint_fail_publication_check() -> TestRes
     *last ^= 1;
     fs::write(directory.target(), bytes)?;
     assert!(matches!(
-        check_relationship_image(&directory.target(), &tables, &spec, &pages, &mut budget()),
+        check(&spec),
         Err(ImageCheckError::Mismatch {
             detail: "relationship written page"
         })

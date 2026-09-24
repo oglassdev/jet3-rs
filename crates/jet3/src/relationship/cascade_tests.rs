@@ -1,5 +1,5 @@
 use super::cascade::*;
-use crate::testkit::{create, create_spec};
+use crate::testkit::{create, create_spec, validate_file};
 use crate::testkit::{index, table};
 use crate::{
     DatabaseReader, FileSource, PAGE_BYTES, RowValue, WriteError, relationship::mutation::Change, *,
@@ -57,6 +57,16 @@ fn relation(
         }],
     }
 }
+fn spec<'a>(
+    tables: &'a [TableRows<'a>],
+    relationships: &'a [RelationshipSpec<'a>],
+) -> DatabaseSpec<'a> {
+    DatabaseSpec {
+        tables,
+        relationships,
+        ..DatabaseSpec::default()
+    }
+}
 fn locator(path: &Path, table: &[u8], id: i32) -> Result<RowLocator, Box<dyn Error>> {
     let mut work = budget();
     let mut db = DatabaseReader::open(path, &mut work)?;
@@ -110,10 +120,13 @@ fn field(path: &Path, table: &[u8], id: i32, column: u16, value: RowValue<'_>) -
     )?;
     Ok(())
 }
-fn validate_file(path: &Path) -> TestResult {
-    let mut work = budget();
-    DatabaseReader::open(path, &mut work)?.validate(TextCodePage::Windows1252, &mut work)?;
-    Ok(())
+fn replace(path: &Path, table: &[u8], id: i32, values: &[RowValue<'_>]) -> Result<(), WriteError> {
+    let row = locator(path, table, id).map_err(|_| WriteError::NotFound("test row"))?;
+    update_row(path, RowUpdate { table, row, values }, &mut budget())
+}
+fn delete(path: &Path, table: &[u8], id: i32) -> Result<(), WriteError> {
+    let row = locator(path, table, id).map_err(|_| WriteError::NotFound("test row"))?;
+    delete_row(path, RowDelete { table, row }, &mut budget())
 }
 
 #[test]
@@ -121,33 +134,28 @@ fn cascade_actions_are_independent_and_preserve_refused_inputs() -> TestResult {
     for (updates, deletes) in [(false, false), (true, false), (false, true), (true, true)] {
         let directory = TempDir::new("create")?;
         let path = directory.join("actions.mdb");
-        let parents = [&[
+        let parent = [
             RowValue::Long(1),
             RowValue::Long(10),
             RowValue::Memo(b"parent"),
-        ][..]];
-        let children = [&[
+        ];
+        let child = [
             RowValue::Long(2),
             RowValue::Long(10),
             RowValue::Memo(b"child"),
-        ][..]];
-        create_spec(
-            &path,
-            &DatabaseSpec {
-                tables: &[
-                    TableRows {
-                        table: fixture_table(b"Parent", true),
-                        rows: &parents,
-                    },
-                    TableRows {
-                        table: fixture_table(b"Child", false),
-                        rows: &children,
-                    },
-                ],
-                relationships: &[relation(b"ParentChild", 0, 1, updates, deletes)],
-                ..DatabaseSpec::default()
+        ];
+        let tables = [
+            TableRows {
+                table: fixture_table(b"Parent", true),
+                rows: &[&parent],
             },
-        )?;
+            TableRows {
+                table: fixture_table(b"Child", false),
+                rows: &[&child],
+            },
+        ];
+        let edge = [relation(b"ParentChild", 0, 1, updates, deletes)];
+        create_spec(&path, &spec(&tables, &edge))?;
         for value in [10, 11] {
             let before = fs::read(&path)?;
             let result = field(&path, b"Parent", 1, 1, RowValue::Long(value));
@@ -155,21 +163,11 @@ fn cascade_actions_are_independent_and_preserve_refused_inputs() -> TestResult {
             if !updates {
                 assert_eq!(fs::read(&path)?, before);
             }
-            assert_eq!(
-                keys(&path, b"Child", &[1])?,
-                vec![vec![Some(if updates { value } else { 10 })]]
-            );
+            let expected = if updates { value } else { 10 };
+            assert_eq!(keys(&path, b"Child", &[1])?, vec![vec![Some(expected)]]);
         }
         let before = fs::read(&path)?;
-        let result = delete_row(
-            &path,
-            RowDelete {
-                table: b"Parent",
-                row: locator(&path, b"Parent", 1)?,
-            },
-            &mut budget(),
-        );
-        assert_eq!(result.is_ok(), deletes);
+        assert_eq!(delete(&path, b"Parent", 1).is_ok(), deletes);
         if deletes {
             assert!(keys(&path, b"Parent", &[0])?.is_empty());
             assert!(keys(&path, b"Child", &[0])?.is_empty());
@@ -186,45 +184,33 @@ fn cascade_chain_changes_every_level_and_rolls_back_the_whole_publication() -> T
     let directory = TempDir::new("create")?;
     let path = directory.join("chain.mdb");
     let payload = [b'p'; 8192];
-    let root = [
-        RowValue::Long(1),
-        RowValue::Long(10),
-        RowValue::Memo(&payload),
-    ];
-    let middle = [
-        RowValue::Long(11),
-        RowValue::Long(10),
-        RowValue::Memo(&payload),
-    ];
-    let leaf = [
-        RowValue::Long(101),
-        RowValue::Long(10),
-        RowValue::Memo(&payload),
-    ];
-    create_spec(
-        &path,
-        &DatabaseSpec {
-            tables: &[
-                TableRows {
-                    table: fixture_table(b"Root", true),
-                    rows: &[&root],
-                },
-                TableRows {
-                    table: fixture_table(b"Middle", true),
-                    rows: &[&middle],
-                },
-                TableRows {
-                    table: fixture_table(b"Leaf", false),
-                    rows: &[&leaf],
-                },
-            ],
-            relationships: &[
-                relation(b"RootMiddle", 0, 1, true, true),
-                relation(b"MiddleLeaf", 1, 2, true, true),
-            ],
-            ..DatabaseSpec::default()
+    let row = |id| {
+        [
+            RowValue::Long(id),
+            RowValue::Long(10),
+            RowValue::Memo(&payload),
+        ]
+    };
+    let (root, middle, leaf) = (row(1), row(11), row(101));
+    let tables = [
+        TableRows {
+            table: fixture_table(b"Root", true),
+            rows: &[&root],
         },
-    )?;
+        TableRows {
+            table: fixture_table(b"Middle", true),
+            rows: &[&middle],
+        },
+        TableRows {
+            table: fixture_table(b"Leaf", false),
+            rows: &[&leaf],
+        },
+    ];
+    let edges = [
+        relation(b"RootMiddle", 0, 1, true, true),
+        relation(b"MiddleLeaf", 1, 2, true, true),
+    ];
+    create_spec(&path, &spec(&tables, &edges))?;
     let original = fs::read(&path)?;
     let selected = locator(&path, b"Root", 1)?;
     let mut work = budget();
@@ -249,24 +235,18 @@ fn cascade_chain_changes_every_level_and_rolls_back_the_whole_publication() -> T
         matches!(result, Err(WriteError::Publish(error)) if error.stage() == PublishStage::PrePublish)
     );
     assert_eq!(fs::read(&path)?, original);
-    assert_eq!(fs::read_dir(&*directory)?.count(), 1);
+    assert_eq!(directory.entries()?.len(), 1);
     field(&path, b"Root", 1, 1, RowValue::Long(11))?;
     for name in [b"Root".as_slice(), b"Middle", b"Leaf"] {
         assert_eq!(keys(&path, name, &[1])?, vec![vec![Some(11)]]);
     }
     validate_file(&path)?;
-    delete_row(
-        &path,
-        RowDelete {
-            table: b"Root",
-            row: selected,
-        },
-        &mut budget(),
-    )?;
+    delete(&path, b"Root", 1)?;
     for name in [b"Root".as_slice(), b"Middle", b"Leaf"] {
         assert!(keys(&path, name, &[0])?.is_empty());
     }
-    validate_file(&path)
+    validate_file(&path)?;
+    Ok(())
 }
 
 #[test]
@@ -275,30 +255,25 @@ fn cascade_shared_foreign_key_checks_other_parents_before_writing() -> TestResul
     let path = directory.join("shared.mdb");
     let first = [RowValue::Long(1), RowValue::Long(10), RowValue::Memo(b"a")];
     let other = [RowValue::Long(2), RowValue::Long(30), RowValue::Memo(b"b")];
-    create_spec(
-        &path,
-        &DatabaseSpec {
-            tables: &[
-                TableRows {
-                    table: fixture_table(b"Left", true),
-                    rows: &[&first],
-                },
-                TableRows {
-                    table: fixture_table(b"Right", true),
-                    rows: &[&first, &other],
-                },
-                TableRows {
-                    table: fixture_table(b"Child", false),
-                    rows: &[&first],
-                },
-            ],
-            relationships: &[
-                relation(b"LeftChild", 0, 2, true, true),
-                relation(b"RightChild", 1, 2, false, false),
-            ],
-            ..DatabaseSpec::default()
+    let tables = [
+        TableRows {
+            table: fixture_table(b"Left", true),
+            rows: &[&first],
         },
-    )?;
+        TableRows {
+            table: fixture_table(b"Right", true),
+            rows: &[&first, &other],
+        },
+        TableRows {
+            table: fixture_table(b"Child", false),
+            rows: &[&first],
+        },
+    ];
+    let edges = [
+        relation(b"LeftChild", 0, 2, true, true),
+        relation(b"RightChild", 1, 2, false, false),
+    ];
+    create_spec(&path, &spec(&tables, &edges))?;
     let original = fs::read(&path)?;
     assert!(field(&path, b"Left", 1, 1, RowValue::Long(11)).is_err());
     assert_eq!(fs::read(&path)?, original);
@@ -307,56 +282,44 @@ fn cascade_shared_foreign_key_checks_other_parents_before_writing() -> TestResul
     let original = fs::read(&path)?;
     assert!(field(&path, b"Right", 2, 1, RowValue::Long(30)).is_err());
     assert_eq!(fs::read(&path)?, original);
-    validate_file(&path)
+    validate_file(&path)?;
+    Ok(())
 }
 
 #[test]
 fn cascade_self_replacement_preserves_the_explicit_foreign_key() -> TestResult {
+    let columns = [
+        ColumnSpec::new(b"Id", ColumnType::Long),
+        ColumnSpec::new(b"Key", ColumnType::Long),
+        ColumnSpec::new(b"Foreign", ColumnType::Long),
+    ];
+    let values = [
+        [RowValue::Long(1), RowValue::Long(10), RowValue::Long(10)],
+        [RowValue::Long(2), RowValue::Long(20), RowValue::Long(10)],
+        [RowValue::Long(3), RowValue::Long(30), RowValue::Null],
+    ];
+    let relation = RelationshipSpec {
+        fields: &[RelationshipField {
+            parent: ColumnRef::Ordinal(1),
+            child: ColumnRef::Ordinal(2),
+        }],
+        ..relation(b"SelfRel", 0, 0, true, true)
+    };
+    let tables = [TableRows {
+        table: table(b"Node", &columns, INDEXES),
+        rows: &[&values[0], &values[1], &values[2]],
+    }];
     for foreign in [10, 30, 99] {
         let directory = TempDir::new("create")?;
         let path = directory.join("self.mdb");
-        let columns = [
-            ColumnSpec::new(b"Id", ColumnType::Long),
-            ColumnSpec::new(b"Key", ColumnType::Long),
-            ColumnSpec::new(b"Foreign", ColumnType::Long),
-        ];
-        let rows = [
-            [RowValue::Long(1), RowValue::Long(10), RowValue::Long(10)],
-            [RowValue::Long(2), RowValue::Long(20), RowValue::Long(10)],
-            [RowValue::Long(3), RowValue::Long(30), RowValue::Null],
-        ];
-        let relation = RelationshipSpec {
-            fields: &[RelationshipField {
-                parent: ColumnRef::Ordinal(1),
-                child: ColumnRef::Ordinal(2),
-            }],
-            ..relation(b"SelfRel", 0, 0, true, true)
-        };
-        create_spec(
-            &path,
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table: table(b"Node", &columns, INDEXES),
-                    rows: &[&rows[0], &rows[1], &rows[2]],
-                }],
-                relationships: &[relation],
-                ..DatabaseSpec::default()
-            },
-        )?;
+        create_spec(&path, &spec(&tables, &[relation]))?;
         let before = fs::read(&path)?;
-        let result = update_row(
-            &path,
-            RowUpdate {
-                table: b"Node",
-                row: locator(&path, b"Node", 1)?,
-                values: &[
-                    RowValue::Long(1),
-                    RowValue::Long(11),
-                    RowValue::Long(foreign),
-                ],
-            },
-            &mut budget(),
-        );
+        let replacement = [
+            RowValue::Long(1),
+            RowValue::Long(11),
+            RowValue::Long(foreign),
+        ];
+        let result = replace(&path, b"Node", 1, &replacement);
         assert_eq!(result.is_ok(), foreign == 30);
         if foreign == 30 {
             assert_eq!(
@@ -385,45 +348,27 @@ fn cascade_composite_null_tuples_match_exactly_and_update_each_row_once() -> Tes
         ColumnSpec::new(b"Second", ColumnType::Long),
         ColumnSpec::new(b"Body", ColumnType::Memo),
     ];
-    let indexes = [
-        INDEXES[0],
-        index(
-            b"Tuple",
-            &[
-                IndexColumnSpec {
-                    column: ColumnRef::Ordinal(1),
-                    direction: IndexDirection::Ascending,
-                },
-                IndexColumnSpec {
-                    column: ColumnRef::Ordinal(2),
-                    direction: IndexDirection::Ascending,
-                },
-            ],
-            IndexKind::Unique,
-        ),
+    let tuple = [
+        IndexColumnSpec::ascending(ColumnRef::Ordinal(1)),
+        IndexColumnSpec::ascending(ColumnRef::Ordinal(2)),
     ];
+    let indexes = [INDEXES[0], index(b"Tuple", &tuple, IndexKind::Unique)];
     let payload = [b'n'; 4096];
+    let long = |value: Option<i32>| value.map_or(RowValue::Null, RowValue::Long);
+    let row = |id, first, second| {
+        [
+            RowValue::Long(id),
+            long(first),
+            long(second),
+            RowValue::Memo(&payload),
+        ]
+    };
     let input = [
-        [
-            RowValue::Long(1),
-            RowValue::Long(10),
-            RowValue::Null,
-            RowValue::Memo(&payload),
-        ],
-        [
-            RowValue::Long(2),
-            RowValue::Null,
-            RowValue::Long(20),
-            RowValue::Memo(&payload),
-        ],
-        [
-            RowValue::Long(3),
-            RowValue::Null,
-            RowValue::Null,
-            RowValue::Memo(&payload),
-        ],
+        row(1, Some(10), None),
+        row(2, None, Some(20)),
+        row(3, None, None),
     ];
-    let references = [&input[0][..], &input[1], &input[2]];
+    let references: [&[RowValue<'_>]; 3] = [&input[0], &input[1], &input[2]];
     let relationship = RelationshipSpec {
         fields: &[
             RelationshipField {
@@ -437,23 +382,17 @@ fn cascade_composite_null_tuples_match_exactly_and_update_each_row_once() -> Tes
         ],
         ..relation(b"Pair", 0, 1, true, true)
     };
-    create_spec(
-        &path,
-        &DatabaseSpec {
-            tables: &[
-                TableRows {
-                    table: table(b"Parent", &columns, &indexes),
-                    rows: &references,
-                },
-                TableRows {
-                    table: table(b"Child", &columns, &indexes[..1]),
-                    rows: &references,
-                },
-            ],
-            relationships: &[relationship],
-            ..DatabaseSpec::default()
+    let tables = [
+        TableRows {
+            table: table(b"Parent", &columns, &indexes),
+            rows: &references,
         },
-    )?;
+        TableRows {
+            table: table(b"Child", &columns, &indexes[..1]),
+            rows: &references,
+        },
+    ];
+    create_spec(&path, &spec(&tables, &[relationship]))?;
     let descriptors = |path: &Path| -> Result<Vec<Vec<u8>>, Box<dyn Error>> {
         let mut work = budget();
         let mut db = DatabaseReader::open(path, &mut work)?;
@@ -461,12 +400,9 @@ fn cascade_composite_null_tuples_match_exactly_and_update_each_row_once() -> Tes
         let mut rows = db.rows(&table, &mut work)?;
         let mut saved = Vec::new();
         while let Some(row) = rows.next_row()? {
-            saved.push(
-                row.field(ColumnOrdinal::new(3))
-                    .and_then(|field| field.raw_bytes())
-                    .ok_or("payload descriptor")?
-                    .to_vec(),
-            );
+            let field = row.field(ColumnOrdinal::new(3));
+            let descriptor = field.and_then(|field| field.raw_bytes());
+            saved.push(descriptor.ok_or("payload descriptor")?.to_vec());
         }
         Ok(saved)
     };
@@ -476,20 +412,7 @@ fn cascade_composite_null_tuples_match_exactly_and_update_each_row_once() -> Tes
         keys(&path, b"Child", &[1, 2])?,
         vec![vec![Some(11), None], vec![None, Some(20)], vec![None, None]]
     );
-    update_row(
-        &path,
-        RowUpdate {
-            table: b"Parent",
-            row: locator(&path, b"Parent", 3)?,
-            values: &[
-                RowValue::Long(3),
-                RowValue::Long(30),
-                RowValue::Long(31),
-                RowValue::Memo(&payload),
-            ],
-        },
-        &mut budget(),
-    )?;
+    replace(&path, b"Parent", 3, &row(3, Some(30), Some(31)))?;
     assert_eq!(
         keys(&path, b"Child", &[1, 2])?,
         vec![
@@ -499,19 +422,13 @@ fn cascade_composite_null_tuples_match_exactly_and_update_each_row_once() -> Tes
         ]
     );
     assert_eq!(descriptors(&path)?, before);
-    delete_row(
-        &path,
-        RowDelete {
-            table: b"Parent",
-            row: locator(&path, b"Parent", 2)?,
-        },
-        &mut budget(),
-    )?;
+    delete(&path, b"Parent", 2)?;
     assert_eq!(
         keys(&path, b"Child", &[0])?,
         vec![vec![Some(1)], vec![Some(3)]]
     );
-    validate_file(&path)
+    validate_file(&path)?;
+    Ok(())
 }
 
 #[test]
@@ -619,53 +536,41 @@ fn cascade_autoincrement_marker_requires_an_autonumber_row_replacement() -> Test
             RowValue::Long(10),
             RowValue::Memo(b"before"),
         ];
-        create_spec(
-            &path,
-            &DatabaseSpec {
-                tables: &[
-                    TableRows {
-                        table: TableSpec {
-                            columns: &columns,
-                            ..fixture_table(b"Parent", true)
-                        },
-                        rows: &[&values],
-                    },
-                    TableRows {
-                        table: fixture_table(b"Child", false),
-                        rows: &[&values],
-                    },
-                ],
-                relationships: &[relation(b"ParentChild", 0, 1, true, true)],
-                ..DatabaseSpec::default()
+        let parent = TableSpec {
+            columns: &columns,
+            ..fixture_table(b"Parent", true)
+        };
+        let tables = [
+            TableRows {
+                table: parent,
+                rows: &[&values],
             },
-        )?;
+            TableRows {
+                table: fixture_table(b"Child", false),
+                rows: &[&values],
+            },
+        ];
+        let edge = [relation(b"ParentChild", 0, 1, true, true)];
+        create_spec(&path, &spec(&tables, &edge))?;
         let selected = locator(&path, b"Parent", 1)?;
         let before = fs::read(&path)?;
-        let result = update_field(
-            &path,
-            FieldUpdate {
-                table: b"Parent",
-                row: selected,
-                column: ColumnOrdinal::new(1),
-                value: RowValue::AutoIncrement,
-            },
-            &mut budget(),
-        );
-        assert!(matches!(result, Err(WriteError::Unsupported(_))));
+        let marker = FieldUpdate {
+            table: b"Parent",
+            row: selected,
+            column: ColumnOrdinal::new(1),
+            value: RowValue::AutoIncrement,
+        };
+        assert!(matches!(
+            update_field(&path, marker, &mut budget()),
+            Err(WriteError::Unsupported(_))
+        ));
         assert_eq!(fs::read(&path)?, before);
-        let result = update_row(
-            &path,
-            RowUpdate {
-                table: b"Parent",
-                row: selected,
-                values: &[
-                    RowValue::Long(1),
-                    RowValue::AutoIncrement,
-                    RowValue::Memo(b"after"),
-                ],
-            },
-            &mut budget(),
-        );
+        let replacement = [
+            RowValue::Long(1),
+            RowValue::AutoIncrement,
+            RowValue::Memo(b"after"),
+        ];
+        let result = replace(&path, b"Parent", 1, &replacement);
         if auto_number {
             result?;
             assert_eq!(keys(&path, b"Parent", &[1])?, vec![vec![Some(10)]]);
