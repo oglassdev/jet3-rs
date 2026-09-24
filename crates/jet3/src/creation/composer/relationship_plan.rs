@@ -28,12 +28,13 @@ impl<'a> RelationshipPlan<'a> {
         spec: &'a RelationshipSpec<'a>,
         budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
-        if spec.cascade_updates
+        if spec.unique
+            || spec.cascade_updates
             || spec.cascade_deletes
             || spec.join != crate::RelationshipJoin::Inner
         {
             return Err(invalid(
-                "cascades and join types require the relationship graph API",
+                "one-to-one, cascades and join types require the relationship graph API",
             ));
         }
         if !spec.enforce {

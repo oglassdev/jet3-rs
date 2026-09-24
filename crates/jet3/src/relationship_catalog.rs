@@ -289,16 +289,19 @@ fn index(
             "relationship requires ascending fields in catalog order",
         ));
     }
+    let unique_child = flags.unique;
     let flags = index.raw_flags();
     let supported = if parent {
         flags == crate::PhysicalIndexFlagsSpec::Unique.raw()
             || flags == crate::PhysicalIndexFlagsSpec::UniqueRequired.raw()
+    } else if unique_child {
+        flags == crate::PhysicalIndexFlagsSpec::Unique.raw()
     } else {
         flags == crate::PhysicalIndexFlagsSpec::Ordinary.raw()
     };
     if !supported {
         return Err(UpdateError::Unsupported(
-            "relationship requires a unique parent and ordinary child index",
+            "relationship index uniqueness differs from catalog attributes",
         ));
     }
     Ok(())

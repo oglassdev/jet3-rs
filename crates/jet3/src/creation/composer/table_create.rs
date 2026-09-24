@@ -584,7 +584,7 @@ impl<'a> PlannedCreate<'a> {
                 available: self.plan.map_location(owned + 1),
             });
         }
-        encode_table_definition(
+        let written = encode_table_definition(
             &TableDefinitionSpec {
                 kind: TableDefinitionKind::User,
                 columns: spec.columns,
@@ -599,7 +599,24 @@ impl<'a> PlannedCreate<'a> {
             output,
             budget,
         )
-        .map_err(Into::into)
+        .map_err(ComposeError::from)?;
+        for index in &self.relationships {
+            if matches!(
+                index.kind,
+                LogicalIndexKindSpec::Relationship {
+                    side: crate::RelationshipSide::ForeignTable,
+                    ..
+                }
+            ) && usize::from(index.physical_index) >= self.declared_indexes
+            {
+                crate::table_definition_writer::set_initial_foreign_count(
+                    output,
+                    index.physical_index,
+                    self.initial_row_count,
+                )?;
+            }
+        }
+        Ok(written)
     }
 
     fn map_page_at(

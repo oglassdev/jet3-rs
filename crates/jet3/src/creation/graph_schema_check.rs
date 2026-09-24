@@ -95,21 +95,26 @@ pub(super) fn check(
                     .ok_or(mismatch("graph schema child column"))?;
             }
             let columns = &resolved[..spec.fields.len()];
-            let existing =
-                select_existing(request, columns, RelationshipSide::ForeignTable, budget)
-                    .map_err(CandidateCheckError::RowEncoding)?;
+            let existing = select_existing(
+                request,
+                columns,
+                RelationshipSide::ForeignTable,
+                spec.unique,
+                budget,
+            )
+            .map_err(CandidateCheckError::RowEncoding)?;
             let physical = if let Some(physical) = existing {
                 usize::from(physical)
             } else if let Some(slot) = generated[..generated_count]
                 .iter()
-                .position(|&c| c == Some((RelationshipSide::ForeignTable, resolved)))
+                .position(|&c| c == Some((RelationshipSide::ForeignTable, resolved, spec.unique)))
             {
                 request.indexes.len() + slot
             } else {
                 let target = generated
                     .get_mut(generated_count)
                     .ok_or(mismatch("graph schema relationship bound"))?;
-                *target = Some((RelationshipSide::ForeignTable, resolved));
+                *target = Some((RelationshipSide::ForeignTable, resolved, spec.unique));
                 generated_count += 1;
                 request.indexes.len() + generated_count - 1
             };
@@ -117,7 +122,13 @@ pub(super) fn check(
                 .physical_indexes()
                 .get(physical)
                 .ok_or(mismatch("graph foreign physical index"))?;
-            if index.raw_flags() != 0
+            let expected_flags = if spec.unique {
+                crate::PhysicalIndexFlagsSpec::Unique
+            } else {
+                crate::PhysicalIndexFlagsSpec::Ordinary
+            }
+            .raw();
+            if index.raw_flags() != expected_flags
                 || index.fields().len() != columns.len()
                 || index.fields().iter().zip(columns).any(|(field, &column)| {
                     field.column().get() != column || field.direction() != IndexDirection::Ascending
@@ -145,26 +156,31 @@ pub(super) fn check(
                     .ok_or(mismatch("graph schema parent column"))?;
             }
             let columns = &resolved[..spec.fields.len()];
-            let existing =
-                select_existing(request, columns, RelationshipSide::PrimaryTable, budget)
-                    .map_err(CandidateCheckError::RowEncoding)?;
+            let existing = select_existing(
+                request,
+                columns,
+                RelationshipSide::PrimaryTable,
+                false,
+                budget,
+            )
+            .map_err(CandidateCheckError::RowEncoding)?;
             let physical = if let Some(physical) = existing {
                 usize::from(physical)
             } else {
                 let source = select_descending_parent(request, columns, budget)
                     .map_err(CandidateCheckError::RowEncoding)?
                     .ok_or(mismatch("graph descending parent source"))?;
-                let slot = if let Some(slot) = generated[..generated_count]
-                    .iter()
-                    .position(|&entry| entry == Some((RelationshipSide::PrimaryTable, resolved)))
-                {
+                let slot = if let Some(slot) =
+                    generated[..generated_count].iter().position(|&entry| {
+                        entry == Some((RelationshipSide::PrimaryTable, resolved, false))
+                    }) {
                     slot
                 } else {
                     let slot = generated_count;
                     *generated
                         .get_mut(slot)
                         .ok_or(mismatch("graph generated index bound"))? =
-                        Some((RelationshipSide::PrimaryTable, resolved));
+                        Some((RelationshipSide::PrimaryTable, resolved, false));
                     generated_count += 1;
                     slot
                 };

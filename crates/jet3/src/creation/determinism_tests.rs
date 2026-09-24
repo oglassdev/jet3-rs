@@ -175,6 +175,7 @@ fn empty_and_populated_relationship_metadata_repeat() -> TestResult {
         },
     ];
     let relationship = RelationshipSpec {
+        unique: false,
         enforce: true,
         join: crate::RelationshipJoin::Inner,
         cascade_updates: false,

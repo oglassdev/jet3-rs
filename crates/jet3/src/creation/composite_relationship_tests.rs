@@ -40,6 +40,7 @@ fn schema() -> [TableSpec<'static>; 2] {
 }
 fn edge() -> RelationshipSpec<'static> {
     RelationshipSpec {
+        unique: false,
         enforce: true,
         join: crate::RelationshipJoin::Inner,
         cascade_updates: false,
@@ -171,6 +172,7 @@ fn self_relationship_creation_refuses_identical_keys_but_admits_partial_overlap(
     }];
     for fields in [&scalar[..], FIELDS] {
         let relation = RelationshipSpec {
+            unique: false,
             enforce: true,
             join: crate::RelationshipJoin::Inner,
             cascade_updates: false,
@@ -216,6 +218,7 @@ fn self_relationship_creation_refuses_identical_keys_but_admits_partial_overlap(
             directory.target(),
             &tables[..1],
             &[RelationshipSpec {
+                unique: false,
                 enforce: true,
                 join: crate::RelationshipJoin::Inner,
                 cascade_updates: false,
@@ -540,6 +543,7 @@ fn full_self_replacement_excludes_only_its_own_child_from_parent_guards() -> Tes
                         rows: &rows[..if external_child { 2 } else { 1 }],
                     }],
                     &[RelationshipSpec {
+                        unique: false,
                         enforce: true,
                         join: crate::RelationshipJoin::Inner,
                         cascade_updates: false,

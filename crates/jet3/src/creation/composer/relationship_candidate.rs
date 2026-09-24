@@ -82,6 +82,7 @@ fn compose_parent_child(budget: &mut ResourceBudget) -> Result<WholeFileImagePla
     compose_relationship(
         &TABLES,
         &RelationshipSpec {
+            unique: false,
             enforce: true,
             join: crate::RelationshipJoin::Inner,
             cascade_updates: false,

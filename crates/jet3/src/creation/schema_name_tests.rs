@@ -152,6 +152,7 @@ fn accented_relationship_endpoints_validate_and_enforce_mutations() -> TestResul
         indexes: &indexes,
     });
     let relation = crate::RelationshipSpec {
+        unique: false,
         enforce: true,
         join: crate::RelationshipJoin::Inner,
         cascade_updates: false,

@@ -9,8 +9,8 @@
     "schema_version": {"const": 3},
     "capabilities": {
       "type": "array",
-      "minItems": 31,
-      "maxItems": 31,
+      "minItems": 32,
+      "maxItems": 32,
       "items": false,
       "prefixItems": [
         {"$ref": "#/$defs/capability", "properties": {"id": {"const": "database.open"}}},
@@ -33,7 +33,8 @@
         {"$ref": "#/$defs/capability", "properties": {"id": {"const": "relationships.enforced_create_drop_mutate"}}},
         {"$ref": "#/$defs/capability", "properties": {"id": {"const": "relationships.unenforced"}}},
         {"$ref": "#/$defs/capability", "properties": {"id": {"const": "relationships.join_attributes"}}},
-        {"$ref": "#/$defs/capability", "properties": {"id": {"const": "relationships.one_to_one_and_unknown_attributes"}}},
+        {"$ref": "#/$defs/capability", "properties": {"id": {"const": "relationships.one_to_one"}}},
+        {"$ref": "#/$defs/capability", "properties": {"id": {"const": "relationships.unknown_attributes"}}},
         {"$ref": "#/$defs/capability", "properties": {"id": {"const": "transactions.copy_on_write_atomic_publish"}}},
         {"$ref": "#/$defs/capability", "properties": {"id": {"const": "output.deterministic_configuration"}}},
         {"$ref": "#/$defs/capability", "properties": {"id": {"const": "safety.malformed_input_bounds_and_limits"}}},

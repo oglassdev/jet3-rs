@@ -130,6 +130,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
         ],
         &RelationshipSpec {
+            unique: false,
             enforce: true,
             join: jet3::RelationshipJoin::Inner,
             cascade_updates: false,
