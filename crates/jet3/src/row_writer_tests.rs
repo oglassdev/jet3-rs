@@ -727,3 +727,6 @@ mod binary;
 
 #[path = "row_wide_tests.rs"]
 mod wide;
+
+#[path = "row_minimum_tests.rs"]
+mod minimum;

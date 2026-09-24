@@ -102,7 +102,8 @@
         "oracle/windows-dao/scripts/schema_candidate_observer.ps1",
         "oracle/windows-dao/scripts/combine_schema_readbacks.py",
         "oracle/windows-dao/scripts/compare_schema_candidates.py",
-        "oracle/windows-dao/scripts/candidate_continuations.ps1"
+        "oracle/windows-dao/scripts/candidate_continuations.ps1",
+        "oracle/windows-dao/scripts/storage_churn.py"
       ]
     },
     {
@@ -136,7 +137,8 @@
         "oracle/windows-dao/scripts/storage_preservation_plan.py",
         "oracle/windows-dao/scripts/storage_preservation.ps1",
         "oracle/windows-dao/scripts/storage_preservation.py",
-        "oracle/windows-dao/tests/test_storage_preservation.py"
+        "oracle/windows-dao/tests/test_storage_preservation.py",
+        "oracle/windows-dao/scripts/storage_churn.py"
       ]
     },
     {
@@ -234,7 +236,8 @@
         "oracle/windows-dao/scripts/wide_row_lifecycle.py",
         "oracle/windows-dao/scripts/wide_row_lifecycle_structure.py",
         "crates/jet3/src/row_schema_gap_tests.rs",
-        "crates/jet3/src/row_writer_layout.rs"
+        "crates/jet3/src/row_writer_layout.rs",
+        "crates/jet3/src/row_minimum_tests.rs"
       ]
     },
     {
@@ -281,7 +284,8 @@
         "oracle/windows-dao/scripts/storage_preservation_plan.py",
         "oracle/windows-dao/scripts/storage_preservation.ps1",
         "oracle/windows-dao/scripts/storage_preservation.py",
-        "oracle/windows-dao/tests/test_storage_preservation.py"
+        "oracle/windows-dao/tests/test_storage_preservation.py",
+        "oracle/windows-dao/scripts/storage_churn.py"
       ]
     },
     {
@@ -433,7 +437,9 @@
         "oracle/windows-dao/scripts/storage_preservation.ps1",
         "oracle/windows-dao/scripts/storage_preservation.py",
         "oracle/windows-dao/tests/test_storage_preservation.py",
-        "oracle/windows-dao/scripts/storage_preservation_failures.py"
+        "oracle/windows-dao/scripts/storage_preservation_failures.py",
+        "oracle/windows-dao/scripts/storage_churn.py",
+        "crates/jet3/src/row_minimum_tests.rs"
       ]
     },
     {
