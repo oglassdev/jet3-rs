@@ -1,23 +1,28 @@
+use super::table_tests::decode_logical;
 use super::table_writer::{
     TableDefinitionSpec, TableDefinitionWriteError, encode_table_definition, table_definition_len,
 };
 use crate::{
     ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnStorageKind, ColumnType,
-    DatabaseReader, Error, IndexDefinitionKind, IndexDirection, IndexFieldSpec, JET3_PAGE_SIZE,
-    LogicalIndexKindSpec, LogicalIndexSpec, LongValueMapSpec, MapRowLocator, PAGE_BYTES,
-    PageNumber, PhysicalIndexFlagsSpec, PhysicalIndexSpec, ReadLimits, RelationshipSide,
-    ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource, SystemColumnClassSpec,
-    TableDefinition, TableDefinitionKind, definition::column_writer::nz,
+    Error, IndexDefinitionKind, IndexDirection, IndexFieldSpec, LogicalIndexKindSpec,
+    LogicalIndexSpec, LongValueMapSpec, MapRowLocator, PAGE_BYTES, PageNumber,
+    PhysicalIndexFlagsSpec, PhysicalIndexSpec, RelationshipSide, ResourceBudget, ResourceLimitKind,
+    ResourceLimits, SystemColumnClassSpec, TableDefinitionKind, definition::column_writer::nz,
 };
 
-const ROOT: u64 = 1;
+use crate::testkit::{TestResult, budget};
+
 const MAP_PAGE: u64 = 2;
 const INDEX_ROOT: u64 = 3;
 const RELATED_ROOT: u64 = 5;
+const FIRST_ASCENDING: [IndexFieldSpec; 1] = [IndexFieldSpec {
+    column: 0,
+    direction: IndexDirection::Ascending,
+}];
 
-use crate::testkit::TestResult;
-
-use crate::testkit::budget;
+const fn map_row(row: u8) -> MapRowLocator {
+    MapRowLocator::new(PageNumber::new(MAP_PAGE), row)
+}
 
 fn all_type_columns() -> Vec<ColumnSpec<'static>> {
     vec![
@@ -38,18 +43,13 @@ fn all_type_columns() -> Vec<ColumnSpec<'static>> {
     ]
 }
 
-fn physical(fields: &[IndexFieldSpec], unique: bool, required: bool) -> PhysicalIndexSpec<'_> {
+fn physical(fields: &[IndexFieldSpec], flags: PhysicalIndexFlagsSpec) -> PhysicalIndexSpec<'_> {
     PhysicalIndexSpec {
         fields,
         usage_map_page: PageNumber::new(MAP_PAGE),
         usage_map_row: 2,
         root: PageNumber::new(INDEX_ROOT),
-        flags: match (unique, required) {
-            (false, false) => PhysicalIndexFlagsSpec::Ordinary,
-            (true, false) => PhysicalIndexFlagsSpec::Unique,
-            (false, true) => PhysicalIndexFlagsSpec::Required,
-            (true, true) => PhysicalIndexFlagsSpec::UniqueRequired,
-        },
+        flags,
         entry_count: 0,
     }
 }
@@ -75,8 +75,8 @@ fn spec<'a>(
         system_column_classes: &[],
         physical_indexes,
         indexes,
-        owned_map: MapRowLocator::new(PageNumber::new(MAP_PAGE), 0),
-        available_map: MapRowLocator::new(PageNumber::new(MAP_PAGE), 1),
+        owned_map: map_row(0),
+        available_map: map_row(1),
         row_count: 0,
         long_value_maps,
     }
@@ -109,46 +109,44 @@ const LONG_VALUE_SUFFIX: [u8; 20] = [
 const LONG_VALUE_MAPS: [LongValueMapSpec; 2] = [
     LongValueMapSpec {
         column: 11,
-        owned: MapRowLocator::new(PageNumber::new(MAP_PAGE), 2),
-        available: MapRowLocator::new(PageNumber::new(MAP_PAGE), 3),
+        owned: map_row(2),
+        available: map_row(3),
     },
     LongValueMapSpec {
         column: 12,
-        owned: MapRowLocator::new(PageNumber::new(MAP_PAGE), 2),
-        available: MapRowLocator::new(PageNumber::new(MAP_PAGE), 3),
+        owned: map_row(2),
+        available: map_row(3),
     },
 ];
 
-fn decode(logical: &[u8]) -> Result<TableDefinition, Box<dyn std::error::Error>> {
-    let mut bytes = crate::testkit::database_image(6);
-    let root = ROOT as usize * PAGE_BYTES;
-    bytes[root..root + logical.len()].copy_from_slice(logical);
-    let map = &mut bytes[MAP_PAGE as usize * PAGE_BYTES..(MAP_PAGE as usize + 1) * PAGE_BYTES];
-    map[0] = 1;
-    map[8..10].copy_from_slice(&4_u16.to_le_bytes());
-    for row in 0..4 {
-        let start = (PAGE_BYTES - 8 * (row + 1)) as u16;
-        map[10 + 2 * row..12 + 2 * row].copy_from_slice(&start.to_le_bytes());
+/// Encodes into a zeroed page with a default budget, leaving the page
+/// untouched on refusal.
+fn encode(spec: &TableDefinitionSpec<'_>) -> Result<Vec<u8>, TableDefinitionWriteError> {
+    let mut output = vec![0_u8; PAGE_BYTES];
+    let result = encode_into(spec, &mut output, &mut budget());
+    if result.is_err() {
+        assert!(output.iter().all(|byte| *byte == 0));
     }
-    bytes[INDEX_ROOT as usize * PAGE_BYTES] = 4;
-    bytes[RELATED_ROOT as usize * PAGE_BYTES] = 2;
-    let mut budget = ResourceBudget::new(ResourceLimits::new(ReadLimits::new(
-        ByteCount::new(bytes.len() as u64),
-        JET3_PAGE_SIZE,
-        ByteCount::new(u64::MAX),
-    )));
-    let source = SliceSource::new(&bytes, budget.read_budget())?;
-    let mut database = DatabaseReader::from_source(source, &mut budget)?;
-    Ok(database.table_definition(PageNumber::new(ROOT), &mut budget)?)
+    output.truncate(result?.get() as usize);
+    Ok(output)
+}
+
+fn encode_into(
+    spec: &TableDefinitionSpec<'_>,
+    output: &mut [u8],
+    budget: &mut ResourceBudget,
+) -> Result<ByteCount, TableDefinitionWriteError> {
+    encode_table_definition(
+        spec,
+        output,
+        crate::index::key::text::ENCODING_CONTEXT,
+        budget,
+    )
 }
 
 #[test]
-fn round_trips_every_column_type_and_index_kind() -> Result<(), Box<dyn std::error::Error>> {
+fn round_trips_every_column_type_and_index_kind() -> TestResult {
     let columns = all_type_columns();
-    let primary_fields = [IndexFieldSpec {
-        column: 0,
-        direction: IndexDirection::Ascending,
-    }];
     let composite_fields = [
         IndexFieldSpec {
             column: 10,
@@ -160,8 +158,8 @@ fn round_trips_every_column_type_and_index_kind() -> Result<(), Box<dyn std::err
         },
     ];
     let physical_indexes = [
-        physical(&primary_fields, true, true),
-        physical(&composite_fields, false, false),
+        physical(&FIRST_ASCENDING, PhysicalIndexFlagsSpec::UniqueRequired),
+        physical(&composite_fields, PhysicalIndexFlagsSpec::Ordinary),
     ];
     let indexes = [
         LogicalIndexSpec {
@@ -189,17 +187,11 @@ fn round_trips_every_column_type_and_index_kind() -> Result<(), Box<dyn std::err
     ];
     let spec = spec(&columns, &physical_indexes, &indexes);
     let mut output = vec![0xa5_u8; PAGE_BYTES];
-    let mut budget = ResourceBudget::new(ResourceLimits::default());
-    let length = encode_table_definition(
-        &spec,
-        &mut output,
-        crate::index::key::text::ENCODING_CONTEXT,
-        &mut budget,
-    )?;
-    assert_eq!(length.get() as usize, table_definition_len(&spec)?);
-    let decoded = decode(&output[..length.get() as usize])?;
+    let length = encode_into(&spec, &mut output, &mut budget())?.get() as usize;
+    assert_eq!(length, table_definition_len(&spec)?);
+    let decoded = decode_logical(&output[..length])?;
 
-    assert_eq!(decoded.logical_length(), length.get() as u32);
+    assert_eq!(decoded.logical_length() as usize, length);
     assert_eq!(decoded.maps().owned().page(), PageNumber::new(MAP_PAGE));
     assert_eq!(decoded.maps().available().row(), 1);
     assert_eq!(decoded.raw_suffix(), &LONG_VALUE_SUFFIX);
@@ -215,22 +207,14 @@ fn round_trips_every_column_type_and_index_kind() -> Result<(), Box<dyn std::err
         );
     }
     assert!(decoded.columns()[0].auto_increment());
-    assert_eq!(
-        decoded.columns()[1].storage(),
-        ColumnStorageClass::Fixed { offset: 0 }
-    );
-    assert_eq!(
-        decoded.columns()[2].storage(),
-        ColumnStorageClass::Fixed { offset: 4 }
-    );
-    assert_eq!(
-        decoded.columns()[13].storage(),
-        ColumnStorageClass::Fixed { offset: 38 }
-    );
-    assert_eq!(
-        decoded.columns()[12].storage(),
-        ColumnStorageClass::Variable { index: 3 }
-    );
+    for (ordinal, storage) in [
+        (1, ColumnStorageClass::Fixed { offset: 0 }),
+        (2, ColumnStorageClass::Fixed { offset: 4 }),
+        (13, ColumnStorageClass::Fixed { offset: 38 }),
+        (12, ColumnStorageClass::Variable { index: 3 }),
+    ] {
+        assert_eq!(decoded.columns()[ordinal].storage(), storage);
+    }
 
     let composite = &decoded.physical_indexes()[1];
     assert_eq!(composite.fields().len(), 2);
@@ -266,17 +250,9 @@ fn round_trips_typed_system_marker_columns_flags_counts_and_maps() -> TestResult
         ColumnSpec::new(b"Id", ColumnType::Long),
         ColumnSpec::new(b"Payload", ColumnType::LongBinary),
     ];
-    let fields = [IndexFieldSpec {
-        column: 0,
-        direction: IndexDirection::Ascending,
-    }];
     let physical = [PhysicalIndexSpec {
-        fields: &fields,
-        usage_map_page: PageNumber::new(MAP_PAGE),
-        usage_map_row: 2,
-        root: PageNumber::new(INDEX_ROOT),
-        flags: PhysicalIndexFlagsSpec::Unique,
         entry_count: 7,
+        ..physical(&FIRST_ASCENDING, PhysicalIndexFlagsSpec::Unique)
     }];
     let logical = [LogicalIndexSpec {
         name: b"Id",
@@ -285,35 +261,25 @@ fn round_trips_typed_system_marker_columns_flags_counts_and_maps() -> TestResult
     }];
     let maps = [LongValueMapSpec {
         column: 1,
-        owned: MapRowLocator::new(PageNumber::new(MAP_PAGE), 2),
-        available: MapRowLocator::new(PageNumber::new(MAP_PAGE), 3),
+        owned: map_row(2),
+        available: map_row(3),
     }];
     let system = TableDefinitionSpec {
         kind: TableDefinitionKind::System,
-        columns: &columns,
         system_column_classes: &[
             SystemColumnClassSpec::Fixed,
             SystemColumnClassSpec::Variable,
         ],
-        physical_indexes: &physical,
-        indexes: &logical,
-        owned_map: MapRowLocator::new(PageNumber::new(MAP_PAGE), 0),
-        available_map: MapRowLocator::new(PageNumber::new(MAP_PAGE), 1),
         row_count: 9,
         long_value_maps: &maps,
+        ..spec(&columns, &physical, &logical)
     };
-    let mut output = [0_u8; PAGE_BYTES];
-    let length = encode_table_definition(
-        &system,
-        &mut output,
-        crate::index::key::text::ENCODING_CONTEXT,
-        &mut budget(),
-    )?;
+    let output = encode(&system)?;
     assert_eq!(output[12..16], 9_u32.to_le_bytes());
     assert_eq!(output[20], 0x53);
     assert_eq!(output[47..51], 7_u32.to_le_bytes());
 
-    let decoded = decode(&output[..length.get() as usize])?;
+    let decoded = decode_logical(&output)?;
     assert_eq!(decoded.kind(), TableDefinitionKind::System);
     assert_eq!(decoded.columns()[0].raw_class_flags(), 0x13);
     assert_eq!(decoded.columns()[1].raw_class_flags(), 0x12);
@@ -325,30 +291,18 @@ fn round_trips_typed_system_marker_columns_flags_counts_and_maps() -> TestResult
     );
     assert_eq!(decoded.long_value_maps()[0].column().get(), 1);
 
-    let missing = TableDefinitionSpec {
-        system_column_classes: &[],
-        ..system
-    };
     assert!(matches!(
-        encode_table_definition(
-            &missing,
-            &mut [0; PAGE_BYTES],
-            crate::index::key::text::ENCODING_CONTEXT,
-            &mut budget()
-        ),
+        encode(&TableDefinitionSpec {
+            system_column_classes: &[],
+            ..system
+        }),
         Err(TableDefinitionWriteError::InvalidSystemColumnClassCount { .. })
     ));
-    let invalid = TableDefinitionSpec {
-        system_column_classes: &[SystemColumnClassSpec::Fixed, SystemColumnClassSpec::Binary],
-        ..system
-    };
     assert!(matches!(
-        encode_table_definition(
-            &invalid,
-            &mut [0; PAGE_BYTES],
-            crate::index::key::text::ENCODING_CONTEXT,
-            &mut budget()
-        ),
+        encode(&TableDefinitionSpec {
+            system_column_classes: &[SystemColumnClassSpec::Fixed, SystemColumnClassSpec::Binary],
+            ..system
+        }),
         Err(TableDefinitionWriteError::InvalidSystemColumnClass { .. })
     ));
     Ok(())
@@ -357,133 +311,84 @@ fn round_trips_typed_system_marker_columns_flags_counts_and_maps() -> TestResult
 #[test]
 fn rejects_cross_kind_flags_and_incomplete_typed_long_value_maps() {
     let columns = [ColumnSpec::new(b"Payload", ColumnType::LongBinary)];
-    let mut missing = spec(&columns, &[], &[]);
-    missing.long_value_maps = &[];
+    let mut maps = spec(&columns, &[], &[]);
+    maps.long_value_maps = &[];
     assert_eq!(
-        table_definition_len(&missing).and_then(|length| {
-            encode_table_definition(
-                &missing,
-                &mut vec![0; length],
-                crate::index::key::text::ENCODING_CONTEXT,
-                &mut budget(),
-            )
-            .map(|_| length)
-        }),
+        encode(&maps),
         Err(TableDefinitionWriteError::MissingLongValueMap { column: 0 })
     );
     let duplicate_maps = [LongValueMapSpec {
         column: 0,
-        owned: MapRowLocator::new(PageNumber::new(MAP_PAGE), 0),
-        available: MapRowLocator::new(PageNumber::new(MAP_PAGE), 1),
+        owned: map_row(0),
+        available: map_row(1),
     }; 2];
-    missing.long_value_maps = &duplicate_maps;
-    assert!(matches!(
-        encode_table_definition(
-            &missing,
-            &mut [0; PAGE_BYTES],
-            crate::index::key::text::ENCODING_CONTEXT,
-            &mut budget()
-        ),
+    maps.long_value_maps = &duplicate_maps;
+    assert_eq!(
+        encode(&maps),
         Err(TableDefinitionWriteError::TooManyLongValueMaps {
             count: 2,
             maximum: 1,
         })
-    ));
+    );
 
     let scalar_columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
-    let fields = [IndexFieldSpec {
-        column: 0,
-        direction: IndexDirection::Ascending,
-    }];
-    let physical = [PhysicalIndexSpec {
-        fields: &fields,
-        usage_map_page: PageNumber::new(MAP_PAGE),
-        usage_map_row: 0,
-        root: PageNumber::new(INDEX_ROOT),
-        flags: PhysicalIndexFlagsSpec::SystemUninterpreted,
-        entry_count: 0,
-    }];
+    let physical = [physical(
+        &FIRST_ASCENDING,
+        PhysicalIndexFlagsSpec::SystemUninterpreted,
+    )];
     let logical = [LogicalIndexSpec {
         name: b"Id",
         physical_index: 0,
         kind: LogicalIndexKindSpec::Ordinary,
     }];
-    let user = TableDefinitionSpec {
-        kind: TableDefinitionKind::User,
-        columns: &scalar_columns,
-        system_column_classes: &[],
-        physical_indexes: &physical,
-        indexes: &logical,
-        owned_map: MapRowLocator::new(PageNumber::new(MAP_PAGE), 0),
-        available_map: MapRowLocator::new(PageNumber::new(MAP_PAGE), 1),
-        row_count: 0,
-        long_value_maps: &[],
-    };
-    assert!(matches!(
-        encode_table_definition(
-            &user,
-            &mut [0; PAGE_BYTES],
-            crate::index::key::text::ENCODING_CONTEXT,
-            &mut budget()
-        ),
+    assert_eq!(
+        encode(&spec(&scalar_columns, &physical, &logical)),
         Err(TableDefinitionWriteError::InvalidPhysicalFlags {
             physical_index: 0,
             kind: TableDefinitionKind::User,
             flags: PhysicalIndexFlagsSpec::SystemUninterpreted,
         })
-    ));
+    );
 }
 
 #[test]
 fn rejects_structural_errors_before_writing() {
-    let mut output = vec![0_u8; PAGE_BYTES];
-    let mut budget = ResourceBudget::new(ResourceLimits::default());
+    let too_many = vec![ColumnSpec::new(b"A", ColumnType::Long); 256];
+    let expected = TableDefinitionWriteError::TooManyColumns {
+        count: 256,
+        maximum: 255,
+    };
+    assert_eq!(
+        table_definition_len(&spec(&too_many, &[], &[])),
+        Err(expected.clone())
+    );
+    assert_eq!(encode(&spec(&too_many, &[], &[])), Err(expected));
+
     let long_name = [b'x'; 256];
-    let cases: Vec<(Vec<ColumnSpec<'_>>, TableDefinitionWriteError)> = vec![
-        (
-            vec![ColumnSpec::new(b"A", ColumnType::Long); 256],
-            TableDefinitionWriteError::TooManyColumns {
-                count: 256,
-                maximum: 255,
-            },
-        ),
-        (
-            vec![ColumnSpec::new(&long_name, ColumnType::Long)],
-            TableDefinitionWriteError::NameTooLong {
-                role: "column",
-                ordinal: 0,
-                length: 256,
-                maximum: 255,
-            },
-        ),
-        (
-            vec![
-                ColumnSpec::new(b"A", ColumnType::Long),
-                ColumnSpec::new(b"A", ColumnType::Long),
-            ],
-            TableDefinitionWriteError::DuplicateName {
-                role: "column",
-                ordinal: 1,
-            },
-        ),
+    assert_eq!(
+        encode(&spec(
+            &[ColumnSpec::new(&long_name, ColumnType::Long)],
+            &[],
+            &[]
+        )),
+        Err(TableDefinitionWriteError::NameTooLong {
+            role: "column",
+            ordinal: 0,
+            length: 256,
+            maximum: 255,
+        })
+    );
+    let duplicate = [
+        ColumnSpec::new(b"A", ColumnType::Long),
+        ColumnSpec::new(b"A", ColumnType::Long),
     ];
-    for (columns, expected) in cases {
-        if matches!(&expected, TableDefinitionWriteError::TooManyColumns { .. }) {
-            assert_eq!(
-                table_definition_len(&spec(&columns, &[], &[])),
-                Err(expected.clone())
-            );
-        }
-        assert_eq!(
-            encode_table_definition(
-                &spec(&columns, &[], &[]),
-                &mut output,
-                crate::index::key::text::ENCODING_CONTEXT,
-                &mut budget
-            ),
-            Err(expected)
-        );
-    }
+    assert_eq!(
+        encode(&spec(&duplicate, &[], &[])),
+        Err(TableDefinitionWriteError::DuplicateName {
+            role: "column",
+            ordinal: 1,
+        })
+    );
 
     let names: [&[u8]; 9] = [b"A", b"B", b"C", b"D", b"E", b"F", b"G", b"H", b"I"];
     let oversized_columns: Vec<_> = names
@@ -491,31 +396,17 @@ fn rejects_structural_errors_before_writing() {
         .map(|name| ColumnSpec::new(name, ColumnType::FixedText { len: nz(255) }))
         .collect();
     assert_eq!(
-        encode_table_definition(
-            &spec(&oversized_columns, &[], &[]),
-            &mut output,
-            crate::index::key::text::ENCODING_CONTEXT,
-            &mut budget
-        ),
+        encode(&spec(&oversized_columns, &[], &[])),
         Err(TableDefinitionWriteError::RowLayoutTooLarge {
             minimum: 2_298,
             maximum: 2003,
         })
     );
 
-    let columns = [ColumnSpec::new(b"Notes", ColumnType::Memo)];
-    let fields = [IndexFieldSpec {
-        column: 0,
-        direction: IndexDirection::Ascending,
-    }];
-    let physical_indexes = [physical(&fields, false, false)];
+    let memo = [ColumnSpec::new(b"Notes", ColumnType::Memo)];
+    let ordinary = [physical(&FIRST_ASCENDING, PhysicalIndexFlagsSpec::Ordinary)];
     assert_eq!(
-        encode_table_definition(
-            &spec(&columns, &physical_indexes, &[]),
-            &mut output,
-            crate::index::key::text::ENCODING_CONTEXT,
-            &mut budget
-        ),
+        encode(&spec(&memo, &ordinary, &[])),
         Err(TableDefinitionWriteError::UnsupportedKeyColumn {
             physical_index: 0,
             ordinal: 0,
@@ -525,48 +416,19 @@ fn rejects_structural_errors_before_writing() {
 
     let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
     let mut invalid_map = spec(&columns, &[], &[]);
-    invalid_map.owned_map = MapRowLocator::new(PageNumber::new(0), 0);
-    assert_eq!(
-        encode_table_definition(
-            &invalid_map,
-            &mut output,
-            crate::index::key::text::ENCODING_CONTEXT,
-            &mut budget
-        ),
-        Err(TableDefinitionWriteError::InvalidMapReference {
-            role: "owned",
-            page: PageNumber::new(0),
-        })
-    );
-    invalid_map.owned_map = MapRowLocator::new(PageNumber::new(0x0100_0000), 0);
-    assert_eq!(
-        encode_table_definition(
-            &invalid_map,
-            &mut output,
-            crate::index::key::text::ENCODING_CONTEXT,
-            &mut budget
-        ),
-        Err(TableDefinitionWriteError::InvalidMapReference {
-            role: "owned",
-            page: PageNumber::new(0x0100_0000),
-        })
-    );
-    assert!(output.iter().all(|byte| *byte == 0));
+    for page in [0, 0x0100_0000] {
+        invalid_map.owned_map = MapRowLocator::new(PageNumber::new(page), 0);
+        assert_eq!(
+            encode(&invalid_map),
+            Err(TableDefinitionWriteError::InvalidMapReference {
+                role: "owned",
+                page: PageNumber::new(page),
+            })
+        );
+    }
 
-    let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
-    let fields = [IndexFieldSpec {
-        column: 0,
-        direction: IndexDirection::Ascending,
-    }];
-    let physical_indexes = [physical(&fields, false, false)];
-    let unreferenced = spec(&columns, &physical_indexes, &[]);
     assert_eq!(
-        encode_table_definition(
-            &unreferenced,
-            &mut output,
-            crate::index::key::text::ENCODING_CONTEXT,
-            &mut budget
-        ),
+        encode(&spec(&columns, &ordinary, &[])),
         Err(TableDefinitionWriteError::UnreferencedPhysicalIndex { physical_index: 0 })
     );
     let primary = [LogicalIndexSpec {
@@ -575,12 +437,7 @@ fn rejects_structural_errors_before_writing() {
         kind: LogicalIndexKindSpec::Primary,
     }];
     assert_eq!(
-        encode_table_definition(
-            &spec(&columns, &physical_indexes, &primary),
-            &mut output,
-            crate::index::key::text::ENCODING_CONTEXT,
-            &mut budget
-        ),
+        encode(&spec(&columns, &ordinary, &primary)),
         Err(TableDefinitionWriteError::InvalidPrimaryFlags {
             logical_index: 0,
             raw: 0,
@@ -589,19 +446,13 @@ fn rejects_structural_errors_before_writing() {
 }
 
 #[test]
-fn rejects_small_output_and_exhausted_budget() -> Result<(), Box<dyn std::error::Error>> {
+fn rejects_small_output_and_exhausted_budget() -> TestResult {
     let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
     let spec = spec(&columns, &[], &[]);
     let needed = table_definition_len(&spec)?;
     let mut output = vec![0_u8; needed];
-    let mut budget = ResourceBudget::new(ResourceLimits::default());
     assert_eq!(
-        encode_table_definition(
-            &spec,
-            &mut output[..needed - 1],
-            crate::index::key::text::ENCODING_CONTEXT,
-            &mut budget
-        ),
+        encode_into(&spec, &mut output[..needed - 1], &mut budget()),
         Err(TableDefinitionWriteError::OutputTooSmall {
             needed,
             available: needed - 1,
@@ -610,12 +461,7 @@ fn rejects_small_output_and_exhausted_budget() -> Result<(), Box<dyn std::error:
     let mut exhausted =
         ResourceBudget::new(ResourceLimits::default().with_max_encoded_bytes(ByteCount::new(3)));
     assert_eq!(
-        encode_table_definition(
-            &spec,
-            &mut output,
-            crate::index::key::text::ENCODING_CONTEXT,
-            &mut exhausted
-        ),
+        encode_into(&spec, &mut output, &mut exhausted),
         Err(TableDefinitionWriteError::Resource(
             Error::ResourceLimitExceeded {
                 kind: ResourceLimitKind::EncodedBytes,
@@ -624,21 +470,7 @@ fn rejects_small_output_and_exhausted_budget() -> Result<(), Box<dyn std::error:
             }
         ))
     );
-    let error = TableDefinitionWriteError::DuplicatePrimaryIndex;
-    assert!(
-        error
-            .to_string()
-            .contains("table definition encoding failed")
-    );
-    assert!(
-        encode_table_definition(
-            &spec,
-            &mut output,
-            crate::index::key::text::ENCODING_CONTEXT,
-            &mut budget
-        )
-        .is_ok()
-    );
-    assert!(decode(&output).is_ok());
+    encode_into(&spec, &mut output, &mut budget())?;
+    decode_logical(&output)?;
     Ok(())
 }

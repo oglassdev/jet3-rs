@@ -8,9 +8,7 @@ use crate::{
     format::limits::ReadLimits,
 };
 
-use crate::testkit::TestResult;
-
-use crate::testkit::budget;
+use crate::testkit::{TestResult, budget};
 
 fn out_of_map(page: u64, first: u64, page_count: u64) -> UsageMapWriteError {
     UsageMapWriteError::PageOutOfMap {
@@ -159,15 +157,11 @@ fn extended_page_round_trips_through_traversal_decoder() -> TestResult {
 }
 
 #[test]
-fn extended_slot_overflow_is_structured() {
+fn extended_slot_overflow_and_budgeted_updates_are_atomic() -> TestResult {
     assert!(matches!(
         ExtendedUsageMapEncoder::new(u64::MAX, &mut budget()),
         Err(UsageMapWriteError::Encoding(Error::Arithmetic { .. }))
     ));
-}
-
-#[test]
-fn extended_updates_are_budgeted_and_atomic() -> TestResult {
     let encoded_limited =
         ResourceLimits::new(ReadLimits::default()).with_max_encoded_bytes(ByteCount::new(4));
     let mut budget = ResourceBudget::new(encoded_limited);

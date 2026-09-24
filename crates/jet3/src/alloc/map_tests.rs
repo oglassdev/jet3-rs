@@ -31,32 +31,31 @@ fn geometry(page_count: u64) -> Result<PageGeometry, Error> {
 
 #[test]
 fn record_shape_errors_are_structured_and_charge_one_work_unit() {
-    let mut resources = budget();
-    assert_eq!(
-        decode_allocation_map(&[], &mut resources),
-        Err(AllocationMapError::EmptyRecord)
-    );
-    assert_eq!(resources.total_work_units(), 1);
+    let mut cases = vec![
+        (vec![], AllocationMapError::EmptyRecord),
+        (
+            vec![1, 0, 0, 0],
+            AllocationMapError::IndirectPayloadMisaligned { payload_len: 3 },
+        ),
+        (
+            vec![2],
+            AllocationMapError::UnsupportedRecordType { record_type: 2 },
+        ),
+    ];
     for actual_len in 1..5 {
+        cases.push((
+            vec![0; actual_len],
+            AllocationMapError::InlineRecordTooShort { actual_len },
+        ));
+    }
+    for (record, expected) in cases {
         let mut resources = budget();
         assert_eq!(
-            decode_allocation_map(&[0; 4][..actual_len], &mut resources),
-            Err(AllocationMapError::InlineRecordTooShort { actual_len })
+            decode_allocation_map(&record, &mut resources),
+            Err(expected)
         );
         assert_eq!(resources.total_work_units(), 1);
     }
-    let mut resources = budget();
-    assert_eq!(
-        decode_allocation_map(&[1, 0, 0, 0], &mut resources),
-        Err(AllocationMapError::IndirectPayloadMisaligned { payload_len: 3 })
-    );
-    assert_eq!(resources.total_work_units(), 1);
-    let mut resources = budget();
-    assert_eq!(
-        decode_allocation_map(&[2], &mut resources),
-        Err(AllocationMapError::UnsupportedRecordType { record_type: 2 })
-    );
-    assert_eq!(resources.total_work_units(), 1);
 }
 
 #[test]
@@ -179,11 +178,8 @@ fn indirect_references_preserve_zero_duplicates_and_boundaries() -> TestResult {
     assert_eq!(references.remaining_references(), 0);
     assert_eq!(resources.item_work(), 4);
     assert_eq!(resources.total_work_units(), 5);
-    Ok(())
-}
 
-#[test]
-fn empty_indirect_payload_is_valid_and_charges_nothing() -> TestResult {
+    // An empty payload is a valid map with no references and no charges.
     let mut resources = budget_with_items(0);
     let AllocationMap::Indirect(map) = decode_allocation_map(&[1], &mut resources)? else {
         return Err("expected indirect map".into());
@@ -220,7 +216,7 @@ fn indirect_resource_failure_preserves_the_pending_raw_reference() -> TestResult
 }
 
 #[test]
-fn extended_bitmap_ignores_unknown_header_bytes_and_yields_relative_indices() -> TestResult {
+fn extended_bitmap_requires_its_page_kind_and_yields_relative_indices() -> TestResult {
     let mut raw = [0; JET3_PAGE_SIZE.get() as usize];
     raw[0] = 0x05;
     raw[1..4].copy_from_slice(&[0xff, 0x7e, 0xa5]);
@@ -236,15 +232,11 @@ fn extended_bitmap_ignores_unknown_header_bytes_and_yields_relative_indices() ->
     assert_eq!(bits.next_bit(&mut resources)?, None);
     assert_eq!(resources.item_work(), 16_352);
     assert_eq!(resources.total_work_units(), 16_353);
-    Ok(())
-}
 
-#[test]
-fn extended_bitmap_requires_the_classified_page_kind() -> TestResult {
-    let mut raw = [0; JET3_PAGE_SIZE.get() as usize];
-    raw[0] = 0x01;
+    let mut data = [0; JET3_PAGE_SIZE.get() as usize];
+    data[0] = 0x01;
     let mut resources = budget();
-    let page = classify_page(PageNumber::new(1), &raw, &mut resources)?;
+    let page = classify_page(PageNumber::new(1), &data, &mut resources)?;
 
     assert!(matches!(
         extended_allocation_bits(page),

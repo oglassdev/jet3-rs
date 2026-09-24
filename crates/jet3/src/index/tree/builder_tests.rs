@@ -8,9 +8,7 @@ use crate::{
     },
 };
 
-use crate::testkit::TestResult;
-
-use crate::testkit::budget;
+use crate::testkit::{TestResult, budget};
 
 fn entry(
     values: [RowValue<'_>; 2],

@@ -4,6 +4,18 @@ use crate::{
     index::tree::reader::{IndexNodeKind, IndexTreeError},
 };
 
+use crate::testkit::TestResult;
+
+fn is_depth_limit(error: Option<IndexTreeError>) -> bool {
+    matches!(
+        error,
+        Some(IndexTreeError::Resource(Error::ResourceLimitExceeded {
+            kind: ResourceLimitKind::ChainDepth,
+            ..
+        }))
+    )
+}
+
 fn three_level_tree() -> Vec<u8> {
     let mut bytes = database_bytes(4, 3, 4);
     bytes.resize(11 * PAGE_BYTES, 0);
@@ -45,8 +57,7 @@ fn three_level_tree() -> Vec<u8> {
 }
 
 #[test]
-fn observed_root_classes_keep_three_level_traversal_and_depth_bounds()
--> Result<(), Box<dyn std::error::Error>> {
+fn observed_root_classes_keep_three_level_traversal_and_depth_bounds() -> TestResult {
     let mut bytes = three_level_tree();
     for marker in [1, 2, 3] {
         bytes[INDEX_ROOT * PAGE_BYTES + 21] = marker;
@@ -63,16 +74,10 @@ fn observed_root_classes_keep_three_level_traversal_and_depth_bounds()
                 .filter(|node| node.kind() == IndexNodeKind::Leaf)
                 .all(|node| node.depth() == 3)
         );
-        let error = traverse_with_limits(&bytes, limits(&bytes).with_max_chain_depth(2))
-            .err()
-            .ok_or("depth limit unexpectedly succeeded")?;
-        assert!(matches!(
-            error.downcast_ref::<IndexTreeError>(),
-            Some(IndexTreeError::Resource(Error::ResourceLimitExceeded {
-                kind: ResourceLimitKind::ChainDepth,
-                ..
-            }))
-        ));
+        assert!(is_depth_limit(tree_error(
+            &bytes,
+            limits(&bytes).with_max_chain_depth(2)
+        )));
     }
     Ok(())
 }
@@ -90,18 +95,16 @@ fn unknown_branch_and_nonzero_leaf_markers_remain_rejected() {
         let mut bytes = three_level_tree();
         bytes[INDEX_ROOT * PAGE_BYTES + 21] = 2;
         bytes[page * PAGE_BYTES + 21] = marker;
-        let result = traverse_with_limits(&bytes, limits(&bytes));
-        assert!(
-            matches!(result, Err(error) if matches!(error.downcast_ref::<IndexTreeError>(),
+        assert!(matches!(
+            tree_error(&bytes, limits(&bytes)),
             Some(IndexTreeError::InvalidHeaderMarker { page: actual, offset: 21, raw })
-                if actual.get() == page as u64 && *raw == marker))
-        );
+                if actual.get() == page as u64 && raw == marker
+        ));
     }
 }
 
 #[test]
-fn retained_tail_only_root_traverses_and_checks_its_child() -> Result<(), Box<dyn std::error::Error>>
-{
+fn retained_tail_only_root_traverses_and_checks_its_child() -> TestResult {
     let mut bytes = branch_tree();
     bytes[INDEX_ROOT * PAGE_BYTES..(INDEX_ROOT + 1) * PAGE_BYTES].fill(0);
     write_node(
@@ -124,45 +127,30 @@ fn retained_tail_only_root_traverses_and_checks_its_child() -> Result<(), Box<dy
     assert_eq!(tree.entries()[0].row().slot(), 0);
     assert_eq!(tree.entries()[1].row().slot(), 1);
     assert_eq!(tree.nodes()[1].depth(), 2);
-    let error = traverse_with_limits(&bytes, limits(&bytes).with_max_chain_depth(1))
-        .err()
-        .ok_or("tail child ignored depth limit")?;
-    assert!(matches!(
-        error.downcast_ref::<IndexTreeError>(),
-        Some(IndexTreeError::Resource(Error::ResourceLimitExceeded {
-            kind: ResourceLimitKind::ChainDepth,
-            ..
-        }))
-    ));
+    assert!(is_depth_limit(tree_error(
+        &bytes,
+        limits(&bytes).with_max_chain_depth(1)
+    )));
     for child in [INDEX_ROOT, PAGE_COUNT] {
         let mut invalid = bytes.clone();
         invalid[INDEX_ROOT * PAGE_BYTES + 16..INDEX_ROOT * PAGE_BYTES + 20]
             .copy_from_slice(&(child as u32).to_le_bytes());
-        let error = traverse_with_limits(&invalid, limits(&invalid))
-            .err()
-            .ok_or("invalid tail child accepted")?;
         assert!(matches!(
-            error.downcast_ref::<IndexTreeError>(),
+            tree_error(&invalid, limits(&invalid)),
             Some(IndexTreeError::SelfReference { .. } | IndexTreeError::InvalidReference { .. })
         ));
     }
     bytes[INDEX_ROOT * PAGE_BYTES + 21] = 2;
-    let error = traverse_with_limits(&bytes, limits(&bytes))
-        .err()
-        .ok_or("unobserved empty root class accepted")?;
     assert!(matches!(
-        error.downcast_ref::<IndexTreeError>(),
+        tree_error(&bytes, limits(&bytes)),
         Some(IndexTreeError::EmptyIntermediate { .. })
     ));
     let mut nested = three_level_tree();
     nested[4 * PAGE_BYTES + 2..4 * PAGE_BYTES + 4].copy_from_slice(&1800_u16.to_le_bytes());
     nested[4 * PAGE_BYTES + 20..4 * PAGE_BYTES + 248].fill(0);
     nested[4 * PAGE_BYTES + 21] = 1;
-    let error = traverse_with_limits(&nested, limits(&nested))
-        .err()
-        .ok_or("unobserved nested empty branch accepted")?;
     assert!(matches!(
-        error.downcast_ref::<IndexTreeError>(),
+        tree_error(&nested, limits(&nested)),
         Some(IndexTreeError::EmptyIntermediate { .. })
     ));
     Ok(())
