@@ -44,6 +44,6 @@ bench:
 fuzz seconds="60":
     for target in $(cargo +{{NIGHTLY}} fuzz list --fuzz-dir fuzz); do mkdir -p "fuzz/target/corpus/$target" && cargo +{{NIGHTLY}} fuzz run --fuzz-dir fuzz "$target" "fuzz/target/corpus/$target" "fuzz/corpus/$target" -- -max_total_time={{seconds}} || exit 1; done
 
-# Run one PowerShell script under x86 DAO in the local VM.
-windows-dev-ps script *args:
-    "{{PYTHON}}" scripts/windows-dao-ps.py {{script}} {{args}}
+# DAO oracle runner: `just dao list`, `just dao run SUITE --out DIR`, `just dao ps SCRIPT.ps1`.
+dao *args:
+    "{{PYTHON}}" oracle/windows-dao/dao.py {{args}}

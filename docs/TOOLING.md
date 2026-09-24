@@ -37,7 +37,7 @@ requires Git, a POSIX shell with core utilities, a native linker for the Rust
 host, and network access when first installing tools or fetching locked Cargo
 dependencies.
 
-The local Windows DAO loop uses a system OpenSSH client and a machine-local
+The local Windows DAO loop (`oracle/windows-dao/dao.py`) uses a system OpenSSH client and a machine-local
 dockur/windows VM with x86 Windows PowerShell 5 and the licensed
 `DAO.DBEngine.36` provider. Its disks, credentials, provider and shared
 artifacts stay outside the repository; see
