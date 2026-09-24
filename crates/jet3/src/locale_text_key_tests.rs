@@ -11,7 +11,8 @@ fn bytes(hex: &str) -> Vec<u8> {
 }
 
 #[test]
-fn native_locale_keys_cover_expansions_accents_contractions_and_spaces() {
+fn native_locale_keys_cover_expansions_accents_contractions_and_spaces()
+-> Result<(), Box<dyn std::error::Error>> {
     for (order, raw, expected) in [
         (SortOrder::General, "20", "7f00"),
         (SortOrder::General, "00", "7f1000"),
@@ -108,7 +109,7 @@ fn native_locale_keys_cover_expansions_accents_contractions_and_spaces() {
         for direction in [IndexDirection::Ascending, IndexDirection::Descending] {
             let mut output = [0; MAX_COMPONENT_BYTES];
             let length =
-                encode(&raw, raw.len() as u8, direction, order, &mut output).expect("native key");
+                encode(&raw, raw.len() as u8, direction, order, &mut output).ok_or("native key")?;
             let mask = if direction == IndexDirection::Ascending {
                 0
             } else {
@@ -125,13 +126,14 @@ fn native_locale_keys_cover_expansions_accents_contractions_and_spaces() {
             );
         }
     }
+    Ok(())
 }
 
 #[test]
-fn locale_key_bounds_and_undefined_bytes_are_checked() {
+fn locale_key_bounds_and_undefined_bytes_are_checked() -> Result<(), Box<dyn std::error::Error>> {
     let mut output = [0; MAX_COMPONENT_BYTES];
     for order in SortOrder::known() {
-        let page = order.code_page().expect("known code page");
+        let page = order.code_page().ok_or("known code page")?;
         for byte in 0..=255 {
             let length = encode(&[byte], 1, IndexDirection::Ascending, order, &mut output);
             assert_eq!(
@@ -162,6 +164,7 @@ fn locale_key_bounds_and_undefined_bytes_are_checked() {
     ] {
         assert!(prefix(key, 255, IndexDirection::Ascending, SortOrder::Nordic).is_none());
     }
+    Ok(())
 }
 
 #[test]

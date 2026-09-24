@@ -246,9 +246,9 @@ pub(crate) fn check_value_for(value: &[u8], order: crate::SortOrder) -> Result<(
     }
     if value.iter().any(|&byte| {
         byte == 0
-            || !order
+            || order
                 .code_page()
-                .is_some_and(|page| crate::text::mapped_character(page, byte).is_some())
+                .is_none_or(|page| crate::text::mapped_character(page, byte).is_none())
     }) {
         return Err("property value byte");
     }

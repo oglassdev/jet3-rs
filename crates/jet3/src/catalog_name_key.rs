@@ -151,9 +151,9 @@ impl NameKey {
             });
         }
         if let Some((position, &byte)) = name.iter().enumerate().find(|(_, byte)| {
-            !order
+            order
                 .code_page()
-                .is_some_and(|page| crate::text::mapped_character(page, **byte).is_some())
+                .is_none_or(|page| crate::text::mapped_character(page, **byte).is_none())
         }) {
             return Err(CatalogNameKeyError::UnmappedNameByte { position, byte });
         }

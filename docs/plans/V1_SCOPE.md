@@ -597,17 +597,14 @@ rows use native FK/Memo field edits: DAO rejects a full-row edit that reassigns
 their unchanged primary key. That comparison exercises at most two constraints
 per database.
 
-- Extend creation to remaining schema/index-key combinations and unenforced
-  relationships (available through schema edits).
-- Extend updates to remaining index key types/collations, one-to-one relationships,
-  additional payload/schema combinations, broader
-  data-page/live-slot reuse and multi-hop row growth.
-- Cover remaining DAO inventories, additional saved-query/object forms and
-  failure/rollback behavior. Local VM and hosted runs may both establish
-  evidence; preregistration and per-run approval are not required.
-- Extend validation to the remaining integrity checks.
-- Meet all three release gates on a release commit. Evidence covers its recorded
-  revisions and finite recipes; no whole-v1 compatibility is claimed.
+The implementation batches in #367–#369 cover the recorded relationship,
+six-locale schema and storage/preservation inventories. The next work is the
+implementation simplification in #380, followed by release verification in #370.
+Release verification must cover the remaining integrity and DAO inventories and
+meet all three gates on the resulting release commit. Evidence establishes only
+its recorded revisions and finite recipes; no whole-v1 compatibility is claimed.
+Unobserved collations and valid multi-hop row growth remain unsupported and would
+need additional native observations before implementation.
 
 ## Practical acceptance target
 
