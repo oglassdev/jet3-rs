@@ -21177,3 +21177,20 @@ path differences. It does not treat the fresh images as byte-identical.
 These differential results establish the tested one-to-one Long-key creation,
 editing and row-mutation scope. Unknown relationship attribute bits remain
 uninterpreted for writes; no broader format compatibility is inferred.
+
+EXP-0310 final verification: production revision
+`c7b77edcde5d68fb637ad7631c2bf38575c93841` includes the completed one-to-one
+and storage changes. It reproduces all 72 accepted candidate images byte for
+byte and replays the complete comparison report against the retained DAO
+readbacks. The corpus test again matches 8,373 defined-byte native keys.
+Independent GPT-6 Sol high review found no demonstrated blocking correctness
+issue. `just ready` passes 1,818 test executions, zero failures and twelve
+ignored executions (including the separately run private corpus test).
+The support-matrix and protocol-inventory checks pass. Initial lint failures
+are retained with the corrected run.
+
+The private `COLLATION-ARCHIVE-MANIFEST.json` inventories 3,494 retained files
+(555,844,512 bytes); every size and SHA-256 was verified. Its SHA-256 is
+`a5c18180910558572a6e98023d7c07db56b344f44ded68c47d5de4081955fa94`.
+`COLLATION-FINAL-SUMMARY.json` records the final source and report hashes.
+MDBs, provider binaries and credentials remain outside the repository.
