@@ -1,0 +1,6 @@
+{
+  "description": "Created Long tables: five to 256 tables with zero to three indexes, catalog page growth, the creation counter and its overflow refusal, exact sequential layout and native inserts into both outputs (EXP-0222/0241/0244/0249/0251).",
+  "provenance": ["EXP-0222", "EXP-0241", "EXP-0244", "EXP-0249", "EXP-0251"],
+  "registry": "creation_tables",
+  "example": "creation_tables_candidate"
+}

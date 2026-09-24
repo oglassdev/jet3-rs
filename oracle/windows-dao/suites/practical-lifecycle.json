@@ -1,0 +1,6 @@
+{
+  "description": "Practical Items/Notes lifecycle: load, replace, delete and reinsert Text/Currency/Boolean rows around a Memo sentinel, plus four byte-preserving refusals (EXP-0229/0242).",
+  "provenance": ["EXP-0229", "EXP-0242"],
+  "registry": "practical_lifecycle",
+  "example": "practical_lifecycle_candidate"
+}

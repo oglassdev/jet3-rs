@@ -1,0 +1,10 @@
+{
+  "description": "Row and schema edits, native refusals and native continuations in six locales (EXP-0309/0310).",
+  "provenance": ["EXP-0309", "EXP-0310"],
+  "generate": "locale_updates",
+  "locale_keys": {
+    "external": "20260924-pre-simplification/collation-discovery-r3/KEYS.json",
+    "sha256": "ec17e26a6296a0abad76481fe9e13d5235e2d2fb63f2f2b208286fd38dd0bf8b"
+  },
+  "checks": {"outcome": ["accepted", "residue"], "readback": ["accepted", "residue"], "structure": ["accepted", "residue"]}
+}

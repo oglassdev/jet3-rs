@@ -1,0 +1,689 @@
+{
+  "description": "One-to-one relationships in new databases against native SQL-built equivalents (EXP-0308).",
+  "provenance": ["EXP-0307", "EXP-0308"],
+  "creation_replicas": [1, 2],
+  "checks": {},
+  "native_default_properties": {"length": 67, "sha256": "106660b5c99813de4454ee856efb631c2840c560977d03ed67a15e871cee2dc9"},
+  "creations": [
+    {
+      "name": "creation-new",
+      "request": {
+        "tables": [
+          {
+            "name": "P",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}, null], [{"long": 2}, null]]
+          },
+          {
+            "name": "C",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}, {"long": 1}], [{"long": 2}, {"long": 2}], [{"long": 3}, null], [{"long": 4}, null]]
+          }
+        ],
+        "relationships": [
+          {
+            "name": "One",
+            "parent": {"table": "P", "column": "id"},
+            "child": {"table": "C", "column": "pid"},
+            "unique": true,
+            "cascade_updates": true,
+            "cascade_deletes": true
+          }
+        ]
+      },
+      "native": {
+        "ops": [
+          {
+            "op": "table",
+            "table": {
+              "name": "P",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (1, NULL)"},
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (2, NULL)"},
+          {
+            "op": "table",
+            "table": {
+              "name": "C",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (1, 1)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (2, 2)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (3, NULL)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (4, NULL)"},
+          {
+            "op": "relation",
+            "name": "One",
+            "parent": "P",
+            "child": "C",
+            "attributes": 4353,
+            "pairs": [["id", "pid"]]
+          }
+        ]
+      },
+      "dates": ["P", "C"],
+      "checks": ["creation-structure"],
+      "placement_roles": [
+        "MSysRelationships/table/owned",
+        "MSysRelationships/table/available",
+        "C/table/owned",
+        "C/table/available",
+        "C/index/1/owned"
+      ]
+    },
+    {
+      "name": "creation-unique",
+      "request": {
+        "tables": [
+          {
+            "name": "P",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}, null], [{"long": 2}, null]]
+          },
+          {
+            "name": "C",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [
+              {"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]},
+              {"name": "Existing", "kind": "unique", "fields": [{"column": "pid"}]}
+            ],
+            "rows": [[{"long": 1}, {"long": 1}], [{"long": 2}, {"long": 2}], [{"long": 3}, null], [{"long": 4}, null]]
+          }
+        ],
+        "relationships": [
+          {
+            "name": "One",
+            "parent": {"table": "P", "column": "id"},
+            "child": {"table": "C", "column": "pid"},
+            "unique": true,
+            "cascade_updates": true,
+            "cascade_deletes": true
+          }
+        ]
+      },
+      "native": {
+        "ops": [
+          {
+            "op": "table",
+            "table": {
+              "name": "P",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (1, NULL)"},
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (2, NULL)"},
+          {
+            "op": "table",
+            "table": {
+              "name": "C",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "CREATE UNIQUE INDEX Existing ON C (pid)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (1, 1)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (2, 2)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (3, NULL)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (4, NULL)"},
+          {
+            "op": "relation",
+            "name": "One",
+            "parent": "P",
+            "child": "C",
+            "attributes": 4353,
+            "pairs": [["id", "pid"]]
+          }
+        ]
+      },
+      "dates": ["P", "C"],
+      "checks": ["creation-structure"],
+      "placement_roles": [
+        "MSysRelationships/table/owned",
+        "MSysRelationships/table/available",
+        "C/table/owned",
+        "C/table/available",
+        "C/index/1/owned"
+      ]
+    },
+    {
+      "name": "creation-plain",
+      "request": {
+        "tables": [
+          {
+            "name": "P",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}, null], [{"long": 2}, null]]
+          },
+          {
+            "name": "C",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [
+              {"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]},
+              {"name": "Existing", "kind": "ordinary", "fields": [{"column": "pid"}]}
+            ],
+            "rows": [[{"long": 1}, {"long": 1}], [{"long": 2}, {"long": 2}], [{"long": 3}, null], [{"long": 4}, null]]
+          }
+        ],
+        "relationships": [
+          {
+            "name": "One",
+            "parent": {"table": "P", "column": "id"},
+            "child": {"table": "C", "column": "pid"},
+            "unique": true,
+            "cascade_updates": true,
+            "cascade_deletes": true
+          }
+        ]
+      },
+      "native": {
+        "ops": [
+          {
+            "op": "table",
+            "table": {
+              "name": "P",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (1, NULL)"},
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (2, NULL)"},
+          {
+            "op": "table",
+            "table": {
+              "name": "C",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "CREATE INDEX Existing ON C (pid)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (1, 1)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (2, 2)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (3, NULL)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (4, NULL)"},
+          {
+            "op": "relation",
+            "name": "One",
+            "parent": "P",
+            "child": "C",
+            "attributes": 4353,
+            "pairs": [["id", "pid"]]
+          }
+        ]
+      },
+      "dates": ["P", "C"],
+      "checks": ["creation-structure"],
+      "placement_roles": [
+        "MSysRelationships/table/owned",
+        "MSysRelationships/table/available",
+        "C/table/owned",
+        "C/table/available",
+        "C/index/2/owned"
+      ]
+    },
+    {
+      "name": "creation-primary",
+      "request": {
+        "tables": [
+          {
+            "name": "P",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}, null], [{"long": 2}, null]]
+          },
+          {
+            "name": "C",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [{"name": "Existing", "kind": "primary", "fields": [{"column": "pid"}]}],
+            "rows": [[{"long": 1}, {"long": 1}], [{"long": 2}, {"long": 2}]]
+          }
+        ],
+        "relationships": [
+          {
+            "name": "One",
+            "parent": {"table": "P", "column": "id"},
+            "child": {"table": "C", "column": "pid"},
+            "unique": true,
+            "cascade_updates": true,
+            "cascade_deletes": true
+          }
+        ]
+      },
+      "native": {
+        "ops": [
+          {
+            "op": "table",
+            "table": {
+              "name": "P",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (1, NULL)"},
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (2, NULL)"},
+          {
+            "op": "table",
+            "table": {
+              "name": "C",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": []
+            }
+          },
+          {"op": "sql", "text": "CREATE UNIQUE INDEX Existing ON C (pid) WITH PRIMARY"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (1, 1)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (2, 2)"},
+          {
+            "op": "relation",
+            "name": "One",
+            "parent": "P",
+            "child": "C",
+            "attributes": 4353,
+            "pairs": [["id", "pid"]]
+          }
+        ]
+      },
+      "dates": ["P", "C"],
+      "checks": ["creation-structure"],
+      "placement_roles": [
+        "MSysRelationships/table/owned",
+        "MSysRelationships/table/available",
+        "C/table/owned",
+        "C/table/available",
+        "C/index/1/owned"
+      ]
+    },
+    {
+      "name": "creation-required",
+      "request": {
+        "tables": [
+          {
+            "name": "P",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}, null], [{"long": 2}, null]]
+          },
+          {
+            "name": "C",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [
+              {"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]},
+              {"name": "Existing", "kind": "unique", "fields": [{"column": "pid"}], "null_policy": "required"}
+            ],
+            "rows": [[{"long": 1}, {"long": 1}], [{"long": 2}, {"long": 2}]]
+          }
+        ],
+        "relationships": [
+          {
+            "name": "One",
+            "parent": {"table": "P", "column": "id"},
+            "child": {"table": "C", "column": "pid"},
+            "unique": true,
+            "cascade_updates": true,
+            "cascade_deletes": true
+          }
+        ]
+      },
+      "native": {
+        "ops": [
+          {
+            "op": "table",
+            "table": {
+              "name": "P",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (1, NULL)"},
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (2, NULL)"},
+          {
+            "op": "table",
+            "table": {
+              "name": "C",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "CREATE UNIQUE INDEX Existing ON C (pid) WITH DISALLOW NULL"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (1, 1)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (2, 2)"},
+          {
+            "op": "relation",
+            "name": "One",
+            "parent": "P",
+            "child": "C",
+            "attributes": 4353,
+            "pairs": [["id", "pid"]]
+          }
+        ]
+      },
+      "dates": ["P", "C"],
+      "checks": ["creation-structure"],
+      "placement_roles": [
+        "MSysRelationships/table/owned",
+        "MSysRelationships/table/available",
+        "C/table/owned",
+        "C/table/available",
+        "C/index/2/owned"
+      ]
+    },
+    {
+      "name": "creation-ignore-null",
+      "request": {
+        "tables": [
+          {
+            "name": "P",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}, null], [{"long": 2}, null]]
+          },
+          {
+            "name": "C",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [
+              {"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]},
+              {
+                "name": "Existing",
+                "kind": "unique",
+                "fields": [{"column": "pid"}],
+                "null_policy": "ignore_all_null"
+              }
+            ],
+            "rows": [[{"long": 1}, {"long": 1}], [{"long": 2}, {"long": 2}], [{"long": 3}, null], [{"long": 4}, null]]
+          }
+        ],
+        "relationships": [
+          {
+            "name": "One",
+            "parent": {"table": "P", "column": "id"},
+            "child": {"table": "C", "column": "pid"},
+            "unique": true,
+            "cascade_updates": true,
+            "cascade_deletes": true
+          }
+        ]
+      },
+      "native": {
+        "ops": [
+          {
+            "op": "table",
+            "table": {
+              "name": "P",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (1, NULL)"},
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (2, NULL)"},
+          {
+            "op": "table",
+            "table": {
+              "name": "C",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "CREATE UNIQUE INDEX Existing ON C (pid) WITH IGNORE NULL"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (1, 1)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (2, 2)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (3, NULL)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (4, NULL)"},
+          {
+            "op": "relation",
+            "name": "One",
+            "parent": "P",
+            "child": "C",
+            "attributes": 4353,
+            "pairs": [["id", "pid"]]
+          }
+        ]
+      },
+      "dates": ["P", "C"],
+      "checks": ["creation-structure"],
+      "placement_roles": [
+        "MSysRelationships/table/owned",
+        "MSysRelationships/table/available",
+        "C/table/owned",
+        "C/table/available",
+        "C/index/2/owned"
+      ]
+    },
+    {
+      "name": "creation-descending",
+      "request": {
+        "tables": [
+          {
+            "name": "P",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}, null], [{"long": 2}, null]]
+          },
+          {
+            "name": "C",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [
+              {"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]},
+              {"name": "Existing", "kind": "unique", "fields": [{"column": "pid", "direction": "descending"}]}
+            ],
+            "rows": [[{"long": 1}, {"long": 1}], [{"long": 2}, {"long": 2}], [{"long": 3}, null], [{"long": 4}, null]]
+          }
+        ],
+        "relationships": [
+          {
+            "name": "One",
+            "parent": {"table": "P", "column": "id"},
+            "child": {"table": "C", "column": "pid"},
+            "unique": true,
+            "cascade_updates": true,
+            "cascade_deletes": true
+          }
+        ]
+      },
+      "native": {
+        "ops": [
+          {
+            "op": "table",
+            "table": {
+              "name": "P",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (1, NULL)"},
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (2, NULL)"},
+          {
+            "op": "table",
+            "table": {
+              "name": "C",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "CREATE UNIQUE INDEX Existing ON C (pid DESC)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (1, 1)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (2, 2)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (3, NULL)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (4, NULL)"},
+          {
+            "op": "relation",
+            "name": "One",
+            "parent": "P",
+            "child": "C",
+            "attributes": 4353,
+            "pairs": [["id", "pid"]]
+          }
+        ]
+      },
+      "dates": ["P", "C"],
+      "checks": ["creation-structure"],
+      "placement_roles": [
+        "MSysRelationships/table/owned",
+        "MSysRelationships/table/available",
+        "C/table/owned",
+        "C/table/available",
+        "C/index/2/owned"
+      ]
+    },
+    {
+      "name": "creation-mixed",
+      "request": {
+        "tables": [
+          {
+            "name": "P",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}, null], [{"long": 2}, null]]
+          },
+          {
+            "name": "C",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}, {"long": 1}], [{"long": 2}, {"long": 2}], [{"long": 3}, null], [{"long": 4}, null]]
+          }
+        ],
+        "relationships": [
+          {
+            "name": "One",
+            "parent": {"table": "P", "column": "id"},
+            "child": {"table": "C", "column": "pid"},
+            "unique": true,
+            "cascade_updates": true,
+            "cascade_deletes": true
+          },
+          {"name": "Many", "parent": {"table": "P", "column": "id"}, "child": {"table": "C", "column": "pid"}}
+        ]
+      },
+      "native": {
+        "ops": [
+          {
+            "op": "table",
+            "table": {
+              "name": "P",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (1, NULL)"},
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (2, NULL)"},
+          {
+            "op": "table",
+            "table": {
+              "name": "C",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (1, 1)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (2, 2)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (3, NULL)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (4, NULL)"},
+          {
+            "op": "relation",
+            "name": "One",
+            "parent": "P",
+            "child": "C",
+            "attributes": 4353,
+            "pairs": [["id", "pid"]]
+          },
+          {
+            "op": "relation",
+            "name": "Many",
+            "parent": "P",
+            "child": "C",
+            "attributes": 0,
+            "pairs": [["id", "pid"]]
+          }
+        ]
+      },
+      "dates": ["P", "C"],
+      "checks": ["creation-structure"],
+      "placement_roles": [
+        "MSysRelationships/table/owned",
+        "MSysRelationships/table/available",
+        "C/table/owned",
+        "C/table/available",
+        "C/index/1/owned",
+        "C/index/2/owned"
+      ]
+    },
+    {
+      "name": "creation-self",
+      "request": {
+        "tables": [
+          {
+            "name": "P",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}, null], [{"long": 2}, null]]
+          },
+          {
+            "name": "C",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}, {"long": 1}], [{"long": 2}, {"long": 2}], [{"long": 3}, null], [{"long": 4}, null]]
+          }
+        ],
+        "relationships": [
+          {
+            "name": "One",
+            "parent": {"table": "C", "column": "id"},
+            "child": {"table": "C", "column": "pid"},
+            "unique": true,
+            "cascade_updates": true,
+            "cascade_deletes": true
+          }
+        ]
+      },
+      "native": {
+        "ops": [
+          {
+            "op": "table",
+            "table": {
+              "name": "P",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (1, NULL)"},
+          {"op": "sql", "text": "INSERT INTO P (id, pid) VALUES (2, NULL)"},
+          {
+            "op": "table",
+            "table": {
+              "name": "C",
+              "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (1, 1)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (2, 2)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (3, NULL)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid) VALUES (4, NULL)"},
+          {
+            "op": "relation",
+            "name": "One",
+            "parent": "C",
+            "child": "C",
+            "attributes": 4353,
+            "pairs": [["id", "pid"]]
+          }
+        ]
+      },
+      "dates": ["P", "C"],
+      "checks": ["creation-structure"],
+      "placement_roles": [
+        "MSysRelationships/table/owned",
+        "MSysRelationships/table/available",
+        "C/table/owned",
+        "C/table/available",
+        "C/index/1/owned"
+      ]
+    }
+  ]
+}

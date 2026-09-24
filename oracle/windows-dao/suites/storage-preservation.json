@@ -1,0 +1,8 @@
+{
+  "description": "Storage release/reuse, payload growth, opaque-object preservation, native continuations and constraint failure/rollback images (EXP-0304).",
+  "provenance": ["EXP-0237", "EXP-0303", "EXP-0304"],
+  "module": "storage",
+  "plan": "preservation",
+  "refusals": true,
+  "expected_counts": {"lifecycle/pass": 54, "refusal/pass": 18}
+}

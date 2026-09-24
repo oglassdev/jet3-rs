@@ -1,0 +1,16 @@
+{
+  "description": "Indexed row insertion and deletion with next-row and duplicate follow-ups, three DAO replicas per arm (EXP-0215/0216/0219/0221). `rows` n seeds [[i, 100 + i] for i < n].",
+  "provenance": ["EXP-0215", "EXP-0216", "EXP-0219", "EXP-0221"],
+  "registry": "indexed_rows",
+  "example": "indexed_row_mutation_candidate",
+  "arms": [
+    {"name": "ascending", "kind": "insert", "descending": false, "primary": true, "rows": 3, "insert": [-2147483648, -777], "delete": [],
+     "follow": [500000, 777], "duplicate": [0, 0], "queries": [-2147483648, 0, 1, 2, 500000, 600000]},
+    {"name": "descending", "kind": "insert", "descending": true, "primary": false, "rows": 3, "insert": [2147483647, -777], "delete": [],
+     "follow": [500000, 777], "duplicate": [0, 0], "queries": [0, 1, 2, 500000, 600000, 2147483647]},
+    {"name": "capacity", "kind": "insert", "descending": false, "primary": true, "rows": 199, "insert": [199, -777], "delete": [],
+     "follow": [500000, 777], "duplicate": [0, 0], "queries_range": [0, 200], "queries": [500000, 600000]},
+    {"name": "deletions", "kind": "delete", "descending": false, "primary": true, "rows": 6, "insert": null, "delete": [1, 4, 0],
+     "follow": [500000, 777], "duplicate": [2, 0], "queries": [0, 1, 2, 3, 4, 5, 500000, 600000]}
+  ]
+}

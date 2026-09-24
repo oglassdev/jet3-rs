@@ -1,0 +1,7 @@
+{
+  "description": "Repeated delete/refill churn, slot saturation, minimum fixed rows and complete page reuse (EXP-0305, EXP-0306, EXP-0311).",
+  "provenance": ["EXP-0304", "EXP-0305", "EXP-0306", "EXP-0311"],
+  "module": "storage",
+  "plan": "churn",
+  "expected_counts": {"lifecycle/pass": 76}
+}

@@ -1,0 +1,6 @@
+{
+  "description": "Items definitions that exactly fill or just overflow their root and one or two continuation pages, with compact continuation placement, Byte/Long/Memo/OLE rows, indexes, Rust reads of DAO outputs and native writes (EXP-0247).",
+  "provenance": ["EXP-0247"],
+  "registry": "definition_chains",
+  "example": "creation_definition_chains_candidate"
+}

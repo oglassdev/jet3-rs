@@ -1,0 +1,6 @@
+{
+  "description": "Memo/OLE row lifecycles: insert, edit, empty and reinsert phases against a DAO control with released-page reuse, native writes on both outputs, then Rust edits of the native DAO output (EXP-0234/0238/0240).",
+  "provenance": ["EXP-0234", "EXP-0238", "EXP-0240"],
+  "registry": "long_value_lifecycle",
+  "example": "long_value_lifecycle_candidate"
+}

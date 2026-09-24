@@ -1,0 +1,6 @@
+{
+  "description": "Allocation lifecycles past the 1024-page inline map and the 16352-page bitmap slot, for wide rows and 1800-byte Memo/OLE payloads, with damaged-map refusals, native writes and Rust edits of native DAO outputs (EXP-0254/0256).",
+  "provenance": ["EXP-0254", "EXP-0256"],
+  "registry": "allocation_lifecycle",
+  "example": "allocation_candidate"
+}

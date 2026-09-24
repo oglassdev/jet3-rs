@@ -1,0 +1,6 @@
+{
+  "description": "Index capacity: 4, 13, 14 and 32 Long indexes of up to ten components and a mixed ten-type key through edits, regrowth, DAO successors and Rust continuation (EXP-0252/0253).",
+  "provenance": ["EXP-0252", "EXP-0253"],
+  "registry": "index_capacity",
+  "example": "index_capacity_candidate"
+}
