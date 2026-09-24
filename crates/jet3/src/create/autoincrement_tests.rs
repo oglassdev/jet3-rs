@@ -73,6 +73,35 @@ fn autoincrement_generates_rows_and_detects_state_or_row_corruption() -> TestRes
 }
 
 #[test]
+fn multiple_autoincrement_columns_are_refused_with_or_without_rows() -> TestResult {
+    let directory = TestDirectory::create()?;
+    let table = TableSpec {
+        columns: &[AUTO, ColumnSpec::new(b"Other", ColumnType::AutoIncrement)],
+        ..auto_table()
+    };
+    for rows in [
+        &[][..],
+        &[&[RowValue::AutoIncrement, RowValue::AutoIncrement][..]][..],
+    ] {
+        assert!(matches!(
+            create_database(
+                directory.target(),
+                &DatabaseSpec {
+                    tables: &[TableRows { table, rows }],
+                    ..DatabaseSpec::default()
+                },
+                &mut budget()
+            ),
+            Err(WriteError::Compose(ComposeError::InitialAutoIncrement {
+                detail: "multiple AutoIncrement columns"
+            }))
+        ));
+        assert!(!directory.target().exists());
+    }
+    Ok(())
+}
+
+#[test]
 fn autoincrement_invalid_values_and_types_leave_no_file() -> TestResult {
     let directory = TestDirectory::create()?;
     let table = TableSpec {

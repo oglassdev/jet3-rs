@@ -12,7 +12,7 @@
 //! they do not establish arbitrary schemas, values, or general compatibility.
 //! Local and hosted differential results govern the support matrix.
 use crate::{
-    RelationshipSpec, ResourceBudget, RowValue, TableSpec, WriteError,
+    ColumnType, RelationshipSpec, ResourceBudget, RowValue, TableSpec, WriteError,
     create::{
         check::{check_image, check_initial_tables, check_long_value_written_pages},
         composer::{ComposeError, compose_database, compose_database_with_table_rows},
@@ -96,6 +96,7 @@ pub fn create_database(
         (RelationshipLayout::Graph, []) => {
             crate::create::composer::table_count_limit(requests.len())
                 .map_err(WriteError::Compose)?;
+            refuse_multiple_autoincrement(requests)?;
             create_tables(path, &schemas(requests, budget)?, budget)
         }
         (RelationshipLayout::Graph, relationships) => {
@@ -122,6 +123,26 @@ pub fn create_database(
             }))
         }
     }
+}
+
+/// Applies the row path's one-AutoIncrement-per-table refusal (EXP-0136) to
+/// schema-only creation.
+fn refuse_multiple_autoincrement(requests: &[TableRows<'_>]) -> Result<(), WriteError> {
+    let multiple = requests.iter().any(|request| {
+        request
+            .table
+            .columns
+            .iter()
+            .filter(|column| column.column_type() == ColumnType::AutoIncrement)
+            .nth(1)
+            .is_some()
+    });
+    if multiple {
+        return Err(WriteError::Compose(ComposeError::InitialAutoIncrement {
+            detail: "multiple AutoIncrement columns",
+        }));
+    }
+    Ok(())
 }
 
 fn schemas<'a>(
