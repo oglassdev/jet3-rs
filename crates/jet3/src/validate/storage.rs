@@ -1,6 +1,4 @@
 //! EXP-0057/0077/0234/0254 allocation roles and EXP-0060/0061 live storage.
-use std::fmt;
-
 use crate::{
     AllocationTraversalError, ColumnOrdinal, DatabaseReader, Error, MapRowLocator, PAGE_BYTES,
     PageNumber, ReadAt, ResourceBudget, RowDirectoryError, RowError, RowLocator, TableDefinition,
@@ -9,8 +7,9 @@ use crate::{
 };
 
 /// An allocation or physical-storage consistency failure during read-only validation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
+#[error("storage validation failed: {self:?}")]
 pub enum StorageValidationError {
     /// A map could not be decoded by the shared allocation reader.
     Map {
@@ -50,33 +49,13 @@ pub enum StorageValidationError {
         detail: &'static str,
     },
     /// Reading or classifying a payload page failed.
-    Read(crate::DatabasePageError),
+    Read(#[source] crate::DatabasePageError),
     /// The shared physical row/directory validator rejected storage.
-    Rows(RowError),
+    Rows(#[source] RowError),
     /// A physical row directory is inconsistent.
-    Directory(RowDirectoryError),
+    Directory(#[source] RowDirectoryError),
     /// The caller's resource budget rejected the operation.
-    Resource(Error),
-}
-
-impl fmt::Display for StorageValidationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "storage validation failed: {self:?}")
-    }
-}
-
-impl std::error::Error for StorageValidationError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Map { source, .. } => Some(source),
-            Self::Read(source) => Some(source),
-            Self::Rows(source) => Some(source),
-            Self::Directory(source) => Some(source),
-            Self::Definition { source, .. } => Some(source),
-            Self::Resource(source) => Some(source),
-            Self::Page { .. } | Self::MapInvariant { .. } | Self::Fragment { .. } => None,
-        }
-    }
+    Resource(#[source] Error),
 }
 
 fn conflict(page: PageNumber, detail: &'static str) -> StorageValidationError {

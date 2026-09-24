@@ -15,88 +15,52 @@ use crate::{
     },
 };
 
-use std::error::Error as StdError;
-use std::fmt;
 use std::io;
 use std::path::Path;
 
 /// A structural difference between the written candidate and the request,
 /// found when the candidate was reopened before publication.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub(crate) enum ImageCheckError {
     /// Reading a candidate page or charging comparison work failed.
-    Read(crate::Error),
+    #[error("candidate page comparison failed: {0}")]
+    Read(#[source] crate::Error),
     /// The candidate index tree could not be read.
-    Index(crate::IndexTreeError),
+    #[error("candidate index scan failed: {0}")]
+    Index(#[source] crate::IndexTreeError),
     /// The candidate fails the catalogued allocation and user-table validator.
-    Validation(Box<crate::ValidationError>),
+    #[error("candidate validation failed: {0}")]
+    Validation(#[source] Box<crate::ValidationError>),
     /// A candidate allocation inventory is malformed.
-    AllocationState(Box<crate::WriteError>),
+    #[error("candidate allocation state failed: {0}")]
+    AllocationState(#[source] Box<crate::WriteError>),
     /// A candidate long-value field could not be decoded.
-    Value(crate::ValueError),
+    #[error("candidate value failed: {0}")]
+    Value(#[source] crate::ValueError),
     /// A candidate external payload could not be streamed.
-    LongValue(crate::LongValueError),
+    #[error("candidate long value failed: {0}")]
+    LongValue(#[source] crate::LongValueError),
     /// The candidate rows could not be read.
-    Rows(RowError),
+    #[error("candidate row scan failed: {0}")]
+    Rows(#[source] RowError),
     /// Requested rows could not be encoded for comparison.
-    RowEncoding(ComposeError),
+    #[error("candidate row comparison failed: {0}")]
+    RowEncoding(#[source] ComposeError),
     /// The candidate could not be opened as a Jet 3 database.
-    Open(DatabaseOpenError),
+    #[error("candidate did not open: {0}")]
+    Open(#[source] DatabaseOpenError),
     /// The candidate's catalog could not be read.
-    Catalog(CatalogError),
+    #[error("candidate catalog failed: {0}")]
+    Catalog(#[source] CatalogError),
     /// The created table's definition could not be read.
-    Definition(TableDefinitionError),
+    #[error("candidate table definition failed: {0}")]
+    Definition(#[source] TableDefinitionError),
     /// The candidate decodes but does not describe the requested tables.
+    #[error("candidate does not match the request: {detail}")]
     Mismatch {
         /// Which structure differed.
         detail: &'static str,
     },
-}
-
-impl fmt::Display for ImageCheckError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Read(source) => write!(formatter, "candidate page comparison failed: {source}"),
-            Self::Index(source) => write!(formatter, "candidate index scan failed: {source}"),
-            Self::Validation(source) => write!(formatter, "candidate validation failed: {source}"),
-            Self::AllocationState(source) => {
-                write!(formatter, "candidate allocation state failed: {source}")
-            }
-            Self::Value(source) => write!(formatter, "candidate value failed: {source}"),
-            Self::LongValue(source) => write!(formatter, "candidate long value failed: {source}"),
-            Self::Rows(source) => write!(formatter, "candidate row scan failed: {source}"),
-            Self::RowEncoding(source) => {
-                write!(formatter, "candidate row comparison failed: {source}")
-            }
-            Self::Open(source) => write!(formatter, "candidate did not open: {source}"),
-            Self::Catalog(source) => write!(formatter, "candidate catalog failed: {source}"),
-            Self::Definition(source) => {
-                write!(formatter, "candidate table definition failed: {source}")
-            }
-            Self::Mismatch { detail } => {
-                write!(formatter, "candidate does not match the request: {detail}")
-            }
-        }
-    }
-}
-
-impl StdError for ImageCheckError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            Self::Read(source) => Some(source),
-            Self::Index(source) => Some(source),
-            Self::Validation(source) => Some(source),
-            Self::AllocationState(source) => Some(source),
-            Self::Value(source) => Some(source),
-            Self::LongValue(source) => Some(source),
-            Self::Rows(source) => Some(source),
-            Self::RowEncoding(source) => Some(source),
-            Self::Open(source) => Some(source),
-            Self::Catalog(source) => Some(source),
-            Self::Definition(source) => Some(source),
-            Self::Mismatch { .. } => None,
-        }
-    }
 }
 
 #[cfg(test)]

@@ -24,7 +24,8 @@ impl IndexRecord for ScalarIndexEntry {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("numeric index tree: {self:?}")]
 pub(crate) enum TreeBuildError {
     NodeLimit { maximum: usize },
     Layout(&'static str),
@@ -36,14 +37,6 @@ impl From<Error> for TreeBuildError {
         Self::Encoding(error)
     }
 }
-
-impl std::fmt::Display for TreeBuildError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "numeric index tree: {self:?}")
-    }
-}
-
-impl std::error::Error for TreeBuildError {}
 
 #[derive(Debug, Clone)]
 struct Node {

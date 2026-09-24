@@ -1,7 +1,5 @@
 //! Explicit single-byte text conversion from `SRC-0025` and `EXP-0061`.
 
-use std::fmt;
-
 use crate::{ByteCount, Error, ResourceBudget};
 
 const UNDEFINED: u32 = 0;
@@ -129,7 +127,8 @@ impl<'raw> DecodedText<'raw> {
 }
 
 /// A text conversion or resource failure.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("text conversion failed: {self:?}")]
 #[non_exhaustive]
 pub enum TextError {
     /// Unicode text contains a character absent from the selected code page.
@@ -151,22 +150,7 @@ pub enum TextError {
         byte: u8,
     },
     /// Resource policy rejected work, output or owned storage.
-    Resource(Error),
-}
-
-impl fmt::Display for TextError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "text conversion failed: {self:?}")
-    }
-}
-
-impl std::error::Error for TextError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Resource(source) => Some(source),
-            _ => None,
-        }
-    }
+    Resource(#[source] Error),
 }
 
 pub(crate) fn decode_text<'raw>(

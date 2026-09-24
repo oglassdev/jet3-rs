@@ -16,24 +16,31 @@ use crate::{
         record::{CatalogPageDirectory, CatalogRecordView, decode_catalog_record},
     },
 };
-use std::fmt;
 use std::mem::size_of;
 
 const CATALOG_SELF_NAME: &[u8] = b"MSysObjects";
 
 /// A structured failure while discovering or streaming the catalog.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum CatalogError {
     /// Reading or classifying a root-candidate page failed.
-    Page(DatabasePageError),
+    #[error("catalog page access failed: {0}")]
+    Page(#[source] DatabasePageError),
     /// Traversing a candidate or selected root's owned pages failed.
-    Allocation(AllocationTraversalError),
+    #[error("catalog allocation failed: {0}")]
+    Allocation(#[source] AllocationTraversalError),
     /// A catalog data-page directory or object record is malformed.
-    Record(CatalogRecordError),
+    #[error("catalog record failed: {0}")]
+    Record(#[source] CatalogRecordError),
     /// An overflow catalog row has an invalid locator, target, or chain.
-    Overflow(crate::RowError),
+    #[error("catalog overflow failed: {0}")]
+    Overflow(#[source] crate::RowError),
     /// An active catalog overflow row does not contain one four-byte locator.
+    #[error(
+        "catalog page {} row {row} has overflow pointer length {length}, expected 4",
+        .page.get()
+    )]
     InvalidOverflowPointerLength {
         /// Page containing the active catalog slot.
         page: PageNumber,
@@ -43,6 +50,7 @@ pub enum CatalogError {
         length: usize,
     },
     /// An owned page is not a data page.
+    #[error("catalog-owned page {} must be data, found {actual:?}", .page.get())]
     UnexpectedOwnedPageKind {
         /// Owned page that violated the catalog data-page invariant.
         page: PageNumber,
@@ -50,8 +58,14 @@ pub enum CatalogError {
         actual: PageKind,
     },
     /// No self-identifying catalog root was found.
+    #[error("no self-identifying catalog root found")]
     RootNotFound,
     /// More than one self-identifying catalog root was found.
+    #[error(
+        "catalog roots {} and {} both self-identify",
+        .first.get(),
+        .duplicate.get()
+    )]
     DuplicateRoot {
         /// First self-identifying root.
         first: PageNumber,
@@ -59,11 +73,17 @@ pub enum CatalogError {
         duplicate: PageNumber,
     },
     /// An active catalog identifier occurred more than once.
+    #[error("catalog object identifier {} is duplicated", .id.get())]
     DuplicateObjectId {
         /// Repeated active object identifier.
         id: CatalogObjectId,
     },
     /// A table identifier is outside the captured page range.
+    #[error(
+        "catalog table identifier {} names invalid page {}: {source}",
+        .id.get(),
+        .page.get()
+    )]
     InvalidTableDefinitionReference {
         /// Table object identifier that supplied the reference.
         id: CatalogObjectId,
@@ -73,6 +93,11 @@ pub enum CatalogError {
         source: Error,
     },
     /// A table identifier names a page not classified as a table definition.
+    #[error(
+        "catalog table identifier {} names non-TDEF page {}",
+        .id.get(),
+        .page.get()
+    )]
     UnexpectedTableDefinitionReference {
         /// Table object identifier that supplied the reference.
         id: CatalogObjectId,
@@ -80,70 +105,8 @@ pub enum CatalogError {
         page: PageNumber,
     },
     /// Resource policy rejected discovery or cursor state.
-    Resource(Error),
-}
-
-impl fmt::Display for CatalogError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Page(source) => write!(formatter, "catalog page access failed: {source}"),
-            Self::Allocation(source) => write!(formatter, "catalog allocation failed: {source}"),
-            Self::Record(source) => write!(formatter, "catalog record failed: {source}"),
-            Self::Overflow(source) => write!(formatter, "catalog overflow failed: {source}"),
-            Self::UnexpectedOwnedPageKind { page, actual } => write!(
-                formatter,
-                "catalog-owned page {} must be data, found {actual:?}",
-                page.get()
-            ),
-            Self::InvalidOverflowPointerLength { page, row, length } => write!(
-                formatter,
-                "catalog page {} row {row} has overflow pointer length {length}, expected 4",
-                page.get()
-            ),
-            Self::RootNotFound => formatter.write_str("no self-identifying catalog root found"),
-            Self::DuplicateRoot { first, duplicate } => write!(
-                formatter,
-                "catalog roots {} and {} both self-identify",
-                first.get(),
-                duplicate.get()
-            ),
-            Self::DuplicateObjectId { id } => {
-                write!(
-                    formatter,
-                    "catalog object identifier {} is duplicated",
-                    id.get()
-                )
-            }
-            Self::InvalidTableDefinitionReference { id, page, source } => write!(
-                formatter,
-                "catalog table identifier {} names invalid page {}: {source}",
-                id.get(),
-                page.get()
-            ),
-            Self::UnexpectedTableDefinitionReference { id, page } => write!(
-                formatter,
-                "catalog table identifier {} names non-TDEF page {}",
-                id.get(),
-                page.get()
-            ),
-            Self::Resource(source) => write!(formatter, "catalog rejected: {source}"),
-        }
-    }
-}
-
-impl std::error::Error for CatalogError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Page(source) => Some(source),
-            Self::Allocation(source) => Some(source),
-            Self::Record(source) => Some(source),
-            Self::Overflow(source) => Some(source),
-            Self::InvalidTableDefinitionReference { source, .. } | Self::Resource(source) => {
-                Some(source)
-            }
-            _ => None,
-        }
-    }
+    #[error("catalog rejected: {0}")]
+    Resource(#[source] Error),
 }
 
 /// Fallible, forward-only stream of immutable catalog object records.

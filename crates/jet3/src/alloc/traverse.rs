@@ -13,24 +13,28 @@ use crate::{
     },
     extended_allocation_bits, locate_table_maps, locate_usage_map,
 };
-use std::fmt;
 use std::ops::Range;
 
 const INLINE_VISITED_BYTES: usize = 32;
 
 /// A structured failure while locating or traversing an allocation map.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum AllocationTraversalError {
     /// Decoding the table-definition map locators failed.
-    MapLocation(MapLocationError),
+    #[error("map location failed: {0}")]
+    MapLocation(#[source] MapLocationError),
     /// Locating the caller-delimited map row failed.
-    UsageMap(UsageMapError),
+    #[error("usage-map row failed: {0}")]
+    UsageMap(#[source] UsageMapError),
     /// Decoding a map record or extended bitmap failed.
-    AllocationMap(AllocationMapError),
+    #[error("allocation map failed: {0}")]
+    AllocationMap(#[source] AllocationMapError),
     /// Reading or classifying a followed page failed.
-    Page(DatabasePageError),
+    #[error("followed page access failed: {0}")]
+    Page(#[source] DatabasePageError),
     /// A page number is outside the captured page range.
+    #[error("page reference {} is invalid: {source}", .page.get())]
     InvalidReference {
         /// The rejected page number.
         page: PageNumber,
@@ -38,11 +42,13 @@ pub enum AllocationTraversalError {
         source: Error,
     },
     /// A type-1 map page points back to the data page holding its record.
+    #[error("usage-map record page {} refers to itself", .record_page.get())]
     SelfReference {
         /// Page holding the usage-map record.
         record_page: PageNumber,
     },
     /// A nonzero type-1 slot appears after the first zero slot.
+    #[error("type-1 slot {slot} names page {} after a zero slot", .page.get())]
     NonzeroAfterNullSlot {
         /// Zero-based slot ordinal.
         slot: u64,
@@ -50,11 +56,13 @@ pub enum AllocationTraversalError {
         page: PageNumber,
     },
     /// A page was followed more than once in one chain.
+    #[error("page {} was already followed", .page.get())]
     RepeatedPage {
         /// The repeated page.
         page: PageNumber,
     },
     /// A followed page does not have the required classification.
+    #[error("expected page {} to be {expected:?}, found {actual:?}", .page.get())]
     UnexpectedPageKind {
         /// The followed page.
         page: PageNumber,
@@ -64,6 +72,7 @@ pub enum AllocationTraversalError {
         actual: PageKind,
     },
     /// A relative extended bit is outside the complete Jet 3 bitmap.
+    #[error("extended slot {slot} bit {bit_index} is outside its {EXTENDED_BITMAP_BITS} bits")]
     RelativeBitOutOfRange {
         /// Zero-based type-1 slot ordinal.
         slot: u64,
@@ -71,6 +80,10 @@ pub enum AllocationTraversalError {
         bit_index: u64,
     },
     /// Inline start-page arithmetic overflowed.
+    #[error(
+        "inline page arithmetic overflowed for start page {} and bit {bit_index}",
+        .start_page.get()
+    )]
     InlinePageOverflow {
         /// Inline map's absolute starting page.
         start_page: PageNumber,
@@ -78,6 +91,7 @@ pub enum AllocationTraversalError {
         bit_index: u64,
     },
     /// Extended slot-base arithmetic overflowed.
+    #[error("extended page arithmetic overflowed for slot {slot} bit {bit_index}")]
     ExtendedPageOverflow {
         /// Zero-based type-1 slot ordinal.
         slot: u64,
@@ -85,83 +99,8 @@ pub enum AllocationTraversalError {
         bit_index: u64,
     },
     /// Resource policy rejected the step.
-    Resource(Error),
-}
-
-impl fmt::Display for AllocationTraversalError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MapLocation(source) => write!(formatter, "map location failed: {source}"),
-            Self::UsageMap(source) => write!(formatter, "usage-map row failed: {source}"),
-            Self::AllocationMap(source) => write!(formatter, "allocation map failed: {source}"),
-            Self::Page(source) => write!(formatter, "followed page access failed: {source}"),
-            Self::InvalidReference { page, source } => {
-                write!(
-                    formatter,
-                    "page reference {} is invalid: {source}",
-                    page.get()
-                )
-            }
-            Self::SelfReference { record_page } => write!(
-                formatter,
-                "usage-map record page {} refers to itself",
-                record_page.get()
-            ),
-            Self::NonzeroAfterNullSlot { slot, page } => write!(
-                formatter,
-                "type-1 slot {slot} names page {} after a zero slot",
-                page.get()
-            ),
-            Self::RepeatedPage { page } => {
-                write!(formatter, "page {} was already followed", page.get())
-            }
-            Self::UnexpectedPageKind {
-                page,
-                expected,
-                actual,
-            } => write!(
-                formatter,
-                "expected page {} to be {expected:?}, found {actual:?}",
-                page.get()
-            ),
-            Self::RelativeBitOutOfRange { slot, bit_index } => write!(
-                formatter,
-                "extended slot {slot} bit {bit_index} is outside its {EXTENDED_BITMAP_BITS} bits"
-            ),
-            Self::InlinePageOverflow {
-                start_page,
-                bit_index,
-            } => write!(
-                formatter,
-                "inline page arithmetic overflowed for start page {} and bit {bit_index}",
-                start_page.get()
-            ),
-            Self::ExtendedPageOverflow { slot, bit_index } => write!(
-                formatter,
-                "extended page arithmetic overflowed for slot {slot} bit {bit_index}"
-            ),
-            Self::Resource(source) => write!(formatter, "allocation traversal rejected: {source}"),
-        }
-    }
-}
-
-impl std::error::Error for AllocationTraversalError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::MapLocation(source) => Some(source),
-            Self::UsageMap(source) => Some(source),
-            Self::AllocationMap(source) => Some(source),
-            Self::Page(source) => Some(source),
-            Self::InvalidReference { source, .. } | Self::Resource(source) => Some(source),
-            Self::SelfReference { .. }
-            | Self::NonzeroAfterNullSlot { .. }
-            | Self::RepeatedPage { .. }
-            | Self::UnexpectedPageKind { .. }
-            | Self::RelativeBitOutOfRange { .. }
-            | Self::InlinePageOverflow { .. }
-            | Self::ExtendedPageOverflow { .. } => None,
-        }
-    }
+    #[error("allocation traversal rejected: {0}")]
+    Resource(#[source] Error),
 }
 
 /// Interprets one type-1 slot as an optional direct physical page reference.

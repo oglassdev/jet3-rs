@@ -1,7 +1,5 @@
 //! Table-definition allocation-map locators observed in `EXP-0057`.
 
-use std::fmt;
-
 use crate::{ClassifiedPage, Error, PageGeometry, PageKind, PageNumber, ResourceBudget};
 
 // EXP-0057: adjacent row-then-u24-page locators on a Jet 3 TDEF page.
@@ -58,10 +56,11 @@ impl TableMapLocations {
 }
 
 /// A structured table-map locator failure.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum MapLocationError {
     /// The supplied page is not a table-definition page.
+    #[error("expected page {} to be a table definition, found {actual:?}", .page.get())]
     ExpectedTableDefinition {
         /// Physical page supplied by the caller.
         page: PageNumber,
@@ -69,6 +68,11 @@ pub enum MapLocationError {
         actual: PageKind,
     },
     /// A decoded locator names a page beyond the captured input.
+    #[error(
+        "{role} map locator page {} row {} is invalid: {source}",
+        .locator.page().get(),
+        .locator.row()
+    )]
     InvalidReference {
         /// Whether the rejected locator was the owned or available map.
         role: &'static str,
@@ -78,39 +82,8 @@ pub enum MapLocationError {
         source: Error,
     },
     /// Resource policy rejected locator decoding.
-    Resource(Error),
-}
-
-impl fmt::Display for MapLocationError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::ExpectedTableDefinition { page, actual } => write!(
-                formatter,
-                "expected page {} to be a table definition, found {actual:?}",
-                page.get()
-            ),
-            Self::InvalidReference {
-                role,
-                locator,
-                source,
-            } => write!(
-                formatter,
-                "{role} map locator page {} row {} is invalid: {source}",
-                locator.page().get(),
-                locator.row()
-            ),
-            Self::Resource(source) => write!(formatter, "map location rejected: {source}"),
-        }
-    }
-}
-
-impl std::error::Error for MapLocationError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::InvalidReference { source, .. } | Self::Resource(source) => Some(source),
-            Self::ExpectedTableDefinition { .. } => None,
-        }
-    }
+    #[error("map location rejected: {0}")]
+    Resource(#[source] Error),
 }
 
 /// Decodes both allocation-map row locators from a classified TDEF page.

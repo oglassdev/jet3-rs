@@ -5,7 +5,7 @@
 //! images and every appended image already complete. The resulting sequence
 //! does not establish that its bytes form a DAO-openable bootstrap image.
 
-use std::{fmt, mem::size_of};
+use std::mem::size_of;
 
 #[cfg(test)]
 use crate::InlineUsageMapEncoder;
@@ -20,53 +20,20 @@ use crate::{
 pub(super) const EXISTING_PAGE_COUNT: usize = EMPTY_DATABASE_PAGE_COUNT as usize;
 
 /// Structured failure while aggregating a whole-file page plan.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum WholeFilePlanError {
     /// A requested replacement has no planned slot.
+    #[error("no planned page {} to replace", .page.get())]
     MissingPage {
         /// Requested page number.
         page: PageNumber,
     },
     /// Resource accounting or allocation failed while retaining page plans.
-    Resource(Error),
+    #[error("whole-file plan resource failure: {0}")]
+    Resource(#[from] Error),
     /// A fresh image could not be appended.
-    Append(AppendPageError),
-}
-
-impl fmt::Display for WholeFilePlanError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MissingPage { page } => {
-                write!(formatter, "no planned page {} to replace", page.get())
-            }
-            Self::Resource(source) => {
-                write!(formatter, "whole-file plan resource failure: {source}")
-            }
-            Self::Append(source) => write!(formatter, "page append plan failed: {source}"),
-        }
-    }
-}
-
-impl std::error::Error for WholeFilePlanError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::MissingPage { .. } => None,
-            Self::Resource(source) => Some(source),
-            Self::Append(source) => Some(source),
-        }
-    }
-}
-
-impl From<Error> for WholeFilePlanError {
-    fn from(source: Error) -> Self {
-        Self::Resource(source)
-    }
-}
-
-impl From<AppendPageError> for WholeFilePlanError {
-    fn from(source: AppendPageError) -> Self {
-        Self::Append(source)
-    }
+    #[error("page append plan failed: {0}")]
+    Append(#[from] AppendPageError),
 }
 
 /// Complete page images ordered by their planned physical file slots.

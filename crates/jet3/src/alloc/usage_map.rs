@@ -7,7 +7,6 @@ use crate::{
         DIRECTORY_OFFSET, ENTRY_LEN, MAX_ROW_COUNT, OFFSET_MASK, ROW_COUNT_OFFSET,
     },
 };
-use std::fmt;
 use std::ops::Range;
 
 const MAX_UNFLAGGED_ROW_OFFSET: u16 = 2047;
@@ -44,10 +43,15 @@ impl<'page> UsageMapRecord<'page> {
 }
 
 /// A structured failure while locating a usage-map row.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum UsageMapError {
     /// The supplied page does not match the locator.
+    #[error(
+        "usage-map locator names page {}, but page {} was supplied",
+        .expected.get(),
+        .actual.get()
+    )]
     PageMismatch {
         /// Physical page named by the locator.
         expected: PageNumber,
@@ -55,6 +59,7 @@ pub enum UsageMapError {
         actual: PageNumber,
     },
     /// The locator target is not a data page.
+    #[error("usage-map page {} must be a data page, found {actual:?}", .page.get())]
     ExpectedDataPage {
         /// Physical page supplied by the caller.
         page: PageNumber,
@@ -62,6 +67,7 @@ pub enum UsageMapError {
         actual: PageKind,
     },
     /// The row count cannot fit a complete Jet 3 directory.
+    #[error("usage-map data page declares {row_count} rows; at most {maximum} fit")]
     RowCountTooLarge {
         /// Declared row count.
         row_count: u16,
@@ -69,6 +75,7 @@ pub enum UsageMapError {
         maximum: usize,
     },
     /// The requested row slot is absent.
+    #[error("usage-map row {row} is outside the page's {row_count} rows")]
     RowOutOfBounds {
         /// Requested zero-based row slot.
         row: u8,
@@ -76,6 +83,7 @@ pub enum UsageMapError {
         row_count: u16,
     },
     /// A row-directory entry contains flags or an impossible page offset.
+    #[error("usage-map row {row} has flagged or out-of-page offset 0x{raw_offset:04x}")]
     FlaggedOrOutOfPageRow {
         /// Zero-based directory slot.
         row: u16,
@@ -83,6 +91,9 @@ pub enum UsageMapError {
         raw_offset: u16,
     },
     /// A row begins inside the directory or does not precede its end.
+    #[error(
+        "usage-map row {row} has invalid bounds [{start}, {end}) with directory ending at {directory_end}"
+    )]
     InvalidRowBounds {
         /// Zero-based directory slot.
         row: u16,
@@ -94,61 +105,8 @@ pub enum UsageMapError {
         directory_end: usize,
     },
     /// Resource policy rejected bounded directory work.
-    Resource(Error),
-}
-
-impl fmt::Display for UsageMapError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::PageMismatch { expected, actual } => write!(
-                formatter,
-                "usage-map locator names page {}, but page {} was supplied",
-                expected.get(),
-                actual.get()
-            ),
-            Self::ExpectedDataPage { page, actual } => write!(
-                formatter,
-                "usage-map page {} must be a data page, found {actual:?}",
-                page.get()
-            ),
-            Self::RowCountTooLarge { row_count, maximum } => write!(
-                formatter,
-                "usage-map data page declares {row_count} rows; at most {maximum} fit"
-            ),
-            Self::RowOutOfBounds { row, row_count } => write!(
-                formatter,
-                "usage-map row {row} is outside the page's {row_count} rows"
-            ),
-            Self::FlaggedOrOutOfPageRow { row, raw_offset } => write!(
-                formatter,
-                "usage-map row {row} has flagged or out-of-page offset 0x{raw_offset:04x}"
-            ),
-            Self::InvalidRowBounds {
-                row,
-                start,
-                end,
-                directory_end,
-            } => write!(
-                formatter,
-                "usage-map row {row} has invalid bounds [{start}, {end}) with directory ending at {directory_end}"
-            ),
-            Self::Resource(source) => write!(formatter, "usage-map row lookup rejected: {source}"),
-        }
-    }
-}
-
-impl std::error::Error for UsageMapError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Resource(source) => Some(source),
-            Self::PageMismatch { .. }
-            | Self::ExpectedDataPage { .. }
-            | Self::RowCountTooLarge { .. }
-            | Self::RowOutOfBounds { .. }
-            | Self::FlaggedOrOutOfPageRow { .. }
-            | Self::InvalidRowBounds { .. } => None,
-        }
-    }
+    #[error("usage-map row lookup rejected: {0}")]
+    Resource(#[source] Error),
 }
 
 /// Locates one complete allocation-map record using a checked data-page row.

@@ -5,8 +5,6 @@
 //! (12-byte header plus any inline payload); writing external LVAL pages is a
 //! separate concern.
 
-use std::fmt;
-
 use crate::{
     BinaryWriter, ByteCount, ByteOffset, ColumnDefinition, ColumnPhysicalType, ColumnStorageClass,
     Error, ResourceBudget,
@@ -116,8 +114,9 @@ pub enum RowValue<'a> {
 }
 
 /// Structured failure while validating or encoding a row.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
+#[error("row encoding failed: {self:?}")]
 pub enum RowWriteError {
     /// A column's Required property forbids the resulting null value.
     RequiredValueMissing {
@@ -237,22 +236,7 @@ pub enum RowWriteError {
         available: usize,
     },
     /// Resource policy or checked arithmetic rejected the encoding.
-    Resource(Error),
-}
-
-impl fmt::Display for RowWriteError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "row encoding failed: {self:?}")
-    }
-}
-
-impl std::error::Error for RowWriteError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Resource(source) => Some(source),
-            _ => None,
-        }
-    }
+    Resource(#[source] Error),
 }
 
 #[derive(Debug, Clone, Copy)]

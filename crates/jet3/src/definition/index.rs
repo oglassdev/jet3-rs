@@ -13,7 +13,6 @@ use crate::{
         physical_index::{PhysicalIndexDefinition, decode_physical},
     },
 };
-use std::fmt;
 use std::mem::size_of;
 
 /// Which table side supplied an observed relationship index record.
@@ -126,7 +125,8 @@ impl IndexDefinition {
 }
 
 /// Structured corruption in physical or logical index definitions.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("invalid table index definition: {self:?}")]
 #[non_exhaustive]
 pub enum IndexDefinitionError {
     /// The definition ended before a complete sourced record or name.
@@ -258,26 +258,7 @@ pub enum IndexDefinitionError {
         physical_index: u16,
     },
     /// Resource policy rejected count work or owned storage.
-    Resource(Error),
-}
-
-impl fmt::Display for IndexDefinitionError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "invalid table index definition: {self:?}")
-    }
-}
-
-impl std::error::Error for IndexDefinitionError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::InvalidPhysicalReference { source, .. } | Self::Resource(source) => Some(source),
-            Self::InvalidRelationshipReference {
-                source: Some(source),
-                ..
-            } => Some(source),
-            _ => None,
-        }
-    }
+    Resource(#[source] Error),
 }
 
 #[derive(Debug)]

@@ -8,7 +8,6 @@ use crate::{
         text::{DecodedText, TextCodePage, TextError, decode_text, decoded_text_length},
     },
 };
-use std::fmt;
 use std::mem::size_of;
 use std::ops::Range;
 
@@ -273,8 +272,9 @@ impl<'page> LongValueChunkValue<'page> {
 }
 
 /// A long-value header, page, chain, length, or resource failure.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
+#[error("long value failed: {self:?}")]
 pub enum LongValueError {
     /// The value is shorter than the required header.
     HeaderTooShort {
@@ -358,28 +358,11 @@ pub enum LongValueError {
         locator: RowLocator,
     },
     /// Allocation-map traversal failed.
-    Allocation(AllocationTraversalError),
+    Allocation(#[source] AllocationTraversalError),
     /// Memo text decoding failed.
-    Text(TextError),
+    Text(#[source] TextError),
     /// Resource policy rejected streaming or decoded output.
-    Resource(Error),
-}
-
-impl fmt::Display for LongValueError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "long value failed: {self:?}")
-    }
-}
-
-impl std::error::Error for LongValueError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Allocation(source) => Some(source),
-            Self::Text(source) => Some(source),
-            Self::Resource(source) => Some(source),
-            _ => None,
-        }
-    }
+    Resource(#[source] Error),
 }
 
 /// A forward-only external long-value stream borrowing the row cursor's page.

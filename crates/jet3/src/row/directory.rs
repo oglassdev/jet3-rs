@@ -4,7 +4,6 @@ use crate::{
     Error, PAGE_BYTES, PageNumber, ResourceBudget, WriteError,
     format::data_page_directory::{DataPageDirectory, DataPageDirectoryError, MAX_ROW_COUNT},
 };
-use std::fmt;
 use std::ops::Range;
 
 const OVERFLOW_POINTER_LEN: usize = 4;
@@ -35,8 +34,9 @@ impl RowLocator {
 }
 
 /// A malformed or unsupported row-directory condition.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
+#[error("row directory failed: {self:?}")]
 pub enum RowDirectoryError {
     /// The data page's owner does not match the table being read.
     UnexpectedOwner {
@@ -106,22 +106,7 @@ pub enum RowDirectoryError {
         current_row_count: u16,
     },
     /// Resource policy rejected directory validation work.
-    Resource(Error),
-}
-
-impl fmt::Display for RowDirectoryError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "row directory failed: {self:?}")
-    }
-}
-
-impl std::error::Error for RowDirectoryError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Resource(source) => Some(source),
-            _ => None,
-        }
-    }
+    Resource(#[source] Error),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

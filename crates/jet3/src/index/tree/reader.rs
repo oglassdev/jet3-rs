@@ -13,7 +13,6 @@ use crate::{
         rows::RowReferenceValidator,
     },
 };
-use std::fmt;
 use std::mem::size_of;
 
 const LEAF_TRAILER_LEN: usize = 4;
@@ -171,8 +170,9 @@ impl IndexTree {
 }
 
 /// Structured corruption or resource rejection during index traversal.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
+#[error("index traversal failed: {self:?}")]
 pub enum IndexTreeError {
     /// The caller selected no physical index at this ordinal.
     InvalidPhysicalIndexOrdinal {
@@ -182,7 +182,7 @@ pub enum IndexTreeError {
         count: usize,
     },
     /// A node page could not be read or classified.
-    Page(DatabasePageError),
+    Page(#[source] DatabasePageError),
     /// A followed child was neither an intermediate nor a leaf node.
     UnexpectedPageKind {
         /// Referenced node page.
@@ -312,24 +312,7 @@ pub enum IndexTreeError {
         actual: Option<PageNumber>,
     },
     /// Resource policy rejected traversal work or retained output.
-    Resource(Error),
-}
-
-impl fmt::Display for IndexTreeError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "index traversal failed: {self:?}")
-    }
-}
-
-impl std::error::Error for IndexTreeError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Page(source) => Some(source),
-            Self::RowDirectory { source, .. } => Some(source),
-            Self::InvalidReference { source, .. } | Self::Resource(source) => Some(source),
-            _ => None,
-        }
-    }
+    Resource(#[source] Error),
 }
 
 #[derive(Debug, Clone, Copy)]

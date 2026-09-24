@@ -5,8 +5,6 @@
 //! or assigns fresh append slots and applies the matching global-map transition
 //! observed in `EXP-0065`.
 
-use std::fmt;
-
 #[cfg(test)]
 use crate::InlineUsageMapEncoder;
 use crate::{PageImage, PageNumber, UsageMapWriteError};
@@ -47,30 +45,19 @@ impl PlannedPage {
 
 #[cfg(test)]
 /// Structured failure while planning one existing empty-database page.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub(crate) enum ExistingPageError {
     /// The requested page is not part of the observed 20-page empty image.
+    #[error(
+        "page {} is outside the {}-page empty database",
+        .page.get(),
+        EMPTY_DATABASE_PAGE_COUNT
+    )]
     OutsideEmptyDatabase {
         /// Rejected existing page.
         page: PageNumber,
     },
 }
-
-#[cfg(test)]
-impl fmt::Display for ExistingPageError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::OutsideEmptyDatabase { page } => write!(
-                formatter,
-                "page {} is outside the {EMPTY_DATABASE_PAGE_COUNT}-page empty database",
-                page.get()
-            ),
-        }
-    }
-}
-
-#[cfg(test)]
-impl std::error::Error for ExistingPageError {}
 
 #[cfg(test)]
 /// Pairs a complete image with one existing page in the fixed empty database.
@@ -105,51 +92,23 @@ pub(crate) fn plan_existing_pages(
 }
 
 /// Structured failure while planning one fresh page append.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum AppendPageError {
     /// The current page count cannot advance after another append.
+    #[error("page count {page_count} cannot advance")]
     PageCountOverflow {
         /// Page count that could not be incremented.
         page_count: u64,
     },
     /// The global free map already marks the append slot as in use.
+    #[error("append page {} is already in use", .page.get())]
     PageAlreadyInUse {
         /// Rejected append slot.
         page: PageNumber,
     },
     /// The supplied inline map cannot represent or update the append slot.
-    GlobalMap(UsageMapWriteError),
-}
-
-impl fmt::Display for AppendPageError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::PageCountOverflow { page_count } => {
-                write!(formatter, "page count {page_count} cannot advance")
-            }
-            Self::PageAlreadyInUse { page } => {
-                write!(formatter, "append page {} is already in use", page.get())
-            }
-            Self::GlobalMap(source) => {
-                write!(formatter, "global usage map rejected append: {source}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for AppendPageError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::GlobalMap(source) => Some(source),
-            Self::PageCountOverflow { .. } | Self::PageAlreadyInUse { .. } => None,
-        }
-    }
-}
-
-impl From<UsageMapWriteError> for AppendPageError {
-    fn from(source: UsageMapWriteError) -> Self {
-        Self::GlobalMap(source)
-    }
+    #[error("global usage map rejected append: {0}")]
+    GlobalMap(#[from] UsageMapWriteError),
 }
 
 /// Tracks append-only page numbering for a fresh database image.

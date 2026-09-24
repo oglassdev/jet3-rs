@@ -28,7 +28,6 @@ use crate::{
     },
     locate_usage_map,
 };
-use std::fmt;
 
 const DEFINITION_PREFIX: [u8; 4] = [0x02, 0x01, 0x56, 0x43];
 /// `EXP-0059`: byte 20 of every user table definition.
@@ -164,19 +163,20 @@ impl TableDefinition {
 }
 
 /// Structured failure while following or decoding a table definition.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("table definition failed: {self:?}")]
 #[non_exhaustive]
 pub enum TableDefinitionError {
     /// Continuation-chain traversal failed.
-    Chain(AllocationTraversalError),
+    Chain(#[source] AllocationTraversalError),
     /// Allocation-map location decoding failed.
-    MapLocation(MapLocationError),
+    MapLocation(#[source] MapLocationError),
     /// Reading or classifying a referenced page failed.
-    Page(DatabasePageError),
+    Page(#[source] DatabasePageError),
     /// Physical or logical index decoding failed.
-    Index(IndexDefinitionError),
+    Index(#[source] IndexDefinitionError),
     /// Long-value map suffix decoding failed.
-    LongValueMap(LongValueMapError),
+    LongValueMap(#[source] LongValueMapError),
     /// The root page lacks the observed table-definition prefix.
     InvalidPrefix {
         /// Root page being decoded.
@@ -330,27 +330,7 @@ pub enum TableDefinitionError {
         actual: PageKind,
     },
     /// Resource policy rejected decoding work or owned storage.
-    Resource(Error),
-}
-
-impl fmt::Display for TableDefinitionError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "table definition failed: {self:?}")
-    }
-}
-
-impl std::error::Error for TableDefinitionError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Chain(source) => Some(source),
-            Self::MapLocation(source) => Some(source),
-            Self::Page(source) => Some(source),
-            Self::Index(source) => Some(source),
-            Self::LongValueMap(source) => Some(source),
-            Self::Resource(source) => Some(source),
-            _ => None,
-        }
-    }
+    Resource(#[source] Error),
 }
 
 impl<S: ReadAt> DatabaseReader<S> {
