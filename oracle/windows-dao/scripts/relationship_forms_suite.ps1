@@ -40,6 +40,7 @@ function Relate($db, [string]$name, [string]$parent, [string]$child, [int]$attri
 }
 function Attributes($spec) {
   $value = 0
+  if ((Has $spec 'unique') -and $spec.unique) { $value = $value -bor 1 }
   if ((Has $spec 'enforce') -and -not $spec.enforce) { $value = $value -bor 2 }
   if ((Has $spec 'cascade_updates') -and $spec.cascade_updates) { $value = $value -bor 256 }
   if ((Has $spec 'cascade_deletes') -and $spec.cascade_deletes) { $value = $value -bor 4096 }

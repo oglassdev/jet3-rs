@@ -53,6 +53,7 @@ fn renamed(two: bool) -> ([TableSpec<'static>; 2], RelationshipSpec<'static>) {
             },
         ],
         RelationshipSpec {
+            unique: false,
             enforce: true,
             join: crate::RelationshipJoin::Inner,
             cascade_updates: false,

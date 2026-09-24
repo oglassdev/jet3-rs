@@ -218,6 +218,8 @@ pub(crate) struct Relation {
     #[serde(default = "enforced")]
     enforce: bool,
     #[serde(default)]
+    unique: bool,
+    #[serde(default)]
     join: Join,
     #[serde(default)]
     cascade_updates: bool,
@@ -270,6 +272,7 @@ impl Relation {
     pub(crate) fn spec<'a>(&'a self, fields: &'a [RelationshipField<'a>]) -> RelationshipSpec<'a> {
         RelationshipSpec {
             enforce: self.enforce,
+            unique: self.unique,
             join: match self.join {
                 Join::Inner => jet3::RelationshipJoin::Inner,
                 Join::Left => jet3::RelationshipJoin::Left,

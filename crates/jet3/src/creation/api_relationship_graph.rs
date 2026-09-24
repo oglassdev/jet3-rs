@@ -16,9 +16,11 @@ use crate::{CatalogObjectKind, RelationshipSpec, TableRef, TextCodePage};
 /// an ascending index first, in logical name order. If only a descending index
 /// qualifies, it generates an ascending tree with the same null policy, shared
 /// by relationships on that parent fields (EXP-0286/0290). An ordinary ascending
-/// child index on the ordered FK fields is reused, retaining its declared name; otherwise
-/// the composer adds a foreign index. Relationships on the same ordered child fields
-/// share its physical index. Each reciprocal relationship record consumes one
+/// child index on the ordered FK fields is reused, retaining its declared name.
+/// One-to-one relationships instead reuse a unique/include-null ascending child
+/// index or add one (EXP-0307). Fully present child keys must then be distinct.
+/// Relationships on the same ordered child fields share a physical index only
+/// when their uniqueness requirements match. Each reciprocal relationship record consumes one
 /// of the table's 32 logical index slots; a self-reference consumes two.
 /// A self-reference must have different complete parent and foreign field vectors;
 /// individual components may coincide (EXP-0292).

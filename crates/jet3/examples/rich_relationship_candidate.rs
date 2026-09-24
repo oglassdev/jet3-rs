@@ -165,6 +165,7 @@ fn create(arm: &Value, output: &Path, replicas: u64) -> Result<()> {
         },
     ];
     let relation = RelationshipSpec {
+        unique: false,
         enforce: true,
         join: jet3::RelationshipJoin::Inner,
         cascade_updates: false,

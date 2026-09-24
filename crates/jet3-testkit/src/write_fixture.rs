@@ -279,6 +279,7 @@ pub fn write_fixture(id: &str, output: &Path) -> Result<()> {
             output,
             &requests,
             &RelationshipSpec {
+                unique: false,
                 enforce: true,
                 join: jet3::RelationshipJoin::Inner,
                 cascade_updates: false,

@@ -1,4 +1,5 @@
 //! EXP-0279/0290 choose an eligible ordered relationship index in logical name order.
+//! EXP-0307: one-to-one child indexes are unique and include nulls.
 use crate::catalog_name_key::NameKey;
 use crate::{
     ColumnRef, ComposeError, IndexDirection, PhysicalIndexFlagsSpec, RelationshipSide,
@@ -9,9 +10,10 @@ pub(crate) fn select_existing(
     table: &TableSpec<'_>,
     columns: &[u16],
     side: RelationshipSide,
+    unique_child: bool,
     budget: &mut ResourceBudget,
 ) -> Result<Option<u16>, ComposeError> {
-    select_direction(table, columns, side, false, budget)
+    select_direction(table, columns, side, unique_child, false, budget)
 }
 
 /// EXP-0286/0290: a parent with descending fields supplies a new ascending tree.
@@ -20,13 +22,21 @@ pub(crate) fn select_descending_parent(
     columns: &[u16],
     budget: &mut ResourceBudget,
 ) -> Result<Option<u16>, ComposeError> {
-    select_direction(table, columns, RelationshipSide::PrimaryTable, true, budget)
+    select_direction(
+        table,
+        columns,
+        RelationshipSide::PrimaryTable,
+        false,
+        true,
+        budget,
+    )
 }
 
 fn select_direction(
     table: &TableSpec<'_>,
     columns: &[u16],
     side: RelationshipSide,
+    unique_child: bool,
     descending: bool,
     budget: &mut ResourceBudget,
 ) -> Result<Option<u16>, ComposeError> {
@@ -39,7 +49,12 @@ fn select_direction(
                 PhysicalIndexFlagsSpec::Unique | PhysicalIndexFlagsSpec::UniqueRequired
             ),
             RelationshipSide::ForeignTable => {
-                index.kind.flags() == PhysicalIndexFlagsSpec::Ordinary
+                index.kind.flags()
+                    == if unique_child {
+                        PhysicalIndexFlagsSpec::Unique
+                    } else {
+                        PhysicalIndexFlagsSpec::Ordinary
+                    }
             }
         };
         if !eligible || index.fields.len() != columns.len() {

@@ -333,6 +333,7 @@ fn rules_refuse_cascaded_updates_and_autoincrement_backfill() -> TestResult {
         },
     ];
     let relationship = crate::RelationshipSpec {
+        unique: false,
         enforce: true,
         join: crate::RelationshipJoin::Inner,
         cascade_updates: true,
