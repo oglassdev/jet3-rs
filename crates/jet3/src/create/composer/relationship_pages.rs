@@ -24,55 +24,41 @@ impl<'a> RelationshipMaps<'a> {
     }
 }
 
-#[derive(Clone, Copy)]
-pub(super) struct RelationshipRow<'a> {
-    pub name: &'a [u8],
-    pub flags: crate::relationship::flags::RelationshipFlags,
-    pub child_table: &'a [u8],
-    pub child_column: &'a [u8],
-    pub parent_table: &'a [u8],
-    pub parent_column: &'a [u8],
-    pub field_count: u16,
-    pub field_ordinal: u16,
+// EXP-0073 `MSysRelationships` column layout.
+const RELATIONSHIP_LAYOUT: [RowColumnLayout; 8] = [
+    variable(ColumnPhysicalType::Text, 0, 255),
+    fixed(ColumnPhysicalType::Long, 0, 4),
+    fixed(ColumnPhysicalType::Long, 4, 4),
+    fixed(ColumnPhysicalType::Long, 8, 4),
+    variable(ColumnPhysicalType::Text, 1, 255),
+    variable(ColumnPhysicalType::Text, 2, 255),
+    variable(ColumnPhysicalType::Text, 3, 255),
+    variable(ColumnPhysicalType::Text, 4, 255),
+];
+
+pub(super) fn encode_relationship_row(
+    row: RelationshipRow<'_>,
+    output: &mut [u8],
+    budget: &mut ResourceBudget,
+) -> Result<usize, ComposeError> {
+    let values = crate::catalog::system_rows::values(row.columns());
+    Ok(encode_row(&RELATIONSHIP_LAYOUT, &values, output, budget)?.get() as usize)
 }
 
-impl RelationshipRow<'_> {
-    fn encode(self, output: &mut [u8], budget: &mut ResourceBudget) -> Result<usize, ComposeError> {
-        let layout = [
-            variable(ColumnPhysicalType::Text, 0, 255),
-            fixed(ColumnPhysicalType::Long, 0, 4),
-            fixed(ColumnPhysicalType::Long, 4, 4),
-            fixed(ColumnPhysicalType::Long, 8, 4),
-            variable(ColumnPhysicalType::Text, 1, 255),
-            variable(ColumnPhysicalType::Text, 2, 255),
-            variable(ColumnPhysicalType::Text, 3, 255),
-            variable(ColumnPhysicalType::Text, 4, 255),
-        ];
-        let values = [
-            RowValue::Text(self.name),
-            RowValue::Long(self.flags.raw()),
-            RowValue::Long(i32::from(self.field_count)),
-            RowValue::Long(i32::from(self.field_ordinal)),
-            RowValue::Text(self.child_table),
-            RowValue::Text(self.child_column),
-            RowValue::Text(self.parent_table),
-            RowValue::Text(self.parent_column),
-        ];
-        Ok(encode_row(&layout, &values, output, budget)?.get() as usize)
-    }
-
-    fn key(self, ordinal: usize) -> Result<OwnedIndexEntry, ComposeError> {
-        let name = match ordinal {
-            0 => self.name,
-            1 => self.child_table,
-            _ => self.parent_table,
-        };
-        let mut entry = OwnedIndexEntry::name(0, name, 0)?;
-        let prefix = crate::catalog::name_key::LONG_COMPONENT_LEN;
-        entry.key.copy_within(prefix..entry.len, 0);
-        entry.len -= prefix;
-        Ok(entry)
-    }
+fn relationship_key(
+    row: RelationshipRow<'_>,
+    ordinal: usize,
+) -> Result<OwnedIndexEntry, ComposeError> {
+    let name = match ordinal {
+        0 => row.name,
+        1 => row.child_table,
+        _ => row.parent_table,
+    };
+    let mut entry = OwnedIndexEntry::name(0, name, 0)?;
+    let prefix = crate::catalog::name_key::LONG_COMPONENT_LEN;
+    entry.key.copy_within(prefix..entry.len, 0);
+    entry.len -= prefix;
+    Ok(entry)
 }
 
 pub(super) struct RelationshipPages {
@@ -95,14 +81,14 @@ impl RelationshipPages {
             rows.clone(),
             &mut next_page,
             budget,
-            RelationshipRow::encode,
+            encode_relationship_row,
         )?;
         let mut index = |ordinal, root| {
             CatalogIndex::build(
                 MSYS_RELATIONSHIPS_ROOT,
                 root,
                 &data.locators,
-                rows.clone().map(|row| row.key(ordinal)),
+                rows.clone().map(|row| relationship_key(row, ordinal)),
                 &mut next_page,
                 budget,
             )

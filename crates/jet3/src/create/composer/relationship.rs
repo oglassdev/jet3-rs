@@ -54,18 +54,9 @@ pub(super) const TABLES: [TableSpec<'static>; 2] = [
         indexes: &[],
     },
 ];
-const RELATION: CatalogSeed<'static> = CatalogSeed {
-    id: RELATION_ID,
-    parent: RELATIONSHIPS_ID,
-    name: b"ParentChild",
-    kind: 8,
-    owner: CATALOG_OWNER_0301,
-    flags: 0,
-};
-const RELATION_ACES: [AceSeed; 2] = [
-    ace(RELATION_ID, b"\x03\x01", 983294, false),
-    ace(RELATION_ID, b"\x02\x01", 1048575, false),
-];
+const RELATION: ObjectRow<'static> =
+    ObjectRow::relationship(RELATION_ID, RELATIONSHIPS_ID, b"ParentChild");
+const RELATION_ACES: [AceRow; 2] = AceRow::relationship_grants(RELATION_ID);
 
 #[cfg(test)]
 pub(super) fn compose_parent_child(
@@ -118,7 +109,7 @@ pub(super) fn assemble_relationship(
     }
     let tables = relation.tables;
     let relationship = relation.spec;
-    let seed = CatalogSeed {
+    let seed = ObjectRow {
         name: relationship.name,
         ..RELATION
     };
@@ -201,29 +192,19 @@ fn relationship_data(
     relation: &RelationshipPlan<'_>,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
-    // EXP-0073 column layout; EXP-0114 first relationship's exact values.
-    let layout = [
-        variable(ColumnPhysicalType::Text, 0, 255),
-        fixed(ColumnPhysicalType::Long, 0, 4),
-        fixed(ColumnPhysicalType::Long, 4, 4),
-        fixed(ColumnPhysicalType::Long, 8, 4),
-        variable(ColumnPhysicalType::Text, 1, 255),
-        variable(ColumnPhysicalType::Text, 2, 255),
-        variable(ColumnPhysicalType::Text, 3, 255),
-        variable(ColumnPhysicalType::Text, 4, 255),
-    ];
-    let values = [
-        RowValue::Text(relation.spec.name),
-        RowValue::Long(0),
-        RowValue::Long(1),
-        RowValue::Long(0),
-        RowValue::Text(relation.tables[1].name),
-        RowValue::Text(relation.tables[1].columns[usize::from(relation.child_column)].name()),
-        RowValue::Text(relation.tables[0].name),
-        RowValue::Text(relation.tables[0].columns[usize::from(relation.parent_column)].name()),
-    ];
+    // EXP-0114 first relationship's exact values.
+    let values = RelationshipRow {
+        name: relation.spec.name,
+        flags: 0,
+        field_count: 1,
+        field_ordinal: 0,
+        child_table: relation.tables[1].name,
+        child_column: relation.tables[1].columns[usize::from(relation.child_column)].name(),
+        parent_table: relation.tables[0].name,
+        parent_column: relation.tables[0].columns[usize::from(relation.parent_column)].name(),
+    };
     let mut row = [0_u8; PAGE_BYTES];
-    let length = encode_row(&layout, &values, &mut row, budget)?.get() as usize;
+    let length = super::relationship_pages::encode_relationship_row(values, &mut row, budget)?;
     data_page(MSYS_RELATIONSHIPS_ROOT, &[&row[..length]], budget)
 }
 

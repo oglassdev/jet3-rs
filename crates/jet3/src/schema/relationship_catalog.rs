@@ -1,8 +1,10 @@
 //! EXP-0297 relationship catalog rows, objects and grants; EXP-0301 unenforced
 //! relationships consist of these rows alone.
 use crate::{
-    ColumnRef, DatabaseReader, FileSource, RelationshipSpec, ResourceBudget, RowValue,
-    TableDefinition, UpdateError,
+    ColumnRef, DatabaseReader, FileSource, RelationshipSpec, ResourceBudget, TableDefinition,
+    UpdateError,
+    catalog::system_rows::{AceRow, ObjectRow, RelationshipRow},
+    schema::table::insert,
     write::page_edits::{PageEdits, reserve},
 };
 use std::fs::File;
@@ -84,55 +86,22 @@ pub(crate) fn publish(
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
     for (ordinal, (parent_column, child_column)) in pairs.iter().enumerate() {
-        crate::schema::table::insert(
-            file,
-            journal,
-            b"MSysRelationships",
-            &[
-                (b"szRelationship", RowValue::Text(spec.name)),
-                (b"grbit", RowValue::Long(spec.flags().raw())),
-                (b"ccolumn", RowValue::Long(pairs.len() as i32)),
-                (b"icolumn", RowValue::Long(ordinal as i32)),
-                (b"szObject", RowValue::Text(child_name)),
-                (b"szColumn", RowValue::Text(child_column)),
-                (b"szReferencedObject", RowValue::Text(parent_name)),
-                (b"szReferencedColumn", RowValue::Text(parent_column)),
-            ],
-            budget,
-        )?;
+        let row = RelationshipRow {
+            name: spec.name,
+            flags: spec.flags().raw(),
+            field_count: pairs.len() as i32,
+            field_ordinal: ordinal as i32,
+            child_table: child_name,
+            child_column,
+            parent_table: parent_name,
+            parent_column,
+        };
+        insert(file, journal, b"MSysRelationships", &row.columns(), budget)?;
     }
-    crate::schema::table::insert(
-        file,
-        journal,
-        b"MSysObjects",
-        &[
-            (b"Id", RowValue::Long(object_id)),
-            (b"ParentId", RowValue::Long(folder)),
-            (b"Name", RowValue::Text(spec.name)),
-            (b"Type", RowValue::Integer(8)),
-            (b"Owner", RowValue::Binary(b"\x03\x01")),
-            (b"Flags", RowValue::Long(0)),
-            (b"DateCreate", RowValue::DateTime { days: 0.0 }),
-            (b"DateUpdate", RowValue::DateTime { days: 0.0 }),
-        ],
-        budget,
-    )?;
-    for (sid, access) in [
-        (b"\x03\x01".as_slice(), 983294),
-        (b"\x02\x01".as_slice(), 1048575),
-    ] {
-        crate::schema::table::insert(
-            file,
-            journal,
-            b"MSysACEs",
-            &[
-                (b"ObjectId", RowValue::Long(object_id)),
-                (b"SID", RowValue::Binary(sid)),
-                (b"ACM", RowValue::Long(access)),
-                (b"FInheritable", RowValue::Boolean(false)),
-            ],
-            budget,
-        )?;
+    let object = ObjectRow::relationship(object_id, folder, spec.name);
+    insert(file, journal, b"MSysObjects", &object.columns(), budget)?;
+    for grant in AceRow::relationship_grants(object_id) {
+        insert(file, journal, b"MSysACEs", &grant.columns(), budget)?;
     }
     crate::schema::edit::apply(file, journal, budget, |database, budget| {
         crate::relationship::catalog::validate(database, budget)?;

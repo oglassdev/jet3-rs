@@ -142,20 +142,11 @@ fn assemble(
     let mut aces = Vec::new();
     for (position, edge) in edges.iter().enumerate() {
         let id = i32::MIN + position as i32;
-        push(
-            &mut objects,
-            CatalogSeed {
-                id,
-                parent: RELATIONSHIPS_ID,
-                name: edge.name,
-                kind: 8,
-                owner: CATALOG_OWNER_0301,
-                flags: 0,
-            },
-            budget,
-        )?;
-        push(&mut aces, ace(id, b"\x03\x01", 983294, false), budget)?;
-        push(&mut aces, ace(id, b"\x02\x01", 1048575, false), budget)?;
+        let object = ObjectRow::relationship(id, RELATIONSHIPS_ID, edge.name);
+        push(&mut objects, object, budget)?;
+        for grant in AceRow::relationship_grants(id) {
+            push(&mut aces, grant, budget)?;
+        }
     }
     let catalog = CatalogPages::new_with_extras(creates, &objects, &aces, budget)?;
     let relationship_pages = RelationshipPages::new(
@@ -166,18 +157,18 @@ fn assemble(
                 .iter()
                 .zip(&edge.child_columns)
                 .enumerate()
-                .map(move |(ordinal, (&parent_column, &child_column))| {
-                    relationship_pages::RelationshipRow {
+                .map(
+                    move |(ordinal, (&parent_column, &child_column))| RelationshipRow {
                         name: edge.name,
-                        flags: edge.flags,
+                        flags: edge.flags.raw(),
+                        field_count: i32::from(edge.parent_columns.len() as u16),
+                        field_ordinal: i32::from(ordinal as u16),
                         child_table: child.name,
                         child_column: child.columns[usize::from(child_column)].name(),
                         parent_table: parent.name,
                         parent_column: parent.columns[usize::from(parent_column)].name(),
-                        field_count: edge.parent_columns.len() as u16,
-                        field_ordinal: ordinal as u16,
-                    }
-                })
+                    },
+                )
         }),
         catalog.page_count(),
         budget,

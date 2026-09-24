@@ -15,3 +15,4 @@ mod record_tests;
 pub(crate) mod record_writer;
 #[cfg(test)]
 mod record_writer_tests;
+pub(crate) mod system_rows;

@@ -2,6 +2,7 @@
 use crate::{
     ByteCount, DatabaseReader, FileSource, LongValueMapSpec, PAGE_BYTES, PageImage, ResourceBudget,
     RowValue, TableDefinitionKind, TableDefinitionSpec, TableSpec, UpdateError,
+    catalog::system_rows::{AceRow, ObjectRow},
     write::page_edits::{PageEdits, reserve},
 };
 use std::fs::File;
@@ -100,49 +101,18 @@ pub(crate) fn create(
         properties.resize(description.len(), 0);
         description.encode(&mut properties, budget)?;
     }
-    // EXP-0087: owner 0301 and two grants for an ordinary local table.
     let id =
         i32::try_from(root.get()).map_err(|_| UpdateError::Unsupported("table object identity"))?;
-    insert(
-        file,
-        journal,
-        b"MSysObjects",
-        &[
-            (b"Id", RowValue::Long(id)),
-            (b"ParentId", RowValue::Long(parent)),
-            (b"Name", RowValue::Text(spec.name)),
-            (b"Type", RowValue::Integer(1)),
-            (b"DateCreate", RowValue::DateTime { days: 0.0 }),
-            (b"DateUpdate", RowValue::DateTime { days: 0.0 }),
-            (b"Owner", RowValue::Binary(b"\x03\x01")),
-            (b"Flags", RowValue::Long(0)),
-            (
-                b"LvProp",
-                if properties.is_empty() {
-                    RowValue::Null
-                } else {
-                    RowValue::LongBinary(&properties)
-                },
-            ),
-        ],
-        budget,
-    )?;
-    for (sid, access) in [
-        (b"\x03\x01".as_slice(), 983294),
-        (b"\x02\x01".as_slice(), 1048319),
-    ] {
-        insert(
-            file,
-            journal,
-            b"MSysACEs",
-            &[
-                (b"ObjectId", RowValue::Long(id)),
-                (b"SID", RowValue::Binary(sid)),
-                (b"ACM", RowValue::Long(access)),
-                (b"FInheritable", RowValue::Boolean(false)),
-            ],
-            budget,
-        )?;
+    let property = if properties.is_empty() {
+        RowValue::Null
+    } else {
+        RowValue::LongBinary(&properties)
+    };
+    let [a, b, c, d, e, f, g, h] = ObjectRow::table(id, parent, spec.name).columns();
+    let object = [a, b, c, d, e, f, g, h, (b"LvProp".as_slice(), property)];
+    insert(file, journal, b"MSysObjects", &object, budget)?;
+    for grant in AceRow::table_grants(id) {
+        insert(file, journal, b"MSysACEs", &grant.columns(), budget)?;
     }
     for index in spec.indexes {
         crate::schema::edit::apply(file, journal, budget, |database, budget| {

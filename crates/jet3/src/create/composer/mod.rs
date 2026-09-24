@@ -21,7 +21,13 @@ use crate::{
     PageOffset, PhysicalIndexFlagsSpec, PhysicalIndexSpec, ResourceBudget, RowColumnLayout,
     RowValue, RowWriteError, SystemColumnClassSpec, TableDefinitionKind, TableDefinitionSpec,
     TableDefinitionWriteError, UsageMapWriteError,
-    catalog::name_key::{CatalogNameKeyError, catalog_names_equal, encode_catalog_name_key},
+    catalog::{
+        name_key::{CatalogNameKeyError, catalog_names_equal, encode_catalog_name_key},
+        system_rows::{
+            AceRow, OWNER_0203, OWNER_0301, ObjectRow, RelationshipRow, SID_0201, SID_0204,
+            SYSTEM_FLAGS,
+        },
+    },
     create::{
         page_append_plan::EMPTY_DATABASE_PAGE_COUNT,
         schema_plan::{TableSchemaPlanError, TableSpec},
@@ -93,10 +99,6 @@ const INDEX_ENTRY_AREA_OFFSET: usize = 248;
 const INDEX_ENTRY_AREA_LEN: usize = PAGE_BYTES - INDEX_ENTRY_AREA_OFFSET;
 const INDEX_BOUNDARY_BITMAP_OFFSET: usize = 22;
 const CATALOG_KEY_CAPACITY: usize = crate::catalog::name_key::MAX_CREATION_KEY_BYTES;
-// EXP-0084 preregisters only these fixed per-row candidate values; their SID
-// meanings are not generalized.
-const CATALOG_OWNER_0203: &[u8] = b"\x02\x03";
-const CATALOG_OWNER_0301: &[u8] = b"\x03\x01";
 // EXP-0084 preregisters this fixed bootstrap hypothesis. Its fields remain
 // uninterpreted and no general page-zero grammar is inferred.
 const DATABASE_HEADER_FIXED_OPAQUE: [u8; 126] = [
@@ -516,7 +518,7 @@ impl OwnedIndexEntry {
 
 fn objects_parent_name_index(
     creates: &[PlannedCreate<'_>],
-    extra: Option<CatalogSeed<'_>>,
+    extra: Option<ObjectRow<'_>>,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
     let mut entries = catalog_seeds(creates, extra)
@@ -528,7 +530,7 @@ fn objects_parent_name_index(
 }
 fn objects_id_index(
     creates: &[PlannedCreate<'_>],
-    extra: Option<CatalogSeed<'_>>,
+    extra: Option<ObjectRow<'_>>,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
     let mut entries = catalog_seeds(creates, extra)
@@ -540,7 +542,7 @@ fn objects_id_index(
 }
 fn aces_index(
     creates: &[PlannedCreate<'_>],
-    extra: &[AceSeed],
+    extra: &[AceRow],
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
     let mut entries = ace_seeds(creates, extra)
