@@ -564,15 +564,8 @@ pub(super) fn export_candidate_set<const N: usize>(
 #[test]
 fn candidate_export_refuses_nonempty_directory() -> TestResult {
     use std::fs;
-    use std::sync::atomic::{AtomicU64, Ordering};
 
-    static NEXT: AtomicU64 = AtomicU64::new(0);
-    let root = std::env::temp_dir().join(format!(
-        "jet3-bootstrap-export-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    fs::create_dir(&root)?;
+    let root = crate::testkit::TempDir::new("bootstrap-export")?;
     let sentinel = root.join("sentinel");
     fs::write(&sentinel, b"preserve")?;
 

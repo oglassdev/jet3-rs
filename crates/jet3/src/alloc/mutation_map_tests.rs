@@ -8,9 +8,7 @@ use crate::{
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+use crate::testkit::budget;
 fn inline(first: u64, bytes: &[u8]) -> MapBits {
     let mut row = vec![0; 5 + bytes.len()];
     row[1..5].copy_from_slice(&(first as u32).to_le_bytes());

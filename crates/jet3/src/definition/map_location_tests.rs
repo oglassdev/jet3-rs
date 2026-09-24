@@ -1,12 +1,7 @@
 use super::map_location::{MapLocationError, MapRowLocator, locate_table_maps};
-use crate::{
-    ByteCount, Error, PAGE_BYTES, PageGeometry, PageKind, PageNumber, ReadLimits, ResourceBudget,
-    ResourceLimits, classify_page,
-};
+use crate::{ByteCount, Error, PAGE_BYTES, PageGeometry, PageKind, PageNumber, classify_page};
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::new(ReadLimits::default()))
-}
+use crate::testkit::budget;
 
 #[test]
 fn decodes_adjacent_row_then_u24_page_locators() -> Result<(), Box<dyn std::error::Error>> {

@@ -5,27 +5,14 @@ use crate::{
     RowValue, TableSpec, UpdateError,
 };
 use std::error::Error as StdError;
-use std::{
-    fs,
-    num::NonZeroU8,
-    path::PathBuf,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::{fs, num::NonZeroU8, path::PathBuf};
 type SnapshotRow = (RowLocator, Vec<Option<Vec<u8>>>);
 pub(super) type TestResult = Result<(), Box<dyn StdError>>;
-static NEXT: AtomicU64 = AtomicU64::new(0);
-pub(super) fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+pub(super) use crate::testkit::budget;
 pub(super) struct Fixture {
-    pub(super) dir: PathBuf,
+    pub(super) dir: crate::testkit::TempDir,
     pub(super) root: crate::PageNumber,
     pub(super) locators: Vec<RowLocator>,
-}
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.dir);
-    }
 }
 impl Fixture {
     pub(super) fn path(&self) -> PathBuf {
@@ -35,12 +22,7 @@ impl Fixture {
         Self::with_index(count, false)
     }
     pub(super) fn with_index(count: usize, indexed: bool) -> Result<Self, Box<dyn StdError>> {
-        let dir = std::env::temp_dir().join(format!(
-            "jet3-row-update-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&dir)?;
+        let dir = crate::testkit::TempDir::new("row-update")?;
         let columns = [
             ColumnSpec::new(b"Id", ColumnType::Long),
             ColumnSpec::new(

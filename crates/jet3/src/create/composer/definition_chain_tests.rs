@@ -9,9 +9,7 @@ use crate::{
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+use crate::testkit::budget;
 
 fn columns(names: &[Vec<u8>]) -> Vec<ColumnSpec<'_>> {
     names

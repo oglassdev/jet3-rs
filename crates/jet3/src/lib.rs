@@ -52,6 +52,8 @@ mod properties;
 mod relationship;
 mod row;
 mod schema;
+#[cfg(test)]
+mod testkit;
 mod validate;
 mod write;
 

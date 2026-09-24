@@ -2,7 +2,6 @@ use std::error::Error as StdError;
 use std::fs;
 use std::io::{Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::atomic::{
     PrivateCopy, PublishStage, atomic_create, atomic_create_with_hook, atomic_update,
@@ -10,7 +9,6 @@ use super::atomic::{
 };
 use crate::{ReadLimits, ResourceBudget, ResourceLimits};
 
-static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 #[derive(Debug)]
@@ -25,17 +23,12 @@ impl std::fmt::Display for TestFailure {
 impl std::error::Error for TestFailure {}
 
 struct TestDirectory {
-    path: PathBuf,
+    path: crate::testkit::TempDir,
 }
 
 impl TestDirectory {
     fn create() -> Result<Self, std::io::Error> {
-        let sequence = NEXT_TEST_DIRECTORY.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!(
-            "jet3-atomic-test-{}-{sequence}",
-            std::process::id()
-        ));
-        fs::create_dir(&path)?;
+        let path = crate::testkit::TempDir::new("atomic-test")?;
         Ok(Self { path })
     }
 
@@ -52,12 +45,6 @@ impl TestDirectory {
             }
         }
         Ok(count)
-    }
-}
-
-impl Drop for TestDirectory {
-    fn drop(&mut self) {
-        let _cleanup_result = fs::remove_dir_all(&self.path);
     }
 }
 
@@ -279,7 +266,7 @@ fn copy_work_limit_covers_one_below_exact_and_one_above() -> TestResult {
 fn nonexistent_and_non_regular_targets_are_rejected() -> TestResult {
     let directory = TestDirectory::create()?;
     let mut budget = ResourceBudget::new(limits(1024));
-    for target in [directory.path.join("missing"), directory.path.clone()] {
+    for target in [directory.path.join("missing"), directory.path.to_path_buf()] {
         let result = atomic_update(target, &mut budget, replace_contents, validate_replacement);
         let error = result
             .err()

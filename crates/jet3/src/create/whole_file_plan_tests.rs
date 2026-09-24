@@ -8,9 +8,7 @@ use crate::{
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::new(ReadLimits::default()))
-}
+use crate::testkit::budget;
 
 fn planned_page_storage(page_count: u64) -> u64 {
     (std::mem::size_of::<PlannedPage>() as u64) * page_count

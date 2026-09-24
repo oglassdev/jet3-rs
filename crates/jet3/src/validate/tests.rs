@@ -7,9 +7,7 @@ use crate::{
 
 pub(super) type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
-pub(super) fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+pub(super) use crate::testkit::budget;
 
 pub(super) fn open<'a>(
     bytes: &'a [u8],

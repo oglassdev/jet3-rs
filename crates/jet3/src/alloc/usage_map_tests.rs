@@ -4,9 +4,7 @@ use crate::{
     ResourceLimits, classify_page,
 };
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::new(ReadLimits::default()))
-}
+use crate::testkit::budget;
 
 fn data_page(entries: &[u16]) -> [u8; PAGE_BYTES] {
     let mut page = [0_u8; PAGE_BYTES];

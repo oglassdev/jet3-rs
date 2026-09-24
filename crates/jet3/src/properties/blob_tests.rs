@@ -1,9 +1,7 @@
 use super::blob::{Block, FIELD_BLOCK, PropertyBlob, Record, TABLE_BLOCK, TEXT};
 use crate::{ColumnPropertyError, ResourceBudget, ResourceLimits};
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+use crate::testkit::budget;
 
 fn hex(text: &str) -> Vec<u8> {
     (0..text.len())

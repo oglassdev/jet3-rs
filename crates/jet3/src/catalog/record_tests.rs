@@ -7,9 +7,7 @@ use crate::{
     ResourceLimitKind, ResourceLimits,
 };
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::new(ReadLimits::default()))
-}
+use crate::testkit::budget;
 
 fn record(id: u32, kind: u16, flags: u32, name: &[u8]) -> Vec<u8> {
     let mut row = vec![0_u8; 31 + name.len() + 6];

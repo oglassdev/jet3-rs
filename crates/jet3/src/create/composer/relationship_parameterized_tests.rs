@@ -6,9 +6,7 @@ use crate::{
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+use crate::testkit::budget;
 
 const RENAMED_PARENT_COLUMNS: [ColumnSpec<'static>; 2] = [
     ColumnSpec::new(b"Code2", ColumnType::Long),

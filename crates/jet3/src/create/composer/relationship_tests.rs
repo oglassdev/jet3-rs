@@ -4,9 +4,7 @@ use crate::{
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+use crate::testkit::budget;
 fn bytes() -> Result<Vec<u8>, ComposeError> {
     Ok(compose_parent_child(&mut budget())?
         .pages()

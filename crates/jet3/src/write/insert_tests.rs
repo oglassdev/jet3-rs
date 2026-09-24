@@ -6,33 +6,19 @@ use crate::{
 use std::error::Error as StdError;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 pub(super) type TestResult = Result<(), Box<dyn StdError>>;
-static NEXT: AtomicU64 = AtomicU64::new(0);
-pub(super) fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+pub(super) use crate::testkit::budget;
 pub(super) struct Fixture {
-    pub(super) directory: PathBuf,
+    pub(super) directory: crate::testkit::TempDir,
     pub(super) root: PageNumber,
     pages: Vec<PageNumber>,
-}
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.directory);
-    }
 }
 impl Fixture {
     pub(super) fn new(
         columns: &[ColumnSpec<'_>],
         rows: &[&[RowValue<'_>]],
     ) -> Result<Self, Box<dyn StdError>> {
-        let directory = std::env::temp_dir().join(format!(
-            "jet3-insert-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&directory)?;
+        let directory = crate::testkit::TempDir::new("insert")?;
         let path = directory.join("source.mdb");
         crate::create_database_with_rows(
             &path,

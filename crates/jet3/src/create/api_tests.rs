@@ -1,30 +1,23 @@
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexColumnSpec,
-    IndexDirection, IndexKind, IndexSpec, PageNumber, PublishStage, ResourceBudget, ResourceLimits,
-    TableSpec, create::schema_plan::TableSchemaPlanError, definition::column_writer::nz,
+    IndexDirection, IndexKind, IndexSpec, PageNumber, PublishStage, TableSpec,
+    create::schema_plan::TableSchemaPlanError, definition::column_writer::nz,
 };
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::api::{CreateDatabaseError, ImageCheckError, check_image, create_database};
 
-static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
 type Accepts = fn(&ComposeError) -> bool;
 
 pub(super) struct TestDirectory {
-    pub(super) path: PathBuf,
+    pub(super) path: crate::testkit::TempDir,
 }
 
 impl TestDirectory {
     pub(super) fn create() -> Result<Self, std::io::Error> {
-        let sequence = NEXT_TEST_DIRECTORY.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!(
-            "jet3-create-test-{}-{sequence}",
-            std::process::id()
-        ));
-        fs::create_dir(&path)?;
+        let path = crate::testkit::TempDir::new("create-test")?;
         Ok(Self { path })
     }
 
@@ -42,15 +35,7 @@ impl TestDirectory {
     }
 }
 
-impl Drop for TestDirectory {
-    fn drop(&mut self) {
-        let _cleanup_result = fs::remove_dir_all(&self.path);
-    }
-}
-
-pub(super) fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+pub(super) use crate::testkit::budget;
 
 pub(super) const ID: ColumnSpec<'static> = ColumnSpec::new(b"Id", ColumnType::Long);
 pub(super) const CODE: ColumnSpec<'static> =

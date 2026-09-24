@@ -1,40 +1,22 @@
 //! Index class x null policy through creation and `ReplaceIndex`, over a
 //! Required column and an AllowZeroLength column (EXP-0093/0148/0283/0297).
 use crate::*;
-use std::{
-    fs,
-    num::NonZeroU8,
-    path::PathBuf,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::{fs, num::NonZeroU8, path::PathBuf};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
-static NEXT: AtomicU64 = AtomicU64::new(0);
 
-struct Dir(PathBuf);
+struct Dir(crate::testkit::TempDir);
 impl Dir {
     fn new() -> Result<Self, std::io::Error> {
-        let path = std::env::temp_dir().join(format!(
-            "jet3-index-matrix-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&path)?;
+        let path = crate::testkit::TempDir::new("index-matrix")?;
         Ok(Self(path))
     }
     fn file(&self) -> PathBuf {
         self.0.join("db.mdb")
     }
 }
-impl Drop for Dir {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
-}
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+use crate::testkit::budget;
 
 const KINDS: [IndexKind; 3] = [IndexKind::Primary, IndexKind::Unique, IndexKind::Ordinary];
 const POLICIES: [IndexNullPolicy; 3] = [

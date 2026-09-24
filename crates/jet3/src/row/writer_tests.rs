@@ -47,12 +47,7 @@ pub(super) fn database_bytes(
     columns: &[ColumnSpec<'_>],
     rows: &[&[u8]],
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let mut bytes = vec![0_u8; 4 * PAGE_BYTES];
-    bytes[4..19].copy_from_slice(b"Standard Jet DB");
-    bytes[0x41] = 0x4e;
-    bytes[0x42..0x50].copy_from_slice(&[
-        0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
-    ]);
+    let mut bytes = crate::testkit::database_image(4);
     // One typed long-value map group per Memo or LongBinary column, reusing
     // the two table map rows.
     let long_value_maps: Vec<LongValueMapSpec> = columns

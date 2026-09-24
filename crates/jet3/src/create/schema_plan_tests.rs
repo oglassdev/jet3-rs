@@ -689,9 +689,7 @@ fn definition_chains_precede_index_roots_on_first_and_later_tables() -> PlanResu
     Ok(())
 }
 
-fn budget() -> crate::ResourceBudget {
-    crate::ResourceBudget::new(crate::ResourceLimits::default())
-}
+use crate::testkit::budget;
 
 #[test]
 fn schema_name_comparisons_charge_work_before_scanning() {

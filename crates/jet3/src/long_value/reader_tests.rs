@@ -39,12 +39,7 @@ fn write_rows(page: &mut [u8], owner: [u8; 4], rows: &[&[u8]]) {
 
 fn database_bytes(first: &[u8], second: Option<&[u8]>) -> Vec<u8> {
     let page_count = if second.is_some() { 5 } else { 4 };
-    let mut bytes = vec![0_u8; page_count * PAGE_BYTES];
-    bytes[4..19].copy_from_slice(b"Standard Jet DB");
-    bytes[0x41] = 0x4e;
-    bytes[0x42..0x50].copy_from_slice(&[
-        0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
-    ]);
+    let mut bytes = crate::testkit::database_image(page_count);
     bytes[ROOT * PAGE_BYTES..ROOT * PAGE_BYTES + 45].copy_from_slice(&table_definition());
     let owned = [0_u8; 6];
     let available = [0_u8; 5];

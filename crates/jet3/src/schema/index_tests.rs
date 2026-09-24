@@ -1,20 +1,10 @@
 use crate::{PAGE_BYTES, *};
-use std::{
-    fs,
-    path::PathBuf,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::{fs, path::PathBuf};
 pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
-static NEXT: AtomicU64 = AtomicU64::new(0);
-pub(super) struct Fixture(pub(super) PathBuf);
+pub(super) struct Fixture(pub(super) crate::testkit::TempDir);
 impl Fixture {
     pub(super) fn new(rows: &[&[RowValue<'_>]]) -> Result<Self, Box<dyn std::error::Error>> {
-        let path = std::env::temp_dir().join(format!(
-            "jet3-schema-index-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&path)?;
+        let path = crate::testkit::TempDir::new("schema-index")?;
         let fixture = Self(path);
         create_database_with_rows(
             fixture.path(),
@@ -73,14 +63,7 @@ impl Fixture {
         )
     }
 }
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
-}
-pub(super) fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+pub(super) use crate::testkit::budget;
 
 #[test]
 fn index_edits_preserve_rows_payloads_and_unrelated_source_pages() -> TestResult {

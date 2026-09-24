@@ -128,12 +128,7 @@ fn write_row_page(bytes: &mut [u8], page_number: usize, rows: usize) {
 }
 
 fn database_with_definition(definition: &[u8]) -> Vec<u8> {
-    let mut bytes = vec![0_u8; PAGE_COUNT * PAGE_BYTES];
-    bytes[4..19].copy_from_slice(b"Standard Jet DB");
-    bytes[0x41] = 0x4e;
-    bytes[0x42..0x50].copy_from_slice(&[
-        0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
-    ]);
+    let mut bytes = crate::testkit::database_image(PAGE_COUNT);
     bytes[ROOT * PAGE_BYTES..ROOT * PAGE_BYTES + definition.len()].copy_from_slice(definition);
     let map = &mut bytes[MAP_PAGE * PAGE_BYTES..(MAP_PAGE + 1) * PAGE_BYTES];
     map[0] = 1;

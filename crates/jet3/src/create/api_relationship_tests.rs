@@ -9,19 +9,12 @@ use crate::{
 };
 use std::fs;
 use std::io;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
-static NEXT: AtomicU64 = AtomicU64::new(0);
-pub(super) struct Directory(pub(super) std::path::PathBuf);
+pub(super) struct Directory(pub(super) crate::testkit::TempDir);
 impl Directory {
     pub(super) fn new() -> Result<Self, io::Error> {
-        let path = std::env::temp_dir().join(format!(
-            "jet3-create-relation-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&path)?;
+        let path = crate::testkit::TempDir::new("create-relation")?;
         Ok(Self(path))
     }
     pub(super) fn target(&self) -> std::path::PathBuf {
@@ -31,14 +24,7 @@ impl Directory {
         Ok(fs::read_dir(&self.0)?.next().is_none())
     }
 }
-impl Drop for Directory {
-    fn drop(&mut self) {
-        let _result = fs::remove_dir_all(&self.0);
-    }
-}
-pub(super) fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+pub(super) use crate::testkit::budget;
 pub(super) fn schema(two: bool) -> ([TableSpec<'static>; 2], RelationshipSpec<'static>) {
     const PARENT_COLUMNS: &[ColumnSpec<'static>] = &[
         ColumnSpec::new(b"Code2", ColumnType::Long),

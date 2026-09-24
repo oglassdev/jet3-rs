@@ -9,9 +9,7 @@ use crate::{
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+use crate::testkit::budget;
 
 fn budget_with_encoded_limit(bytes: u64) -> ResourceBudget {
     ResourceBudget::new(

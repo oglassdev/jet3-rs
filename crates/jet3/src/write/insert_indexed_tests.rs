@@ -7,19 +7,10 @@ use crate::{
 use std::error::Error as StdError;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 pub(super) type TestResult = Result<(), Box<dyn StdError>>;
-static NEXT: AtomicU64 = AtomicU64::new(0);
-pub(super) fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+pub(super) use crate::testkit::budget;
 pub(super) struct Fixture {
-    directory: PathBuf,
-}
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.directory);
-    }
+    directory: crate::testkit::TempDir,
 }
 impl Fixture {
     pub(super) fn new(
@@ -27,12 +18,7 @@ impl Fixture {
         descending: bool,
         kind: IndexKind,
     ) -> Result<Self, Box<dyn StdError>> {
-        let directory = std::env::temp_dir().join(format!(
-            "jet3-indexed-mutations-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&directory)?;
+        let directory = crate::testkit::TempDir::new("indexed-mutations")?;
         let f = Self { directory };
         let columns = [
             ColumnSpec::new(b"Id", ColumnType::Long),

@@ -1,13 +1,7 @@
 use crate::{PAGE_BYTES, *};
-use std::{
-    collections::BTreeMap,
-    fs,
-    path::PathBuf,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::{collections::BTreeMap, fs, path::PathBuf};
 
 pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
-static NEXT: AtomicU64 = AtomicU64::new(0);
 const COLUMNS: [ColumnSpec<'static>; 4] = [
     ColumnSpec::new(b"Id", ColumnType::Long),
     ColumnSpec::new(b"Tag", ColumnType::Long),
@@ -47,29 +41,17 @@ const INDEXES: [IndexSpec<'static>; 3] = [
     },
 ];
 
-pub(super) fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+pub(super) use crate::testkit::budget;
 
 pub(super) struct Fixture {
-    directory: PathBuf,
-}
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.directory);
-    }
+    directory: crate::testkit::TempDir,
 }
 impl Fixture {
     pub(super) fn new(indexes: bool) -> Result<Self, Box<dyn std::error::Error>> {
         Self::with_auto(indexes, false)
     }
     pub(super) fn with_auto(indexes: bool, auto: bool) -> Result<Self, Box<dyn std::error::Error>> {
-        let directory = std::env::temp_dir().join(format!(
-            "jet3-lval-mutation-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&directory)?;
+        let directory = crate::testkit::TempDir::new("lval-mutation")?;
         let result = Self { directory };
         let mut columns = COLUMNS;
         if auto {

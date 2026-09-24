@@ -8,9 +8,7 @@ use crate::{
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+use crate::testkit::budget;
 
 fn budget_with_items(maximum: u64) -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::new(ReadLimits::default()).with_max_item_work(maximum))

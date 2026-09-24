@@ -3,16 +3,11 @@
 use super::*;
 use crate::{
     ColumnOrdinal, DatabaseReader, FieldUpdate, FileSource, IndexColumnSpec, IndexFieldSpec,
-    IndexKind, IndexSpec, PAGE_BYTES, ResourceLimits, RowDelete, RowLocator, TableDefinition,
-    TableRows, TextCodePage, UpdateError, ValueKind,
+    IndexKind, IndexSpec, PAGE_BYTES, RowDelete, RowLocator, TableDefinition, TableRows,
+    TextCodePage, UpdateError, ValueKind,
 };
-use std::{
-    fs,
-    path::PathBuf,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::{fs, path::PathBuf};
 pub(super) type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
-static NEXT: AtomicU64 = AtomicU64::new(0);
 pub(super) const NAMES: [&[u8]; 3] = [b"Alpha", b"Bravo", b"Charlie"];
 const COLUMNS: [ColumnSpec<'static>; 3] = [
     ColumnSpec::new(b"Id", ColumnType::Long),
@@ -52,18 +47,11 @@ pub(super) struct Edge {
     pub(super) child: usize,
     pub(super) column: u16,
 }
-pub(super) fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
-pub(super) struct Fixture(PathBuf);
+pub(super) use crate::testkit::budget;
+pub(super) struct Fixture(crate::testkit::TempDir);
 impl Fixture {
     pub(super) fn path(&self) -> PathBuf {
         self.0.join("source.mdb")
-    }
-}
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
     }
 }
 pub(super) fn definition(
@@ -82,12 +70,7 @@ pub(super) fn definition(
     Ok(db.table_definition(root.ok_or("table absent")?, work)?)
 }
 pub(super) fn fixture(edges: &[Edge]) -> Result<Fixture> {
-    let directory = std::env::temp_dir().join(format!(
-        "jet3-relationship-graph-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    fs::create_dir(&directory)?;
+    let directory = crate::testkit::TempDir::new("relationship-graph")?;
     let fixture = Fixture(directory);
     let requests = NAMES.map(|name| TableRows {
         table: TableSpec {

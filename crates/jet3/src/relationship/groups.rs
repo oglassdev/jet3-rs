@@ -89,9 +89,7 @@ mod tests {
             metadata: [0, count, ordinal],
         }
     }
-    fn budget() -> ResourceBudget {
-        ResourceBudget::new(crate::ResourceLimits::default())
-    }
+    use crate::testkit::budget;
     #[test]
     fn component_ordinals_define_order_and_must_form_a_complete_unique_set()
     -> Result<(), UpdateError> {

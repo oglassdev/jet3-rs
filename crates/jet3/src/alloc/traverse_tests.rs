@@ -26,12 +26,7 @@ fn budget() -> ResourceBudget {
 /// at byte zero and its page number as the first bitmap byte so reached
 /// pages are distinguishable.
 fn database_bytes(tags: &[u8]) -> Vec<u8> {
-    let mut bytes = vec![0_u8; (tags.len() + 1) * PAGE_BYTES];
-    bytes[4..19].copy_from_slice(b"Standard Jet DB");
-    bytes[0x41] = 0x4e;
-    bytes[0x42..0x50].copy_from_slice(&[
-        0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
-    ]);
+    let mut bytes = crate::testkit::database_image(tags.len() + 1);
     for (offset, tag) in tags.iter().enumerate() {
         let start = (offset + 1) * PAGE_BYTES;
         bytes[start] = *tag;
@@ -311,12 +306,7 @@ fn visited_pages_rejects_out_of_range_without_growing() -> TestResult {
 fn owned_page_database(page_count: usize, record: &[u8], map_pages: &[usize]) -> Vec<u8> {
     assert!(page_count >= 3);
     assert!(record.len() + 5 < PAGE_BYTES - 14);
-    let mut bytes = vec![0_u8; page_count * PAGE_BYTES];
-    bytes[4..19].copy_from_slice(b"Standard Jet DB");
-    bytes[0x41] = 0x4e;
-    bytes[0x42..0x50].copy_from_slice(&[
-        0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
-    ]);
+    let mut bytes = crate::testkit::database_image(page_count);
 
     let table = PAGE_BYTES;
     bytes[table] = 2;

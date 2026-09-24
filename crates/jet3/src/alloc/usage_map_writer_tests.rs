@@ -10,9 +10,7 @@ use crate::{
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+use crate::testkit::budget;
 
 fn out_of_map(page: u64, first: u64, page_count: u64) -> UsageMapWriteError {
     UsageMapWriteError::PageOutOfMap {

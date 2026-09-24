@@ -7,22 +7,15 @@ use crate::{
 use std::error::Error as StdError;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 pub(super) type TestResult = Result<(), Box<dyn StdError>>;
-static NEXT: AtomicU64 = AtomicU64::new(0);
-pub(super) struct Fixture(PathBuf);
+pub(super) struct Fixture(crate::testkit::TempDir);
 impl Fixture {
     pub(super) fn new(
         columns: &[ColumnSpec<'_>],
         values: &[&[RowValue<'_>]],
     ) -> Result<Self, Box<dyn StdError>> {
-        let directory = std::env::temp_dir().join(format!(
-            "jet3-field-update-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&directory)?;
+        let directory = crate::testkit::TempDir::new("field-update")?;
         let fixture = Self(directory);
         create_database_with_rows(
             fixture.path(),
@@ -67,14 +60,7 @@ impl Fixture {
         Ok(())
     }
 }
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
-}
-pub(super) fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+pub(super) use crate::testkit::budget;
 pub(super) fn request(row: RowLocator, value: RowValue<'_>) -> FieldUpdate<'_> {
     FieldUpdate {
         table: b"Items",

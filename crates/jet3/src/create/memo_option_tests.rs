@@ -7,9 +7,7 @@ use crate::{
 use std::error::Error as StdError;
 use std::fs;
 
-pub(super) fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+pub(super) use crate::testkit::budget;
 pub(super) fn columns(name: &[u8]) -> [ColumnSpec<'_>; 2] {
     [
         ColumnSpec::new(b"Id", ColumnType::Long),

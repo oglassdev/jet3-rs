@@ -93,9 +93,7 @@ fn write_row(
     writer.write_exact(&[0; 2])
 }
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::new(ReadLimits::default()))
-}
+use crate::testkit::budget;
 
 #[test]
 fn round_trips_cp1252_name_kind_and_flags() -> Result<(), Box<dyn std::error::Error>> {

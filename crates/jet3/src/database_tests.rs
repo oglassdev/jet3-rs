@@ -32,10 +32,7 @@ fn budget(max_input: u64, max_single_read: u64, max_total_read: u64) -> Resource
 fn candidate_bytes(page_count: usize, signature: &[u8; 15]) -> Vec<u8> {
     let mut bytes = vec![0_u8; page_count * PAGE_BYTES];
     bytes[SIGNATURE_START..SIGNATURE_END].copy_from_slice(signature);
-    bytes[0x41] = 0x4e;
-    bytes[0x42..0x50].copy_from_slice(&[
-        0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
-    ]);
+    crate::testkit::write_jet3_header_fields(&mut bytes);
     bytes
 }
 

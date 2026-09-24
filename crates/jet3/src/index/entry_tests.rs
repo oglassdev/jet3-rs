@@ -4,9 +4,7 @@ use crate::{
     ResourceLimits, RowLocator, RowValue, index::key::scalar::ScalarKeyType,
 };
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+use crate::testkit::budget;
 
 const FIELDS: [ScalarIndexField; 2] = [
     ScalarIndexField {

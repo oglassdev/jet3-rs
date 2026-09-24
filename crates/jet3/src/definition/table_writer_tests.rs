@@ -17,9 +17,7 @@ const RELATED_ROOT: u64 = 5;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+use crate::testkit::budget;
 
 fn all_type_columns() -> Vec<ColumnSpec<'static>> {
     vec![
@@ -122,12 +120,7 @@ const LONG_VALUE_MAPS: [LongValueMapSpec; 2] = [
 ];
 
 fn decode(logical: &[u8]) -> Result<TableDefinition, Box<dyn std::error::Error>> {
-    let mut bytes = vec![0_u8; 6 * PAGE_BYTES];
-    bytes[4..19].copy_from_slice(b"Standard Jet DB");
-    bytes[0x41] = 0x4e;
-    bytes[0x42..0x50].copy_from_slice(&[
-        0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
-    ]);
+    let mut bytes = crate::testkit::database_image(6);
     let root = ROOT as usize * PAGE_BYTES;
     bytes[root..root + logical.len()].copy_from_slice(logical);
     let map = &mut bytes[MAP_PAGE as usize * PAGE_BYTES..(MAP_PAGE as usize + 1) * PAGE_BYTES];

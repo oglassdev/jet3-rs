@@ -1,7 +1,7 @@
 use super::cascade::*;
 use crate::{
-    DatabaseReader, FileSource, PAGE_BYTES, ResourceBudget, RowValue, UpdateError,
-    relationship::mutation::Change, *,
+    DatabaseReader, FileSource, PAGE_BYTES, RowValue, UpdateError, relationship::mutation::Change,
+    *,
 };
 use std::{error::Error, fs, path::Path};
 
@@ -28,9 +28,7 @@ impl Drop for Directory {
 }
 
 type TestResult = Result<(), Box<dyn Error>>;
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+use crate::testkit::budget;
 const COLUMNS: &[ColumnSpec<'_>] = &[
     ColumnSpec::new(b"Id", ColumnType::Long),
     ColumnSpec::new(b"Key", ColumnType::Long),

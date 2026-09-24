@@ -1,10 +1,8 @@
 use super::directory::{RowDirectory, RowDirectoryError};
-use crate::{Error, PAGE_BYTES, PageNumber, ResourceBudget, ResourceLimits};
+use crate::{Error, PAGE_BYTES, PageNumber};
 use std::error::Error as _;
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::default())
-}
+use crate::testkit::budget;
 
 fn page(owner: u32, rows: &[(&[u8], u16)]) -> [u8; PAGE_BYTES] {
     let mut page = [0_u8; PAGE_BYTES];

@@ -2,15 +2,12 @@ use super::page_append_plan::{
     AppendPageError, AppendPagePlan, ExistingPageError, plan_existing_page, plan_existing_pages,
 };
 use crate::{
-    ByteCount, InlineUsageMapEncoder, PageImage, PageKind, PageNumber, ResourceBudget,
-    ResourceLimits, UsageMapWriteError, format::limits::ReadLimits,
+    ByteCount, InlineUsageMapEncoder, PageImage, PageKind, PageNumber, UsageMapWriteError,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-fn budget() -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::new(ReadLimits::default()))
-}
+use crate::testkit::budget;
 
 fn global_map(bitmap_bytes: u64) -> Result<InlineUsageMapEncoder, UsageMapWriteError> {
     InlineUsageMapEncoder::new(

@@ -27,10 +27,7 @@ fn raw_page(signature: &[u8; 15]) -> [u8; PAGE_BYTES] {
 fn supported_raw_page() -> [u8; PAGE_BYTES] {
     let mut raw = raw_page(b"Standard Jet DB");
     raw[0x14] = 0x00;
-    raw[0x41] = 0x4e;
-    raw[0x42..0x50].copy_from_slice(&[
-        0x86, 0xfb, 0xec, 0x37, 0x5d, 0x44, 0x9c, 0xfa, 0xc6, 0x5e, 0x28, 0xe6, 0x13, 0xb6,
-    ]);
+    crate::testkit::write_jet3_header_fields(&mut raw);
     raw
 }
 
