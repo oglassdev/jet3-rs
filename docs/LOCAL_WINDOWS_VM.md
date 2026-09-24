@@ -3,7 +3,7 @@
 The local VM runs the independent DAO oracle. Its disk, provider, credentials,
 SSH keys, MDB files and raw captures stay outside the repository. Local and
 hosted differential runs use the same evidence standard in
-[validation/EVIDENCE.md](validation/EVIDENCE.md).
+[validation/README.md](validation/README.md).
 
 ## Configuration
 

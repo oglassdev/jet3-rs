@@ -35,6 +35,11 @@ the three v1 release gates.
 See [TOOLING.md](docs/TOOLING.md) for the pinned mise-managed developer tools
 and the remaining host prerequisites.
 
+Two design rules hold across the library: one caller-owned `ResourceBudget`
+covers a whole public operation (modules never start a nested budget), and the
+structural validator may share safe primitives with the writer but never its
+encoders or a successful self-read as proof of validity.
+
 ## Status
 
 The reader has hosted DAO differential evidence for its documented capability
@@ -106,5 +111,5 @@ hosted DAO differential runs establish evidence for their recorded capabilities
 and source revisions. AutoIncrement comparisons include explicit IDs, negative
 IDs and signed-boundary wrap, with failed Rust requests preserving the source.
 
-See the [current checkpoint and remaining work](docs/plans/V1_SCOPE.md#current-checkpoint)
-for exact evidence boundaries and the GitHub issues tracking completion.
+See [remaining work](docs/plans/V1_SCOPE.md#remaining-work) and
+`docs/PROVENANCE.md` for exact evidence boundaries; GitHub issues track completion.
