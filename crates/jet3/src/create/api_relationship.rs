@@ -12,22 +12,16 @@ use crate::{
 };
 use std::path::Path;
 
-/// Creates two empty tables with one enforced, non-cascading Long relationship.
+/// Creates two empty tables joined by one enforced, non-cascading Long
+/// relationship.
 ///
-/// The parent is first and its first index is an ascending primary on the
-/// referenced Long column. Empty creation also admits one additional ascending
-/// unique Long index on the parent. The child may start with one ascending
-/// Long/AutoIncrement primary on a different column; creation appends the foreign
-/// physical index. Names or zero-based ordinals resolve table/column references.
+/// Use [`create_database_with_relationships`] for other relationship forms.
+/// The result is checked and published like [`create_database`].
 ///
-/// Other columns retain the normal table planner's properties, AutoIncrement,
-/// Memo/OLE maps and definition chains. Keys of other types, additional child
-/// indexes, one-to-one relationships, cascades, self-references and more than two tables
-/// are refused; use [`create_database_with_relationships`] for those forms.
-/// Written pages and reciprocal relationships are checked before atomic
-/// publication. The budget and existing-destination guarantees of
-/// [`create_database`] apply. Format encoders use EXP-0059/0114/0268; combining
-/// these schemas is a candidate construction, not a general compatibility claim.
+/// # Errors
+///
+/// As [`create_database`]; unsupported relationship forms fail before writing.
+/// See `docs/plans/V1_SCOPE.md` for the supported scope.
 pub fn create_database_with_relationship(
     path: impl AsRef<Path>,
     tables: &[TableSpec<'_>],
@@ -48,20 +42,16 @@ pub fn create_database_with_relationship(
     .map_err(CreateDatabaseError::Publish)
 }
 
-/// Creates two related tables with initial rows, indexes and Memo/OLE payloads.
+/// Creates the parent and child tables of one enforced Long relationship with
+/// initial rows.
 ///
-/// Requests contain parent then child, with one ascending Long primary on the
-/// parent's referenced column. The child may have one separate ascending
-/// Long/AutoIncrement primary. Null foreign keys are admitted; every non-null
-/// Long foreign key must exist in the parent. Duplicate child keys are allowed.
-/// Other columns support generated IDs, column options and independent Memo/OLE
-/// storage under the normal table, definition-chain and allocation-map bounds.
+/// Every non-null foreign key must exist in the parent. The result is checked
+/// and published like [`create_database`].
 ///
-/// Both index inventories, reciprocal metadata, complete rows and payloads are
-/// checked before atomic publication. Existing destinations are preserved.
-/// Unsupported relationship forms have the same restrictions as
-/// [`create_database_with_relationship`]. DAO evidence covers only its recorded
-/// finite comparisons; Rust candidate checking alone does not establish it.
+/// # Errors
+///
+/// As [`create_database_with_relationship`]; rows that break the relationship
+/// fail before writing. See `docs/plans/V1_SCOPE.md` for the supported scope.
 pub fn create_database_with_relationship_rows(
     path: impl AsRef<Path>,
     requests: &[TableRows<'_>],

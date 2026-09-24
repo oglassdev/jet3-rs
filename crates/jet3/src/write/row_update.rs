@@ -18,53 +18,20 @@ pub struct RowUpdate<'a> {
 
 /// Replaces a complete row while retaining its logical locator.
 ///
-/// Supports scalar/null/Boolean/Text/Binary values and independent Memo/OLE
-/// columns. Enforced relationships with one to ten ordered scalar fields require
-/// matching parents. Parent assignments cascade to matching child tuples when
-/// enabled; otherwise referenced parent keys are protected, including null tuples. Foreign keys and parent keys backed only by
-/// hidden relationship indexes update their two-word retained state on assignment
-/// (EXP-0268/0286), even when the value is unchanged. A self-reference whose foreign
-/// physical index precedes its parent requires the key to exist before replacement.
-/// Up to 32 indexes with one to ten
-/// supported scalar fields admit key and null changes, with uniqueness enforced
-/// for fully present keys. Every hidden storage slot must belong to exactly one
-/// logical row. Mutation of a selected multi-hop overflow chain is refused.
+/// The row stays in its slot when it fits, otherwise it moves to hidden
+/// overflow storage. Indexes, long-value storage, allocation maps and enforced
+/// relationships (including cascades) are updated and checked, and every
+/// affected row publishes in one atomic replacement; all other bytes are
+/// preserved. Callers must exclude other writers for the whole operation.
+/// `budget` bounds planning, copying and verification.
 ///
-/// A replacement that fits its logical slot is stored there, releasing any old
-/// hidden target. Otherwise it replaces the current hidden target when space
-/// permits, or allocates hidden storage and rewrites the original logical link
-/// directly. EXP-0262 establishes these native transitions. Whole-row encoding
-/// limits still apply; overflow does not allow a row to exceed them.
+/// # Errors
 ///
-/// External payloads are validated against live references and column ownership.
-/// Replaced fragments are released or reused, with single and chained storage
-/// in separate pools. All payload, row, index and allocation changes publish
-/// together. Caller-supplied raw long-value headers are refused.
-///
-/// Compaction preserves neighboring slots and values. Empty slots become
-/// tombstones; emptied pages are released for reuse. Available membership records
-/// whether a minimum encoded row and directory slot fit. Changed indexes retain
-/// logical row locators. Table counts, page zero and unrelated objects remain
-/// exact; newly vacated row slack is retained.
-///
-/// Callers must exclude external writers throughout this operation on Unix or Windows.
-/// One resource budget covers planning, copying and complete private verification.
-/// Pre-publication failure preserves the original; errors identify publish stages.
-/// An AutoNumber field accepts its unchanged Long value or `RowValue::AutoIncrement`
-/// to retain its value. Changing that field is refused and its counter is retained.
-/// Every affected enforced relationship is checked, including
-/// multiple relationships and self-references. Every child key with at least one
-/// non-null component must occur in its parent table. Without cascade updates,
-/// other rows referencing the selected parent key block even equal replacement. When
-/// its parent tree precedes its foreign tree, a self-reference excludes the
-/// selected row from this guard and checks its child key against the resulting
-/// parent keys (EXP-0292). Cascades retain the selected row's explicit foreign-key
-/// assignments and update other matching rows, including null tuples (EXP-0295).
-/// All affected rows, payloads and indexes publish in one atomic replacement.
-/// Jet expressions are not evaluated: a table storing a field or table
-/// ValidationRule (EXP-0299) refuses with [`UpdateError::ValidationRule`], and a
-/// database whose sort order is not General with
-/// [`UpdateError::UnsupportedSortOrder`]. Both refusals preserve the file.
+/// Returns [`UpdateError`] when the file or request is outside the supported
+/// scope, a key or relationship constraint refuses the change, the table
+/// stores a validation rule (rules are not evaluated), or `budget` is
+/// exhausted; the original file is then unchanged. Publication failures
+/// identify their stage. See `docs/plans/V1_SCOPE.md` for the supported scope.
 pub fn update_row(
     path: impl AsRef<Path>,
     request: RowUpdate<'_>,

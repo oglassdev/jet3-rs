@@ -148,23 +148,17 @@ impl StdError for ImageCheckError {
     }
 }
 
-/// Creates the database at `path` holding `tables`, created in order, each
-/// empty.
+/// Creates the database at `path` holding the empty `tables`, in order.
 ///
-/// After successful composition, `path` must not exist; an existing entry
-/// fails with an `AlreadyExists` I/O error at
-/// [`crate::PublishStage::PrivateCopyCreation`] and is left unchanged.
-/// Composition, the page writes, and the structural reopen are all charged to
-/// `budget`.
+/// The image is composed, written privately, reopened and checked, then
+/// published atomically. `budget` bounds every step.
 ///
-/// Unsupported layouts fail with [`CreateDatabaseError::Compose`] before
-/// anything is written: creation-counter overflow, exhausted map-reference capacity,
-/// two tables whose names have equal CP1252 collation keys, more than 32 indexes
-/// on a table, or a name outside the supported CP1252 grammar. EXP-0249 bounds
-/// table/column names to 64 bytes and index names to 63; it establishes the
-/// 16-bit creation counter carry.
-/// Table definitions use linked pages within the same
-/// allocation and resource limits, including indexed and later tables.
+/// # Errors
+///
+/// Returns [`CreateDatabaseError::Compose`] before writing anything when the
+/// schema is outside the supported scope, and [`CreateDatabaseError::Publish`]
+/// when writing, checking or publication fails; an existing `path` is left
+/// unchanged and reported as `AlreadyExists`. See `docs/plans/V1_SCOPE.md` for the supported scope.
 pub fn create_database(
     path: impl AsRef<Path>,
     tables: &[TableSpec<'_>],
@@ -188,58 +182,15 @@ pub fn create_database(
     .map_err(CreateDatabaseError::Publish)
 }
 
-/// Creates one table containing initial rows in caller order.
+/// Creates one table holding `rows`, in caller order.
 ///
-/// Rows are packed in caller order into data pages within the allocation-map
-/// and resource limits. Each row must fit one page; table definitions may span linked
-/// pages. Pages with a slot and room for an all-null row are marked available;
-/// this construction
-/// policy has not been established as DAO's allocation policy.
-/// Each table accepts up to 32 indexes. Each
-/// index has one to ten supported scalar columns (including a generated AutoIncrement
-/// column), with each field ascending or descending. Multiple populated indexes
-/// use separate roots/maps and independent trees.
-/// Uncompressed branch/leaf trees grow within the allocation-map and
-/// resource limits. Unique indexes reject repeated fully present keys while
-/// allowing repeated null-bearing keys. The index null policy includes keys,
-/// omits all-null keys, or requires every component; primary indexes require
-/// every component. Supported components are Boolean, Byte, Integer, Long,
-/// Currency, Single, Double, DateTime, Binary, fixed/variable Text and GUID. Nonfinite
-/// floating values are refused. Boolean nulls store False, including indexed fields. Empty Binary
-/// saves as null. Text keys use the English-US/CP1252 collation from EXP-0248;
-/// case, ligature expansion and trailing ASCII spaces affect key equality without
-/// changing stored row bytes. EXP-0243/0245 establish Date fractions, floating
-/// negative zero and Binary keys; EXP-0248 establishes GUID display-order keys.
-/// Keys longer than 255 bytes retain a prefix plus a checksum; distinct values
-/// colliding after shortening are duplicate keys, matching DAO uniqueness.
-/// One AutoIncrement column accepts [`RowValue::AutoIncrement`] or an explicit Long.
-/// Generation starts at 1 independently per table and wraps through signed Long
-/// boundaries. Each inserted row advances the persisted allocation state before
-/// applying an explicit ID using the unsigned comparison established by EXP-0237.
-/// Null IDs are refused. EXP-0239 compares explicit and wrapping initial IDs.
-/// Memo and LongBinary columns accept typed payloads or null alongside
-/// scalar indexes and generated IDs; the long-value columns themselves cannot
-/// be indexed. Every long-value column has its own owned/available map pair,
-/// in column order after the table and index maps across packed map pages.
-/// Its physical capacity bounds the column count. EXP-0236 compares multiple
-/// long-value columns with numeric indexes and native continuations.
-/// Raw `RowValue::LongValue` headers are refused.
-/// [`crate::ColumnSpec::with_allow_zero_length`] enables present-empty Text or
-/// Memo independently per column, including later and indexed tables. Empty
-/// OLE payloads are stored as null. Fixed Text retains its exact-width contract.
-/// EXP-0266 supplies the named property and empty-value construction facts;
-/// candidate compatibility is bounded by the differential outcomes recorded there.
-/// The candidate policy stores up to 32 bytes inline, up to 2,036 on one LVAL
-/// page, and larger payloads in 2,032-byte chained fragments, one per page.
-/// These are construction choices, not established DAO allocation thresholds.
-/// Values use the database-code-page and physical representations of [`RowValue`].
-/// The existing-destination and atomic publication guarantees of
-/// [`create_database`] apply. Composition and the structural row comparison
-/// are charged to `budget`. Unsupported schemas and rows fail before writing.
+/// Rows, indexes, AutoNumber state and Memo/OLE payloads are composed with the
+/// table; the result is checked and published like [`create_database`].
 ///
-/// DAO observations cover only the exact candidates recorded in the provenance
-/// ledger. Construction bounds alone do not establish general compatibility or
-/// hosted write-differential coverage.
+/// # Errors
+///
+/// As [`create_database`]; unsupported schemas and rows fail before writing.
+/// See `docs/plans/V1_SCOPE.md` for the supported scope.
 pub fn create_database_with_rows(
     path: impl AsRef<Path>,
     table: &TableSpec<'_>,

@@ -11,34 +11,18 @@ use crate::{
 };
 use std::path::Path;
 
-/// Creates empty tables with enforced relationships with one to ten scalar fields.
+/// Creates empty tables joined by enforced relationships of one to ten scalar
+/// fields each.
 ///
-/// Table order is independent of relationship direction. Multiple endpoints,
-/// chains, self-references and parents sharing ordered child FK fields are admitted.
-/// Endpoints admit Boolean, Byte, Integer, Long, Currency, Single, Double,
-/// DateTime, Binary, fixed/variable Text and GUID; parents also admit AutoIncrement.
-/// Both endpoints must have the same scalar type, except that Text/Binary widths
-/// may differ and fixed/variable Text may mix (EXP-0288). Boolean null inputs
-/// store False; empty Binary stores null. Each parent needs a unique index.
-/// The composer selects
-/// an ascending index first, in logical name order. If only a descending index
-/// qualifies, it generates an ascending tree with the same null policy, shared
-/// by relationships on that parent fields (EXP-0286/0290). An ordinary ascending
-/// child index on the ordered FK fields is reused, retaining its declared name.
-/// One-to-one relationships instead reuse a unique/include-null ascending child
-/// index or add one (EXP-0307). Fully present child keys must then be distinct.
-/// Relationships on the same ordered child fields share a physical index only
-/// when their uniqueness requirements match. Each reciprocal relationship record consumes one
-/// of the table's 32 logical index slots; a self-reference consumes two.
-/// A self-reference must have different complete parent and foreign field vectors;
-/// individual components may coincide (EXP-0292).
-/// Other columns retain the normal
-/// creation planner's bounds.
+/// Table order is independent of relationship direction; chains, multiple
+/// endpoints and self-references are admitted. Missing parent or child
+/// indexes are generated. The result is checked and published like
+/// [`create_database`].
 ///
-/// This uses the EXP-0273/0279 reciprocal grammar and existing creation primitives.
-/// It is a candidate construction; only recorded DAO comparisons establish
-/// compatibility. Existing destinations and the budget guarantees of
-/// [`create_database`] apply.
+/// # Errors
+///
+/// As [`create_database`]; unsupported relationship forms fail before writing.
+/// See `docs/plans/V1_SCOPE.md` for the supported scope.
 pub fn create_database_with_relationships(
     path: impl AsRef<Path>,
     tables: &[TableSpec<'_>],

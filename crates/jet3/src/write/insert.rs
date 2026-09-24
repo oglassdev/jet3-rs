@@ -7,55 +7,22 @@ use std::convert::Infallible;
 use std::error::Error as StdError;
 use std::path::Path;
 
-/// Inserts a row on an available page, a released target-table page, or one EOF page.
+/// Inserts one row into an existing user table.
 ///
-/// Values use the existing checked scalar/Text/Binary row encoder, including null
-/// and Boolean fields. Up to 32 indexes with one to ten supported scalar
-/// fields admit primary, unique, nonunique, descending and nullable keys. Each
-/// complete tree and row/key correspondence must validate. Changed trees retain
-/// their roots, reuse reserved index pages and append nodes as needed. Other
-/// key types are refused. Enforced relationships with one to ten
-/// ordered scalar fields admit all-null foreign keys and require a matching
-/// parent for every other tuple. Memo/OLE payloads use independent column maps; raw caller-supplied headers are refused.
-/// If no populated page fits, a released global-free page belonging to this table
-/// is reused, or one EOF page is appended. Inline maps convert to indirect storage
-/// and missing bitmap slots are allocated within the existing reference row.
-/// New slots may coexist with logical overflow links and hidden storage rows;
-/// the complete table graph must have unique, owned targets. Live-page slot reuse
-/// is not implemented. A selected page must fit
-/// the requested row and its directory slot; availability afterward reflects
-/// whether another minimum-length row and slot fit.
+/// The row is placed on a page with room, a released page of the table, or one
+/// appended page. Indexes, long-value storage, allocation maps, AutoNumber
+/// state and enforced relationships are updated and checked, and every change
+/// publishes in one atomic replacement; all other bytes are preserved. Callers
+/// must exclude other writers for the whole operation. `budget` bounds
+/// planning, copying and verification.
 ///
-/// External payload pages are validated against every live field reference and
-/// disjoint column ownership, then reused or appended. Single and chained
-/// storage use separate pools. Data, payloads, indexes and their allocation bits
-/// publish together.
+/// # Errors
 ///
-/// One AutoNumber column accepts `RowValue::AutoIncrement` or an explicit Long.
-/// Successful insertion advances its persisted state, with unsigned explicit-ID
-/// resets and wrapping generation established by EXP-0237. Rejected requests
-/// preserve the file, including the counter; DAO can consume a number on failure.
-///
-/// The new row, appended slot, page free/count fields, availability and table count
-/// change on unindexed existing-page insertion. Indexed insertion additionally
-/// updates index nodes/maps and increments each retained counter only for a new
-/// included key. EOF insertion clears its global free
-/// bit and sets owned/available bits, marking available when a minimum encoded
-/// row still fits. AutoNumber insertion also updates its allocation state.
-/// All other bytes, including page zero, remain exact. EXP-0232/0238/0239 record
-/// the finite numeric, long-value and AutoNumber DAO comparisons.
-/// Callers must exclude external writers throughout this operation on Unix or Windows.
-/// A pre-publication failure preserves the original; publication errors identify
-/// their stage. One resource budget covers planning, copying and full verification.
-/// Every affected enforced relationship is checked, including
-/// multiple relationships and self-references. Every child key with a non-null
-/// component must occur in its parent table. A self-reference whose foreign physical
-/// index precedes its parent index requires that key before insertion (EXP-0286).
-/// Cascade options do not change insertion parent checks.
-/// Jet expressions are not evaluated: a table storing a field or table
-/// ValidationRule (EXP-0299) refuses with [`UpdateError::ValidationRule`], and a
-/// database whose sort order is not General with
-/// [`UpdateError::UnsupportedSortOrder`]. Both refusals preserve the file.
+/// Returns [`UpdateError`] when the file or request is outside the supported
+/// scope, a key or relationship constraint refuses the change, the table
+/// stores a validation rule (rules are not evaluated), or `budget` is
+/// exhausted; the original file is then unchanged. Publication failures
+/// identify their stage. See `docs/plans/V1_SCOPE.md` for the supported scope.
 pub fn insert_row(
     path: impl AsRef<Path>,
     table: &[u8],

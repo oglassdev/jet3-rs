@@ -13,47 +13,21 @@ pub struct RowDelete<'a> {
     pub row: RowLocator,
 }
 
-/// Deletes one logical row and its hidden storage, compacting or releasing pages.
+/// Deletes one logical row and its hidden storage.
 ///
-/// Retains any AutoNumber state. Enforced relationships with one to ten ordered
-/// scalar fields delete matching children when cascade deletion is enabled;
-/// otherwise referencing children block deletion. Memo/OLE fragments
-/// are removed from their independent column storage after complete reference
-/// and ownership validation; emptied payload pages become globally free.
-/// Up to 32 indexes with one to ten supported scalar fields admit deletion,
-/// including duplicate and nullable keys. Each matching entry is removed by row
-/// locator and changed trees retain their roots. Surplus index pages remain
-/// reserved for reuse. Ordinary index counters are unchanged; foreign index
-/// deletion updates the two-word retained state recorded by EXP-0268.
-/// Ordinary rows and one-link overflow rows are supported. Hidden storage must
-/// be uniquely reachable from a logical row; selected multi-hop chains are refused.
-/// EXP-0262 establishes deletion of both the logical link and hidden target.
-/// Allocation maps must consistently identify affected pages as owned and allocated. Later rows move
-/// upward without changing their physical slot numbers or stored values. The
-/// deleted slot becomes an empty tombstone; existing tombstone flags are retained.
-/// A page containing one remaining physical record is released through its existing
-/// global/owned/available maps. Its physical slot count is retained and
-/// all slots become empty tombstones. Inconsistent free/count metadata is refused.
-/// On retained unindexed pages, only shifted row bytes, affected directory offsets,
-/// free-byte count, table row count and available membership change. Availability
-/// records whether a minimum row and slot fit. Vacated slack, page zero and unrelated
-/// objects remain exact for retained pages. Released pages change their tag, directory
-/// word and free count, and their three map bits; payload/slack and file length
-/// remain exact.
-/// EXP-0232/0238/0239 record finite numeric, long-value and AutoNumber DAO
-/// comparisons with these preservation guarantees.
+/// Later rows on the page move without changing their slots; a page left with
+/// no live rows is released. Index entries, long-value fragments, allocation
+/// maps and enforced relationships (including cascading deletes) are updated
+/// and checked, and every change publishes in one atomic replacement; all
+/// other bytes are preserved. Callers must exclude other writers for the whole
+/// operation. `budget` bounds planning, copying and verification.
 ///
-/// Callers must exclude external writers throughout this operation on Unix or Windows.
-/// The same resource budget covers planning, private copying and full-file
-/// verification. Any pre-publication failure preserves the original; publication
-/// errors identify their stage, including post-publication sync failures.
-/// Every affected enforced relationship is checked, including
-/// multiple relationships and self-references. Every child key with a non-null
-/// component must occur in its parent table. Cascade selection includes exact
-/// partial-null and all-null tuples. All recursively affected rows, indexes and
-/// payload storage publish together; failure preserves the complete original.
-/// A database whose sort order is not General (EXP-0299) refuses with
-/// [`UpdateError::UnsupportedSortOrder`], preserving the file.
+/// # Errors
+///
+/// Returns [`UpdateError`] when the file or request is outside the supported
+/// scope, a relationship constraint refuses the deletion, or `budget` is
+/// exhausted; the original file is then unchanged. Publication failures
+/// identify their stage. See `docs/plans/V1_SCOPE.md` for the supported scope.
 pub fn delete_row(
     path: impl AsRef<Path>,
     request: RowDelete<'_>,

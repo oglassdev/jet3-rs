@@ -178,35 +178,20 @@ conversion!(crate::IndexTreeError, Index);
 
 /// Replaces one field in a user table while retaining its logical row locator.
 ///
-/// Supports scalar values, null transitions, Boolean, Text/Binary and raw Memo/OLE
-/// payloads. AutoIncrement assignments and selected multi-hop overflow chains are
-/// refused. Present fixed fields are patched in place; other edits may compact or
-/// relocate the row using EXP-0262 storage transitions. Unassigned fields and their
-/// long-value descriptors are retained; only the selected payload is released or reused.
+/// Fixed fields are patched in place; other edits may compact or relocate the
+/// row. Indexes, long-value storage, allocation maps and enforced
+/// relationships (including cascades) are updated and checked, and every
+/// affected row publishes in one atomic replacement; all other bytes are
+/// preserved. Callers must exclude other writers for the whole operation.
+/// `budget` bounds planning, copying and verification.
 ///
-/// Up to 32 indexes with one to ten supported scalar fields admit key changes.
-/// Changed trees retain their roots and reserved pages, growing allocation maps
-/// as needed. Row counts and ordinary index counters remain unchanged. Explicit
-/// foreign-key assignments update their two-word retained index state (EXP-0268).
+/// # Errors
 ///
-/// Enforced relationships with one to ten ordered scalar fields
-/// are checked against both endpoints and reciprocal metadata, including multiple
-/// relationships and self-references. Only all-null child keys are exempt from
-/// matching a parent. Assigning a referenced parent key cascades to matching child
-/// tuples when enabled, including equal assignments and null tuples (EXP-0294/0295).
-/// Without cascade updates, referencing children block even equal assignments.
-/// The entire connected result is checked before all affected rows publish together.
-/// An unreadable relationship catalog and unresolved endpoint names are refused.
-///
-/// Callers must exclude external writers throughout this operation on Unix or Windows.
-/// One budget covers planning, copying, patching and complete private verification.
-/// A pre-publication failure preserves the original; a post-publication sync failure
-/// is distinguished by the publication error stage. Structural verification is not
-/// a DAO compatibility claim.
-/// Jet expressions are not evaluated: a table storing a field or table
-/// ValidationRule (EXP-0299) refuses with [`UpdateError::ValidationRule`], and a
-/// database whose sort order is unsupported (EXP-0309) with
-/// [`UpdateError::UnsupportedSortOrder`]. Both refusals preserve the file.
+/// Returns [`UpdateError`] when the file or request is outside the supported
+/// scope, a key or relationship constraint refuses the change, the table
+/// stores a validation rule (rules are not evaluated), or `budget` is
+/// exhausted; the original file is then unchanged. Publication failures
+/// identify their stage. See `docs/plans/V1_SCOPE.md` for the supported scope.
 pub fn update_field(
     path: impl AsRef<Path>,
     request: FieldUpdate<'_>,
