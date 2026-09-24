@@ -61,6 +61,26 @@ composite and nullable keys, duplicate ordering, retained counters, tree growth
 and native-input continuations with observed prefix compression.
 These finite suites do not establish general Jet 3 compatibility.
 
+The storage/preservation suite builds native wide-row, four-payload and sparse
+AutoNumber schemas with eleven saved queries and unrelated property/payload
+sentinels. It compares complete lifecycles, DAO continuations, terminal failed
+writes and explicit rollbacks. Each run retains its inputs, CLI, source revision,
+requests, provider environment, snapshots and raw comparisons outside the repo:
+
+```sh
+cargo build --locked -p jet3-cli
+python3 oracle/windows-dao/scripts/storage_preservation.py run \
+  --cli target/debug/jet3-cli \
+  --shared-root "$JET3_WINDOWS_SHARED_ROOT" \
+  --out /path/outside/repo/new-storage-run
+```
+
+Individual `remote`, `prepare` and `evaluate` subcommands allow replaying the
+retained inputs and comparisons. Every output directory must be new. Native
+failure images remain terminal controls, including relationship refusals whose
+catalog counters remain inconsistent after rollback; Rust's validator stays
+strict and Rust refusals must preserve the complete original file.
+
 `just windows-dev-probe` and the existing `windows-dev-*` recipes remain useful
 for specific format discovery. Their historical acquisition plans and outcome
 records describe earlier runs. New verification should use reproducible suites

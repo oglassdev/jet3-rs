@@ -130,6 +130,11 @@ def component(value, kind, descending):
 def key(row, case, index):
     if index['ignore'] and all(row[c] is None for c, _ in index['fields']): return None
     encoded = b''.join(component(row[c], case['fields'][c][1], desc) for c, desc in index['fields'])
+    return shorten_key(encoded)
+
+
+def shorten_key(encoded):
+    """EXP-0245/0248: shorten the complete directed key, before the locator."""
     if len(encoded) > 255:
         state = 0
         for byte in encoded[253:]:

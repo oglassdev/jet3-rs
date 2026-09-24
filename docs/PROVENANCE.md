@@ -20688,3 +20688,157 @@ GPT-6 Sol high; the fixed findings were the ten-column cap on unenforced
 creation and the inspect join spelling. This accepts the finite inventory
 above; one-to-one and unknown-attribute writes, the Inherited attribute
 (refused by DAO on local tables) and linked tables remain outside it.
+
+## EXP-0303 — Native saved-query catalog flags
+
+The native storage/preservation acquisition `20260923T180002Z-storage-native-r2`
+uses x86 DAO 3.6 (DLL 03.60.9765.0, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`),
+Windows 10.0.20348, en-US/ANSI 1252. The original `wide-r1` image contains
+eleven saved QueryDefs, all read completely through DAO including SQL,
+parameters, properties and dates; none is executed. Its MSysObjects rows
+have Type 5. Flags match the DAO QueryDef.Type getter: select, parameter,
+aggregate and join 0; crosstab 16; delete 32; update 48; append 64;
+make-table 80; DDL 96; union 128. These exact kind/flag pairs are admitted
+as user catalog objects while retaining their raw kind and flags. This
+observation does not establish arbitrary flag combinations, query execution,
+other object kinds, or query mutation support.
+
+The original native image is 106,496 bytes with SHA-256
+`13312efadbb13c4413aba0b99e2b96c6db2135cd1cf0575966ebc470e2ae2546`;
+its complete DAO snapshot has SHA-256
+`d3699fe98de0161745290d6499c0dbcd131b34f8f3589b3f4f18723743b11ba1`.
+Both remain in the named outbox below the private VM share. The producer
+and deterministic input generator are `storage_preservation.ps1` and
+`storage_preservation_plan.py` in `oracle/windows-dao/scripts`.
+The earlier native r1 custom-property setup failure and the original Rust
+refusal (`catalog object flags 0x00000080 are unsupported`) are retained
+under `shared/checks/20260923-storage-preservation`. No MDB implementation
+source was consulted. Differential mutation results are recorded separately.
+
+## EXP-0304 — Storage reuse, expanded object preservation and native rollback
+
+Recorded 2026-09-24 UTC. Production source
+`b66a59acb0fe9cf7cca0f850a8e256565d1d8df5` admits the exact saved-query
+catalog flags from EXP-0303; it otherwise leaves mutation and validation
+behavior unchanged. The frozen Linux CLI has SHA-256
+`87f7d6e7c1a869dbe2c5d877b354c9a80ac9c9551d897609df78ad5dcfe4c05b`.
+The black-box oracle is x86 DAO 3.6, DLL 03.60.9765.0 with SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`,
+Windows 10.0.20348, en-US/ANSI 1252. No other MDB implementation was studied.
+
+**Inputs and comparisons.** `storage_preservation_plan.py` and
+`storage_preservation.ps1` create two native replicas of three schemas:
+six variable Text fields with two indexes; that layout with two independent
+Memo and two OLE columns; and an AutoNumber variant with retired fixed and
+variable fields retained in old rows. Each starts with 48 Items rows, an
+unrelated Watch table with 9,000-byte Memo and 6,000-byte OLE sentinels,
+custom Text properties on the database, tables, fields and queries, and all
+eleven EXP-0303 QueryDefs. No saved query is executed.
+
+All **54 pairs** pass: six original baseline pairs (byte-identical source
+copies), 42 mutation checkpoint pairs and six native-continuation pairs.
+The main lineages each delete 16 scattered rows, refill them, grow and regrow
+four rows, shrink those rows and change payloads to short/Null forms, delete
+all rows, then insert 48 rows again. That is 840 Rust requests and 840 native
+requests. Each final lineage then receives three DAO requests on both its
+Rust and native output. Native editing verifies an unchanged AutoNumber ID
+and leaves that immutable field unassigned while replacing other fields.
+
+Every pair compares complete DAO tables, fields, indexes and their properties,
+all row values and index traversals, relations, database properties, and saved
+query SQL, parameters, getter results, custom properties and dates. Large
+Memo/OLE values are compared by complete length/hash. Only the opened copy's
+Database.Name path and unordered table-row enumeration are normalized; index
+traversal order, counters and object dates remain exact.
+
+The raw evaluator checks every image's physical keys and row locators,
+complete payload reachability, disjoint ownership and complete allocation
+classification. It compares logical definitions, full decoded rows, physical
+key values and index counters between each pair. Across the 108 captures,
+including baseline copies, it verifies **3,906 byte-exact unrelated-page
+comparisons** and **3,480 complete unassigned-row comparisons**, including
+payload descriptors and storage locators. Every system table and Watch
+row/definition/map remains unchanged. Long Text keys cross the 255-byte
+encoded-key boundary; the raw schema evaluator now uses the existing
+EXP-0245/0248 whole-key checksum rule before appending the locator.
+
+Both implementations expose four one-link overflow rows after growth in
+each source, and none after shrinkage. Delete-all releases all Items data
+pages. Reinsertion uses four freed data pages in the wide schemas and six
+in each payload schema, without growing any file. Scattered refill appends
+slots on still-live pages: neither implementation reuses a deleted live-page
+slot in this inventory. Repeated growth establishes no multi-hop layout;
+the EXP-0276 rejected representation remains excluded.
+
+**Failures and rollback.** Eighteen Rust refusals preserve their complete
+input bytes and have the expected structured error and publication stage.
+Sixteen reach the matching duplicate, Required or orphan-relationship
+constraint. The two AutoNumber-child relationship controls are separate Rust
+support-boundary refusals (`relationship column types`); DAO reaches orphan
+error 3201. Those two are not claimed as matching constraint enforcement.
+
+Thirty-six terminal DAO captures cover each failure both directly and inside
+an explicit workspace transaction followed by Rollback. Row rollback arms
+first make a successful Text edit; the failed write and that edit are both
+rolled back semantically. Every complete post-failure DAO snapshot equals its
+own baseline, including query metadata and all index properties. Exact raw
+side effects, including rollback outcomes, are checked separately:
+
+- Eight wide-schema duplicate/Required images are byte-identical to input.
+- Twelve payload-schema duplicate/Required images (including sparse Required)
+  change only header byte 1538 from zero to two.
+- Four sparse AutoNumber duplicate images change that same header byte and
+  advance the persisted generator from 48 to 49, despite an explicit duplicate
+  ID assignment, including after rollback. Rust retains generator 48.
+- All twelve relationship-refusal images change exactly six bytes: that header
+  marker, MSysObjects declared count 21 to 22, MSysACEs declared count 42 to 44,
+  and three system-index retained counters 21 to 22. Live row counts remain
+  21 and 42. Explicit rollback does not repair this bookkeeping. All twelve
+  fail strict Rust validation; the other 24 failure images pass. Failed images
+  remain terminal controls and never become lifecycle/continuation inputs.
+
+Successful native checkpoints (48) and native continuations (12) all pass
+strict Rust validation. The production validator has not been relaxed.
+Separate Windows/NTFS checks run all 15 atomic-publication tests and all eight
+catalog-record tests successfully. Their Rust test executable has SHA-256
+`4953a402fd397ccc84b42814bb316cc24d29f9f9d0911998c53569d4c2c8fe83`;
+this is internal publication testing, not DAO-equivalent crash recovery.
+`just ready` passes 1,796 test executions, zero failures and ten ignored,
+plus formatting, clippy, documentation and quick acceptance. Six focused
+Python comparison tests and support-matrix validation also pass.
+
+**Retention and replay.** The private bundle is
+`/home/alex/development/vms/jet3-windows/shared/checks/20260923-storage-preservation`.
+All 48 Rust candidates reproduce byte-for-byte, and the final portable
+comparison report replays exactly. Its `ARCHIVE-MANIFEST.json` inventories
+6,662 files totaling 818,910,615 bytes; every path, size and SHA-256 is checked.
+The manifest excludes itself and has SHA-256
+`184f215089f5d11c71e06e19fb43a7cf2f315209119c8dbbaa904292fea507f6`.
+The external check is `checks/20260923-storage-preservation-archive-check.json`.
+Final report SHA-256 values are:
+
+- `final-comparison/REPORT.json`:
+  `ab3df4e8d84422a55fde15cba0056a673b25f6bb7f7c86f79b319b07ec2a91c3`.
+- `final-failure-comparison-r2/REPORT.json`:
+  `286a1d03ad5bd03591a7fafafdf4954606b795f14f01b96d478bcbee5342d3b6`.
+- `FINAL-SUMMARY.json`:
+  `1275b5efdb9cac71d4a760ed0325cf1d4cf3bf6ec5e47d9e811ca137dc470444`.
+
+The bundle retains every failed attempt and its inputs. Native r1 failed
+custom-property setup. Native r2 completed all four wide/payload lineages,
+whose complete captures are accepted above, then failed on assigning an
+immutable AutoNumber during sparse row replacement. Both sparse replicas
+were acquired with the corrected worker in
+`20260924T004206Z-storage-native-09f887`. Earlier unsupported-query Rust
+refusals, the raw long-key analyzer omission, premature observer preparation,
+cross-linker setup failure, and overly broad native byte-preservation/constraint
+expectations remain recorded separately from their corrected comparisons.
+The native producers, requests, helper sources, CLI, environment receipts,
+closed images, snapshots and final evaluators are retained together; no MDB
+or provider bytes are committed.
+
+This finite checkpoint advances #369. Additional native live-slot reuse,
+valid multi-hop overflow discovery, further payload/schema/object combinations
+and broader failure/publication inventories remain open. It makes no
+whole-format compatibility, query-execution or native crash-recovery claim.

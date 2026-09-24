@@ -99,10 +99,13 @@ It also checks catalogued allocation ownership, availability-map membership,
 and unique reachability of rows and live Memo/OLE fragments, including catalog
 property payloads. Enforced scalar/composite
 relationships get reciprocal-metadata and parent/child key checks; unsupported
-forms are counted separately. Saved-query
-definitions and their system storage survive the recorded native-input row
-mutation suites unchanged; query execution is outside v1.
-Atomic publication and rollback verification remain internal-only. Local and
+forms are counted separately. Saved select, parameter, aggregate, join, union,
+crosstab, update, append, delete, make-table and DDL query definitions and their
+system storage survive the recorded native-input row lifecycles unchanged;
+query execution is outside v1.
+Atomic publication has Rust fault-injection tests on Unix and Windows/NTFS.
+DAO failed-write and rollback bookkeeping is checked separately from Rust's
+byte-exact refusal contract. Local and
 hosted DAO differential runs establish evidence for their recorded capabilities
 and source revisions. AutoIncrement comparisons include explicit IDs, negative
 IDs and signed-boundary wrap, with failed Rust requests preserving the source.

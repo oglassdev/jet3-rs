@@ -67,7 +67,7 @@ resource budgeting outside the parser.
   deliverables. Avoid tiny plan/outcome PRs. Squash-merge completed, reviewed PRs.
 - Review is for correctness. Repeated adversarial review rounds on non-parser
   code are out of scope.
-- Prefer GPT-5.6 Sol with high reasoning for independent review and Windows
+- Prefer GPT-6 Sol with high reasoning for independent review and Windows
   differential testing. Use subagents only when useful, with at most two active
   at once; keep implementation ownership and VM access explicit.
 - `docs/PROVENANCE.md` is additive-only. Other docs may be edited or deleted

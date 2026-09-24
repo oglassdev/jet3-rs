@@ -26,6 +26,9 @@ const TRAILER_MARKER: u8 = 0xff;
 const TABLE_KIND: u16 = 1;
 const USER_FLAGS: u32 = 0;
 const SYSTEM_FLAGS: u32 = 0x8000_0000;
+// EXP-0303: saved QueryDefs retain their DAO query type in catalog flags.
+const QUERY_KIND: u16 = 5;
+const QUERY_FLAGS: [u32; 7] = [16, 32, 48, 64, 80, 96, 128];
 
 /// Stable identifier stored by one catalog object record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -63,7 +66,7 @@ impl CatalogObjectKind {
 /// Whether the observed object flags classify a user or system object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CatalogObjectClass {
-    /// Exact raw flags zero.
+    /// Raw flags zero, or an observed saved-query kind/flag pair.
     User,
     /// Exact raw flags `0x80000000`.
     System,
@@ -279,7 +282,7 @@ pub enum CatalogRecordError {
         /// Complete record length.
         record_length: usize,
     },
-    /// Object flags are outside the two observed exact classifications.
+    /// Object flags are outside the observed exact kind/flag classifications.
     UnsupportedObjectFlags {
         /// Sourced object flags.
         raw: u32,
@@ -448,6 +451,7 @@ pub(crate) fn decode_catalog_record<'row>(
     let class = match raw_flags {
         USER_FLAGS => CatalogObjectClass::User,
         SYSTEM_FLAGS => CatalogObjectClass::System,
+        flags if raw_kind == QUERY_KIND && QUERY_FLAGS.contains(&flags) => CatalogObjectClass::User,
         raw => return Err(CatalogRecordError::UnsupportedObjectFlags { raw }),
     };
     Ok(CatalogRecordView {

@@ -132,7 +132,11 @@
         "oracle/windows-dao/scripts/schema_candidate_observer.ps1",
         "oracle/windows-dao/scripts/combine_schema_readbacks.py",
         "oracle/windows-dao/scripts/compare_schema_candidates.py",
-        "oracle/windows-dao/scripts/candidate_continuations.ps1"
+        "oracle/windows-dao/scripts/candidate_continuations.ps1",
+        "oracle/windows-dao/scripts/storage_preservation_plan.py",
+        "oracle/windows-dao/scripts/storage_preservation.ps1",
+        "oracle/windows-dao/scripts/storage_preservation.py",
+        "oracle/windows-dao/tests/test_storage_preservation.py"
       ]
     },
     {
@@ -273,7 +277,11 @@
         "crates/jet3/src/long_value_mutation_tests.rs",
         "crates/jet3/examples/long_value_lifecycle_candidate.rs",
         "oracle/windows-dao/scripts/long_value_lifecycle.ps1",
-        "oracle/windows-dao/scripts/long_value_lifecycle.py"
+        "oracle/windows-dao/scripts/long_value_lifecycle.py",
+        "oracle/windows-dao/scripts/storage_preservation_plan.py",
+        "oracle/windows-dao/scripts/storage_preservation.ps1",
+        "oracle/windows-dao/scripts/storage_preservation.py",
+        "oracle/windows-dao/tests/test_storage_preservation.py"
       ]
     },
     {
@@ -420,7 +428,12 @@
         "oracle/windows-dao/scripts/combine_schema_readbacks.py",
         "oracle/windows-dao/scripts/compare_schema_candidates.py",
         "oracle/windows-dao/scripts/candidate_continuations.ps1",
-        "crates/jet3/src/creation/text_property_tests.rs"
+        "crates/jet3/src/creation/text_property_tests.rs",
+        "oracle/windows-dao/scripts/storage_preservation_plan.py",
+        "oracle/windows-dao/scripts/storage_preservation.ps1",
+        "oracle/windows-dao/scripts/storage_preservation.py",
+        "oracle/windows-dao/tests/test_storage_preservation.py",
+        "oracle/windows-dao/scripts/storage_preservation_failures.py"
       ]
     },
     {
