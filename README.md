@@ -25,17 +25,10 @@ compatibility or completion of the v1 release gates.
 ## Start here
 
 ```sh
-./scripts/acceptance.sh quick
+just ready
 ```
 
-Validate one DAO differential bundle with the full entry point:
-
-```sh
-./scripts/acceptance.sh full path/to/canonical-snapshot.json
-```
-
-Without a bundle argument or `JET3_DAO_BUNDLE`, `full` exits nonzero with a
-one-line reason.
+`just` lists the other recipes (benchmarks, fuzzing, the DAO VM runner).
 
 See [validation/README.md](docs/validation/README.md) for capability status and
 the three v1 release gates.

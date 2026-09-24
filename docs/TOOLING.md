@@ -16,44 +16,32 @@ not activated in the current shell.
 
 | Tool | Pinned version | Project use |
 | --- | --- | --- |
-| Python | 3.13.7 | Validation, benchmark, fuzz, and DAO protocol tooling |
+| Python | 3.13.7 | Support-matrix validation and DAO oracle tooling |
 | Rust stable | 1.96.0 | Production builds, tests, docs, Clippy, and formatting |
-| Rust nightly | nightly-2026-07-20 | Fuzzing and Miri |
+| Rust nightly | nightly-2026-07-20 | Fuzzing |
 | just | 1.46.0 | Everyday command recipes |
-| jq | 1.8.2 | Benchmark metadata capture and shell contract tests |
+| jq | 1.8.2 | Ad-hoc JSON inspection |
 | cargo-deny | 0.20.2 | Dependency license, source, ban, and advisory policy |
-| cargo-fuzz | 0.13.2 | Registered fuzz targets and campaigns |
+| cargo-fuzz | 0.13.2 | `just fuzz` |
 
 The stable Rust installation includes `clippy` and `rustfmt`. A mise
-post-install hook provisions the separately pinned nightly toolchain with
-`miri`; keeping nightly out of the active tool list leaves Rust 1.96.0 as the
-unambiguous default while `cargo +nightly-2026-07-20 ...` remains available.
-These pins mirror CI; `rust-toolchain.toml` remains the toolchain contract for
-Rust-native tooling outside mise.
+post-install hook provisions the pinned nightly toolchain; keeping nightly out
+of the active tool list leaves Rust 1.96.0 as the default while
+`cargo +nightly-2026-07-20 ...` remains available. These pins mirror CI;
+`rust-toolchain.toml` remains the toolchain contract outside mise.
 
 ## Host prerequisites
 
-Mise does not replace the operating-system substrate. Development and evidence
-commands also require:
+Mise does not replace the operating-system substrate. Development also
+requires Git, a POSIX shell with core utilities, a native linker for the Rust
+host, and network access when first installing tools or fetching locked Cargo
+dependencies.
 
-- Git;
-- a POSIX shell plus ordinary core utilities (`sh`, `awk`, and either
-  `sha256sum` or `shasum`);
-- a native linker suitable for the Rust host; and
-- network access when initially installing tools or fetching locked Cargo
-  dependencies.
-
-The local exploratory Windows DAO loop uses a system OpenSSH client and
-a machine-local dockur/windows VM. Its disks, credentials, licensed provider,
-and shared artifacts stay outside the repository. See
-[`LOCAL_WINDOWS_VM.md`](LOCAL_WINDOWS_VM.md) for the environment variables and
-the `just windows-dev-ps` runner.
-
-The Windows DAO oracle additionally requires x86 Windows PowerShell 5 and the
-exact licensed `DAO.DBEngine.36` provider. Mise cannot
-provision or validate that external provider, and it is never a production
+The local Windows DAO loop uses a system OpenSSH client and a machine-local
+dockur/windows VM with x86 Windows PowerShell 5 and the licensed
+`DAO.DBEngine.36` provider. Its disks, credentials, provider and shared
+artifacts stay outside the repository; see
+[`LOCAL_WINDOWS_VM.md`](LOCAL_WINDOWS_VM.md). DAO is never a production
 dependency.
 
-No third-party Python packages are required by the checked `main` branch; its
-Python suites use the standard library's `unittest`. GitHub Actions and its
-pinned actions are CI services rather than local mise tools.
+Python tooling uses only the standard library and `unittest`.

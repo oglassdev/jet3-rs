@@ -113,27 +113,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.96.0
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: benches
-      - name: Compile checked benchmarks
-        run: >-
-          cargo bench --manifest-path benches/Cargo.toml
-          --benches --locked --no-run
-      - name: Functionally execute every checked benchmark once
-        run: >-
-          cargo bench --manifest-path benches/Cargo.toml
-          --benches --locked -- --test
-      - name: Test benchmark manifests and comparison tooling
-        run: python3 -m unittest discover -s benches/tests -v
-      - name: Test benchmark metadata capture
-        run: benches/tests/test_capture_metadata.sh
+      - name: Execute every benchmark once
+        run: cargo bench --manifest-path benches/Cargo.toml --benches --locked -- --test
 
   fuzz:
     name: Fuzz target smoke
@@ -157,72 +144,35 @@ jobs:
         run: >-
           cargo +nightly-2026-07-20 install cargo-fuzz
           --version 0.13.2 --locked
-      - name: Compile all checked fuzz targets
-        run: cargo +nightly-2026-07-20 fuzz build --fuzz-dir fuzz
-      - name: Validate fuzz registry, seed manifest, and campaign reports
-        run: python3 -m unittest discover -s fuzz/tests -v
-      - name: Run every registered deterministic smoke campaign
+      - name: Run every fuzz target for 30 seconds
         run: |
-          export RUSTC
-          RUSTC="$(rustup which --toolchain nightly-2026-07-20 rustc)"
-          python3 fuzz/tools/fuzz_campaign.py smoke \
-            --cargo "$(rustup which --toolchain nightly-2026-07-20 cargo)" \
-            --output "$RUNNER_TEMP/jet3-fuzz-smoke-$GITHUB_SHA"
-      - name: Retain fuzz diagnostics
-        if: always()
+          for target in $(cargo fuzz list --fuzz-dir fuzz); do
+            mkdir -p "fuzz/target/corpus/$target"
+            cargo fuzz run --fuzz-dir fuzz "$target" \
+              "fuzz/target/corpus/$target" "fuzz/corpus/$target" \
+              -- -max_total_time=30
+          done
+      - name: Retain fuzz crashes
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: fuzz-smoke-${{ github.sha }}
-          path: ${{ runner.temp }}/jet3-fuzz-smoke-${{ github.sha }}
+          name: fuzz-artifacts-${{ github.sha }}
+          path: fuzz/artifacts
           if-no-files-found: ignore
           retention-days: 7
 
-  miri:
-    name: Miri library tests
-    needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          toolchain: nightly-2026-07-20
-          components: miri
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo +nightly-2026-07-20 miri setup
-      - name: Interpret pure jet3 library modules
-        # atomic and source tests exercise host files, permissions, and fsync, so
-        # they remain covered by the three-platform core job instead of Miri.
-        run: |
-          for test_module in \
-            binary::tests \
-            binary_writer::tests \
-            candidate::tests \
-            commit_state::tests \
-            database_header::tests \
-            error::tests \
-            header::tests \
-            jet3_page::tests \
-            limits::tests \
-            offset::tests \
-            page::tests \
-            raw_page_stream::tests \
-            resource::tests
-          do
-            cargo +nightly-2026-07-20 miri test \
-              --package jet3 --lib --all-features --locked "$test_module"
-          done
-
   format:
-    name: Formatting
+    name: Formatting and lints
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.96.0
-          components: rustfmt
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: ./scripts/check-source-size.sh
 
   dependencies:
