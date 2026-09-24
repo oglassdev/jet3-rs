@@ -36,6 +36,16 @@ pub enum InlineLongValue<'raw> {
     Binary(&'raw [u8]),
 }
 
+impl<'raw> InlineLongValue<'raw> {
+    /// Returns the stored payload bytes.
+    pub(crate) const fn raw_bytes(&self) -> &'raw [u8] {
+        match self {
+            Self::Text(text) => text.raw_bytes(),
+            Self::Binary(bytes) => bytes,
+        }
+    }
+}
+
 /// The observed storage form of an external long value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ExternalLongValueStorage {
@@ -250,6 +260,16 @@ pub enum LongValueChunkValue<'page> {
     Text(DecodedText<'page>),
     /// Borrowed binary fragment.
     Binary(&'page [u8]),
+}
+
+impl<'page> LongValueChunkValue<'page> {
+    /// Returns the stored fragment bytes.
+    pub(crate) const fn raw_bytes(&self) -> &'page [u8] {
+        match self {
+            Self::Text(text) => text.raw_bytes(),
+            Self::Binary(bytes) => bytes,
+        }
+    }
 }
 
 /// A long-value header, page, chain, length, or resource failure.

@@ -1,10 +1,11 @@
 //! Lossless LvProp field-block edits using EXP-0208/0266/0283/0297 framing and EXP-0299 text records.
 use crate::{
-    DatabaseReader, FileSource, InlineLongValue, LongValue, LongValueChunkValue, ResourceBudget,
-    RowLocator, TableDefinition, TextCodePage, UpdateError, ValueKind,
+    DatabaseReader, FileSource, ResourceBudget, RowLocator, TableDefinition, TextCodePage,
+    UpdateError,
     properties::{
         blob::{BOOLEAN, Block, FIELD_BLOCK, PropertyBlob, Record},
         column::TextProperty,
+        values::StoredProperties,
     },
     write::page_edits::reserve,
 };
@@ -25,28 +26,24 @@ pub(crate) fn load(
             continue;
         }
         let mut saved = [0; crate::PAGE_BYTES];
-        let length = match row
+        let value = row
             .value(property, TextCodePage::Windows1252)?
-            .ok_or(UpdateError::NotFound("catalog properties"))?
-            .kind()
+            .ok_or(UpdateError::NotFound("catalog properties"))?;
+        let length = match StoredProperties::of(value.kind())
+            .ok_or(UpdateError::Mismatch("catalog property type"))?
         {
-            ValueKind::Null => 0,
-            ValueKind::LongValue(LongValue::External(value)) => {
-                reference = Some(*value);
+            StoredProperties::Null => 0,
+            StoredProperties::External(value) => {
+                reference = Some(value);
                 0
             }
-            ValueKind::LongValue(LongValue::Inline { value, .. }) => {
-                let source = match value {
-                    InlineLongValue::Binary(bytes) => bytes,
-                    InlineLongValue::Text(text) => text.raw_bytes(),
-                };
+            StoredProperties::Inline(source) => {
                 saved
                     .get_mut(..source.len())
                     .ok_or(UpdateError::Mismatch("inline properties length"))?
                     .copy_from_slice(source);
                 source.len()
             }
-            _ => return Err(UpdateError::Mismatch("catalog property type")),
         };
         reserve(&mut bytes, length, row.budget_mut())?;
         bytes.extend_from_slice(&saved[..length]);
@@ -56,10 +53,7 @@ pub(crate) fn load(
         let mut stream = rows.long_value(reference)?;
         reserve(&mut bytes, reference.length() as usize, stream.budget_mut())?;
         while let Some(chunk) = stream.next_chunk()? {
-            let data = match chunk.value() {
-                LongValueChunkValue::Binary(bytes) => bytes,
-                LongValueChunkValue::Text(text) => text.raw_bytes(),
-            };
+            let data = chunk.value().raw_bytes();
             if bytes.len().saturating_add(data.len()) > reference.length() as usize {
                 return Err(UpdateError::Mismatch("property length"));
             }

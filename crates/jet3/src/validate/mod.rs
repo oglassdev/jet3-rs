@@ -5,10 +5,9 @@ use std::fmt;
 
 use crate::{
     CatalogError, CatalogObjectClass, CatalogRecord, ColumnOrdinal, DatabaseReader, Error,
-    IndexTreeError, InlineLongValue, LongValue, LongValueChunkValue, LongValueError,
-    LongValueReference, ReadAt, ResourceBudget, RowError, RowLocator, TableDefinition,
-    TableDefinitionError, TableDefinitionKind, TextCodePage, ValueError, ValueKind,
-    format::resource::reserve,
+    IndexTreeError, LongValue, LongValueError, LongValueReference, ReadAt, ResourceBudget,
+    RowError, RowLocator, TableDefinition, TableDefinitionError, TableDefinitionKind, TextCodePage,
+    ValueError, ValueKind, format::resource::reserve,
 };
 
 /// Counts produced only after every in-scope reader finishes successfully.
@@ -459,10 +458,7 @@ fn validate_rows<S: ReadAt>(
                 add(&mut report.long_values, 1).map_err(TableValidationError::Resource)?;
                 match value {
                     LongValue::Inline { value, .. } => {
-                        let bytes = match value {
-                            InlineLongValue::Text(text) => text.raw_bytes().len(),
-                            InlineLongValue::Binary(bytes) => bytes.len(),
-                        };
+                        let bytes = value.raw_bytes().len();
                         add(&mut report.long_value_bytes, bytes as u64)
                             .map_err(TableValidationError::Resource)?;
                     }
@@ -479,10 +475,7 @@ fn validate_rows<S: ReadAt>(
             };
             let mut stream = cursor.long_value(reference).map_err(context)?;
             while let Some(chunk) = stream.next_chunk().map_err(context)? {
-                let bytes = match chunk.value() {
-                    LongValueChunkValue::Text(text) => text.raw_bytes().len(),
-                    LongValueChunkValue::Binary(bytes) => bytes.len(),
-                };
+                let bytes = chunk.value().raw_bytes().len();
                 add(&mut report.long_value_bytes, bytes as u64)
                     .map_err(TableValidationError::Resource)?;
                 let fragment = chunk.locator();

@@ -412,10 +412,7 @@ pub(super) fn check_initial_table_rows_from(
                 .map_err(ImageCheckError::LongValue)?;
             let mut remaining = *expected;
             while let Some(chunk) = stream.next_chunk().map_err(ImageCheckError::LongValue)? {
-                let bytes = match chunk.value() {
-                    crate::LongValueChunkValue::Text(text) => text.raw_bytes(),
-                    crate::LongValueChunkValue::Binary(bytes) => bytes,
-                };
+                let bytes = chunk.value().raw_bytes();
                 remaining = remaining
                     .strip_prefix(bytes)
                     .ok_or(ImageCheckError::Mismatch {
