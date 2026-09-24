@@ -67,6 +67,7 @@ fn relation(
     deletes: bool,
 ) -> RelationshipSpec<'static> {
     RelationshipSpec {
+        unique: false,
         enforce: true,
         join: crate::RelationshipJoin::Inner,
         name,

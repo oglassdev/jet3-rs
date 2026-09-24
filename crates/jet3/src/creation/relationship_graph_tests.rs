@@ -72,6 +72,7 @@ fn relation(
     column: u16,
 ) -> RelationshipSpec<'static> {
     RelationshipSpec {
+        unique: false,
         enforce: true,
         join: crate::RelationshipJoin::Inner,
         cascade_updates: false,

@@ -7,6 +7,7 @@ fn relation<'a>(
     fields: &'a [RelationshipField<'a>],
 ) -> RelationshipSpec<'a> {
     RelationshipSpec {
+        unique: false,
         enforce: false,
         join: RelationshipJoin::Inner,
         cascade_updates: false,
@@ -100,6 +101,7 @@ fn unenforced_relationships_are_catalog_only_and_follow_table_edits() -> TestRes
             ..relation(b"MemoLink", b"Items", b"Children", &memo)
         },
         RelationshipSpec {
+            unique: false,
             enforce: true,
             ..relation(b"Owned", b"Owners", b"Children", &[pair(b"Id", b"Owner")])
         },
@@ -260,6 +262,7 @@ fn join_types_are_stored_in_the_attributes_only() -> TestResult {
     )?;
     let fields = [pair(b"Id", b"Parent")];
     let spec = RelationshipSpec {
+        unique: false,
         enforce: true,
         join: RelationshipJoin::Left,
         cascade_deletes: true,
@@ -324,6 +327,7 @@ fn database_creation_stores_joins_and_refuses_unenforced_relationships() -> Test
     ));
     assert!(!target.exists());
     let joined = RelationshipSpec {
+        unique: false,
         enforce: true,
         join: RelationshipJoin::LeftAndRight,
         cascade_updates: true,
@@ -358,5 +362,119 @@ fn database_creation_stores_joins_and_refuses_unenforced_relationships() -> Test
         crate::relationship_catalog::validate(&mut database, &mut b)?.verified,
         1
     );
+    Ok(())
+}
+
+#[test]
+fn one_to_one_mutations_enforce_child_uniqueness_and_allow_repeated_nulls() -> TestResult {
+    let fixture = Fixture::new(&[&[RowValue::Long(7), RowValue::Memo(b"parent")]])?;
+    fixture.create(b"Unique", IndexKind::Unique, IndexDirection::Ascending)?;
+    create_table(
+        &fixture,
+        b"Children",
+        &[
+            ColumnSpec::new(b"Id", ColumnType::Long),
+            ColumnSpec::new(b"Parent", ColumnType::Long),
+        ],
+    )?;
+    let fields = [pair(b"Id", b"Parent")];
+    let spec = RelationshipSpec {
+        unique: true,
+        enforce: true,
+        cascade_updates: true,
+        cascade_deletes: true,
+        ..relation(b"One", b"Items", b"Children", &fields)
+    };
+    edit_schema(
+        fixture.path(),
+        SchemaEdit::CreateRelationship { relationship: spec },
+        &mut budget(),
+    )?;
+    for (id, value) in [
+        (1, RowValue::Long(7)),
+        (2, RowValue::Null),
+        (3, RowValue::Null),
+    ] {
+        insert_row(
+            fixture.path(),
+            b"Children",
+            &[RowValue::Long(id), value],
+            &mut budget(),
+        )?;
+    }
+    let before = fs::read(fixture.path())?;
+    assert!(
+        insert_row(
+            fixture.path(),
+            b"Children",
+            &[RowValue::Long(4), RowValue::Long(7)],
+            &mut budget()
+        )
+        .is_err()
+    );
+    assert_eq!(fs::read(fixture.path())?, before);
+    let mut b = budget();
+    let mut db = DatabaseReader::open(fixture.path(), &mut b)?;
+    let parent = fixture.table()?;
+    let locator = db
+        .rows(&parent, &mut b)?
+        .next_row()?
+        .ok_or("parent")?
+        .locator();
+    crate::update_row(
+        fixture.path(),
+        crate::RowUpdate {
+            table: b"Items",
+            row: locator,
+            values: &[RowValue::Long(8), RowValue::Memo(b"parent")],
+        },
+        &mut budget(),
+    )?;
+    crate::delete_row(
+        fixture.path(),
+        crate::RowDelete {
+            table: b"Items",
+            row: locator,
+        },
+        &mut budget(),
+    )?;
+    let mut b = budget();
+    let mut db = DatabaseReader::open(fixture.path(), &mut b)?;
+    let child = crate::update::indexed_writable_table(&mut db, b"Children", &mut b)?;
+    assert_eq!(child.row_count(), 2);
+    assert_eq!(
+        crate::relationship_catalog::validate(&mut db, &mut b)?.verified,
+        1
+    );
+    assert_eq!(catalog(&fixture)?[0].raw_attributes(), 4353);
+    edit_schema(
+        fixture.path(),
+        SchemaEdit::ReplaceRelationship {
+            name: b"One",
+            relationship: RelationshipSpec {
+                enforce: false,
+                cascade_updates: false,
+                cascade_deletes: false,
+                ..spec
+            },
+        },
+        &mut budget(),
+    )?;
+    assert_eq!(catalog(&fixture)?[0].raw_attributes(), 3);
+    for id in [4, 5] {
+        insert_row(
+            fixture.path(),
+            b"Children",
+            &[RowValue::Long(id), RowValue::Long(99)],
+            &mut budget(),
+        )?;
+    }
+    refused(
+        &fixture,
+        SchemaEdit::ReplaceRelationship {
+            name: b"One",
+            relationship: spec,
+        },
+    )?;
     Ok(())
 }

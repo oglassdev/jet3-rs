@@ -1,4 +1,5 @@
 //! Existing relationships compose EXP-0279/0286/0290/0294 indexes and EXP-0297 catalogs.
+//! EXP-0307: one-to-one child indexes are unique and include nulls.
 use crate::page_edits::{PageEdits, reserve};
 use crate::{
     ColumnOrdinal, ColumnRef, IndexColumnSpec, IndexDirection, IndexKind, IndexNullPolicy,
@@ -130,7 +131,11 @@ pub(crate) fn create(
             related: parent.root(),
             name: spec.name,
             fields: &child_fields,
-            kind: IndexKind::Ordinary,
+            kind: if spec.unique {
+                IndexKind::Unique
+            } else {
+                IndexKind::Ordinary
+            },
             side: RelationshipSide::ForeignTable,
             selector: child_id,
             opposite: parent_id,

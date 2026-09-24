@@ -7,6 +7,7 @@ pub(crate) struct RelationshipFlags {
     pub updates: bool,
     pub deletes: bool,
     pub enforced: bool,
+    pub unique: bool,
     pub join: RelationshipJoin,
 }
 
@@ -16,22 +17,31 @@ impl Default for RelationshipFlags {
             updates: false,
             deletes: false,
             enforced: true,
+            unique: false,
             join: RelationshipJoin::Inner,
         }
     }
 }
 
 impl RelationshipFlags {
+    const UNIQUE: i32 = 1;
     const DONT_ENFORCE: i32 = 2;
     const UPDATE: i32 = 256;
     const DELETE: i32 = 4096;
     const LEFT: i32 = 0x0100_0000;
     const RIGHT: i32 = 0x0200_0000;
 
-    /// Unique (1), unknown bits, and cascades on unenforced relationships
+    /// Unknown bits and cascades on unenforced relationships
     /// (refused by DAO) are not interpreted.
     pub const fn decode(raw: i32) -> Option<Self> {
-        if raw & !(Self::DONT_ENFORCE | Self::UPDATE | Self::DELETE | Self::LEFT | Self::RIGHT) != 0
+        if raw
+            & !(Self::UNIQUE
+                | Self::DONT_ENFORCE
+                | Self::UPDATE
+                | Self::DELETE
+                | Self::LEFT
+                | Self::RIGHT)
+            != 0
         {
             return None;
         }
@@ -43,6 +53,7 @@ impl RelationshipFlags {
             updates: raw & Self::UPDATE != 0,
             deletes: raw & Self::DELETE != 0,
             enforced,
+            unique: raw & Self::UNIQUE != 0,
             join: RelationshipJoin::from_bits(raw & Self::LEFT != 0, raw & Self::RIGHT != 0),
         })
     }
@@ -50,6 +61,7 @@ impl RelationshipFlags {
     pub const fn raw(self) -> i32 {
         let (left, right) = self.join.bits();
         (if self.updates { Self::UPDATE } else { 0 })
+            | (if self.unique { Self::UNIQUE } else { 0 })
             | (if self.deletes { Self::DELETE } else { 0 })
             | (if self.enforced { 0 } else { Self::DONT_ENFORCE })
             | (if left { Self::LEFT } else { 0 })
@@ -87,6 +99,7 @@ impl crate::RelationshipSpec<'_> {
             updates: self.cascade_updates,
             deletes: self.cascade_deletes,
             enforced: self.enforce,
+            unique: self.unique,
             join: self.join,
         }
     }
@@ -100,7 +113,12 @@ mod tests {
     fn observed_attribute_bits_round_trip_and_others_are_refused() {
         for raw in [
             0,
+            1,
             2,
+            3,
+            257,
+            4097,
+            4353,
             256,
             4096,
             4352,
@@ -120,7 +138,7 @@ mod tests {
         let unenforced = RelationshipFlags::decode(2).unwrap_or_default();
         assert!(!unenforced.enforced);
         assert_eq!(unenforced.context(), [0, 0]);
-        for raw in [1, 3, 4, 8, 16, 257, 258, 512, 4098, 4354, 65536, i32::MIN] {
+        for raw in [4, 8, 16, 258, 259, 512, 4098, 4354, 65536, i32::MIN] {
             assert_eq!(RelationshipFlags::decode(raw), None, "{raw}");
         }
     }

@@ -20842,3 +20842,26 @@ This finite checkpoint advances #369. Additional native live-slot reuse,
 valid multi-hop overflow discovery, further payload/schema/object combinations
 and broader failure/publication inventories remain open. It makes no
 whole-format compatibility, query-execution or native crash-recovery claim.
+
+## EXP-0307 — Native one-to-one child index selection
+
+On 2026-09-24, DAO 3.6 on the same Windows environment as EXP-0301
+(DLL 03.60.9765.0, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`)
+created seven relationship schemas in two replicas. The retained run is
+`20260924T014830Z-one-to-one-d1`, under the private
+`checks/20260924-pre-simplification/one-to-one-discovery-r1` bundle. Its
+PowerShell inputs, provider identity, operation outcomes, fourteen closed
+MDBs, DAO Relations/Indexes getters and `raw-indexes.json` are retained.
+This extends the attribute-1 and attribute-3 observations in EXP-0301.
+
+An enforced attribute-1 relationship uses an ascending unique child tree
+with physical flags 1. An existing ascending unique/include-null index is
+shared. An existing ordinary, descending unique, primary, unique/required,
+or unique/ignore-null index is retained and a separate child tree is added.
+A normal relationship and a unique relationship on the same child columns
+use distinct physical trees (flags 0 and 1). Both replicas agree on each
+logical-to-physical mapping. Parent index selection remains the existing
+unique/unique-required rule. Attribute 1 lives in the relationship catalog;
+the logical relationship record keeps the cascade context of EXP-0294.
+These are native schema observations; they do not establish Rust compatibility.

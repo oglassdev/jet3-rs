@@ -375,3 +375,144 @@ fn graph_parent_hidden_names_cross_the_native_nibble_boundary() -> TestResult {
     }
     Ok(())
 }
+
+#[test]
+fn one_to_one_graph_selects_only_unique_include_null_child_indexes() -> TestResult {
+    for (kind, descending, reused) in [
+        (IndexKind::Unique, false, true),
+        (IndexKind::Unique, true, false),
+        (IndexKind::Ordinary, false, false),
+        (IndexKind::Primary, false, false),
+        (
+            IndexKind::Unique.with_null_policy(crate::IndexNullPolicy::Required),
+            false,
+            false,
+        ),
+        (
+            IndexKind::Unique.with_null_policy(crate::IndexNullPolicy::IgnoreAllNull),
+            false,
+            false,
+        ),
+    ] {
+        let directory = Directory::new()?;
+        let fields = [if descending {
+            IndexColumnSpec::descending(1)
+        } else {
+            IndexColumnSpec::ascending(1)
+        }];
+        let indexes = [IndexSpec {
+            name: b"Existing",
+            fields: &fields,
+            kind,
+        }];
+        let child = TableSpec {
+            indexes: &indexes,
+            ..TABLES[1]
+        };
+        let edge = RelationshipSpec {
+            unique: true,
+            ..relation(b"One", 0, 1, 1)
+        };
+        create_database_with_relationships(
+            directory.target(),
+            &[TABLES[0], child],
+            &[edge],
+            &mut budget(),
+        )?;
+        let mut b = budget();
+        let mut db = DatabaseReader::open(directory.target(), &mut b)?;
+        let table = crate::update::indexed_writable_table(&mut db, child.name, &mut b)?;
+        assert_eq!(table.physical_indexes().len(), if reused { 1 } else { 2 });
+        let foreign = table.relationships().next().ok_or("foreign")?;
+        assert_eq!(foreign.physical_index(), u16::from(!reused));
+        assert_eq!(
+            table.physical_indexes()[usize::from(foreign.physical_index())].raw_flags(),
+            1
+        );
+        assert!(db.relationship_catalog(&mut b)?[0].one_to_one());
+        assert_eq!(
+            db.validate(TextCodePage::Windows1252, &mut b)?
+                .relationships_with_verified_keys,
+            1
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn one_to_one_and_ordinary_graph_edges_keep_distinct_child_trees() -> TestResult {
+    let directory = Directory::new()?;
+    let edges = [
+        relation(b"Many", 0, 2, 1),
+        RelationshipSpec {
+            unique: true,
+            ..relation(b"One", 1, 2, 1)
+        },
+    ];
+    create_database_with_relationships(directory.target(), &TABLES, &edges, &mut budget())?;
+    let mut b = budget();
+    let mut db = DatabaseReader::open(directory.target(), &mut b)?;
+    let table = crate::update::indexed_writable_table(&mut db, TABLES[2].name, &mut b)?;
+    assert_eq!(
+        table
+            .physical_indexes()
+            .iter()
+            .map(|i| i.raw_flags())
+            .collect::<Vec<_>>(),
+        [9, 0, 1]
+    );
+    assert_eq!(
+        db.validate(TextCodePage::Windows1252, &mut b)?
+            .relationships_with_verified_keys,
+        2
+    );
+    Ok(())
+}
+
+#[test]
+fn one_to_one_creation_refuses_duplicate_children_before_publication() -> TestResult {
+    let directory = Directory::new()?;
+    let requests = [
+        TableRows {
+            table: TABLES[0],
+            rows: &[&[
+                RowValue::Long(1),
+                RowValue::Null,
+                RowValue::Null,
+                RowValue::Null,
+            ]],
+        },
+        TableRows {
+            table: TABLES[1],
+            rows: &[
+                &[
+                    RowValue::Long(1),
+                    RowValue::Long(1),
+                    RowValue::Null,
+                    RowValue::Null,
+                ],
+                &[
+                    RowValue::Long(2),
+                    RowValue::Long(1),
+                    RowValue::Null,
+                    RowValue::Null,
+                ],
+            ],
+        },
+    ];
+    let edge = RelationshipSpec {
+        unique: true,
+        ..relation(b"One", 0, 1, 1)
+    };
+    assert!(
+        create_database_with_relationships_and_rows(
+            directory.target(),
+            &requests,
+            &[edge],
+            &mut budget()
+        )
+        .is_err()
+    );
+    assert!(!directory.target().exists());
+    Ok(())
+}

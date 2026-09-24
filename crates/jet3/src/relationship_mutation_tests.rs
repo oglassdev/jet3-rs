@@ -49,6 +49,7 @@ fn fixture() -> Result<Fixture, Box<dyn StdError>> {
             },
         ],
         &RelationshipSpec {
+            unique: false,
             enforce: true,
             join: crate::RelationshipJoin::Inner,
             cascade_updates: false,

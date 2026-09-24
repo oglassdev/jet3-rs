@@ -81,6 +81,7 @@ fn schema(two: bool) -> ([TableSpec<'static>; 2], RelationshipSpec<'static>) {
             },
         ],
         RelationshipSpec {
+            unique: false,
             enforce: true,
             join: crate::RelationshipJoin::Inner,
             cascade_updates: false,
@@ -133,6 +134,12 @@ fn unsupported_references_and_schema_leave_no_destination() -> TestResult {
         ));
     }
     spec.parent = TableRef::Ordinal(0);
+    spec.unique = true;
+    assert!(
+        crate::create_database_with_relationship(directory.target(), &tables, &spec, &mut budget())
+            .is_err()
+    );
+    spec.unique = false;
     tables[1].indexes = tables[0].indexes;
     assert!(
         crate::create_database_with_relationship(directory.target(), &tables, &spec, &mut budget())

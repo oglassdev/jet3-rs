@@ -1,4 +1,5 @@
 //! EXP-0273/0279/0286/0290 reciprocal records and relationship index selection.
+//! EXP-0307: one-to-one child indexes are unique and include nulls.
 use super::*;
 use crate::RelationshipSide;
 use crate::creation::relationship_indexes::{select_descending_parent, select_existing};
@@ -154,6 +155,7 @@ pub(super) fn resolve<'a>(
             parent_table,
             &parent_columns,
             RelationshipSide::PrimaryTable,
+            false,
             budget,
         )?;
         let descending_parent = if parent_physical.is_none() {
@@ -182,12 +184,14 @@ pub(super) fn resolve<'a>(
             child_table,
             &child_columns,
             RelationshipSide::ForeignTable,
+            relationship.unique,
             budget,
         )?;
-        let physical = if let Some(prior) = result
-            .iter()
-            .find(|edge| edge.child == child && edge.child_columns == child_columns)
-        {
+        let physical = if let Some(prior) = result.iter().find(|edge| {
+            edge.child == child
+                && edge.child_columns == child_columns
+                && edge.flags.unique == relationship.unique
+        }) {
             prior.physical
         } else if let Some(ordinal) = existing_foreign {
             ordinal
@@ -279,7 +283,11 @@ impl GraphRelation<'_> {
         IndexSpec {
             name: self.name,
             fields,
-            kind: IndexKind::Ordinary,
+            kind: if self.flags.unique {
+                IndexKind::Unique
+            } else {
+                IndexKind::Ordinary
+            },
         }
     }
     pub fn parent_index<'a>(&'a self, fields: &'a [IndexColumnSpec<'a>]) -> IndexSpec<'a> {

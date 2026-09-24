@@ -164,6 +164,7 @@ pub enum RelationshipJoin {
 ///
 /// let relationship = RelationshipSpec {
 ///     enforce: true,
+///     unique: false,
 ///     join: RelationshipJoin::Inner,
 ///     cascade_updates: false,
 ///     cascade_deletes: false,
@@ -181,6 +182,8 @@ pub struct RelationshipSpec<'a> {
     /// Check referential integrity. Unenforced relationships (EXP-0301) have no
     /// indexes, cascades or key checks; their keys may be any columns.
     pub enforce: bool,
+    /// Require distinct non-null child keys for an enforced one-to-one relation.
+    pub unique: bool,
     /// Default join type shown by Access; ignored for integrity.
     pub join: RelationshipJoin,
     /// Update matching foreign keys when a parent key is assigned.
