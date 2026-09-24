@@ -26,7 +26,7 @@ function Make-StorageTable($db,[string]$name,$columns) {
     $td=$db.CreateTableDef($name); $fs=$td.Fields; $tds=$xs=$x=$null
     try {
         foreach($c in $columns) {
-            $type=@{long=4;auto_increment=4;text=10;memo=12;long_binary=11}[[string]$c.type]
+            $type=@{boolean=1;byte=2;long=4;auto_increment=4;text=10;memo=12;long_binary=11}[[string]$c.type]
             $size=0; if(Has $c 'size'){$size=[int]$c.size}
             $f=$td.CreateField([string]$c.name,$type,$size)
             if($c.type-eq'auto_increment'){Set-Property $f 'Attributes' 16}
@@ -57,6 +57,8 @@ function Assign-Cells($rs,$values,[bool]$inserting=$true) {
                 if($null-ne$cell) {
                     $p=@($cell.PSObject.Properties)[0]
                     switch($p.Name) {
+                        'boolean' {$v=[bool]$p.Value}
+                        'byte' {$v=[byte]$p.Value}
                         'long' {$v=[int]$p.Value}
                         'text' {$v=[string]$p.Value}
                         'memo' {$v=[string]$p.Value}

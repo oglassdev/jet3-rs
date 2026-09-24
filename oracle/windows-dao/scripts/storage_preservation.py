@@ -175,7 +175,7 @@ def apply_model(rows, operations):
         if op["operation"] == "delete":
             del rows[op["id"]]
         else:
-            ident = op["values"][0]["long"]
+            ident = next(iter(op["values"][0].values()))
             if op["operation"] == "replace":
                 del rows[op["id"]]
             rows[ident] = op["values"]
@@ -248,7 +248,7 @@ def evaluate(args):
         baseline_snapshot = read(baseline_path.with_suffix(".json"))
         require({q["name"]: q["type"] for q in baseline_snapshot["queries"]} ==
                 {q["name"]: q["type"] for q in plan["queries"]}, "complete query form inventory")
-        model = {r[0]["long"]: r for r in case["initial"]}
+        model = {next(iter(r[0].values())): r for r in case["initial"]}
         previous = {role: baseline for role in ("candidate", "native")}
         stages = [dict(name="original", operations=[]), *case["stages"]]
         if args.continuation:

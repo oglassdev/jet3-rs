@@ -20842,3 +20842,36 @@ This finite checkpoint advances #369. Additional native live-slot reuse,
 valid multi-hop overflow discovery, further payload/schema/object combinations
 and broader failure/publication inventories remain open. It makes no
 whole-format compatibility, query-execution or native crash-recovery claim.
+
+
+## EXP-0305 — Native table slot saturation and invalid 256-slot index reads
+
+On 2026-09-24 UTC, native x86 DAO 3.6 (DLL 03.60.9765.0, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`)
+on Windows 10.0.20348, en-US/ANSI 1252, repeatedly deleted and refilled a
+48-row table while preserving one live row. The source uses one Long and six
+one-byte Text values, a primary Long index and an ordinary Text index, plus
+the unrelated Watch and eleven QueryDefs of EXP-0304. Native run
+`20260924T011903Z-storage-native-85adff` retains complete closed checkpoints.
+The first lineage advances the original data page from 48 to 95, 142, 189,
+236 and then 255 physical slots. It appends subsequent rows to another page
+even though deleted slots and free bytes remain on the original live page.
+Another delete/refill preserves that 255-slot page and reuses the released
+second page. No deleted slot on the still-live page is reused.
+
+An unmodified Rust CLI from source `d9fd189da2215d6a4a56b17cfece16f24673788c`
+inserted twenty rows into the native 236-slot, one-live-row checkpoint,
+producing 256 slots. The retained candidate SHA-256 is
+`6c4b4c06e17d592e6d0ff29dc61f334d376e36a51d7ea2e57983d2324d685205`. Native readback
+`20260924T012729Z-storage-observe-0f0131` enumerates all 21 complete rows
+through a table scan, but both the primary and Text index traversals return
+21 rows whose every field is Null. Opening and Rust structural validation
+therefore do not establish native readability. The writer must cap new and
+appended data pages at 255 physical slots and mark saturated pages unavailable.
+This cap is also the conservative builder policy for external payload pages.
+
+Inputs, producer scripts, requests, unchanged readback bytes, provider receipt
+and the exact failed comparison are retained under the private
+`shared/checks/20260924-pre-simplification/storage-discovery-r1` directory.
+This records format discovery and the rejected candidate; corrected differential
+results and the completed replicated inventory will be recorded separately.
