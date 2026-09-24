@@ -1,0 +1,16 @@
+{
+  "description": "Validation rules, defaults, descriptions and LvProp storage: creations and edits (EXP-0299/0300).",
+  "provenance": ["EXP-0299", "EXP-0300"],
+  "generate": "text_properties",
+  "creation_replicas": [1, 2],
+  "checks": {
+    "outcome": ["accepted", "refused", "rust-only"],
+    "readback": ["accepted", "refused", "rust-only"],
+    "structure": ["accepted", "refused", "rust-only"],
+    "lvprop": ["accepted"]
+  },
+  "expected_failures": {
+    "c21-property-boundary-r1": "EXP-0300: DAO put table Single's 1,776-byte LvProp payload on a shared bootstrap page; Rust starts a new page",
+    "c21-property-boundary-r2": "EXP-0300: DAO put table Single's 1,776-byte LvProp payload on a shared bootstrap page; Rust starts a new page"
+  }
+}

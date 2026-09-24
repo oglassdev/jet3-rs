@@ -1,0 +1,11 @@
+{
+  "description": "Indexed insertion boundaries: in-page insert, EOF page append and duplicate refusal against one Long primary key (EXP-0217/0218/0221).",
+  "provenance": ["EXP-0217", "EXP-0218", "EXP-0221"],
+  "registry": "indexed_boundary",
+  "example": "indexed_boundary_candidate",
+  "arms": [
+    {"name": "space", "count": 3, "id": 101},
+    {"name": "eof", "count": 20, "id": 101},
+    {"name": "duplicate", "count": 20, "id": 0}
+  ]
+}

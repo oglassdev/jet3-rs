@@ -1,0 +1,6 @@
+{
+  "description": "Wide rows: 2 to 254 variable columns, long fixed Text and mixed Memo/OLE rows with canonical jump bytes, overflow, DAO successors, Rust continuation and malformed-row refusals (EXP-0257/0258/0259).",
+  "provenance": ["EXP-0257", "EXP-0258", "EXP-0259"],
+  "registry": "wide_rows",
+  "example": "wide_row_candidate"
+}

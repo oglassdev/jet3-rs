@@ -21194,3 +21194,57 @@ The private `COLLATION-ARCHIVE-MANIFEST.json` inventories 3,494 retained files
 `a5c18180910558572a6e98023d7c07db56b344f44ded68c47d5de4081955fa94`.
 `COLLATION-FINAL-SUMMARY.json` records the final source and report hashes.
 MDBs, provider binaries and credentials remain outside the repository.
+
+## EXP-0312 — Consolidated DAO oracle harness replay
+
+The rewritten `oracle/windows-dao` runner (`dao.py` plus the `registry/` and
+`suites/` modules, replacing the former per-suite scripts) was replayed end
+to end against x86 DAO 3.6 (`dao360.dll` 03.60.9765.0, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`) on
+Windows NT 10.0.20348, en-US/ANSI 1252, at revision
+`da77f4cc4d4ded702c936e07006563ad2685f04f`, the tested revision the replay
+actually ran on, with the frozen `jet3-cli` SHA-256
+`82b2ecd32718f1e490505765856d02ba46ef58b43525a87d0bb2a972fdeb694c`. All 19
+suites ran across three parallel `dao.py run` groups; run outputs, reports
+and comparisons are retained under
+`shared/checks/20260924-oracle-harness/final-2/{a,b,c}`.
+
+Seventeen suites matched their accepted outcome: `indexed-boundary`,
+`indexed-rows`, `wide-rows`, `numeric-indexes`, `index-trees`,
+`practical-lifecycle`, `index-capacity`, `creation-tables`,
+`storage-preservation` (54 lifecycle + 18 refusal pairs), `storage-churn`
+(76 pairs), `one-to-one-creation` (18 creations), `one-to-one` (48 accepted +
+14 residue), `relationship-forms` (1 creation, 41 accepted, 9 refused, 3
+residue, 1 rust-only, 105 reader), `locale-updates` (60 accepted + 12
+residue + 6 continuations), `text-properties` (40 creation pass plus the
+known `c21` ×2 recorded failure, 26 accepted, 4 refused, 6 rust-only edits),
+`multiple-long-values` and `long-value-lifecycle`. Two suites fail exactly as
+on main, unchanged by the consolidation: `definition-chains` fails at
+`prepare` with `ValueError: Compact candidate continuation placement` (the
+Rust example output changed after EXP-0247), and `allocation-lifecycle`
+fails at `generate` with `Catalog(Page(Read(LimitExceeded { kind:
+TotalReadBytes, requested: ByteCount(536870927), maximum:
+ByteCount(536870912) })))`. Both remain open and out of scope for this
+consolidation. `numeric-indexes`, which only timed out at 900s on the
+previous per-suite runner, passes on the new runner's per-suite 7200s
+timeout.
+
+`text-properties` records one behavior change since EXP-0300: cases x03/x04
+(Nordic collations) were Rust-refusal controls there, but Rust has accepted
+Nordic text-property edits since EXP-0310, so they are now paired DAO edits
+with structure comparison skipped, and matched as such.
+
+This replay reproduces the same accepted outcomes as the suite-by-suite runs
+retained under `shared/checks/20260924-pre-simplification` and the earlier
+dev replay under `shared/checks/20260924-oracle-harness/{dev,registry-*,
+storage-*}`, now produced by the single consolidated runner. It does not
+claim any new format fact beyond the suites' original EXP entries.
+
+Production revision `1b476db28243d3eb58c077459a7014843eb10952` rebases the
+harness (unchanged in content) onto main `f2f4396fccb2f5bf818e6a769bf46ecb6b15d2a0`
+(the parser-internals and creation-API refactors, PRs #389-#391), past the
+`da77f4c` base the replay ran on. `scripts/golden-check.sh 430a6cb` run on
+the rebased tree reports 1,923 files, 1,923 identical, 0 differ, 0 only-base,
+0 only-head, confirming those intervening commits are behavior-preserving for
+the corpus the check covers. The replay above is not repeated at `1b476db`;
+the golden check stands in for it.

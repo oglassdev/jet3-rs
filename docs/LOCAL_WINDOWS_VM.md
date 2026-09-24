@@ -32,64 +32,31 @@ share only after DAO closes every database and recordset.
 ## Repeatable verification
 
 ```sh
-python3 scripts/dao-check.py \
-  --out /path/outside/repo/new-run
+python3 oracle/windows-dao/dao.py list
+python3 oracle/windows-dao/dao.py run --out /path/outside/repo/new-run            # every suite
+python3 oracle/windows-dao/dao.py run locale-updates wide-rows --out /path/outside/repo/new-run
 ```
 
-The command builds current Rust examples, generates candidates, records runtime
-inputs and the source revision, probes the exact provider, and compares DAO
-rows, schema, traversal, lookups, native continuations and retained counters.
-It also checks unrelated-byte preservation and duplicate refusal.
-Omitting suite names runs all suites; provide names to select a subset.
-Every attempt uses a new directory and retains logs and a summary, including
-failures. No committed plan or separate authorization is required. Fix a failure
-and run the same command with another output directory.
-
-The boundary suite covers existing-page insertion, EOF-page insertion,
-duplicate refusal with unrelated Memo data. The row
-suite covers ascending/descending unique Long keys, the leaf capacity boundary,
-repeated deletion, subsequent native insertion and duplicate rejection.
-The `creation-tables` suite covers catalog capacity and multiple indexes on
-later tables. The `index-trees` suite covers tree growth/shrinkage, complete row
-replacement and empty-table reuse, then feeds DAO-compressed outputs back
-through Rust and compares a second DAO round. The `practical-lifecycle` suite
-creates an Items/Notes database, inserts 220 items, changes values on dense
-pages, deletes rows and inserts more, while preserving unrelated Memo data.
-A separate delete-all/reinsert arm checks released-page reuse without file growth.
-The `numeric-indexes` suite covers three simultaneous numeric indexes,
-composite and nullable keys, duplicate ordering, retained counters, tree growth
-and native-input continuations with observed prefix compression.
-These finite suites do not establish general Jet 3 compatibility.
-
-The storage/preservation suite builds native wide-row, four-payload and sparse
-AutoNumber schemas with eleven saved queries and unrelated property/payload
-sentinels. It compares complete lifecycles, DAO continuations, terminal failed
-writes and explicit rollbacks. Each run retains its inputs, CLI, source revision,
-requests, provider environment, snapshots and raw comparisons outside the repo:
-
-```sh
-cargo build --locked -p jet3-cli
-python3 oracle/windows-dao/scripts/storage_preservation.py run \
-  --cli target/debug/jet3-cli \
-  --shared-root "$JET3_WINDOWS_SHARED_ROOT" \
-  --out /path/outside/repo/new-storage-run
-```
-
-Individual `remote`, `prepare` and `evaluate` subcommands allow replaying the
-retained inputs and comparisons. Every output directory must be new. Native
-failure images remain terminal controls, including relationship refusals whose
-catalog counters remain inconsistent after rollback; Rust's validator stays
-strict and Rust refusals must preserve the complete original file.
-
-The earlier `windows-dev-*` discovery jobs are archived at tag
-`oracle-archive-2026-09`; see `oracle/windows-dao/README.md`.
+`dao.py run` builds and freezes a `jet3-cli` for the run (`--cli` reuses one),
+prepares Rust candidates, builds native inputs and edits under DAO, reads every
+image back through DAO and compares the pair. Each suite writes its spec,
+inputs, VM outboxes, logs and `report.json` under the new `--out` directory,
+including failed stages; `summary.json` lists every suite outcome. Retained
+external inputs (archived native images and key inventories) resolve under
+`$JET3_WINDOWS_SHARED_ROOT/checks` unless `--archive` or `JET3_DAO_ARCHIVE`
+names another root, and are checked against their recorded SHA-256. Fix a
+failure and rerun with another output directory. `dao.py compare RUN/SUITE`
+re-evaluates retained outputs offline into a new report file. The suites are
+listed in `oracle/windows-dao/README.md`; these finite suites do not establish
+general Jet 3 compatibility.
 
 For an ad-hoc x86 PowerShell script:
 
 ```sh
-just windows-dev-ps /path/to/check.ps1
+just dao ps /path/to/check.ps1 --with input.mdb --out /path/outside/repo/probe
 ```
 
-The script receives guest-local `$env:JET3_WORK` and shared `$env:JET3_OUTBOX`.
-A successful script alone is not differential evidence; retain its inputs,
-provider environment and complete comparisons before making a support claim.
+The script runs next to `Common.ps1` and receives guest-local `$env:JET3_WORK`
+and shared `$env:JET3_OUTBOX`. A successful script alone is not differential
+evidence; retain its inputs, provider environment and complete comparisons
+before making a support claim.

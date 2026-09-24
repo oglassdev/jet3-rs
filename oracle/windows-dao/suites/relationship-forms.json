@@ -1,0 +1,1156 @@
+{
+  "description": "Relationship attributes, joins, cascades and unenforced relationship lifecycles (EXP-0301/0302).",
+  "provenance": ["EXP-0301", "EXP-0302"],
+  "checks": {
+    "outcome": ["accepted", "refused", "residue", "rust-only"],
+    "readback": ["accepted", "refused"],
+    "structure": ["accepted"],
+    "reader": true
+  },
+  "inputs": {
+    "base": {
+      "ops": [
+        {
+          "op": "table",
+          "table": {
+            "name": "P",
+            "columns": [
+              {"name": "id", "type": "long"},
+              {"name": "x", "type": "long"},
+              {"name": "m", "type": "memo"},
+              {"name": "o", "type": "long_binary"},
+              {"name": "t", "type": "text", "size": 10}
+            ],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+          }
+        },
+        {
+          "op": "table",
+          "table": {
+            "name": "C",
+            "columns": [
+              {"name": "id", "type": "long"},
+              {"name": "pid", "type": "long"},
+              {"name": "m", "type": "memo"},
+              {"name": "o", "type": "long_binary"},
+              {"name": "t", "type": "text", "size": 10},
+              {"name": "qid", "type": "long"}
+            ],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+          }
+        },
+        {
+          "op": "table",
+          "table": {
+            "name": "Q",
+            "columns": [{"name": "id", "type": "long"}, {"name": "n", "type": "text", "size": 10}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+          }
+        },
+        {
+          "op": "table",
+          "table": {
+            "name": "D",
+            "columns": [{"name": "id", "type": "long"}, {"name": "cid", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+          }
+        },
+        {
+          "op": "table",
+          "table": {
+            "name": "U",
+            "columns": [
+              {"name": "id", "type": "long"},
+              {"name": "note", "type": "memo"},
+              {"name": "bin", "type": "long_binary"}
+            ],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+          }
+        },
+        {"op": "sql", "text": "INSERT INTO P (id, x, m, t) VALUES (1, 10, 'pm', 'a')"},
+        {"op": "sql", "text": "INSERT INTO P (id, x, t) VALUES (2, 10, 'b')"},
+        {"op": "sql", "text": "INSERT INTO P (id, x, t) VALUES (3, 20, 'c')"},
+        {"op": "sql", "text": "INSERT INTO Q (id, n) VALUES (1, 'q')"},
+        {"op": "sql", "text": "INSERT INTO Q (id, n) VALUES (2, 'r')"},
+        {"op": "sql", "text": "INSERT INTO C (id, pid, m, t, qid) VALUES (1, 1, 'cm', 'a', 1)"},
+        {"op": "sql", "text": "INSERT INTO C (id, pid, t, qid) VALUES (2, 1, 'b', 2)"},
+        {"op": "sql", "text": "INSERT INTO C (id) VALUES (3)"},
+        {"op": "sql", "text": "INSERT INTO D (id, cid) VALUES (1, 1)"},
+        {"op": "sql", "text": "INSERT INTO U (id) VALUES (1)"},
+        {"op": "payload", "table": "U", "key": "id", "id": 1, "column": "note", "length": 6000, "seed": 3},
+        {"op": "payload", "table": "U", "key": "id", "id": 1, "column": "bin", "length": 3000, "seed": 5},
+        {"op": "payload", "table": "P", "key": "id", "id": 2, "column": "o", "length": 40, "seed": 7},
+        {"op": "query", "name": "QC", "sql": "SELECT C.id, P.t FROM C INNER JOIN P ON C.pid = P.id"}
+      ]
+    },
+    "mixed": {
+      "extends": "base",
+      "ops": [
+        {
+          "op": "relation",
+          "name": "E",
+          "parent": "P",
+          "child": "C",
+          "attributes": 0,
+          "pairs": [["id", "pid"]]
+        },
+        {
+          "op": "relation",
+          "name": "U",
+          "parent": "Q",
+          "child": "C",
+          "attributes": 2,
+          "pairs": [["id", "qid"]]
+        },
+        {
+          "op": "relation",
+          "name": "L",
+          "parent": "P",
+          "child": "Q",
+          "attributes": 16777218,
+          "pairs": [["x", "id"]]
+        },
+        {
+          "op": "relation",
+          "name": "J",
+          "parent": "C",
+          "child": "D",
+          "attributes": 33558528,
+          "pairs": [["id", "cid"]]
+        }
+      ]
+    },
+    "forms": {
+      "extends": "base",
+      "ops": [
+        {
+          "op": "table",
+          "table": {
+            "name": "W1",
+            "columns": [
+              {"name": "k0", "type": "long"},
+              {"name": "k1", "type": "long"},
+              {"name": "k2", "type": "long"},
+              {"name": "k3", "type": "long"},
+              {"name": "k4", "type": "long"},
+              {"name": "k5", "type": "long"},
+              {"name": "k6", "type": "long"},
+              {"name": "k7", "type": "long"},
+              {"name": "k8", "type": "long"},
+              {"name": "k9", "type": "long"},
+              {"name": "k10", "type": "long"}
+            ],
+            "indexes": []
+          }
+        },
+        {
+          "op": "table",
+          "table": {
+            "name": "W2",
+            "columns": [
+              {"name": "k0", "type": "long"},
+              {"name": "k1", "type": "long"},
+              {"name": "k2", "type": "long"},
+              {"name": "k3", "type": "long"},
+              {"name": "k4", "type": "long"},
+              {"name": "k5", "type": "long"},
+              {"name": "k6", "type": "long"},
+              {"name": "k7", "type": "long"},
+              {"name": "k8", "type": "long"},
+              {"name": "k9", "type": "long"},
+              {"name": "k10", "type": "long"}
+            ],
+            "indexes": []
+          }
+        },
+        {"op": "sql", "text": "INSERT INTO W1 (k0) VALUES (1)"},
+        {
+          "op": "relation",
+          "name": "R11",
+          "parent": "W1",
+          "child": "W2",
+          "attributes": 2,
+          "pairs": [
+            ["k0", "k0"],
+            ["k1", "k1"],
+            ["k2", "k2"],
+            ["k3", "k3"],
+            ["k4", "k4"],
+            ["k5", "k5"],
+            ["k6", "k6"],
+            ["k7", "k7"],
+            ["k8", "k8"],
+            ["k9", "k9"],
+            ["k10", "k10"]
+          ]
+        },
+        {
+          "op": "relation",
+          "name": "One",
+          "parent": "P",
+          "child": "C",
+          "attributes": 1,
+          "pairs": [["id", "qid"]]
+        },
+        {
+          "op": "relation",
+          "name": "Unknown",
+          "parent": "Q",
+          "child": "D",
+          "attributes": 65536,
+          "pairs": [["id", "cid"]]
+        },
+        {
+          "op": "relation",
+          "name": "MemoLoose",
+          "parent": "P",
+          "child": "C",
+          "attributes": 2,
+          "pairs": [["m", "m"]]
+        },
+        {
+          "op": "relation",
+          "name": "Both",
+          "parent": "P",
+          "child": "D",
+          "attributes": 50331648,
+          "pairs": [["id", "cid"]]
+        }
+      ]
+    }
+  },
+  "creations": [
+    {
+      "name": "create-join",
+      "request": {
+        "tables": [
+          {
+            "name": "P",
+            "columns": [{"name": "id", "type": "long"}, {"name": "x", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}, {"long": 10}], [{"long": 2}, {"long": 10}]]
+          },
+          {
+            "name": "C",
+            "columns": [{"name": "id", "type": "long"}, {"name": "pid", "type": "long"}, {"name": "qid", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}, {"long": 1}, {"long": 1}], [{"long": 2}, null, {"long": 1}]]
+          },
+          {
+            "name": "Q",
+            "columns": [{"name": "id", "type": "long"}],
+            "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}],
+            "rows": [[{"long": 1}]]
+          }
+        ],
+        "relationships": [
+          {
+            "name": "L",
+            "parent": {"table": "P", "column": "id"},
+            "child": {"table": "C", "column": "pid"},
+            "join": "left",
+            "cascade_deletes": true
+          },
+          {
+            "name": "R",
+            "parent": {"table": "Q", "column": "id"},
+            "child": {"table": "C", "column": "qid"},
+            "join": "right"
+          },
+          {
+            "name": "B",
+            "parent": {"table": "C", "column": "id"},
+            "child": {"table": "C", "column": "pid"},
+            "join": "left_and_right",
+            "cascade_updates": true
+          }
+        ]
+      },
+      "native": {
+        "ops": [
+          {
+            "op": "table",
+            "table": {
+              "name": "P",
+              "columns": [{"name": "id", "type": "long"}, {"name": "x", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {
+            "op": "table",
+            "table": {
+              "name": "C",
+              "columns": [
+                {"name": "id", "type": "long"},
+                {"name": "pid", "type": "long"},
+                {"name": "qid", "type": "long"}
+              ],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {
+            "op": "table",
+            "table": {
+              "name": "Q",
+              "columns": [{"name": "id", "type": "long"}],
+              "indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "id"}]}]
+            }
+          },
+          {"op": "sql", "text": "INSERT INTO P (id, x) VALUES (1, 10)"},
+          {"op": "sql", "text": "INSERT INTO P (id, x) VALUES (2, 10)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid, qid) VALUES (1, 1, 1)"},
+          {"op": "sql", "text": "INSERT INTO C (id, pid, qid) VALUES (2, NULL, 1)"},
+          {"op": "sql", "text": "INSERT INTO Q (id) VALUES (1)"},
+          {
+            "op": "relation",
+            "name": "L",
+            "parent": "P",
+            "child": "C",
+            "attributes": 16781312,
+            "pairs": [["id", "pid"]]
+          },
+          {
+            "op": "relation",
+            "name": "R",
+            "parent": "Q",
+            "child": "C",
+            "attributes": 33554432,
+            "pairs": [["id", "qid"]]
+          },
+          {
+            "op": "relation",
+            "name": "B",
+            "parent": "C",
+            "child": "C",
+            "attributes": 50331904,
+            "pairs": [["id", "pid"]]
+          }
+        ]
+      },
+      "dates": ["P", "C", "Q"]
+    }
+  ],
+  "cases": [
+    {
+      "name": "c-u-unique",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "P", "column": "id"},
+              "child": {"table": "C", "column": "pid"},
+              "enforce": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "c-u-nonunique",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "P", "column": "x"},
+              "child": {"table": "C", "column": "pid"},
+              "enforce": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "c-u-memo",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "P", "column": "m"},
+              "child": {"table": "C", "column": "m"},
+              "enforce": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "c-u-ole",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "P", "column": "o"},
+              "child": {"table": "C", "column": "o"},
+              "enforce": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "c-u-mismatch",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "P", "column": "id"},
+              "child": {"table": "C", "column": "t"},
+              "enforce": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "c-u-composite",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "P", "columns": ["id", "x"]},
+              "child": {"table": "C", "columns": ["pid", "qid"]},
+              "enforce": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "c-u-self",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "C", "column": "id"},
+              "child": {"table": "C", "column": "pid"},
+              "enforce": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "c-u-left",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "P", "column": "id"},
+              "child": {"table": "C", "column": "pid"},
+              "join": "left",
+              "enforce": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "c-u-right",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "P", "column": "id"},
+              "child": {"table": "C", "column": "pid"},
+              "join": "right",
+              "enforce": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "c-u-both",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "P", "column": "id"},
+              "child": {"table": "C", "column": "pid"},
+              "join": "left_and_right",
+              "enforce": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "c-e-left",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "P", "column": "id"},
+              "child": {"table": "C", "column": "pid"},
+              "join": "left"
+            }
+          }
+        }
+      ],
+      "dates": ["C", "P"],
+      "placement_roles": ["C/index/1/owned", "MSysRelationships/table/available", "MSysRelationships/table/owned"]
+    },
+    {
+      "name": "c-e-right-cascades",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "P", "column": "id"},
+              "child": {"table": "C", "column": "pid"},
+              "join": "right",
+              "cascade_updates": true,
+              "cascade_deletes": true
+            }
+          }
+        }
+      ],
+      "dates": ["C", "P"],
+      "placement_roles": ["C/index/1/owned", "MSysRelationships/table/available", "MSysRelationships/table/owned"]
+    },
+    {
+      "name": "c-e-left-delete",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "P", "column": "id"},
+              "child": {"table": "C", "column": "pid"},
+              "join": "left",
+              "cascade_deletes": true
+            }
+          }
+        }
+      ],
+      "dates": ["C", "P"],
+      "placement_roles": ["C/index/1/owned", "MSysRelationships/table/available", "MSysRelationships/table/owned"]
+    },
+    {
+      "name": "c-e-both-update",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "P", "column": "id"},
+              "child": {"table": "C", "column": "pid"},
+              "join": "left_and_right",
+              "cascade_updates": true
+            }
+          }
+        }
+      ],
+      "dates": ["C", "P"],
+      "placement_roles": ["C/index/1/owned", "MSysRelationships/table/available", "MSysRelationships/table/owned"]
+    },
+    {
+      "name": "c-graph",
+      "input": "base",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {"name": "E", "parent": {"table": "P", "column": "id"}, "child": {"table": "C", "column": "pid"}}
+          }
+        },
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "U",
+              "parent": {"table": "Q", "column": "id"},
+              "child": {"table": "C", "column": "qid"},
+              "enforce": false
+            }
+          }
+        },
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "L",
+              "parent": {"table": "P", "column": "x"},
+              "child": {"table": "Q", "column": "id"},
+              "join": "left",
+              "enforce": false
+            }
+          }
+        },
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "S",
+              "parent": {"table": "C", "column": "id"},
+              "child": {"table": "C", "column": "qid"},
+              "join": "right",
+              "enforce": false
+            }
+          }
+        },
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "J",
+              "parent": {"table": "C", "column": "id"},
+              "child": {"table": "D", "column": "cid"},
+              "join": "right",
+              "cascade_deletes": true
+            }
+          }
+        }
+      ],
+      "dates": ["C", "D", "P"],
+      "placement_roles": [
+        "C/index/1/owned",
+        "D/index/1/owned",
+        "MSysRelationships/table/available",
+        "MSysRelationships/table/owned"
+      ]
+    },
+    {
+      "name": "r-u-cascade",
+      "input": "base",
+      "kind": "refused",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R",
+              "parent": {"table": "P", "column": "id"},
+              "child": {"table": "C", "column": "pid"},
+              "cascade_deletes": true,
+              "enforce": false
+            }
+          },
+          "expected_returncode": 1
+        }
+      ],
+      "dao_error": 3001
+    },
+    {
+      "name": "r-e-memo",
+      "input": "base",
+      "kind": "refused",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {"name": "R", "parent": {"table": "P", "column": "m"}, "child": {"table": "C", "column": "m"}}
+          },
+          "expected_returncode": 1
+        }
+      ],
+      "dao_error": 3409,
+      "dates": ["C", "P"]
+    },
+    {
+      "name": "r-e-ole",
+      "input": "base",
+      "kind": "refused",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {"name": "R", "parent": {"table": "P", "column": "o"}, "child": {"table": "C", "column": "o"}}
+          },
+          "expected_returncode": 1
+        }
+      ],
+      "dao_error": 3409,
+      "dates": ["C", "P"]
+    },
+    {
+      "name": "r-e-nonunique",
+      "input": "base",
+      "kind": "refused",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {"name": "R", "parent": {"table": "P", "column": "x"}, "child": {"table": "C", "column": "pid"}}
+          },
+          "expected_returncode": 1
+        }
+      ],
+      "dao_error": 3609,
+      "dates": ["C", "P"]
+    },
+    {
+      "name": "r-e-mismatch",
+      "input": "base",
+      "kind": "refused",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {"name": "R", "parent": {"table": "P", "column": "id"}, "child": {"table": "C", "column": "t"}}
+          },
+          "expected_returncode": 1
+        }
+      ],
+      "dao_error": 3368,
+      "dates": ["C", "P"]
+    },
+    {
+      "name": "r-duplicate-name",
+      "input": "mixed",
+      "kind": "refused",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "E",
+              "parent": {"table": "P", "column": "t"},
+              "child": {"table": "C", "column": "t"},
+              "enforce": false
+            }
+          },
+          "expected_returncode": 1
+        }
+      ],
+      "dao_error": 3012
+    },
+    {
+      "name": "l-orphan-u-insert",
+      "input": "mixed",
+      "steps": [
+        {
+          "command": "mutate",
+          "request": {
+            "operation": "insert",
+            "table": "C",
+            "values": [{"long": 4}, {"long": 2}, null, null, null, {"long": 99}]
+          },
+          "native": {"sql": "INSERT INTO C (id, pid, m, o, t, qid) VALUES (4, 2, NULL, NULL, NULL, 99)"}
+        }
+      ]
+    },
+    {
+      "name": "l-orphan-u-update",
+      "input": "mixed",
+      "steps": [
+        {
+          "command": "mutate",
+          "request": {"operation": "update", "table": "C", "column": 5, "value": {"long": 77}},
+          "native": {"sql": "UPDATE C SET qid = 77 WHERE id = 3"},
+          "locate": {"table": "C", "id": 3}
+        }
+      ]
+    },
+    {
+      "name": "l-orphan-e-insert",
+      "input": "mixed",
+      "kind": "residue",
+      "steps": [
+        {
+          "command": "mutate",
+          "request": {"operation": "insert", "table": "C", "values": [{"long": 5}, {"long": 9}, null, null, null, null]},
+          "native": {"sql": "INSERT INTO C (id, pid) VALUES (5, 9)"},
+          "expected_returncode": 1
+        }
+      ],
+      "dao_error": 3201,
+      "note": "DAO's refused insert raises the child primary index DistinctCount"
+    },
+    {
+      "name": "l-u-parent-delete",
+      "input": "mixed",
+      "steps": [
+        {
+          "command": "mutate",
+          "request": {"operation": "delete", "table": "Q"},
+          "native": {"sql": "DELETE FROM Q WHERE id = 1"},
+          "locate": {"table": "Q", "id": 1}
+        }
+      ]
+    },
+    {
+      "name": "l-e-parent-delete",
+      "input": "mixed",
+      "kind": "refused",
+      "steps": [
+        {
+          "command": "mutate",
+          "request": {"operation": "delete", "table": "P"},
+          "native": {"sql": "DELETE FROM P WHERE id = 1"},
+          "expected_returncode": 1,
+          "locate": {"table": "P", "id": 1}
+        }
+      ],
+      "dao_error": 3200
+    },
+    {
+      "name": "l-cascade-delete",
+      "input": "mixed",
+      "steps": [
+        {
+          "command": "mutate",
+          "request": {"operation": "delete", "table": "C"},
+          "native": {"sql": "DELETE FROM C WHERE id = 1"},
+          "locate": {"table": "C", "id": 1}
+        }
+      ],
+      "affected_tables": ["D"]
+    },
+    {
+      "name": "l-drop-u",
+      "input": "mixed",
+      "steps": [{"command": "schema", "request": {"operation": "drop_relationship", "name": "U"}}]
+    },
+    {
+      "name": "l-drop-l",
+      "input": "mixed",
+      "steps": [{"command": "schema", "request": {"operation": "drop_relationship", "name": "L"}}]
+    },
+    {
+      "name": "l-drop-e",
+      "input": "mixed",
+      "steps": [{"command": "schema", "request": {"operation": "drop_relationship", "name": "E"}}],
+      "dates": ["C", "P"]
+    },
+    {
+      "name": "l-replace-u-enforced",
+      "input": "mixed",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "replace_relationship",
+            "name": "U",
+            "relationship": {"name": "U2", "parent": {"table": "Q", "column": "id"}, "child": {"table": "C", "column": "qid"}}
+          }
+        }
+      ],
+      "dates": ["C", "Q"],
+      "placement_roles": ["C/index/2/owned"]
+    },
+    {
+      "name": "l-replace-e-unenforced",
+      "input": "mixed",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "replace_relationship",
+            "name": "E",
+            "relationship": {
+              "name": "E2",
+              "parent": {"table": "P", "column": "id"},
+              "child": {"table": "C", "column": "pid"},
+              "join": "right",
+              "enforce": false
+            }
+          }
+        }
+      ],
+      "dates": ["C", "P"]
+    },
+    {
+      "name": "l-replace-j-join",
+      "input": "mixed",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "replace_relationship",
+            "name": "J",
+            "relationship": {
+              "name": "J",
+              "parent": {"table": "C", "column": "id"},
+              "child": {"table": "D", "column": "cid"},
+              "join": "left",
+              "cascade_deletes": true
+            }
+          }
+        }
+      ],
+      "dates": ["C", "D"],
+      "placement_roles": ["D/index/1/owned"]
+    },
+    {
+      "name": "l-create-u",
+      "input": "mixed",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "T",
+              "parent": {"table": "P", "column": "t"},
+              "child": {"table": "C", "column": "t"},
+              "enforce": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "l-drop-table-q",
+      "input": "mixed",
+      "steps": [{"command": "schema", "request": {"operation": "drop_table", "table": "Q"}}],
+      "dates": ["Q"]
+    },
+    {
+      "name": "l-drop-table-d",
+      "input": "mixed",
+      "steps": [{"command": "schema", "request": {"operation": "drop_table", "table": "D"}}],
+      "dates": ["C", "D"]
+    },
+    {
+      "name": "l-drop-table-c",
+      "input": "mixed",
+      "kind": "refused",
+      "steps": [{"command": "schema", "request": {"operation": "drop_table", "table": "C"}, "expected_returncode": 1}],
+      "dao_error": 3281,
+      "dates": ["C", "D", "P"]
+    },
+    {
+      "name": "l-drop-table-p",
+      "input": "mixed",
+      "kind": "refused",
+      "steps": [{"command": "schema", "request": {"operation": "drop_table", "table": "P"}, "expected_returncode": 1}],
+      "dao_error": 3281,
+      "dates": ["C", "P"]
+    },
+    {
+      "name": "l-drop-col-qid",
+      "input": "mixed",
+      "kind": "residue",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {"operation": "drop_column", "table": "C", "column": "qid"},
+          "expected_returncode": 1
+        }
+      ],
+      "dao_error": 3303,
+      "note": "DAO reports 3303 but leaves the column dropped (EXP-0301)",
+      "dates": ["C"]
+    },
+    {
+      "name": "l-drop-col-x",
+      "input": "mixed",
+      "kind": "residue",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {"operation": "drop_column", "table": "P", "column": "x"},
+          "expected_returncode": 1
+        }
+      ],
+      "dao_error": 3303,
+      "dates": ["P"]
+    },
+    {
+      "name": "l-drop-col-t",
+      "input": "mixed",
+      "steps": [{"command": "schema", "request": {"operation": "drop_column", "table": "C", "column": "t"}}],
+      "dates": ["C"]
+    },
+    {
+      "name": "l-rename-q",
+      "input": "mixed",
+      "steps": [{"command": "schema", "request": {"operation": "rename_table", "table": "Q", "name": "Q2"}}],
+      "dates": ["Q", "Q2"]
+    },
+    {
+      "name": "l-rename-qid",
+      "input": "mixed",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {"operation": "rename_column", "table": "C", "column": "qid", "name": "qid2"}
+        }
+      ],
+      "dates": ["C"]
+    },
+    {
+      "name": "l-rename-x",
+      "input": "mixed",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {"operation": "rename_column", "table": "P", "column": "x", "name": "x2"}
+        }
+      ],
+      "dates": ["P"]
+    },
+    {
+      "name": "l-drop-q-primary",
+      "input": "mixed",
+      "steps": [{"command": "schema", "request": {"operation": "drop_index", "table": "Q", "index": "PrimaryKey"}}],
+      "dates": ["Q"]
+    },
+    {
+      "name": "p-insert-unrelated",
+      "input": "forms",
+      "steps": [
+        {
+          "command": "mutate",
+          "request": {"operation": "insert", "table": "U", "values": [{"long": 2}, {"memo": "new"}, null]},
+          "native": {"sql": "INSERT INTO U (id, [note]) VALUES (2, 'new')"}
+        }
+      ]
+    },
+    {
+      "name": "p-create-column-unrelated",
+      "input": "forms",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {"operation": "create_column", "table": "U", "column": {"name": "extra", "type": "long"}}
+        }
+      ],
+      "dates": ["U"]
+    },
+    {
+      "name": "p-rename-w2",
+      "input": "forms",
+      "steps": [{"command": "schema", "request": {"operation": "rename_table", "table": "W2", "name": "W3"}}],
+      "dates": ["W2", "W3"]
+    },
+    {
+      "name": "p-drop-w1",
+      "input": "forms",
+      "steps": [{"command": "schema", "request": {"operation": "drop_table", "table": "W1"}}],
+      "dates": ["W1"]
+    },
+    {
+      "name": "p-create-u",
+      "input": "forms",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "T",
+              "parent": {"table": "P", "column": "t"},
+              "child": {"table": "C", "column": "t"},
+              "enforce": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "p-create-u-wide",
+      "input": "forms",
+      "steps": [
+        {
+          "command": "schema",
+          "request": {
+            "operation": "create_relationship",
+            "relationship": {
+              "name": "R11b",
+              "parent": {"table": "W2", "columns": ["k0", "k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9", "k10"]},
+              "child": {"table": "W1", "columns": ["k0", "k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9", "k10"]},
+              "enforce": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "p-drop-memo-loose",
+      "input": "forms",
+      "steps": [{"command": "schema", "request": {"operation": "drop_relationship", "name": "MemoLoose"}}]
+    },
+    {
+      "name": "p-insert-one-child",
+      "input": "forms",
+      "steps": [
+        {
+          "command": "mutate",
+          "request": {"operation": "insert", "table": "C", "values": [{"long": 6}, null, null, null, null, {"long": 3}]},
+          "native": {"sql": "INSERT INTO C (id, pid, m, o, t, qid) VALUES (6, NULL, NULL, NULL, NULL, 3)"}
+        }
+      ]
+    },
+    {
+      "name": "p-insert-unknown-child",
+      "input": "forms",
+      "kind": "rust-only",
+      "steps": [
+        {
+          "command": "mutate",
+          "request": {"operation": "insert", "table": "D", "values": [{"long": 2}, null]},
+          "native": {"sql": "INSERT INTO D (id) VALUES (2)"},
+          "expected_returncode": 1
+        }
+      ],
+      "note": "unknown attribute 65536 is not interpreted"
+    }
+  ]
+}
