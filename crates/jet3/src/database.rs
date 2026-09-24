@@ -255,7 +255,3 @@ where
         CatalogCursor::new(self, budget)
     }
 }
-
-#[cfg(test)]
-#[path = "database_tests.rs"]
-mod tests;

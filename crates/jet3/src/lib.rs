@@ -37,169 +37,43 @@
 //! self-check is not evidence of Microsoft Access or DAO compatibility; only
 //! a recorded DAO differential can establish that.
 
-pub mod allocation;
-mod allocation_patch;
-pub mod allocation_traverse;
-pub mod atomic;
-mod auto_number_mutation;
-mod auto_number_state;
-pub mod binary;
-pub mod binary_writer;
-pub mod candidate;
+pub mod alloc;
 pub mod catalog;
-mod catalog_name_key;
-mod catalog_overflow;
-pub mod catalog_record;
-pub mod catalog_record_writer;
-pub mod column_definition;
-pub mod column_definition_writer;
-pub mod commit_state;
-pub mod creation;
-mod mutation_map;
-mod mutation_map_guard;
-mod mutation_map_write;
-pub use creation as create;
-mod binary_index_key;
-mod column_properties;
-mod column_property_error;
-pub use column_property_error::ColumnPropertyError;
-mod cascade;
-mod column_property_ownership;
-mod column_property_reader;
-mod column_property_values;
-mod column_value_policy;
-mod data_page_directory;
+pub mod create;
 pub mod database;
-pub mod database_header;
-mod definition_name;
-pub mod delete;
-pub mod error;
-mod field_update;
-pub mod header;
-mod index_allocation;
-mod index_counter;
-pub mod index_definition;
-mod index_mutation;
-mod index_mutation_structure;
-pub mod index_tree;
-mod index_tree_page;
-mod index_tree_rows;
-pub mod insert;
-pub mod jet3_page;
-pub mod limits;
-mod locale_text_key;
-mod long_index_key;
-pub mod long_value;
-pub mod long_value_map;
-mod long_value_mutation;
-mod long_value_writer;
-pub mod map_location;
-mod numeric_index_entry;
-mod numeric_index_key;
-mod numeric_index_pages;
-mod numeric_row_values;
-pub mod offset;
-pub mod page;
-mod page_append_plan;
-mod page_edits;
-pub mod page_image;
-pub mod page_kind;
-mod physical_index_definition;
-mod property_blob;
 #[cfg(test)]
-mod property_blob_tests;
-pub mod raw_page_stream;
-mod relationship_catalog;
-mod relationship_flags;
-mod relationship_key;
-mod relationship_mutation;
-pub mod relationships;
-pub mod resource;
+mod database_tests;
+pub mod definition;
+pub mod format;
+pub mod index;
+pub mod long_value;
+mod properties;
+pub mod relationship;
 pub mod row;
-mod row_delete_page;
-pub mod row_directory;
-mod row_insert_eof;
-mod row_insert_page;
-mod row_mutation_graph;
-mod row_mutation_pages;
-mod row_mutation_place;
-mod row_offsets;
-mod row_reuse_page;
-mod row_slot;
-pub mod row_update;
-mod row_update_page;
-pub mod row_writer;
-mod schema_catalog;
-mod schema_column;
-mod schema_column_create;
-mod schema_column_drop;
-mod schema_column_options;
-mod schema_definition;
-mod schema_edit;
-mod schema_index;
-mod schema_map;
-mod schema_properties;
-mod schema_publish;
-mod schema_relationship_catalog;
-mod schema_relationship_create;
-mod schema_relationship_drop;
-mod schema_storage;
-mod schema_table;
-mod schema_table_drop;
-pub mod source;
-pub mod table_definition;
-mod table_definition_layout;
-pub mod table_definition_writer;
-mod table_properties;
-pub mod text;
-mod text_index_key;
-pub mod update;
-mod update_index_key;
-mod update_pages;
-pub mod usage_map;
-pub mod usage_map_writer;
-pub mod validation;
-pub mod value;
-mod whole_file_plan;
+mod schema;
+pub mod validate;
+pub mod write;
+pub use properties::error::ColumnPropertyError;
 
-pub use allocation::{
+pub use alloc::map::{
     AllocationMap, AllocationMapError, ExtendedAllocationBits, IndirectAllocationMap,
     InlineAllocatedPages, InlineAllocationMap, MapPageReferences, decode_allocation_map,
     extended_allocation_bits,
 };
-pub use allocation_traverse::{
+pub use alloc::traverse::{
     AllocationTraversalError, OwnedPages, PageChainWalker, ReachedMapPage, VisitedPages,
     follow_map_page_reference,
 };
-pub use atomic::{
-    PublishError, PublishStage, atomic_create, atomic_create_with_hook, atomic_update,
-    atomic_update_with_hook,
-};
-pub use binary::BinaryCursor;
-pub use binary_writer::BinaryWriter;
-pub use candidate::{CandidateError, RawJet3Candidate};
-pub use catalog::{CatalogCursor, CatalogError};
-pub use catalog_name_key::CatalogNameKeyError;
-pub use catalog_record::{
+pub use catalog::cursor::{CatalogCursor, CatalogError};
+pub use catalog::name_key::CatalogNameKeyError;
+pub use catalog::record::{
     CatalogName, CatalogNameEncoding, CatalogObjectClass, CatalogObjectId, CatalogObjectKind,
     CatalogRecord, CatalogRecordError,
 };
-pub use catalog_record_writer::{
+pub use catalog::record_writer::{
     CatalogRecordSpec, CatalogRecordWriteError, catalog_record_len, encode_catalog_record,
 };
-pub use column_definition::{
-    ColumnDefinition, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
-};
-pub use column_definition_writer::{
-    IndexFieldSpec, LogicalIndexKindSpec, LogicalIndexSpec, PhysicalIndexSpec,
-    SystemColumnClassSpec,
-};
-pub use commit_state::{
-    COMMIT_REGION_LENGTH, COMMIT_REGION_OFFSET, COMMIT_SLOT_COUNT, CommitRegion, CommitSlot,
-    CommitSlotRole, CommitStateClass, SHARED_COMMIT_SLOT_COUNT, read_commit_region,
-    read_commit_region_into,
-};
-pub use creation::{
+pub use create::{
     CandidateCheckError, ColumnRef, ColumnSpec, ColumnStorageKind, ColumnType, ComposeError,
     CreateDatabaseError, IndexColumnSpec, IndexKind, IndexNullPolicy, IndexSpec, RelationshipField,
     RelationshipJoin, RelationshipSpec, TableRef, TableRows, TableSchemaPlanError, TableSpec,
@@ -208,69 +82,94 @@ pub use creation::{
     create_database_with_relationships_and_rows, create_database_with_rows,
     create_database_with_table_rows,
 };
+pub use definition::column::{
+    ColumnDefinition, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
+};
+pub use definition::column_writer::{
+    IndexFieldSpec, LogicalIndexKindSpec, LogicalIndexSpec, PhysicalIndexSpec,
+    SystemColumnClassSpec,
+};
+pub use format::binary::BinaryCursor;
+pub use format::binary_writer::BinaryWriter;
+pub use format::candidate::{CandidateError, RawJet3Candidate};
+pub use format::commit_state::{
+    COMMIT_REGION_LENGTH, COMMIT_REGION_OFFSET, COMMIT_SLOT_COUNT, CommitRegion, CommitSlot,
+    CommitSlotRole, CommitStateClass, SHARED_COMMIT_SLOT_COUNT, read_commit_region,
+    read_commit_region_into,
+};
+pub use write::atomic::{
+    PublishError, PublishStage, atomic_create, atomic_create_with_hook, atomic_update,
+    atomic_update_with_hook,
+};
 
-pub use database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
-pub use database_header::{
-    DATABASE_HEADER_PAGE_NUMBER, DatabaseFormatError, DatabaseHeaderPage, DatabaseHeaderPageError,
-    DatabaseProtection, DatabaseVersion, SortOrder, SupportedDatabaseFormat,
-};
-pub use definition_name::{DefinitionName, DefinitionNameEncoding};
-pub use delete::{RowDelete, delete_row};
-pub use error::{Error, LimitKind, ResourceLimitKind};
-pub use header::{
-    HeaderError, JET3_PAGE_SIZE, JetFileKind, jet3_page_geometry, read_jet_signature,
-};
-pub use index_definition::{
-    IndexDefinition, IndexDefinitionError, IndexDefinitionKind, IndexDirection, IndexField,
-    IndexUsageMapReference, PhysicalIndexDefinition, RelationshipReference, RelationshipSide,
-};
-pub use index_tree::{
-    IndexEntry, IndexKey, IndexKeyEncoding, IndexNode, IndexNodeKind, IndexTree, IndexTreeError,
-};
-pub use insert::insert_row;
-pub use jet3_page::Jet3PageReader;
-pub use limits::{ReadBudget, ReadLimits};
-pub use long_value::{
-    ExternalLongValueStorage, InlineLongValue, LongValue, LongValueChunk, LongValueChunkValue,
-    LongValueCursor, LongValueError, LongValueKind, LongValueReference,
-};
-pub use long_value_map::{LONG_VALUE_MAP_GROUP_LEN, LongValueMapDefinition, LongValueMapError};
-pub use map_location::{MapLocationError, MapRowLocator, TableMapLocations, locate_table_maps};
-pub use offset::{ByteCount, ByteOffset};
-pub use page::{PageGeometry, PageNumber, PageOffset};
-pub use page_append_plan::AppendPageError;
-pub use page_image::{DataPageBuilder, PAGE_BYTES, PageImage, PageImageError, page_tag};
-pub use page_kind::{ClassifiedPage, PageClassificationError, PageKind, classify_page};
-pub use raw_page_stream::{RawPage, RawPageCursor};
-pub use relationships::{
-    CatalogRelationship, CatalogRelationshipField, Relationship, Relationships,
-};
-pub use resource::{ResourceBudget, ResourceLimits};
-pub use row::{RawField, RowCursor, RowError, RowView};
-pub use row_directory::{RowDirectoryError, RowLocator};
-pub use row_update::{RowUpdate, update_row};
-pub use row_writer::{RowColumnLayout, RowValue, RowWriteError, encode_row};
-pub use schema_edit::{PropertyChange, SchemaEdit, edit_schema};
-pub use source::{FileSource, ReadAt, SliceSource};
-pub use table_definition::{TableDefinition, TableDefinitionError, TableDefinitionKind};
-pub use table_definition_writer::{
-    LongValueMapSpec, PhysicalIndexFlagsSpec, TableDefinitionSpec, TableDefinitionWriteError,
-    encode_table_definition, table_definition_len,
-};
-pub use table_properties::{ColumnProperties, TableProperties};
-pub use text::{DecodedText, TextCodePage, TextError};
-pub use update::{FieldUpdate, UpdateError, update_field};
-pub use usage_map::{UsageMapError, UsageMapRecord, locate_usage_map};
-pub use usage_map_writer::{
+pub use alloc::usage_map::{UsageMapError, UsageMapRecord, locate_usage_map};
+pub use alloc::usage_map_writer::{
     EXTENDED_BITMAP_BITS, ExtendedUsageMapEncoder, InlineUsageMapEncoder, UsageMapWriteError,
     encode_indirect_references, indirect_record_len,
 };
-pub use validation::{
+pub use create::page_append_plan::AppendPageError;
+pub use create::whole_file_plan::WholeFilePlanError;
+pub use database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
+pub use definition::index::{
+    IndexDefinition, IndexDefinitionError, IndexDefinitionKind, IndexDirection, IndexField,
+    IndexUsageMapReference, PhysicalIndexDefinition, RelationshipReference, RelationshipSide,
+};
+pub use definition::long_value_map::{
+    LONG_VALUE_MAP_GROUP_LEN, LongValueMapDefinition, LongValueMapError,
+};
+pub use definition::map_location::{
+    MapLocationError, MapRowLocator, TableMapLocations, locate_table_maps,
+};
+pub use definition::name::{DefinitionName, DefinitionNameEncoding};
+pub use definition::table::{TableDefinition, TableDefinitionError, TableDefinitionKind};
+pub use definition::table_writer::{
+    LongValueMapSpec, PhysicalIndexFlagsSpec, TableDefinitionSpec, TableDefinitionWriteError,
+    encode_table_definition, table_definition_len,
+};
+pub use format::database_header::{
+    DATABASE_HEADER_PAGE_NUMBER, DatabaseFormatError, DatabaseHeaderPage, DatabaseHeaderPageError,
+    DatabaseProtection, DatabaseVersion, SortOrder, SupportedDatabaseFormat,
+};
+pub use format::error::{Error, LimitKind, ResourceLimitKind};
+pub use format::header::{
+    HeaderError, JET3_PAGE_SIZE, JetFileKind, jet3_page_geometry, read_jet_signature,
+};
+pub use format::jet3_page::Jet3PageReader;
+pub use format::limits::{ReadBudget, ReadLimits};
+pub use format::offset::{ByteCount, ByteOffset};
+pub use format::page::{PageGeometry, PageNumber, PageOffset};
+pub use format::page_image::{DataPageBuilder, PAGE_BYTES, PageImage, PageImageError, page_tag};
+pub use format::page_kind::{ClassifiedPage, PageClassificationError, PageKind, classify_page};
+pub use format::raw_page_stream::{RawPage, RawPageCursor};
+pub use format::resource::{ResourceBudget, ResourceLimits};
+pub use format::source::{FileSource, ReadAt, SliceSource};
+pub use format::text::{DecodedText, TextCodePage, TextError};
+pub use index::tree::reader::{
+    IndexEntry, IndexKey, IndexKeyEncoding, IndexNode, IndexNodeKind, IndexTree, IndexTreeError,
+};
+pub use long_value::reader::{
+    ExternalLongValueStorage, InlineLongValue, LongValue, LongValueChunk, LongValueChunkValue,
+    LongValueCursor, LongValueError, LongValueKind, LongValueReference,
+};
+pub use properties::table::{ColumnProperties, TableProperties};
+pub use relationship::inventory::{
+    CatalogRelationship, CatalogRelationshipField, Relationship, Relationships,
+};
+pub use row::directory::{RowDirectoryError, RowLocator};
+pub use row::reader::{RawField, RowCursor, RowError, RowView};
+pub use row::value::{
+    CurrencyValue, DateTimeValue, DecodedValue, GuidValue, ValueError, ValueKind,
+};
+pub use row::writer::{RowColumnLayout, RowValue, RowWriteError, encode_row};
+pub use schema::edit::{PropertyChange, SchemaEdit, edit_schema};
+pub use validate::{
     RelationshipValidationError, StorageValidationError, TableValidationError, ValidationError,
     ValidationReport,
 };
-pub use value::{CurrencyValue, DateTimeValue, DecodedValue, GuidValue, ValueError, ValueKind};
-pub use whole_file_plan::WholeFilePlanError;
+pub use write::delete::{RowDelete, delete_row};
+pub use write::insert::insert_row;
+pub use write::row_update::{RowUpdate, update_row};
+pub use write::update::{FieldUpdate, UpdateError, update_field};
 
 /// Human-readable name of the only database format targeted by this crate.
 pub const FORMAT_NAME: &str = "Access 97 / Jet 3";

@@ -3,8 +3,8 @@
 //! These tests exercise only borrowed-slice encoding and resource accounting.
 //! They do not construct an MDB or make a Jet compatibility claim.
 
-use jet3::limits::{ReadBudget, ReadLimits};
 use jet3::{BinaryCursor, BinaryWriter, ByteCount, ByteOffset, ResourceBudget, ResourceLimits};
+use jet3::{ReadBudget, ReadLimits};
 use proptest::prelude::*;
 use proptest::test_runner::{Config, RngSeed};
 

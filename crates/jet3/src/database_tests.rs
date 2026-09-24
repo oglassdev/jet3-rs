@@ -4,7 +4,7 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use super::{DatabaseOpenError, DatabasePageError, DatabaseReader};
+use super::database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 use crate::{
     ByteCount, ByteOffset, CandidateError, DatabaseFormatError, DatabaseHeaderPageError,
     DatabaseProtection, DatabaseVersion, Error, HeaderError, JET3_PAGE_SIZE, JetFileKind,
