@@ -1,6 +1,6 @@
 use super::table_tests::*;
 use crate::{
-    AllocationTraversalError, Error, PageNumber, ResourceLimitKind,
+    AllocationTraversalError, Error, PAGE_BYTES, PageNumber, ResourceLimitKind,
     definition::table::TableDefinitionError,
 };
 

@@ -5,15 +5,12 @@
 //! images and every appended image already complete. The resulting sequence
 //! does not establish that its bytes form a DAO-openable bootstrap image.
 
-#![allow(
-    dead_code,
-    reason = "staged for the future crate-private writer composition layer"
-)]
-
 use std::{fmt, mem::size_of};
 
+#[cfg(test)]
+use crate::InlineUsageMapEncoder;
 use crate::{
-    ByteCount, Error, InlineUsageMapEncoder, PageImage, PageNumber, ResourceBudget,
+    ByteCount, Error, PageImage, PageNumber, ResourceBudget,
     create::page_append_plan::{
         AppendPageError, AppendPagePlan, EMPTY_DATABASE_PAGE_COUNT, PlannedPage,
         plan_existing_pages,
@@ -100,6 +97,7 @@ impl WholeFileImagePlan {
         })
     }
 
+    #[cfg(test)]
     /// Returns all retained page plans in increasing physical-page order.
     pub(crate) fn pages(&self) -> &[PlannedPage] {
         &self.pages
@@ -110,6 +108,7 @@ impl WholeFileImagePlan {
         self.append_plan.page_count()
     }
 
+    #[cfg(test)]
     /// Plans and retains one fresh page after the existing sequence.
     ///
     /// Logical storage for the page plan is charged and reserved before the

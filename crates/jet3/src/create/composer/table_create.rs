@@ -22,11 +22,14 @@
 //! (`EXP-0077`). Pairs follow the table and index maps in column order, bounded
 //! by checked map-page builders. EXP-0252 supplies independent page/slot
 //! locators; consecutive packed pages are a candidate construction policy.
+use crate::{
+    PAGE_BYTES,
+    create::schema_plan::{
+        AVAILABLE_MAP_ROW, FIRST_INDEX_MAP_ROW, OWNED_MAP_ROW, TableSchemaPlan, TableSpec,
+    },
+};
 
 use super::*;
-use crate::create::schema_plan::{
-    AVAILABLE_MAP_ROW, FIRST_INDEX_MAP_ROW, OWNED_MAP_ROW, TableSchemaPlan, TableSpec,
-};
 
 /// `EXP-0093`: `MSysObjects` `Flags` of a created user table.
 const USER_FLAGS: i32 = 0;

@@ -1,11 +1,10 @@
 //! Checked decoding of one physical index page from `EXP-0062` and `EXP-0146`.
 
 use crate::{
-    JET3_PAGE_SIZE, PageGeometry, PageKind, PageNumber, ResourceBudget,
+    PAGE_BYTES, PageGeometry, PageKind, PageNumber, ResourceBudget,
     index::tree::reader::{IndexNode, IndexNodeKind, IndexTreeError, PendingNode},
 };
 
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 pub(crate) const ENTRY_AREA_OFFSET: usize = 248;
 const ENTRY_AREA_LEN: usize = PAGE_BYTES - ENTRY_AREA_OFFSET;
 const BOUNDARY_BITMAP_OFFSET: usize = 22;

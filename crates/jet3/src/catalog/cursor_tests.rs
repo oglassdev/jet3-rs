@@ -1,12 +1,10 @@
 use super::cursor::CatalogError;
 use crate::{
     ByteCount, CatalogObjectClass, CatalogObjectKind, CatalogRecordError, DatabaseReader, Error,
-    JET3_PAGE_SIZE, PageKind, PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind,
-    ResourceLimits, SliceSource,
+    JET3_PAGE_SIZE, PAGE_BYTES, PageKind, PageNumber, ReadLimits, ResourceBudget,
+    ResourceLimitKind, ResourceLimits, SliceSource,
 };
 use std::error::Error as _;
-
-pub(super) const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 
 pub(super) fn record(id: u32, kind: u16, flags: u32, name: &[u8]) -> Vec<u8> {
     let mut row = vec![0_u8; 31 + name.len() + 6];

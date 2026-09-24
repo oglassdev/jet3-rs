@@ -2,7 +2,10 @@
 //! Compact packing and placement after user pages are creation policy.
 
 use super::*;
-use crate::index::tree::builder::{IndexRecord, NumericIndexPages, TreeBuildError};
+use crate::{
+    PAGE_BYTES,
+    index::tree::builder::{IndexRecord, NumericIndexPages, TreeBuildError},
+};
 
 const PAGE_LIMIT: u64 = allocation_maps::PAGE_LIMIT;
 

@@ -6,7 +6,7 @@
 //! database page represented by an extended bitmap bit.
 
 use crate::{
-    ClassifiedPage, Error, JET3_PAGE_SIZE, PageGeometry, PageKind, PageNumber, ResourceBudget,
+    ClassifiedPage, Error, PAGE_BYTES, PageGeometry, PageKind, PageNumber, ResourceBudget,
 };
 use std::fmt;
 use std::ops::Range;
@@ -16,7 +16,6 @@ const INDIRECT_RECORD_TYPE: u8 = 0x01;
 const INLINE_HEADER_LEN: usize = 5;
 const INDIRECT_REFERENCE_LEN: usize = 4;
 const EXTENDED_BITMAP_OFFSET: usize = 4;
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 pub(crate) const EXTENDED_BITMAP_BITS: u64 = ((PAGE_BYTES - EXTENDED_BITMAP_OFFSET) * 8) as u64;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

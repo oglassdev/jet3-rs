@@ -4,13 +4,12 @@ use super::traverse::{
 };
 use crate::{
     AllocationMapError, ByteCount, DatabasePageError, DatabaseReader, Error, JET3_PAGE_SIZE,
-    MapLocationError, PageGeometry, PageKind, PageNumber, ReadLimits, ResourceBudget,
+    MapLocationError, PAGE_BYTES, PageGeometry, PageKind, PageNumber, ReadLimits, ResourceBudget,
     ResourceLimitKind, ResourceLimits, SliceSource, UsageMapError,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 const EXTENDED_TAG: u8 = 0x05;
 const DATA_TAG: u8 = 0x01;
 const BITMAP: PageKind = PageKind::ExtendedUsageBitmap;

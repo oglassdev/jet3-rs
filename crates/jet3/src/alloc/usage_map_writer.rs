@@ -169,11 +169,13 @@ impl InlineUsageMapEncoder {
         self.update(page, true)
     }
 
+    #[cfg(test)]
     /// Clears the bit for `page`.
     pub fn clear_page(&mut self, page: PageNumber) -> Result<(), UsageMapWriteError> {
         self.update(page, false)
     }
 
+    #[cfg(test)]
     /// Returns whether the bit for `page` is set.
     pub fn is_set(&self, page: PageNumber) -> Result<bool, UsageMapWriteError> {
         let (byte, mask) = self.locate(page)?;

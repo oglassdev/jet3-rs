@@ -2,6 +2,7 @@
 //! EXP-0300 fixes the single-page limit for property payloads.
 use super::table_create::*;
 use crate::{
+    PAGE_BYTES,
     create::composer::*,
     long_value::writer::{chained_fragments, encode_chained_row},
 };

@@ -6,49 +6,18 @@
 //! exact inverse of the crate's row-directory decoder. Neither type performs
 //! I/O or chooses page numbers.
 
+use crate::format::page_kind::page_tag;
+use crate::{
+    BinaryWriter, ByteCount, ByteOffset, Error, PAGE_BYTES, PageKind, PageNumber, PageOffset,
+    ResourceBudget,
+    format::data_page_directory::{
+        DIRECTORY_OFFSET, ENTRY_LEN, LONG_VALUE_OWNER, OFFSET_MASK, OWNER_OFFSET, ROW_COUNT_OFFSET,
+    },
+};
 use std::fmt;
 
-use crate::{
-    BinaryWriter, ByteCount, ByteOffset, Error, JET3_PAGE_SIZE, PageKind, PageNumber, PageOffset,
-    ResourceBudget, format::data_page_directory::LONG_VALUE_OWNER,
-};
-
-/// Byte length of one complete Jet 3 page (`SRC-0020`).
-pub const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
-
-// SRC-0020: byte-zero page tags.
-const DATABASE_DEFINITION_TAG: u8 = 0x00;
-const DATA_TAG: u8 = 0x01;
-const TABLE_DEFINITION_TAG: u8 = 0x02;
-const INTERMEDIATE_INDEX_TAG: u8 = 0x03;
-const LEAF_INDEX_TAG: u8 = 0x04;
-const EXTENDED_USAGE_BITMAP_TAG: u8 = 0x05;
-
-// EXP-0060: a data page stores its table-definition root as u32 at [4,8).
-const OWNER_OFFSET: u64 = 4;
-// SRC-0020: little-endian u16 row count at [8,10), two-byte entries from 10.
-const ROW_COUNT_OFFSET: u64 = 8;
-const DIRECTORY_OFFSET: usize = 10;
-const ENTRY_LEN: usize = 2;
-// EXP-0060: the low 13 bits of a directory entry select the row start; the
-// remaining bits are flags, which this builder never sets.
-const OFFSET_MASK: u16 = 0x1fff;
 // EXP-0305: native index reads fail on table pages with 256 physical slots.
 pub(crate) const MAX_BUILT_ROWS: u16 = 255;
-
-/// Returns the `SRC-0020` byte-zero tag for a page classification.
-#[must_use]
-pub const fn page_tag(kind: PageKind) -> u8 {
-    match kind {
-        PageKind::DatabaseDefinition => DATABASE_DEFINITION_TAG,
-        PageKind::Data => DATA_TAG,
-        PageKind::TableDefinition => TABLE_DEFINITION_TAG,
-        PageKind::IntermediateIndex => INTERMEDIATE_INDEX_TAG,
-        PageKind::LeafIndex => LEAF_INDEX_TAG,
-        PageKind::ExtendedUsageBitmap => EXTENDED_USAGE_BITMAP_TAG,
-        PageKind::Unknown(tag) => tag,
-    }
-}
 
 /// An owned, complete Jet 3 page under construction.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -189,7 +158,7 @@ impl DataPageBuilder {
         let mut image = PageImage::new(PageKind::Data);
         image
             .write_at(
-                PageOffset::new(OWNER_OFFSET),
+                PageOffset::new(OWNER_OFFSET as u64),
                 &owner_value.to_le_bytes(),
                 budget,
             )
@@ -206,7 +175,11 @@ impl DataPageBuilder {
     pub fn new_long_value(budget: &mut ResourceBudget) -> Result<Self, PageImageError> {
         let mut image = PageImage::new(PageKind::Data);
         image
-            .write_at(PageOffset::new(OWNER_OFFSET), &LONG_VALUE_OWNER, budget)
+            .write_at(
+                PageOffset::new(OWNER_OFFSET as u64),
+                &LONG_VALUE_OWNER,
+                budget,
+            )
             .map_err(PageImageError::Encoding)?;
         Ok(Self {
             image,
@@ -257,6 +230,7 @@ impl DataPageBuilder {
         }
         let start = self.free_end - row.len();
         let entry_offset = DIRECTORY_OFFSET + ENTRY_LEN * usize::from(self.row_count);
+        // EXP-0060: directory flags above `OFFSET_MASK` are never set by this builder.
         let raw_offset = u16::try_from(start)
             .ok()
             .filter(|value| value & !OFFSET_MASK == 0)
@@ -273,7 +247,7 @@ impl DataPageBuilder {
             writer.write_exact(row)?;
             writer.seek(ByteOffset::new(entry_offset as u64))?;
             writer.write_u16_le(raw_offset)?;
-            writer.seek(ByteOffset::new(ROW_COUNT_OFFSET))?;
+            writer.seek(ByteOffset::new(ROW_COUNT_OFFSET as u64))?;
             writer.write_u16_le(self.row_count + 1)
         };
         write(&mut writer).map_err(PageImageError::Encoding)?;

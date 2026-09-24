@@ -1,14 +1,12 @@
+use crate::{
+    ByteCount, ByteOffset, Error, JET3_PAGE_SIZE, LimitKind, PAGE_BYTES, PageNumber, ReadAt,
+    ReadBudget, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits,
+};
 use std::cell::Cell;
 use std::io;
 use std::rc::Rc;
 
 use super::jet3_page::Jet3PageReader;
-use crate::{
-    ByteCount, ByteOffset, Error, JET3_PAGE_SIZE, LimitKind, PageNumber, ReadAt, ReadBudget,
-    ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits,
-};
-
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 
 #[derive(Debug, Clone, Copy)]
 enum ReadBehavior {

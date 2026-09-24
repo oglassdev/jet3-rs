@@ -3,12 +3,11 @@ use super::reader::{
     LongValueError, LongValueKind,
 };
 use crate::{
-    ByteCount, DatabaseReader, Error, JET3_PAGE_SIZE, PageNumber, ReadLimits, ResourceBudget,
-    ResourceLimitKind, ResourceLimits, RowLocator, SliceSource, TextCodePage,
+    ByteCount, DatabaseReader, Error, JET3_PAGE_SIZE, PAGE_BYTES, PageNumber, ReadLimits,
+    ResourceBudget, ResourceLimitKind, ResourceLimits, RowLocator, SliceSource, TextCodePage,
 };
 use std::error::Error as _;
 
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 const ROOT: usize = 1;
 const MAP_PAGE: usize = 2;
 const FIRST_LVAL: usize = 3;

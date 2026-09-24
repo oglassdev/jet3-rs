@@ -1,10 +1,8 @@
 use super::map_location::{MapLocationError, MapRowLocator, locate_table_maps};
 use crate::{
-    ByteCount, Error, PageGeometry, PageKind, PageNumber, ReadLimits, ResourceBudget,
+    ByteCount, Error, PAGE_BYTES, PageGeometry, PageKind, PageNumber, ReadLimits, ResourceBudget,
     ResourceLimits, classify_page,
 };
-
-const PAGE_BYTES: usize = 2048;
 
 fn budget() -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::new(ReadLimits::default()))

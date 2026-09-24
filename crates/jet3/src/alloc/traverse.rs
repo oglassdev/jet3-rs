@@ -5,7 +5,7 @@
 
 use crate::{
     ByteCount, ClassifiedPage, DatabasePageError, DatabaseReader, Error, ExtendedAllocationBits,
-    JET3_PAGE_SIZE, MapLocationError, PageGeometry, PageKind, PageNumber, ReadAt, ResourceBudget,
+    MapLocationError, PAGE_BYTES, PageGeometry, PageKind, PageNumber, ReadAt, ResourceBudget,
     UsageMapError,
     alloc::map::{
         AllocationMapError, AllocationMapLayout, EXTENDED_BITMAP_BITS, MapReferenceCursor,
@@ -16,7 +16,6 @@ use crate::{
 use std::fmt;
 use std::ops::Range;
 
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 const INLINE_VISITED_BYTES: usize = 32;
 
 /// A structured failure while locating or traversing an allocation map.

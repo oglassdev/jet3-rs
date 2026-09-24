@@ -1,6 +1,7 @@
 //! Existing EXP-0073/0087 system rows and EXP-0208 catalog properties.
 
 use super::*;
+use crate::PAGE_BYTES;
 
 pub(super) const OBJECT_LAYOUT: [RowColumnLayout; 17] = [
     fixed(ColumnPhysicalType::Long, 0, 4),

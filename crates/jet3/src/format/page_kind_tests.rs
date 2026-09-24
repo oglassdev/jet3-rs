@@ -1,10 +1,7 @@
 use super::page_kind::{PageClassificationError, PageKind, classify_page};
 use crate::{
-    Error, JET3_PAGE_SIZE, PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind,
-    ResourceLimits,
+    Error, PAGE_BYTES, PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits,
 };
-
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 

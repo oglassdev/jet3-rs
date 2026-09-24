@@ -115,13 +115,13 @@ pub use format::database_header::{
 };
 pub use format::error::{Error, LimitKind, ResourceLimitKind};
 pub use format::header::{
-    HeaderError, JET3_PAGE_SIZE, JetFileKind, jet3_page_geometry, read_jet_signature,
+    HeaderError, JET3_PAGE_SIZE, JetFileKind, PAGE_BYTES, jet3_page_geometry, read_jet_signature,
 };
 pub use format::jet3_page::Jet3PageReader;
 pub use format::limits::{ReadBudget, ReadLimits};
 pub use format::offset::{ByteCount, ByteOffset};
 pub use format::page::{PageGeometry, PageNumber, PageOffset};
-pub use format::page_image::{PAGE_BYTES, PageImageError};
+pub use format::page_image::PageImageError;
 pub use format::page_kind::{ClassifiedPage, PageClassificationError, PageKind, classify_page};
 pub use format::raw_page_stream::{RawPage, RawPageCursor};
 pub use format::resource::{ResourceBudget, ResourceLimits};

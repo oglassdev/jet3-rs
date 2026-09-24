@@ -6,16 +6,15 @@
 //! (`SRC-0013`). `EXP-0056` additionally supports the narrow, fail-closed
 //! opening discriminator implemented here, and `EXP-0299` the raw
 //! sort-order marker. No other page-zero byte is interpreted.
-
-use std::fmt;
-
 use crate::{
-    CommitRegion, Error, HeaderError, JetFileKind, PageNumber,
+    CommitRegion, Error, HeaderError, JetFileKind, PAGE_BYTES, PageNumber,
     format::{
         commit_state::commit_region_from_database_header_page,
-        header::{JET3_PAGE_BYTES, classify_database_header_signature},
+        header::classify_database_header_signature,
     },
 };
+
+use std::fmt;
 
 const VERSION_OFFSET: usize = 0x14;
 const JET3_VERSION_MARKER: u8 = 0x00;
@@ -201,7 +200,7 @@ impl std::error::Error for DatabaseFormatError {}
 /// valid database.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DatabaseHeaderPage {
-    raw: [u8; JET3_PAGE_BYTES],
+    raw: [u8; PAGE_BYTES],
     signature_kind: JetFileKind,
     commit_region: CommitRegion,
 }
@@ -212,7 +211,7 @@ impl DatabaseHeaderPage {
     /// Construction recognizes only the documented generic signature. Every
     /// other byte remains uninterpreted except for preserving the documented
     /// raw commit-region snapshot.
-    pub fn from_raw_bytes(raw: [u8; JET3_PAGE_BYTES]) -> Result<Self, HeaderError> {
+    pub fn from_raw_bytes(raw: [u8; PAGE_BYTES]) -> Result<Self, HeaderError> {
         let signature_kind = classify_database_header_signature(&raw)?;
         let commit_region = commit_region_from_database_header_page(&raw);
         Ok(Self {
@@ -224,7 +223,7 @@ impl DatabaseHeaderPage {
 
     /// Returns all page-zero bytes exactly as supplied.
     #[must_use]
-    pub const fn raw_bytes(&self) -> &[u8; JET3_PAGE_BYTES] {
+    pub const fn raw_bytes(&self) -> &[u8; PAGE_BYTES] {
         &self.raw
     }
 

@@ -1,18 +1,15 @@
 //! Physical index-definition decoding from `EXP-0059` and user null flags from `EXP-0148`.
 
-use std::mem::size_of;
-
 use crate::{
     ByteCount, Error, PageGeometry, PageNumber, ResourceBudget,
     definition::{
         column::{ColumnDefinition, ColumnOrdinal},
+        header::{KEY_SLOT_COUNT, PHYSICAL_PREFIX_LEN, PHYSICAL_RECORD_LEN},
         index::IndexDefinitionError,
     },
 };
+use std::mem::size_of;
 
-pub(crate) const PHYSICAL_PREFIX_LEN: usize = 8;
-pub(crate) const PHYSICAL_RECORD_LEN: usize = 39;
-pub(crate) const KEY_SLOT_COUNT: usize = 10;
 const KEY_SLOT_LEN: usize = 3;
 const NULL_COLUMN_ORDINAL: u16 = u16::MAX;
 pub(crate) const UNIQUE_FLAG: u8 = 0x01;

@@ -1,11 +1,10 @@
 use super::reader::{RawField, RowError};
 use crate::{
-    ByteCount, DatabaseReader, Error, JET3_PAGE_SIZE, PageNumber, ReadLimits, ResourceBudget,
-    ResourceLimitKind, ResourceLimits, SliceSource, TextCodePage, ValueKind,
+    ByteCount, DatabaseReader, Error, JET3_PAGE_SIZE, PAGE_BYTES, PageNumber, ReadLimits,
+    ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource, TextCodePage, ValueKind,
 };
 use std::error::Error as _;
 
-pub(super) const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 pub(super) const ROOT: usize = 1;
 pub(super) const MAP_PAGE: usize = 2;
 pub(super) const FIRST_DATA: usize = 3;

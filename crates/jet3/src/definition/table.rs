@@ -6,13 +6,16 @@
 //! Definitions retain sourced bytes and typed references. Callers can pass a
 //! decoded definition to [`crate::DatabaseReader::index_tree`] separately.
 
-use std::fmt;
-
+use super::header::{
+    COLUMN_COUNT, HEADER_MARKER, LOGICAL_INDEX_COUNT, PHYSICAL_INDEX_COUNT, RESERVED_COUNT,
+    ROW_COUNT, STORAGE_COLUMN_COUNT, STORAGE_VARIABLE_COUNT,
+};
 use crate::{
-    AllocationTraversalError, ByteCount, DatabasePageError, DatabaseReader, Error, JET3_PAGE_SIZE,
-    MapLocationError, PageKind, PageNumber, ReadAt, ResourceBudget, TableMapLocations,
+    AllocationTraversalError, ByteCount, DatabasePageError, DatabaseReader, Error,
+    MapLocationError, PAGE_BYTES, PageKind, PageNumber, ReadAt, ResourceBudget, TableMapLocations,
     definition::{
         column::{ColumnDefinition, ColumnPhysicalType, decode_columns},
+        header::{DEFINITION_HEADER_LEN, PHYSICAL_PREFIX_LEN, TERMINATOR_LEN},
         index::{
             DecodedIndexes, IndexDecodeContext, IndexDefinition, IndexDefinitionError,
             IndexDefinitionKind, decode_indexes,
@@ -25,12 +28,8 @@ use crate::{
     },
     locate_usage_map,
 };
+use std::fmt;
 
-pub(super) const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
-pub(super) const CONTINUATION_PAYLOAD_OFFSET: usize = 8;
-pub(super) const DEFINITION_HEADER_LEN: usize = 43;
-const PHYSICAL_PREFIX_LEN: usize = 8;
-pub(super) const TERMINATOR_LEN: usize = 2;
 const DEFINITION_PREFIX: [u8; 4] = [0x02, 0x01, 0x56, 0x43];
 /// `EXP-0059`: byte 20 of every user table definition.
 const USER_HEADER_MARKER: u8 = 0x4e;
@@ -96,10 +95,10 @@ impl TableDefinition {
     #[must_use]
     pub const fn row_count(&self) -> u32 {
         u32::from_le_bytes([
-            self.raw_header[12],
-            self.raw_header[13],
-            self.raw_header[14],
-            self.raw_header[15],
+            self.raw_header[ROW_COUNT],
+            self.raw_header[ROW_COUNT + 1],
+            self.raw_header[ROW_COUNT + 2],
+            self.raw_header[ROW_COUNT + 3],
         ])
     }
 
@@ -118,13 +117,19 @@ impl TableDefinition {
     #[must_use]
     /// Returns the high-water count of physical column identities (`EXP-0297`).
     pub const fn storage_column_count(&self) -> u16 {
-        u16::from_le_bytes([self.raw_header[21], self.raw_header[22]])
+        u16::from_le_bytes([
+            self.raw_header[STORAGE_COLUMN_COUNT],
+            self.raw_header[STORAGE_COLUMN_COUNT + 1],
+        ])
     }
 
     #[must_use]
     /// Returns the high-water count of variable storage slots (`EXP-0297`).
     pub const fn storage_variable_count(&self) -> u16 {
-        u16::from_le_bytes([self.raw_header[23], self.raw_header[24]])
+        u16::from_le_bytes([
+            self.raw_header[STORAGE_VARIABLE_COUNT],
+            self.raw_header[STORAGE_VARIABLE_COUNT + 1],
+        ])
     }
 
     #[must_use]
@@ -378,14 +383,14 @@ fn decode_definition(
     budget: &mut ResourceBudget,
 ) -> Result<TableDefinition, TableDefinitionError> {
     let raw_header = array_at::<DEFINITION_HEADER_LEN>(bytes, 0)?;
-    let kind = match raw_header[20] {
+    let kind = match raw_header[HEADER_MARKER] {
         USER_HEADER_MARKER => TableDefinitionKind::User,
         SYSTEM_HEADER_MARKER => TableDefinitionKind::System,
         raw => return Err(TableDefinitionError::InvalidHeaderMarker { raw }),
     };
-    let storage_count = u16_at(bytes, 21);
-    let variable_count = u16_at(bytes, 23);
-    let column_count = u16_at(bytes, 25);
+    let storage_count = u16_at(bytes, STORAGE_COLUMN_COUNT);
+    let variable_count = u16_at(bytes, STORAGE_VARIABLE_COUNT);
+    let column_count = u16_at(bytes, COLUMN_COUNT);
     if column_count > storage_count || storage_count > u16::from(u8::MAX) {
         return Err(TableDefinitionError::InconsistentColumnCount {
             first: storage_count,
@@ -398,14 +403,14 @@ fn decode_definition(
             decoded: storage_count,
         });
     }
-    let logical_count = u16_at(bytes, 27);
-    let reserved_count = u16_at(bytes, 29);
+    let logical_count = u16_at(bytes, LOGICAL_INDEX_COUNT);
+    let reserved_count = u16_at(bytes, RESERVED_COUNT);
     if reserved_count != 0 {
         return Err(TableDefinitionError::UnsupportedReservedCount {
             raw: reserved_count,
         });
     }
-    let physical_count = u16_at(bytes, 31);
+    let physical_count = u16_at(bytes, PHYSICAL_INDEX_COUNT);
     let prefix_offset = DEFINITION_HEADER_LEN;
     let prefix_bytes = usize::from(physical_count)
         .checked_mul(PHYSICAL_PREFIX_LEN)

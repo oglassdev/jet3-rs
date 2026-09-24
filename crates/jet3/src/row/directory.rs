@@ -1,14 +1,11 @@
 //! Validated Jet 3 data-page row directories from `EXP-0060`.
 
+use crate::{
+    Error, PAGE_BYTES, PageNumber, ResourceBudget,
+    format::data_page_directory::{DataPageDirectory, DataPageDirectoryError, MAX_ROW_COUNT},
+};
 use std::fmt;
 use std::ops::Range;
-
-use crate::{
-    Error, PageNumber, ResourceBudget,
-    format::data_page_directory::{
-        DataPageDirectory, DataPageDirectoryError, MAX_ROW_COUNT, PAGE_BYTES,
-    },
-};
 
 const OVERFLOW_POINTER_LEN: usize = 4;
 

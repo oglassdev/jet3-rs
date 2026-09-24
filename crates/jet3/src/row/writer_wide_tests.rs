@@ -1,7 +1,7 @@
 use super::writer_tests::*;
 use crate::{
     ColumnOrdinal, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnType, DatabaseReader,
-    PageNumber, ResourceBudget, ResourceLimits, SliceSource, TableDefinitionKind,
+    PAGE_BYTES, PageNumber, ResourceBudget, ResourceLimits, SliceSource, TableDefinitionKind,
     definition::column_writer::nz,
     row::writer::{RowColumnLayout, RowValue, RowWriteError, encode_row},
 };

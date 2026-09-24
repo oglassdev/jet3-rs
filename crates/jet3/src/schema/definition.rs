@@ -2,6 +2,7 @@
 use crate::{
     DatabaseReader, FileSource, PAGE_BYTES, PageImage, PageNumber, PageOffset, ResourceBudget,
     TableDefinition, UpdateError,
+    definition::header::{LOGICAL_INDEX_COUNT, PHYSICAL_INDEX_COUNT},
     write::page_edits::{PageEdits, reserve},
 };
 
@@ -11,7 +12,7 @@ pub(crate) struct NamedRecord<'a, const N: usize> {
 }
 
 pub(crate) struct DefinitionEdit<'a> {
-    pub header: [u8; 43],
+    pub header: [u8; crate::definition::header::DEFINITION_HEADER_LEN],
     pub columns: Vec<NamedRecord<'a, 18>>,
     pub physical: Vec<([u8; 8], [u8; 39])>,
     pub indexes: Vec<NamedRecord<'a, 20>>,
@@ -60,8 +61,10 @@ impl<'a> DefinitionEdit<'a> {
             .map_err(|_| UpdateError::Unsupported("logical index count"))?;
         let physical = u16::try_from(self.physical.len())
             .map_err(|_| UpdateError::Unsupported("physical index count"))?;
-        self.header[27..29].copy_from_slice(&logical.to_le_bytes());
-        self.header[31..33].copy_from_slice(&physical.to_le_bytes());
+        self.header[LOGICAL_INDEX_COUNT..LOGICAL_INDEX_COUNT + 2]
+            .copy_from_slice(&logical.to_le_bytes());
+        self.header[PHYSICAL_INDEX_COUNT..PHYSICAL_INDEX_COUNT + 2]
+            .copy_from_slice(&physical.to_le_bytes());
         let mut bytes = Vec::new();
         append(&mut bytes, &self.header, budget)?;
         for (prefix, _) in &self.physical {

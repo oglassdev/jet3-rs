@@ -3,21 +3,15 @@
 //! EXP-0118 and EXP-0122 accepted three exact constructions, including the
 //! two renamed one/two-parent-index cases. EXP-0087 supplies name-key weights;
 //! no general name grammar or integrity-enforcement behavior is established.
-
-#![allow(dead_code, reason = "retained deterministic relationship fixtures")]
+use crate::{IndexColumnSpec, IndexKind, IndexSpec, PAGE_BYTES, RelationshipSpec};
 
 use super::{relationship_plan::RelationshipPlan, *};
-use crate::{IndexColumnSpec, IndexKind, IndexSpec, RelationshipField, RelationshipSpec, TableRef};
+#[cfg(test)]
+use crate::{RelationshipField, TableRef};
 
 // EXP-0114 base and first checkpoints.
-const PARENT_ROOT: u64 = 20;
-const PARENT_MAP: u64 = 21;
-const PARENT_ID_ROOT: u64 = 23;
-const PARENT_ALTERNATE_ROOT: u64 = 24;
-const CHILD_ROOT: u64 = 25;
-const CHILD_MAP: u64 = 26;
+#[cfg(test)]
 pub(super) const RELATION_DATA: u64 = 27;
-const CHILD_INDEX_ROOT: u64 = 28;
 const RELATION_ID: i32 = i32::MIN;
 const PAGE0_TRANSITION_OFFSET: u64 = 1538;
 const PAGE0_TRANSITION_BYTE: u8 = 2;
@@ -73,6 +67,7 @@ const RELATION_ACES: [AceSeed; 2] = [
     ace(RELATION_ID, b"\x02\x01", 1048575, false),
 ];
 
+#[cfg(test)]
 pub(super) fn compose_parent_child(
     budget: &mut ResourceBudget,
 ) -> Result<WholeFileImagePlan, ComposeError> {

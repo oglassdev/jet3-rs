@@ -4,11 +4,8 @@
 //! Key bytes that are not in the observed single-field inventory remain
 //! available as [`IndexKeyEncoding::Unsupported`].
 
-use std::fmt;
-use std::mem::size_of;
-
 use crate::{
-    ByteCount, ColumnPhysicalType, DatabasePageError, DatabaseReader, Error, JET3_PAGE_SIZE,
+    ByteCount, ColumnPhysicalType, DatabasePageError, DatabaseReader, Error, PAGE_BYTES,
     PageGeometry, PageKind, PageNumber, ReadAt, ResourceBudget, RowDirectoryError, RowLocator,
     TableDefinition, VisitedPages,
     index::tree::{
@@ -16,8 +13,9 @@ use crate::{
         rows::RowReferenceValidator,
     },
 };
+use std::fmt;
+use std::mem::size_of;
 
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 const LEAF_TRAILER_LEN: usize = 4;
 const BRANCH_CHILD_LEN: usize = 4;
 

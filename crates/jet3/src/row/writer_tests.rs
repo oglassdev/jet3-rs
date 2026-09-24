@@ -1,13 +1,12 @@
 use super::writer::{RowColumnLayout, RowValue, RowWriteError, encode_row};
 use crate::{
     ByteCount, ColumnOrdinal, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnType,
-    DatabaseReader, Error, JET3_PAGE_SIZE, LongValueMapSpec, MapRowLocator, PageNumber, ReadLimits,
-    ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource, TableDefinitionKind,
-    TableDefinitionSpec, TextCodePage, ValueKind, definition::column_writer::nz,
-    encode_table_definition,
+    DatabaseReader, Error, JET3_PAGE_SIZE, LongValueMapSpec, MapRowLocator, PAGE_BYTES, PageNumber,
+    ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
+    TableDefinitionKind, TableDefinitionSpec, TextCodePage, ValueKind,
+    definition::column_writer::nz, encode_table_definition,
 };
 
-pub(super) const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 pub(super) const ROOT: usize = 1;
 const MAP_PAGE: usize = 2;
 const DATA_PAGE: usize = 3;

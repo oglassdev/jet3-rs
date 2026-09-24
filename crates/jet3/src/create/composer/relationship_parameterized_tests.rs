@@ -1,8 +1,8 @@
 use super::relationship_candidate::*;
 use crate::{
-    ColumnRef, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec, RelationshipField,
-    RelationshipSpec, ResourceLimits, SliceSource, TableRef, create::composer::*,
-    definition::column_writer::nz,
+    ColumnRef, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec, PAGE_BYTES,
+    RelationshipField, RelationshipSpec, ResourceLimits, SliceSource, TableRef,
+    create::composer::*, definition::column_writer::nz,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;

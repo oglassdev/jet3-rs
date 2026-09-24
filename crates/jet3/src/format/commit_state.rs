@@ -11,8 +11,7 @@
 //! documented by `SRC-0013`; neither those names nor any other bytes establish
 //! database validity, corruption, clean shutdown, Jet generation, user
 //! ownership, or compatibility.
-
-use crate::{ByteCount, ByteOffset, Error, ReadAt, ReadBudget, format::header::JET3_PAGE_BYTES};
+use crate::{ByteCount, ByteOffset, Error, PAGE_BYTES, ReadAt, ReadBudget};
 
 /// Absolute offset of the documented commit region in the first database page.
 pub const COMMIT_REGION_OFFSET: ByteOffset = ByteOffset::new(0x600);
@@ -191,9 +190,7 @@ impl CommitRegion {
     }
 }
 
-pub(crate) fn commit_region_from_database_header_page(
-    page: &[u8; JET3_PAGE_BYTES],
-) -> CommitRegion {
+pub(crate) fn commit_region_from_database_header_page(page: &[u8; PAGE_BYTES]) -> CommitRegion {
     let start = COMMIT_REGION_OFFSET.get() as usize;
     let end = start + COMMIT_REGION_BYTES;
     let mut raw = [0_u8; COMMIT_REGION_BYTES];

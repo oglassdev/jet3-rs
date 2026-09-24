@@ -5,17 +5,16 @@
 //! observations, `EXP-0073` supplies the system-table relaxations, and
 //! `EXP-0297` supplies stable storage identities after schema edits.
 
-use std::mem::size_of;
-
 use crate::{
     ByteCount, Error, ResourceBudget,
     definition::{
+        header::COLUMN_RECORD_LEN,
         name::{DefinitionName, contains_name},
         table::{TableDefinitionError, TableDefinitionKind},
     },
 };
+use std::mem::size_of;
 
-pub(crate) const COLUMN_RECORD_LEN: usize = 18;
 /// `EXP-0059` user classes; `EXP-0073` system classes carry the same low
 /// three bits (the pinned `system_catalog.py` analyzer's storage mask) under
 /// retained high bits.

@@ -1,10 +1,9 @@
 use super::raw_page_stream::RawPageCursor;
 use crate::{
-    ByteCount, Error, JET3_PAGE_SIZE, Jet3PageReader, LimitKind, PageNumber, ReadLimits,
-    ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource, read_jet_signature,
+    ByteCount, Error, JET3_PAGE_SIZE, Jet3PageReader, LimitKind, PAGE_BYTES, PageNumber,
+    ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource, read_jet_signature,
 };
 
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 const SIGNATURE_BYTES: u64 = 15;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;

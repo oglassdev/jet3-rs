@@ -2,15 +2,12 @@
 //!
 //! Catalog data pages compose the common Jet 3 row-directory grammar from
 //! `SRC-0020` through the shared bounded directory decoder.
+use crate::{
+    ByteCount, Error, PAGE_BYTES, PageNumber, ResourceBudget,
+    format::data_page_directory::{DataPageDirectory, DataPageDirectoryError, DataPageEntry},
+};
 
 use std::fmt;
-
-use crate::{
-    ByteCount, Error, PageNumber, ResourceBudget,
-    format::data_page_directory::{
-        DataPageDirectory, DataPageDirectoryError, DataPageEntry, PAGE_BYTES,
-    },
-};
 
 // EXP-0058: minimum catalog record fields and reverse trailer entries.
 pub(super) const CATALOG_COLUMN_COUNT: u8 = 17;

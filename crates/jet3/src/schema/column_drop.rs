@@ -1,5 +1,7 @@
 //! EXP-0297 drops live column metadata while retaining old row storage IDs and bytes.
-use crate::{ResourceBudget, UpdateError, write::page_edits::PageEdits};
+use crate::{
+    ResourceBudget, UpdateError, definition::header::COLUMN_COUNT, write::page_edits::PageEdits,
+};
 use std::fs::File;
 
 pub(crate) fn drop_column(
@@ -53,7 +55,8 @@ pub(crate) fn drop_column(
             let properties = crate::schema::properties::remove(&properties, name, budget)?;
             let mut edited = crate::schema::definition::DefinitionEdit::new(&table, budget)?;
             edited.columns.remove(usize::from(column.ordinal().get()));
-            edited.header[25..27].copy_from_slice(&(edited.columns.len() as u16).to_le_bytes());
+            edited.header[COLUMN_COUNT..COLUMN_COUNT + 2]
+                .copy_from_slice(&(edited.columns.len() as u16).to_le_bytes());
             let mut edits = PageEdits::new(database.geometry().page_count());
             let retired = table
                 .long_value_maps()

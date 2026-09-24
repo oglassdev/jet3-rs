@@ -5,21 +5,16 @@
 //! This module decodes references and metadata only. Index-tree traversal is
 //! provided separately by [`crate::index::tree::reader`].
 
-use std::fmt;
-use std::mem::size_of;
-
 use crate::{
     ByteCount, Error, PageGeometry, PageNumber, ResourceBudget,
     definition::{
+        header::{KEY_SLOT_COUNT, LOGICAL_RECORD_LEN, PHYSICAL_PREFIX_LEN, PHYSICAL_RECORD_LEN},
         name::{DefinitionName, contains_name},
-        physical_index::{
-            KEY_SLOT_COUNT, PHYSICAL_PREFIX_LEN, PHYSICAL_RECORD_LEN, PhysicalIndexDefinition,
-            decode_physical,
-        },
+        physical_index::{PhysicalIndexDefinition, decode_physical},
     },
 };
-
-const LOGICAL_RECORD_LEN: usize = 20;
+use std::fmt;
+use std::mem::size_of;
 
 /// Which table side supplied an observed relationship index record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

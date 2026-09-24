@@ -6,21 +6,19 @@
 //! not contain admissible root map locators. This layer does not traverse
 //! indexes or table rows.
 
-use std::fmt;
-use std::mem::size_of;
-
 use crate::{
     AllocationMapError, AllocationTraversalError, ByteCount, CatalogObjectClass, CatalogObjectId,
     CatalogObjectKind, CatalogRecord, CatalogRecordError, DatabasePageError, DatabaseReader, Error,
-    JET3_PAGE_SIZE, MapLocationError, OwnedPages, PageKind, PageNumber, ReadAt, ResourceBudget,
+    MapLocationError, OwnedPages, PAGE_BYTES, PageKind, PageNumber, ReadAt, ResourceBudget,
     UsageMapError, VisitedPages,
     catalog::{
         overflow::CatalogOverflow,
         record::{CatalogPageDirectory, CatalogRecordView, decode_catalog_record},
     },
 };
+use std::fmt;
+use std::mem::size_of;
 
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 const CATALOG_SELF_NAME: &[u8] = b"MSysObjects";
 
 /// A structured failure while discovering or streaming the catalog.

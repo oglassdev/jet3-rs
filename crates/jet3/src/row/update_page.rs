@@ -1,12 +1,10 @@
 //! Same-page row replacement from EXP-0060/0061 encoding and EXP-0162 movement.
 use crate::{
     PAGE_BYTES, PageImage, PageNumber, PageOffset, ResourceBudget, UpdateError,
+    definition::header::ROW_COUNT as TABLE_ROW_COUNT,
+    format::data_page_directory::{DIRECTORY_OFFSET, ENTRY_LEN, FREE_SPACE_OFFSET},
     row::{directory::RowDirectory, slot::RowSlot},
 };
-const FREE_BYTES: usize = 2;
-const DIRECTORY: usize = 10;
-const ENTRY_BYTES: usize = 2;
-const TABLE_COUNT: usize = 12;
 
 pub(crate) fn replace(
     page: PageNumber,
@@ -69,10 +67,10 @@ fn replace_inner(
     }
     let old = target.range();
     let lowest = directory.entry(source, (count - 1) as u8)?.range().start;
-    let directory_end = DIRECTORY + ENTRY_BYTES * usize::from(count);
+    let directory_end = DIRECTORY_OFFSET + ENTRY_LEN * usize::from(count);
     let free = usize::from(u16::from_le_bytes([
-        source[FREE_BYTES],
-        source[FREE_BYTES + 1],
+        source[FREE_SPACE_OFFSET],
+        source[FREE_SPACE_OFFSET + 1],
     ]));
     if free != lowest - directory_end {
         return Err(UpdateError::Mismatch("replacement free-byte count"));
@@ -118,7 +116,7 @@ fn replace_inner(
             .map_err(|_| UpdateError::Mismatch("replacement slot width"))?
             | flags;
         image.write_at(
-            PageOffset::new((DIRECTORY + ENTRY_BYTES * usize::from(ordinal)) as u64),
+            PageOffset::new((DIRECTORY_OFFSET + ENTRY_LEN * usize::from(ordinal)) as u64),
             &word.to_le_bytes(),
             budget,
         )?;
@@ -126,7 +124,7 @@ fn replace_inner(
     let free = u16::try_from(new_free)
         .map_err(|_| UpdateError::Mismatch("replacement free-byte width"))?;
     image.write_at(
-        PageOffset::new(FREE_BYTES as u64),
+        PageOffset::new(FREE_SPACE_OFFSET as u64),
         &free.to_le_bytes(),
         budget,
     )?;
@@ -139,7 +137,7 @@ pub(crate) fn check_count(
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
     budget.charge_work_units(4)?;
-    if source[TABLE_COUNT..TABLE_COUNT + 4] != observed.to_le_bytes() {
+    if source[TABLE_ROW_COUNT..TABLE_ROW_COUNT + 4] != observed.to_le_bytes() {
         return Err(UpdateError::Mismatch("table row count"));
     }
     Ok(())

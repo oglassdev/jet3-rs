@@ -2,15 +2,15 @@
 //! column maps and EXP-0065 append placement. The inline cutoff (32 bytes),
 //! one fragment per page, and allocation before data pages are candidate
 //! policies, not inferred DAO allocation thresholds.
-
-use super::*;
 use crate::{
-    ExternalLongValueStorage, RowLocator,
+    ExternalLongValueStorage, PAGE_BYTES, RowLocator,
     long_value::writer::{
         HEADER_LEN, MAX_CHAINED_FRAGMENT, MAX_SINGLE_PAGE_PAYLOAD, chained_fragments,
         encode_chained_row, encode_inline_long_value, external_long_value_header,
     },
 };
+
+use super::*;
 
 const INLINE_LIMIT: usize = 32;
 

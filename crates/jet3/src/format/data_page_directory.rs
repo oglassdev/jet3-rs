@@ -3,21 +3,24 @@
 //! `EXP-0060` and `EXP-0061` establish the row and long-value constraints
 //! composed here.
 
+use crate::{Error, PAGE_BYTES, ResourceBudget};
 use std::ops::Range;
 
-use crate::{Error, JET3_PAGE_SIZE, ResourceBudget};
-
-pub(crate) const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 pub(crate) const LONG_VALUE_OWNER: [u8; 4] = *b"LVAL";
 
-const OWNER_OFFSET: usize = 4;
-const ROW_COUNT_OFFSET: usize = 8;
-const DIRECTORY_OFFSET: usize = 10;
-const ENTRY_LEN: usize = 2;
+/// `EXP-0162`: little-endian u16 free-space count at [2,4).
+pub(crate) const FREE_SPACE_OFFSET: usize = 2;
+/// `EXP-0060`: a data page stores its table-definition root as u32 at [4,8).
+pub(crate) const OWNER_OFFSET: usize = 4;
+/// `SRC-0020`: little-endian u16 row count at [8,10), two-byte entries from 10.
+pub(crate) const ROW_COUNT_OFFSET: usize = 8;
+pub(crate) const DIRECTORY_OFFSET: usize = 10;
+pub(crate) const ENTRY_LEN: usize = 2;
 /// `EXP-0060`: maximum bytes available to one row after the page header and
 /// its required directory entry.
 pub(crate) const MAX_STORED_ROW_LEN: usize = PAGE_BYTES - DIRECTORY_OFFSET - ENTRY_LEN;
-const OFFSET_MASK: u16 = 0x1fff;
+/// `EXP-0060`: the low 13 bits of a directory entry select the row start.
+pub(crate) const OFFSET_MASK: u16 = 0x1fff;
 const UNKNOWN_FLAG: u16 = 0x2000;
 const OVERFLOW_FLAG: u16 = 0x4000;
 const HIDDEN_FLAG: u16 = 0x8000;

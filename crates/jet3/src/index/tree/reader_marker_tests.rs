@@ -1,6 +1,6 @@
 use super::reader_tests::*;
 use crate::{
-    Error, ResourceLimitKind,
+    Error, PAGE_BYTES, ResourceLimitKind,
     index::tree::reader::{IndexNodeKind, IndexTreeError},
 };
 

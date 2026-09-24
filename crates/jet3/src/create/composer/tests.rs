@@ -1,5 +1,5 @@
 use super::{ComposeError, compose_alpha_database, compose_empty_database};
-use crate::format::page_image::page_tag;
+use crate::format::page_kind::page_tag;
 use crate::{
     ByteCount, CatalogObjectClass, ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader,
     JET3_PAGE_SIZE, MapRowLocator, PageKind, PageNumber, ReadLimits, ResourceBudget,

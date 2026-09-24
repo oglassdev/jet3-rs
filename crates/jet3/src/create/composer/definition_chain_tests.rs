@@ -1,6 +1,6 @@
 use super::table_create::*;
 use crate::{
-    ColumnOrdinal, ResourceLimits, SliceSource, TableRows, TextCodePage, ValueKind,
+    ColumnOrdinal, PAGE_BYTES, ResourceLimits, SliceSource, TableRows, TextCodePage, ValueKind,
     create::{
         composer::*,
         schema_plan::{TableSpec, plan_table_schema},

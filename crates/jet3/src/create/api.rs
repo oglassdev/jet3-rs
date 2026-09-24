@@ -11,13 +11,6 @@
 //! evidence. DAO observations in `docs/PROVENANCE.md` cover exact candidates;
 //! they do not establish arbitrary schemas, values, or general compatibility.
 //! Local and hosted differential results govern the support matrix.
-
-use std::error::Error as StdError;
-use std::fmt;
-use std::fs::File;
-use std::io::{self, Write};
-use std::path::Path;
-
 use crate::{
     CatalogError, CatalogObjectClass, ColumnStorageClass, ColumnStorageKind, ColumnType,
     DatabaseOpenError, DatabaseReader, IndexDefinitionKind, PageNumber, PublishError,
@@ -32,6 +25,12 @@ use crate::{
     },
     write::atomic::atomic_create,
 };
+
+use std::error::Error as StdError;
+use std::fmt;
+use std::fs::File;
+use std::io::{self, Write};
+use std::path::Path;
 
 /// A table schema and its initial rows, in caller-specified order.
 #[derive(Debug, Clone, Copy)]

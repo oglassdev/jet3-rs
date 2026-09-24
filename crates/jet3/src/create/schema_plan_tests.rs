@@ -8,7 +8,7 @@ use crate::{
     LogicalIndexKindSpec, PageNumber, PhysicalIndexFlagsSpec, TableDefinitionWriteError,
     catalog::name_key::CatalogNameKeyError,
     create::TableSpec,
-    definition::{column_writer::nz, physical_index::KEY_SLOT_COUNT},
+    definition::{column_writer::nz, header::KEY_SLOT_COUNT},
 };
 
 type PlanResult = Result<(), TableSchemaPlanError>;

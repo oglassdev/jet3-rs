@@ -15,16 +15,12 @@
 //! nothing here chooses a storage class: the caller does, and this module
 //! refuses a payload its chosen class cannot hold.
 
-#![allow(
-    dead_code,
-    reason = "crate-private writer slice awaiting DAO validation"
-)]
-
 use std::fmt;
 
+#[cfg(test)]
+use crate::PageNumber;
 use crate::{
-    ExternalLongValueStorage, PageNumber, RowLocator,
-    format::data_page_directory::MAX_STORED_ROW_LEN,
+    ExternalLongValueStorage, RowLocator, format::data_page_directory::MAX_STORED_ROW_LEN,
 };
 
 /// Length of every long-value header.
@@ -139,6 +135,7 @@ pub(crate) fn external_long_value_header(
     Ok(header)
 }
 
+#[cfg(test)]
 /// Checks that `payload` can be one single-page `LVAL` row, which is exactly
 /// the payload bytes.
 pub(crate) fn validate_single_page_row(payload: &[u8]) -> Result<(), LongValueWriteError> {
@@ -218,6 +215,7 @@ fn encode_locator(locator: RowLocator) -> Result<[u8; CHAIN_POINTER_LEN], LongVa
     Ok([locator.slot(), low, mid, high])
 }
 
+#[cfg(test)]
 /// Returns the null-locator sentinel the reader treats as end of chain.
 pub(crate) const fn null_locator() -> RowLocator {
     RowLocator::new(PageNumber::new(0), 0)

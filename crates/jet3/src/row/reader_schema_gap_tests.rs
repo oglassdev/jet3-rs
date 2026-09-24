@@ -1,9 +1,9 @@
 //! Focused synthetic shapes of the native schema edits recorded by EXP-0297.
 use super::reader_tests::*;
 use crate::{
-    ColumnStorageClass, DatabaseReader, Error, PageNumber, ResourceBudget, RowColumnLayout,
-    RowValue, SliceSource, TableDefinition, TableDefinitionError, TextCodePage, ValueKind,
-    row::reader::RawField,
+    ColumnStorageClass, DatabaseReader, Error, PAGE_BYTES, PageNumber, ResourceBudget,
+    RowColumnLayout, RowValue, SliceSource, TableDefinition, TableDefinitionError, TextCodePage,
+    ValueKind, row::reader::RawField,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;

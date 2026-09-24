@@ -1,13 +1,11 @@
 //! Slot-preserving compaction and tombstones from EXP-0162 (EXP-0059/0060 layout).
 use crate::{
     PAGE_BYTES, PageImage, PageNumber, PageOffset, ResourceBudget, UpdateError,
+    definition::header::ROW_COUNT as TABLE_ROW_COUNT,
+    format::data_page_directory::{DIRECTORY_OFFSET, ENTRY_LEN, FREE_SPACE_OFFSET},
     row::{directory::RowDirectory, slot::RowSlot},
 };
-const FREE_BYTES: usize = 2;
-const DIRECTORY: usize = 10;
-const ENTRY_BYTES: usize = 2;
 const TOMBSTONE: u16 = 0xc000;
-const TABLE_COUNT: usize = 12;
 // EXP-0162/0224 last-row deletion changes tag, free bytes and directory words.
 const RELEASED_PAGE_TAG: u8 = 0x09;
 
@@ -82,10 +80,10 @@ fn remove_inner(
         .entry(source, (directory.row_count() - 1) as u8)?
         .range()
         .start;
-    let directory_end = DIRECTORY + ENTRY_BYTES * usize::from(directory.row_count());
+    let directory_end = DIRECTORY_OFFSET + ENTRY_LEN * usize::from(directory.row_count());
     let free = usize::from(u16::from_le_bytes([
-        source[FREE_BYTES],
-        source[FREE_BYTES + 1],
+        source[FREE_SPACE_OFFSET],
+        source[FREE_SPACE_OFFSET + 1],
     ]));
     if free != lowest - directory_end {
         return Err(UpdateError::Mismatch("data page free-byte count"));
@@ -98,13 +96,13 @@ fn remove_inner(
         patched.write_at(PageOffset::new(0), &[RELEASED_PAGE_TAG], budget)?;
         for ordinal in 0..directory.row_count() {
             patched.write_at(
-                PageOffset::new((DIRECTORY + ENTRY_BYTES * usize::from(ordinal)) as u64),
+                PageOffset::new((DIRECTORY_OFFSET + ENTRY_LEN * usize::from(ordinal)) as u64),
                 &(TOMBSTONE | PAGE_BYTES as u16).to_le_bytes(),
                 budget,
             )?;
         }
         patched.write_at(
-            PageOffset::new(FREE_BYTES as u64),
+            PageOffset::new(FREE_SPACE_OFFSET as u64),
             &new_free.to_le_bytes(),
             budget,
         )?;
@@ -137,13 +135,13 @@ fn remove_inner(
         let word =
             u16::try_from(start).map_err(|_| UpdateError::Mismatch("tombstone offset"))? | flags;
         patched.write_at(
-            PageOffset::new((DIRECTORY + ENTRY_BYTES * usize::from(ordinal)) as u64),
+            PageOffset::new((DIRECTORY_OFFSET + ENTRY_LEN * usize::from(ordinal)) as u64),
             &word.to_le_bytes(),
             budget,
         )?;
     }
     patched.write_at(
-        PageOffset::new(FREE_BYTES as u64),
+        PageOffset::new(FREE_SPACE_OFFSET as u64),
         &new_free.to_le_bytes(),
         budget,
     )?;
@@ -156,7 +154,7 @@ pub(crate) fn decrement_count(
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, UpdateError> {
     let expected = observed_rows.to_le_bytes();
-    if source[TABLE_COUNT..TABLE_COUNT + 4] != expected {
+    if source[TABLE_ROW_COUNT..TABLE_ROW_COUNT + 4] != expected {
         return Err(UpdateError::Mismatch("table row count"));
     }
     let count = observed_rows
@@ -164,7 +162,7 @@ pub(crate) fn decrement_count(
         .ok_or(UpdateError::Mismatch("empty table"))?;
     let mut patched = PageImage::from_bytes(*source);
     patched.write_at(
-        PageOffset::new(TABLE_COUNT as u64),
+        PageOffset::new(TABLE_ROW_COUNT as u64),
         &count.to_le_bytes(),
         budget,
     )?;

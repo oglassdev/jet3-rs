@@ -1,19 +1,16 @@
 //! Bounded row-anchored allocation-map views from `SRC-0020` and `EXP-0057`.
 //! `EXP-0297` permits unrelated empty deleted map slots after schema edits.
 
+use crate::format::data_page_directory::{
+    DIRECTORY_OFFSET, ENTRY_LEN, MAX_ROW_COUNT, OFFSET_MASK, ROW_COUNT_OFFSET,
+};
+use crate::{
+    ClassifiedPage, Error, MapRowLocator, PAGE_BYTES, PageKind, PageNumber, ResourceBudget,
+};
 use std::fmt;
 use std::ops::Range;
 
-use crate::{ClassifiedPage, Error, MapRowLocator, PageKind, PageNumber, ResourceBudget};
-
-// SRC-0020: Jet 3 data-page row directory fields.
-const ROW_COUNT_OFFSET: usize = 8;
-const ROW_DIRECTORY_OFFSET: usize = 10;
-const ROW_ENTRY_LEN: usize = 2;
-const PAGE_BYTES: usize = 2048;
-const MAX_ROW_COUNT: usize = (PAGE_BYTES - ROW_DIRECTORY_OFFSET) / ROW_ENTRY_LEN;
 const MAX_UNFLAGGED_ROW_OFFSET: u16 = 2047;
-const ROW_OFFSET_MASK: u16 = 0x1fff;
 /// EXP-0297: deleted map slots carry both flags and have empty bounds.
 const DELETED_MAP_FLAGS: u16 = 0xc000;
 
@@ -192,14 +189,14 @@ pub fn locate_usage_map<'page>(
     budget
         .charge_items(u64::from(row_count))
         .map_err(UsageMapError::Resource)?;
-    let directory_end = ROW_DIRECTORY_OFFSET + ROW_ENTRY_LEN * usize::from(row_count);
+    let directory_end = DIRECTORY_OFFSET + ENTRY_LEN * usize::from(row_count);
     let mut prior_start = PAGE_BYTES;
     let mut selected = None;
     for row in 0..row_count {
-        let offset = ROW_DIRECTORY_OFFSET + ROW_ENTRY_LEN * usize::from(row);
+        let offset = DIRECTORY_OFFSET + ENTRY_LEN * usize::from(row);
         let raw_offset = u16::from_le_bytes([raw[offset], raw[offset + 1]]);
-        let deleted = raw_offset & !ROW_OFFSET_MASK == DELETED_MAP_FLAGS;
-        let start = usize::from(raw_offset & ROW_OFFSET_MASK);
+        let deleted = raw_offset & !OFFSET_MASK == DELETED_MAP_FLAGS;
+        let start = usize::from(raw_offset & OFFSET_MASK);
         if raw_offset > MAX_UNFLAGGED_ROW_OFFSET
             && (!deleted || row == u16::from(locator.row()) || start > PAGE_BYTES)
         {

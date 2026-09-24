@@ -1,26 +1,22 @@
 //! Bounded inline and external long-value streaming from `EXP-0061`.
 
-use std::fmt;
-use std::mem::size_of;
-use std::ops::Range;
-
+use crate::format::data_page_directory::{DIRECTORY_OFFSET, ENTRY_LEN, OFFSET_MASK};
 use crate::{
-    AllocationTraversalError, ByteCount, Error, JET3_PAGE_SIZE, OwnedPages, PageKind, PageNumber,
+    AllocationTraversalError, ByteCount, Error, OwnedPages, PAGE_BYTES, PageKind, PageNumber,
     ReadAt, ResourceBudget, RowCursor, RowLocator,
     format::{
         data_page_directory::LONG_VALUE_OWNER,
         text::{DecodedText, TextCodePage, TextError, decode_text, decoded_text_length},
     },
 };
+use std::fmt;
+use std::mem::size_of;
+use std::ops::Range;
 
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 const HEADER_LEN: usize = 12;
 const LENGTH_MASK: u32 = 0x00ff_ffff;
 const INLINE_FLAG: u32 = 0x8000_0000;
 const SINGLE_PAGE_FLAG: u32 = 0x4000_0000;
-const DIRECTORY_OFFSET: usize = 10;
-const ENTRY_LEN: usize = 2;
-const OFFSET_MASK: u16 = 0x1fff;
 
 /// The semantic kind of a Jet long value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

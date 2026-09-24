@@ -5,11 +5,8 @@
 //! assigned meaning. Unknown and contextually invalid tags remain successful,
 //! lossless classifications rather than malformed-input errors.
 
+use crate::{Error, PAGE_BYTES, PageNumber, ResourceBudget};
 use std::fmt;
-
-use crate::{Error, JET3_PAGE_SIZE, PageNumber, ResourceBudget};
-
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 
 // Byte-zero page tags documented by SRC-0020.
 const DATABASE_DEFINITION_TAG: u8 = 0x00;
@@ -18,6 +15,20 @@ const TABLE_DEFINITION_TAG: u8 = 0x02;
 const INTERMEDIATE_INDEX_TAG: u8 = 0x03;
 const LEAF_INDEX_TAG: u8 = 0x04;
 const EXTENDED_USAGE_BITMAP_TAG: u8 = 0x05;
+
+/// Returns the `SRC-0020` byte-zero tag for a page classification.
+#[must_use]
+pub const fn page_tag(kind: PageKind) -> u8 {
+    match kind {
+        PageKind::DatabaseDefinition => DATABASE_DEFINITION_TAG,
+        PageKind::Data => DATA_TAG,
+        PageKind::TableDefinition => TABLE_DEFINITION_TAG,
+        PageKind::IntermediateIndex => INTERMEDIATE_INDEX_TAG,
+        PageKind::LeafIndex => LEAF_INDEX_TAG,
+        PageKind::ExtendedUsageBitmap => EXTENDED_USAGE_BITMAP_TAG,
+        PageKind::Unknown(tag) => tag,
+    }
+}
 
 /// Experimental byte-zero classification of one complete Jet 3 page.
 ///

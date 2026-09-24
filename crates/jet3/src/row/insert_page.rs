@@ -1,15 +1,13 @@
 //! EXP-0162 appends within the EXP-0305 slot limit and EXP-0060 directory layout.
 use crate::{
     PAGE_BYTES, PageImage, PageNumber, PageOffset, ResourceBudget, UpdateError,
-    format::page_image::MAX_BUILT_ROWS,
+    definition::header::ROW_COUNT as TABLE_ROW_COUNT,
+    format::{
+        data_page_directory::{DIRECTORY_OFFSET, ENTRY_LEN, FREE_SPACE_OFFSET, ROW_COUNT_OFFSET},
+        page_image::MAX_BUILT_ROWS,
+    },
     row::{directory::RowDirectory, slot::RowSlot},
 };
-
-const FREE_BYTES: usize = 2;
-const SLOT_COUNT: usize = 8;
-const DIRECTORY: usize = 10;
-const ENTRY_BYTES: usize = 2;
-const TABLE_COUNT: usize = 12;
 
 pub(crate) fn append(
     page: PageNumber,
@@ -69,10 +67,10 @@ fn append_inner(
         return Ok(None);
     }
     let packed_start = directory.entry(source, (count - 1) as u8)?.range().start;
-    let directory_end = DIRECTORY + ENTRY_BYTES * usize::from(count);
+    let directory_end = DIRECTORY_OFFSET + ENTRY_LEN * usize::from(count);
     let free = usize::from(u16::from_le_bytes([
-        source[FREE_BYTES],
-        source[FREE_BYTES + 1],
+        source[FREE_SPACE_OFFSET],
+        source[FREE_SPACE_OFFSET + 1],
     ]));
     if free != packed_start - directory_end {
         return Err(UpdateError::Mismatch("data page free-byte count"));
@@ -84,7 +82,7 @@ fn append_inner(
     }
     let needed = row
         .len()
-        .checked_add(ENTRY_BYTES)
+        .checked_add(ENTRY_LEN)
         .ok_or(UpdateError::Mismatch("row width"))?;
     if count >= MAX_BUILT_ROWS || free < needed {
         return Ok(None);
@@ -103,12 +101,12 @@ fn append_inner(
         budget,
     )?;
     patched.write_at(
-        PageOffset::new(FREE_BYTES as u64),
+        PageOffset::new(FREE_SPACE_OFFSET as u64),
         &new_free.to_le_bytes(),
         budget,
     )?;
     patched.write_at(
-        PageOffset::new(SLOT_COUNT as u64),
+        PageOffset::new(ROW_COUNT_OFFSET as u64),
         &(count + 1).to_le_bytes(),
         budget,
     )?;
@@ -120,7 +118,7 @@ pub(crate) fn increment_count(
     observed_rows: u32,
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, UpdateError> {
-    if source[TABLE_COUNT..TABLE_COUNT + 4] != observed_rows.to_le_bytes() {
+    if source[TABLE_ROW_COUNT..TABLE_ROW_COUNT + 4] != observed_rows.to_le_bytes() {
         return Err(UpdateError::Mismatch("table row count"));
     }
     let count = observed_rows
@@ -128,7 +126,7 @@ pub(crate) fn increment_count(
         .ok_or(UpdateError::Mismatch("table row count overflow"))?;
     let mut patched = PageImage::from_bytes(*source);
     patched.write_at(
-        PageOffset::new(TABLE_COUNT as u64),
+        PageOffset::new(TABLE_ROW_COUNT as u64),
         &count.to_le_bytes(),
         budget,
     )?;
@@ -138,9 +136,12 @@ pub(crate) fn increment_count(
 /// Candidate availability policy: an appended minimum row and directory slot fit.
 /// EXP-0060 supplies the physical slots; this does not model DAO's allocation policy.
 pub(crate) fn has_capacity(page: &[u8; PAGE_BYTES], minimum: usize) -> bool {
-    let count = u16::from_le_bytes([page[SLOT_COUNT], page[SLOT_COUNT + 1]]);
-    let free = usize::from(u16::from_le_bytes([page[FREE_BYTES], page[FREE_BYTES + 1]]));
-    count < MAX_BUILT_ROWS && minimum.checked_add(ENTRY_BYTES).is_some_and(|n| free >= n)
+    let count = u16::from_le_bytes([page[ROW_COUNT_OFFSET], page[ROW_COUNT_OFFSET + 1]]);
+    let free = usize::from(u16::from_le_bytes([
+        page[FREE_SPACE_OFFSET],
+        page[FREE_SPACE_OFFSET + 1],
+    ]));
+    count < MAX_BUILT_ROWS && minimum.checked_add(ENTRY_LEN).is_some_and(|n| free >= n)
 }
 
 pub(crate) fn minimum_length(

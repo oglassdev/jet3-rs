@@ -1,5 +1,7 @@
 use super::{relationship_candidate::*, tests::inline_map_bit};
-use crate::{ColumnOrdinal, DatabaseReader, ResourceLimits, SliceSource, create::composer::*};
+use crate::{
+    ColumnOrdinal, DatabaseReader, PAGE_BYTES, ResourceLimits, SliceSource, create::composer::*,
+};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 fn budget() -> ResourceBudget {

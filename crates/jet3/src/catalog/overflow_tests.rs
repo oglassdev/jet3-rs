@@ -1,5 +1,7 @@
 use super::cursor_tests::*;
-use crate::{CatalogError, Error, ResourceBudget, ResourceLimitKind, RowDirectoryError, RowError};
+use crate::{
+    CatalogError, Error, PAGE_BYTES, ResourceBudget, ResourceLimitKind, RowDirectoryError, RowError,
+};
 
 fn overflow_bytes(move_self: bool) -> Vec<u8> {
     let mut bytes = database_bytes(b"MSysObjects", 4, 1, false);

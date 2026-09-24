@@ -2,11 +2,10 @@ use super::table::{TableDefinitionError, TableDefinitionKind};
 use crate::{
     AllocationTraversalError, ByteCount, ColumnPhysicalType, ColumnStorageClass, DatabaseReader,
     Error, IndexDefinitionError, IndexDefinitionKind, IndexDirection, JET3_PAGE_SIZE,
-    LongValueMapError, PageNumber, ReadLimits, RelationshipSide, ResourceBudget, ResourceLimitKind,
-    ResourceLimits, SliceSource,
+    LongValueMapError, PAGE_BYTES, PageNumber, ReadLimits, RelationshipSide, ResourceBudget,
+    ResourceLimitKind, ResourceLimits, SliceSource,
 };
 
-pub(super) const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 pub(super) const ROOT: usize = 1;
 pub(super) const MAP_PAGE: usize = 2;
 const MAP_ROWS: u16 = 4;

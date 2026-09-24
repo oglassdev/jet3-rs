@@ -3,21 +3,19 @@
 //! This layer validates row storage, returns lossless physical field slices,
 //! and delegates typed interpretation to the value layer.
 
-use std::fmt;
-use std::mem::size_of;
-use std::ops::Range;
-
 use crate::{
     AllocationTraversalError, ByteCount, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
-    DatabaseReader, DecodedValue, Error, JET3_PAGE_SIZE, OwnedPages, PageKind, PageNumber, ReadAt,
+    DatabaseReader, DecodedValue, Error, OwnedPages, PAGE_BYTES, PageKind, PageNumber, ReadAt,
     ResourceBudget, RowLocator, TableDefinition, TextCodePage, ValueError,
     format::data_page_directory::{DataPageDirectory, LONG_VALUE_OWNER},
     row::directory::{RowDirectory, RowDirectoryError, RowEntry},
 };
+use std::fmt;
+use std::mem::size_of;
+use std::ops::Range;
 
 use super::reader_layout::RowLayout;
 
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 const OVERFLOW_POINTER_LEN: usize = 4;
 
 /// A sourced field that is either null or represented by exact physical bytes.

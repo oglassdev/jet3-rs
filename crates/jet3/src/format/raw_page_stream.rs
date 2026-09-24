@@ -5,9 +5,7 @@
 //! establish the input's Jet generation, encryption state, structural
 //! validity, or application compatibility.
 
-use crate::{Error, JET3_PAGE_SIZE, Jet3PageReader, PageNumber, ReadAt, ResourceBudget};
-
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
+use crate::{Error, Jet3PageReader, PAGE_BYTES, PageNumber, ReadAt, ResourceBudget};
 
 /// One borrowed page yielded by a [`RawPageCursor`].
 ///

@@ -1,12 +1,11 @@
 use super::reader::{IndexKeyEncoding, IndexNodeKind, IndexTree, IndexTreeError, PendingNode};
 use crate::{
-    ByteCount, DatabaseReader, Error, JET3_PAGE_SIZE, PageGeometry, PageKind, PageNumber,
-    ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
+    ByteCount, DatabaseReader, Error, JET3_PAGE_SIZE, PAGE_BYTES, PageGeometry, PageKind,
+    PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
     index::tree::page::parse_node,
 };
 use std::error::Error as _;
 
-pub(super) const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 pub(super) const PAGE_COUNT: usize = 8;
 const ROOT: usize = 1;
 const MAP_PAGE: usize = 2;

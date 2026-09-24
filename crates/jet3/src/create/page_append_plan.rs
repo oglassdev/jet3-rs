@@ -5,14 +5,11 @@
 //! or assigns fresh append slots and applies the matching global-map transition
 //! observed in `EXP-0065`.
 
-#![allow(
-    dead_code,
-    reason = "staged for the next crate-private writer composition layer"
-)]
-
 use std::fmt;
 
-use crate::{InlineUsageMapEncoder, PageImage, PageNumber, UsageMapWriteError};
+#[cfg(test)]
+use crate::InlineUsageMapEncoder;
+use crate::{PageImage, PageNumber, UsageMapWriteError};
 
 // EXP-0065 Q1: every empty Jet 3 database in the accepted A9 acquisition had
 // 20 pages.
@@ -41,12 +38,14 @@ impl PlannedPage {
         self.image = image;
     }
 
+    #[cfg(test)]
     /// Splits the planned page into its number and complete image.
     pub(crate) fn into_parts(self) -> (PageNumber, PageImage) {
         (self.number, self.image)
     }
 }
 
+#[cfg(test)]
 /// Structured failure while planning one existing empty-database page.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ExistingPageError {
@@ -57,6 +56,7 @@ pub(crate) enum ExistingPageError {
     },
 }
 
+#[cfg(test)]
 impl fmt::Display for ExistingPageError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -69,8 +69,10 @@ impl fmt::Display for ExistingPageError {
     }
 }
 
+#[cfg(test)]
 impl std::error::Error for ExistingPageError {}
 
+#[cfg(test)]
 /// Pairs a complete image with one existing page in the fixed empty database.
 ///
 /// The image is moved through unchanged and is not inspected. `EXP-0065` Q1
@@ -88,9 +90,8 @@ pub(crate) fn plan_existing_page(
 
 /// Pairs exactly 20 complete images with existing slots 0 through 19.
 ///
-/// The fixed-size input makes every slot valid by construction. As with
-/// [`plan_existing_page`], the images are moved through without inspection or
-/// any assignment of bootstrap semantics.
+/// The fixed-size input makes every slot valid by construction. The images are
+/// moved through without inspection or any assignment of bootstrap semantics.
 pub(crate) fn plan_existing_pages(
     images: [PageImage; EMPTY_DATABASE_PAGE_COUNT as usize],
 ) -> impl ExactSizeIterator<Item = PlannedPage> {
@@ -185,6 +186,7 @@ impl AppendPagePlan {
         Ok(PlannedPage { number, image })
     }
 
+    #[cfg(test)]
     /// Assigns the next page number and marks that global-map page in use.
     ///
     /// `image` is moved through unchanged. The map and page count remain

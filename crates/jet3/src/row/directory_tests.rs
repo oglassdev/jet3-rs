@@ -1,7 +1,5 @@
 use super::directory::{RowDirectory, RowDirectoryError};
-use crate::{
-    Error, PageNumber, ResourceBudget, ResourceLimits, format::data_page_directory::PAGE_BYTES,
-};
+use crate::{Error, PAGE_BYTES, PageNumber, ResourceBudget, ResourceLimits};
 use std::error::Error as _;
 
 fn budget() -> ResourceBudget {

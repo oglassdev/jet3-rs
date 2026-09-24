@@ -7,9 +7,10 @@
 use crate::{
     ColumnSpec, Error, LONG_VALUE_MAP_GROUP_LEN, TableDefinitionKind,
     definition::{
-        column_writer::{
-            COLUMN_RECORD_LEN, LOGICAL_RECORD_LEN, MAX_NAME_LEN, PHYSICAL_PREFIX_LEN,
-            PHYSICAL_RECORD_LEN, SystemColumnClassSpec, resolve_column,
+        column_writer::{MAX_NAME_LEN, SystemColumnClassSpec, resolve_column},
+        header::{
+            COLUMN_RECORD_LEN, DEFINITION_HEADER_LEN, LOGICAL_RECORD_LEN, PHYSICAL_PREFIX_LEN,
+            PHYSICAL_RECORD_LEN, TERMINATOR_LEN,
         },
         table_writer::TableDefinitionWriteError,
     },
@@ -17,10 +18,6 @@ use crate::{
 
 /// `EXP-0060`: the one-byte row column count bounds a table's columns.
 const MAX_COLUMN_COUNT: usize = u8::MAX as usize;
-/// `EXP-0059`: fixed bytes before the first physical-index record.
-const DEFINITION_HEADER_LEN: usize = 43;
-/// `EXP-0059`: the two-byte end-of-definition marker.
-const TERMINATOR_LEN: usize = 2;
 
 /// Returns the exact logical length of the definition this shape encodes to.
 ///

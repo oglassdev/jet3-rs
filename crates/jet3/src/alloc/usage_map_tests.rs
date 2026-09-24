@@ -1,10 +1,8 @@
 use super::usage_map::{UsageMapError, locate_usage_map};
 use crate::{
-    Error, MapRowLocator, PageKind, PageNumber, ReadLimits, ResourceBudget, ResourceLimits,
-    classify_page,
+    Error, MapRowLocator, PAGE_BYTES, PageKind, PageNumber, ReadLimits, ResourceBudget,
+    ResourceLimits, classify_page,
 };
-
-const PAGE_BYTES: usize = 2048;
 
 fn budget() -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::new(ReadLimits::default()))

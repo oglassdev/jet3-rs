@@ -1,6 +1,7 @@
 //! Creation placement adapter for the shared EXP-0062 numeric tree builder.
 
 use crate::{
+    PAGE_BYTES,
     create::composer::*,
     index::{
         entry::NumericIndexEntry as Entry,

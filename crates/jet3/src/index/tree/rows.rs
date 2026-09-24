@@ -1,12 +1,10 @@
 //! Row-reference validation for index leaf entries from `EXP-0060`/`EXP-0062`.
 
 use crate::{
-    DatabaseReader, JET3_PAGE_SIZE, PageKind, PageNumber, ReadAt, ResourceBudget, RowLocator,
+    DatabaseReader, PAGE_BYTES, PageKind, PageNumber, ReadAt, ResourceBudget, RowLocator,
     index::tree::reader::{IndexTreeError, push_charged},
     row::directory::{RowDirectory, RowDirectoryError},
 };
-
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 
 /// Validates leaf row locators against their data-page directories.
 ///

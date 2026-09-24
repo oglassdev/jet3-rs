@@ -2,8 +2,9 @@
 //! from EXP-0060, observed in native catalog records by EXP-0228.
 
 use crate::{
-    ByteCount, CatalogError, Error, OwnedPages, PageKind, PageNumber, ReadAt, RowError, RowLocator,
-    format::data_page_directory::{DataPageEntry, PAGE_BYTES},
+    ByteCount, CatalogError, Error, OwnedPages, PAGE_BYTES, PageKind, PageNumber, ReadAt, RowError,
+    RowLocator,
+    format::data_page_directory::DataPageEntry,
     row::{directory::RowDirectory, reader::decode_pointer},
 };
 

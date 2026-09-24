@@ -342,7 +342,7 @@ pub(crate) fn set_initial_foreign_count(
     physical_ordinal: u16,
     count: u32,
 ) -> Result<(), TableDefinitionWriteError> {
-    let offset = 43 + usize::from(physical_ordinal) * 8;
+    let offset = super::header::physical_prefix_offset(physical_ordinal);
     let available = output.len();
     let prefix =
         output

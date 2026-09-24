@@ -11,7 +11,7 @@ use crate::{
 };
 
 // EXP-0059 ten physical key slots; EXP-0252 native composite boundary.
-pub(crate) const MAX_FIELDS: usize = crate::definition::column_writer::KEY_SLOT_COUNT;
+pub(crate) const MAX_FIELDS: usize = crate::definition::header::KEY_SLOT_COUNT;
 const LOCATOR_BYTES: usize = 4;
 const INLINE_BYTES: usize = 22;
 pub(crate) const ENTRY_CAPACITY: usize = MAX_KEY_BYTES + LOCATOR_BYTES;

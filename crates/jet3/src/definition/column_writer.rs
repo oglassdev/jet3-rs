@@ -6,25 +6,17 @@
 //! `EXP-0073`, and relationship cascade bytes from `EXP-0062`. Names are raw
 //! database-code-page bytes (`EXP-0059`).
 
-#[cfg(test)]
-use std::num::NonZeroU8;
-
 use crate::{
     BinaryWriter, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnStorageKind,
     ColumnType, Error, IndexDirection, PageNumber, RelationshipSide, TableDefinitionKind,
-    definition::table_writer::{PhysicalIndexFlagsSpec, TableDefinitionWriteError},
+    definition::{
+        header::KEY_SLOT_COUNT,
+        table_writer::{PhysicalIndexFlagsSpec, TableDefinitionWriteError},
+    },
 };
+#[cfg(test)]
+use std::num::NonZeroU8;
 
-/// `EXP-0059`: one 18-byte physical record per column.
-pub const COLUMN_RECORD_LEN: usize = 18;
-/// `EXP-0059`: one 39-byte record per physical index.
-pub const PHYSICAL_RECORD_LEN: usize = 39;
-/// `EXP-0059`: eight sourced prefix bytes per physical index, zero in controls.
-pub const PHYSICAL_PREFIX_LEN: usize = 8;
-/// `EXP-0059`: one 20-byte record per logical index.
-pub const LOGICAL_RECORD_LEN: usize = 20;
-/// `EXP-0059`: ten three-byte key slots per physical index.
-pub const KEY_SLOT_COUNT: usize = 10;
 /// `EXP-0059`: names carry a one-byte length prefix.
 pub const MAX_NAME_LEN: usize = u8::MAX as usize;
 

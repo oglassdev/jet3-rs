@@ -1,5 +1,6 @@
 pub(crate) mod column;
 pub(crate) mod column_writer;
+pub(crate) mod header;
 pub(crate) mod index;
 pub(crate) mod long_value_map;
 pub(crate) mod map_location;

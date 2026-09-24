@@ -2,6 +2,9 @@
 use crate::{
     BinaryWriter, ColumnDefinition, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnType,
     ResourceBudget, RowValue, TableDefinitionKind, TableSpec, UpdateError,
+    definition::header::{
+        COLUMN_COUNT, DEFINITION_HEADER_LEN, STORAGE_COLUMN_COUNT, STORAGE_VARIABLE_COUNT,
+    },
     write::page_edits::{PageEdits, reserve},
 };
 use std::fs::File;
@@ -62,7 +65,10 @@ pub(crate) fn create(
             let properties = crate::schema::properties::add(&properties, column, budget)?;
             let mut edited = crate::schema::definition::DefinitionEdit::new(&definition, budget)?;
             let mut fixed = fixed_offset(&definition, column, budget)?;
-            let mut variables = u16::from_le_bytes([edited.header[23], edited.header[24]]);
+            let mut variables = u16::from_le_bytes([
+                edited.header[STORAGE_VARIABLE_COUNT],
+                edited.header[STORAGE_VARIABLE_COUNT + 1],
+            ]);
             let ordinal = definition.storage_column_count();
             if ordinal >= 255 || variables >= 255 {
                 return Err(UpdateError::Unsupported("column storage capacity"));
@@ -117,9 +123,12 @@ pub(crate) fn create(
                 record,
                 name: column.name(),
             });
-            edited.header[21..23].copy_from_slice(&(ordinal + 1).to_le_bytes());
-            edited.header[25..27].copy_from_slice(&live_count.to_le_bytes());
-            edited.header[23..25].copy_from_slice(&variables.to_le_bytes());
+            edited.header[STORAGE_COLUMN_COUNT..STORAGE_COLUMN_COUNT + 2]
+                .copy_from_slice(&(ordinal + 1).to_le_bytes());
+            edited.header[COLUMN_COUNT..COLUMN_COUNT + 2]
+                .copy_from_slice(&live_count.to_le_bytes());
+            edited.header[STORAGE_VARIABLE_COUNT..STORAGE_VARIABLE_COUNT + 2]
+                .copy_from_slice(&variables.to_le_bytes());
             let mut edits = PageEdits::new(database.geometry().page_count());
             if column.column_type().is_long_value() {
                 let owned = crate::schema::map::create(database, &mut edits, &[], budget)?;
@@ -224,7 +233,9 @@ fn backfill_auto(
         let mut page = [0; crate::PAGE_BYTES];
         database.read_raw_page(root, &mut page, budget)?;
         state.write_bytes(&mut page, budget)?;
-        edited.header.copy_from_slice(&page[..43]);
+        edited
+            .header
+            .copy_from_slice(&page[..DEFINITION_HEADER_LEN]);
         let mut edits = PageEdits::new(database.geometry().page_count());
         edited.stage(database, &table, &mut edits, budget)?;
         Ok((edits, ()))

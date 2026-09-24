@@ -3,11 +3,9 @@ use super::record::{
     CatalogRecordError, decode_catalog_record,
 };
 use crate::{
-    ByteCount, CatalogNameEncoding, Error, JET3_PAGE_SIZE, ReadLimits, ResourceBudget,
+    ByteCount, CatalogNameEncoding, Error, PAGE_BYTES, ReadLimits, ResourceBudget,
     ResourceLimitKind, ResourceLimits,
 };
-
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 
 fn budget() -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::new(ReadLimits::default()))

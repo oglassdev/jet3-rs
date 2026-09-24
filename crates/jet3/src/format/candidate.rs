@@ -7,15 +7,12 @@
 //! structure, or establish compatibility with Access, DAO, or any other
 //! application.
 
-use std::fmt;
-
 use crate::{
     DATABASE_HEADER_PAGE_NUMBER, DatabaseHeaderPage, DatabaseHeaderPageError, Error, HeaderError,
-    JET3_PAGE_SIZE, Jet3PageReader, JetFileKind, PageGeometry, PageNumber, RawPageCursor, ReadAt,
+    Jet3PageReader, JetFileKind, PAGE_BYTES, PageGeometry, PageNumber, RawPageCursor, ReadAt,
     ResourceBudget, read_jet_signature,
 };
-
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
+use std::fmt;
 
 /// A structured failure while inspecting a raw Jet 3 candidate.
 #[derive(Debug, Clone, PartialEq, Eq)]

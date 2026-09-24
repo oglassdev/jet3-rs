@@ -1,15 +1,13 @@
+use crate::{
+    ByteCount, ByteOffset, Error, HeaderError, JET3_PAGE_SIZE, JetFileKind, LimitKind, PAGE_BYTES,
+    PageNumber, ReadAt, ReadBudget, ReadLimits, ResourceBudget, ResourceLimits, SliceSource,
+};
 use std::cell::RefCell;
 use std::error::Error as StdError;
 use std::io;
 use std::rc::Rc;
 
 use super::candidate::{CandidateError, RawJet3Candidate};
-use crate::{
-    ByteCount, ByteOffset, Error, HeaderError, JET3_PAGE_SIZE, JetFileKind, LimitKind, PageNumber,
-    ReadAt, ReadBudget, ReadLimits, ResourceBudget, ResourceLimits, SliceSource,
-};
-
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 
 fn candidate_bytes(page_count: usize) -> Vec<u8> {
     candidate_bytes_with(page_count, b"Standard Jet DB")

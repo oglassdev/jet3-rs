@@ -4,13 +4,12 @@ use super::table_writer::{
 use crate::{
     ByteCount, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnStorageKind, ColumnType,
     DatabaseReader, Error, IndexDefinitionKind, IndexDirection, IndexFieldSpec, JET3_PAGE_SIZE,
-    LogicalIndexKindSpec, LogicalIndexSpec, LongValueMapSpec, MapRowLocator, PageNumber,
-    PhysicalIndexFlagsSpec, PhysicalIndexSpec, ReadLimits, RelationshipSide, ResourceBudget,
-    ResourceLimitKind, ResourceLimits, SliceSource, SystemColumnClassSpec, TableDefinition,
-    TableDefinitionKind, definition::column_writer::nz,
+    LogicalIndexKindSpec, LogicalIndexSpec, LongValueMapSpec, MapRowLocator, PAGE_BYTES,
+    PageNumber, PhysicalIndexFlagsSpec, PhysicalIndexSpec, ReadLimits, RelationshipSide,
+    ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource, SystemColumnClassSpec,
+    TableDefinition, TableDefinitionKind, definition::column_writer::nz,
 };
 
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
 const ROOT: u64 = 1;
 const MAP_PAGE: u64 = 2;
 const INDEX_ROOT: u64 = 3;

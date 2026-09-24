@@ -1,8 +1,10 @@
 //! EXP-0059/0247 definition chains and their complete physical page inventory.
 use super::table::*;
 use crate::{
-    ByteCount, DatabaseReader, Error, PageChainWalker, PageKind, PageNumber, ReadAt,
-    ResourceBudget, TableMapLocations, locate_table_maps,
+    ByteCount, DatabaseReader, Error, PAGE_BYTES, PageChainWalker, PageKind, PageNumber, ReadAt,
+    ResourceBudget, TableMapLocations,
+    definition::header::{CONTINUATION_PAYLOAD_OFFSET, DEFINITION_HEADER_LEN, TERMINATOR_LEN},
+    locate_table_maps,
 };
 
 pub(super) fn read_definition_chain<S: ReadAt>(

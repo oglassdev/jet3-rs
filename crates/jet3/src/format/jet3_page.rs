@@ -3,9 +3,7 @@
 //! The page size comes from [`JET3_PAGE_SIZE`], traced to provenance source
 //! `SRC-0005`. This module assigns no meaning to page contents.
 
-use crate::{Error, JET3_PAGE_SIZE, PageGeometry, PageNumber, ReadAt, ResourceBudget};
-
-const PAGE_BYTES: usize = JET3_PAGE_SIZE.get() as usize;
+use crate::{Error, JET3_PAGE_SIZE, PAGE_BYTES, PageGeometry, PageNumber, ReadAt, ResourceBudget};
 
 /// A random-access reader for complete 2 KiB Jet 3 pages.
 ///

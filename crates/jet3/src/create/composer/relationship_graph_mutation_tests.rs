@@ -3,8 +3,8 @@
 use super::*;
 use crate::{
     ColumnOrdinal, DatabaseReader, FieldUpdate, FileSource, IndexColumnSpec, IndexFieldSpec,
-    IndexKind, IndexSpec, ResourceLimits, RowDelete, RowLocator, TableDefinition, TableRows,
-    TextCodePage, UpdateError, ValueKind,
+    IndexKind, IndexSpec, PAGE_BYTES, ResourceLimits, RowDelete, RowLocator, TableDefinition,
+    TableRows, TextCodePage, UpdateError, ValueKind,
 };
 use std::{
     fs,

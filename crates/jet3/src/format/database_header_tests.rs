@@ -1,3 +1,7 @@
+use crate::{
+    ByteCount, ByteOffset, Error, HeaderError, JetFileKind, LimitKind, PAGE_BYTES,
+    RawJet3Candidate, ReadAt, ReadBudget, ReadLimits, ResourceBudget, ResourceLimits, SliceSource,
+};
 use std::error::Error as StdError;
 use std::io;
 
@@ -5,12 +9,7 @@ use super::database_header::{
     DatabaseFormatError, DatabaseHeaderPage, DatabaseHeaderPageError, DatabaseProtection,
     DatabaseVersion,
 };
-use crate::{
-    ByteCount, ByteOffset, Error, HeaderError, JetFileKind, LimitKind, RawJet3Candidate, ReadAt,
-    ReadBudget, ReadLimits, ResourceBudget, ResourceLimits, SliceSource,
-};
 
-const PAGE_BYTES: usize = 2_048;
 const SIGNATURE_START: usize = 4;
 const SIGNATURE_END: usize = 19;
 const COMMIT_START: usize = 0x600;

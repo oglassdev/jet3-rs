@@ -35,21 +35,20 @@
 //!
 //! Neither experiment establishes an `Id` allocation rule beyond the observed
 //! equality with the definition root page.
-
-use std::fmt;
-
 use crate::{
-    IndexFieldSpec, PageNumber, TableDefinitionKind, TableDefinitionWriteError,
+    IndexFieldSpec, PAGE_BYTES, PageNumber, TableDefinitionKind, TableDefinitionWriteError,
     catalog::{
         name_key::CatalogNameKeyError,
         record_writer::{CatalogRecordWriteError, catalog_record_len},
     },
     definition::{
-        column_writer::{KEY_SLOT_COUNT, PhysicalIndexSpec, validate_physical_index},
+        column_writer::{PhysicalIndexSpec, validate_physical_index},
+        header::KEY_SLOT_COUNT,
         table_layout::{definition_len, validate_column_layout, validate_name},
     },
-    format::page_image::PAGE_BYTES,
 };
+
+use std::fmt;
 
 /// EXP-0252/0279: at most 32 logical indexes, including relationship aliases.
 pub(crate) const MAX_OBSERVED_INDEXES: usize = 32;

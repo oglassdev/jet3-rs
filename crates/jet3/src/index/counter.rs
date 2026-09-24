@@ -13,7 +13,7 @@ pub(crate) fn change(
     change: Change,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    let offset = 43 + usize::from(ordinal) * 8;
+    let offset = crate::definition::header::physical_prefix_offset(ordinal);
     let raw: [u8; 8] = image
         .as_bytes()
         .get(offset..offset + 8)
