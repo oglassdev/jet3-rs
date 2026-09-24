@@ -1,7 +1,6 @@
 //! Existing-row insertion composed from EXP-0060/0061 encoding and EXP-0162 slots.
 use crate::{
-    ColumnPhysicalType, ColumnStorageClass, DatabaseReader, PAGE_BYTES, PublishStage,
-    ResourceBudget, RowColumnLayout, RowLocator, RowValue, UpdateError,
+    DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget, RowLocator, RowValue, UpdateError,
     row::data_page::DataPageEditor,
 };
 use std::convert::Infallible;
@@ -75,21 +74,7 @@ pub(crate) fn plan(
         Some(crate::index::mutation::load(database, definition, budget)?)
     };
     let columns = definition.columns();
-    if columns.len() > usize::from(u8::MAX) {
-        return Err(UpdateError::Unsupported("row column count"));
-    }
-    let mut layout = [RowColumnLayout::new(
-        ColumnPhysicalType::Long,
-        ColumnStorageClass::Fixed { offset: 0 },
-        4,
-    ); u8::MAX as usize];
-    budget.charge_items(columns.len() as u64)?;
-    for (ordinal, (target, column)) in layout.iter_mut().zip(columns).enumerate() {
-        if usize::from(column.ordinal().get()) != ordinal {
-            return Err(UpdateError::Unsupported("noncontiguous column ordinals"));
-        }
-        *target = column.into();
-    }
+    let layout = super::driver::row_layout(columns, budget)?;
     crate::properties::value_policy::check(database, definition, values, budget)?;
     let mut long_values =
         crate::long_value::mutation::LongValues::load(database, definition, None, budget)?;
@@ -180,14 +165,8 @@ pub(crate) fn plan(
         RowLocator::new(page, slot)
     } else {
         let mut minimum = [0; PAGE_BYTES];
-        let nulls = [RowValue::Null; u8::MAX as usize];
-        let minimum_length = crate::encode_row(
-            &layout[..columns.len()],
-            &nulls[..columns.len()],
-            &mut minimum,
-            budget,
-        )?
-        .get() as usize;
+        let minimum_length =
+            crate::row::insert_page::minimum_row(&layout[..columns.len()], &mut minimum, budget)?;
         let plan = crate::row::insert_page::plan_eof_insert(
             database,
             definition,

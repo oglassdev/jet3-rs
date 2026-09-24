@@ -1,7 +1,6 @@
 //! Full scalar and long-value row replacement using the checked row encoder and exact publication.
 use crate::{
-    ColumnPhysicalType, ColumnStorageClass, DatabaseReader, PAGE_BYTES, PublishStage,
-    ResourceBudget, RowColumnLayout, RowLocator, RowValue, UpdateError,
+    DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget, RowLocator, RowValue, UpdateError,
 };
 use std::{convert::Infallible, error::Error as StdError, path::Path};
 
@@ -78,21 +77,7 @@ pub(crate) fn plan(
         Some(crate::index::mutation::load(database, definition, budget)?)
     };
     let columns = definition.columns();
-    if columns.len() > usize::from(u8::MAX) {
-        return Err(UpdateError::Unsupported("row column count"));
-    }
-    let mut layout = [RowColumnLayout::new(
-        ColumnPhysicalType::Long,
-        ColumnStorageClass::Fixed { offset: 0 },
-        4,
-    ); u8::MAX as usize];
-    budget.charge_items(columns.len() as u64)?;
-    for (ordinal, (target, column)) in layout.iter_mut().zip(columns).enumerate() {
-        if usize::from(column.ordinal().get()) != ordinal {
-            return Err(UpdateError::Unsupported("noncontiguous column ordinals"));
-        }
-        *target = column.into();
-    }
+    let layout = super::driver::row_layout(columns, budget)?;
     let mut observed = 0_u32;
     let mut found = false;
     {
@@ -138,14 +123,8 @@ pub(crate) fn plan(
         )?;
     }
     let mut minimum = [0; PAGE_BYTES];
-    let nulls = [RowValue::Null; u8::MAX as usize];
-    let minimum_length = crate::encode_row(
-        &layout[..columns.len()],
-        &nulls[..columns.len()],
-        &mut minimum,
-        budget,
-    )?
-    .get() as usize;
+    let minimum_length =
+        crate::row::insert_page::minimum_row(&layout[..columns.len()], &mut minimum, budget)?;
     let mut count_page = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut count_page, budget)?;
     budget.charge_work_units(4)?;

@@ -9,7 +9,7 @@ pub(crate) fn minimum_length(
     columns: &[crate::ColumnDefinition],
     budget: &mut ResourceBudget,
 ) -> Result<usize, UpdateError> {
-    use crate::{ColumnPhysicalType, ColumnStorageClass, RowColumnLayout, RowValue};
+    use crate::{ColumnPhysicalType, ColumnStorageClass, RowColumnLayout};
     if columns.len() > u8::MAX as usize {
         return Err(UpdateError::Unsupported("row column count"));
     }
@@ -22,15 +22,19 @@ pub(crate) fn minimum_length(
     for (entry, column) in layout.iter_mut().zip(columns) {
         *entry = column.into();
     }
-    let nulls = [RowValue::Null; u8::MAX as usize];
     let mut encoded = [0; PAGE_BYTES];
-    Ok(crate::encode_row(
-        &layout[..columns.len()],
-        &nulls[..columns.len()],
-        &mut encoded,
-        budget,
-    )?
-    .get() as usize)
+    minimum_row(&layout[..columns.len()], &mut encoded, budget)
+}
+
+/// Encodes the all-null row, the smallest row `layout` can store.
+pub(crate) fn minimum_row(
+    layout: &[crate::RowColumnLayout],
+    output: &mut [u8; PAGE_BYTES],
+    budget: &mut ResourceBudget,
+) -> Result<usize, UpdateError> {
+    let nulls = [crate::RowValue::Null; u8::MAX as usize];
+    let nulls = nulls.get(..layout.len()).unwrap_or(&nulls);
+    Ok(crate::encode_row(layout, nulls, output, budget)?.get() as usize)
 }
 
 // Released-page reuse (EXP-0227) or single EOF allocation: SRC-0020/EXP-0057 map framing and EXP-0051 free bits;

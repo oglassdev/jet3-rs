@@ -1,7 +1,7 @@
 //! Single-field row rewrites using EXP-0060/0061/0262 storage and EXP-0290 assignment semantics.
 use crate::{
-    ColumnPhysicalType, ColumnStorageClass, DatabaseReader, FieldUpdate, FileSource, PAGE_BYTES,
-    ResourceBudget, RowColumnLayout, RowValue, TableDefinition, UpdateError,
+    ColumnPhysicalType, DatabaseReader, FieldUpdate, FileSource, PAGE_BYTES, ResourceBudget,
+    RowValue, TableDefinition, UpdateError,
 };
 
 pub(crate) fn plan(
@@ -75,18 +75,7 @@ pub(crate) fn plan_fields(
         )?;
     }
     let selected_columns = &selected_columns[..assignments.len()];
-    let mut layout = [RowColumnLayout::new(
-        ColumnPhysicalType::Long,
-        ColumnStorageClass::Fixed { offset: 0 },
-        4,
-    ); u8::MAX as usize];
-    budget.charge_items(columns.len() as u64)?;
-    for (ordinal, (target, column)) in layout.iter_mut().zip(columns).enumerate() {
-        if usize::from(column.ordinal().get()) != ordinal {
-            return Err(UpdateError::Unsupported("noncontiguous column ordinals"));
-        }
-        *target = column.into();
-    }
+    let layout = super::driver::row_layout(columns, budget)?;
     let layout = &layout[..columns.len()];
     let mut long_values = crate::long_value::mutation::LongValues::load_fields(
         database,
@@ -173,9 +162,7 @@ pub(crate) fn plan_fields(
         index.replace_fields(database, definition, selected_row, assignments, budget)?;
     }
     let mut minimum = [0; PAGE_BYTES];
-    let nulls = [RowValue::Null; u8::MAX as usize];
-    let minimum_length =
-        crate::encode_row(layout, &nulls[..columns.len()], &mut minimum, budget)?.get() as usize;
+    let minimum_length = crate::row::insert_page::minimum_row(layout, &mut minimum, budget)?;
     let mut edits = crate::write::page_edits::PageEdits::new(database.geometry().page_count());
     long_values.stage(database, &mut edits, budget)?;
     crate::row::mutation_place::replace(

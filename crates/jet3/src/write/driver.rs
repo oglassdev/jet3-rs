@@ -1,7 +1,8 @@
 //! Shared open, guard, cascade, plan and publish sequence for row writes.
 use crate::{
-    DatabaseReader, FieldUpdate, PublishStage, ResourceBudget, RowDelete, RowLocator, RowUpdate,
-    UpdateError, relationship::mutation::Change,
+    ColumnDefinition, ColumnPhysicalType, ColumnStorageClass, DatabaseReader, FieldUpdate,
+    PublishStage, ResourceBudget, RowColumnLayout, RowDelete, RowLocator, RowUpdate, UpdateError,
+    relationship::mutation::Change,
 };
 use std::{error::Error as StdError, path::Path};
 
@@ -59,4 +60,27 @@ where
     };
     edits.publish(path, database, budget, hook)?;
     Ok(inserted)
+}
+
+/// The table's row layout in column order; refuses gaps in column ordinals.
+pub(super) fn row_layout(
+    columns: &[ColumnDefinition],
+    budget: &mut ResourceBudget,
+) -> Result<[RowColumnLayout; u8::MAX as usize], UpdateError> {
+    if columns.len() > usize::from(u8::MAX) {
+        return Err(UpdateError::Unsupported("row column count"));
+    }
+    let mut layout = [RowColumnLayout::new(
+        ColumnPhysicalType::Long,
+        ColumnStorageClass::Fixed { offset: 0 },
+        4,
+    ); u8::MAX as usize];
+    budget.charge_items(columns.len() as u64)?;
+    for (ordinal, (target, column)) in layout.iter_mut().zip(columns).enumerate() {
+        if usize::from(column.ordinal().get()) != ordinal {
+            return Err(UpdateError::Unsupported("noncontiguous column ordinals"));
+        }
+        *target = column.into();
+    }
+    Ok(layout)
 }
