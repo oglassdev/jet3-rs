@@ -33,6 +33,24 @@ def relationship_residue(before, baseline):
     return bytes(expected)
 
 
+def native_failure_bytes(before, baseline, kind, refusal):
+    if refusal == "relationship":
+        return relationship_residue(before, baseline)
+    expected = bytearray(before)
+    # EXP-0304: both payload schemas retain this byte, with or without rollback.
+    if kind != "wide":
+        suite.require(expected[1538] == 0, "suite transaction marker byte")
+        expected[1538] = 2
+    if kind == "sparse" and refusal == "duplicate":
+        # EXP-0237/0304: a refused explicit duplicate consumes a generator value.
+        definition = baseline["tables"]["Items"]["definition"]
+        suite.require(definition["marker"] == ord("N"), "native AutoNumber definition")
+        offset = definition["root"] * 2048 + 16
+        value = int.from_bytes(before[offset:offset+4], "little") + 1
+        expected[offset:offset+4] = value.to_bytes(4, "little")
+    return bytes(expected)
+
+
 def evaluate(args):
     args.out.mkdir()
     suite.raw.setup(suite.SCRIPTS)
@@ -63,9 +81,14 @@ def evaluate(args):
             error = json.loads(result.stderr)
             reason = {"duplicate": "duplicate unique key", "required": "RequiredValueMissing",
                       "relationship": "RelationshipConstraint"}[refusal["name"]]
+            support_boundary = case["kind"] == "sparse" and refusal["name"] == "relationship"
+            if support_boundary:
+                # The native orphan control has an AutoNumber child, which Rust refuses by type.
+                reason = 'Unsupported("relationship column types")'
             suite.require(reason in error["message"] and error["publication_stage"] ==
                           ("Mutation" if refusal["name"] == "relationship" else None), "Rust refusal reason/stage: " + label)
-            record = dict(name=label, rust_refusal=suite.vars_result(result), input=suite.identity(source), native=[])
+            record = dict(name=label, rust_refusal=suite.vars_result(result), input=suite.identity(source),
+                          comparison="rust_support_boundary" if support_boundary else "matching_constraint_refusal", native=[])
             for suffix in ("", "-rollback"):
                 job = jobs[case["name"],refusal["name"]+suffix]
                 native = args.native / ("failure-" + label + suffix + ".mdb")
@@ -77,7 +100,7 @@ def evaluate(args):
                 # Native bookkeeping is retained in full, including transaction rollbacks.
                 validation = subprocess.run([str(cli), "validate", str(native)], text=True, capture_output=True)
                 relationship = refusal["name"] == "relationship"
-                expected_bytes = relationship_residue(before, baseline) if relationship else before
+                expected_bytes = native_failure_bytes(before, baseline, case["kind"], refusal["name"])
                 suite.require(native.read_bytes() == expected_bytes, "exact native failure/rollback bookkeeping: " + label + suffix)
                 suite.require(validation.returncode == (1 if relationship else 0), "strict native validation result: " + label + suffix)
                 deltas = {"MSysObjects": 1, "MSysACEs": 2} if relationship else None

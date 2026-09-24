@@ -537,6 +537,24 @@ storage, and 36 Rust refusal records preserve their whole input. The suite
 retains the full relationship, schema, value, index and allocation comparisons
 from EXP-0271. Query execution and action/crosstab/DDL queries are not covered.
 
+EXP-0303/0304 extends preservation to eleven QueryDefs, adding union, crosstab,
+update, append, delete, make-table and DDL forms. Their exact catalog kind/flag
+pairs are admitted without interpreting or executing the queries. Six native
+sources cover wide rows, four independent Memo/OLE columns and sparse
+AutoNumber schemas through deletion, refill, repeated growth, shrinkage,
+complete release and reinsertion, followed by native continuations. Complete
+query SQL, parameters, properties and dates, database/table/field custom
+properties, unrelated system/user storage and surviving unassigned row bodies
+remain intact. This includes Text keys crossing the 255-byte encoded-key bound.
+Native duplicate and Required-column failures and explicit rollback controls
+are checked independently. Payload-schema refusals retain a header marker;
+AutoNumber duplicate refusals also advance the generator, including after
+rollback. Rejected relationship creation leaves the same six
+catalog/header bytes changed even after explicit rollback; these files remain
+terminal controls that fail strict validation. Rust refusals remain byte-exact.
+The finite observations add no live-slot-reuse or multi-hop overflow support;
+the rejected EXP-0276 representation remains excluded.
+
 EXP-0273/0274 extends mutation comparisons to five graph shapes, a shared-FK
 physical index, atomic self-references and Memo growth/shrink/Null transitions,
 each replicated twice. The portable evaluator compares 92 complete Rust/DAO
@@ -563,7 +581,7 @@ per database.
 - Extend updates to remaining index key types/collations, one-to-one relationships,
   additional payload/schema combinations, broader
   data-page/live-slot reuse and multi-hop row growth.
-- Cover remaining DAO inventories, broader saved-query forms and
+- Cover remaining DAO inventories, additional saved-query/object forms and
   failure/rollback behavior. Local VM and hosted runs may both establish
   evidence; preregistration and per-run approval are not required.
 - Extend validation to the remaining integrity checks.

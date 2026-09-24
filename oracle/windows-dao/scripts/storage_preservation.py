@@ -222,6 +222,13 @@ def surviving_rows(before, after, operations):
     return preserved
 
 
+def reuse_check(released, reused):
+    require(not released["pages"], "delete-all releases every table data page")
+    require(reused["pages"] and set(reused["pages"]) <= set(released["free_pages"]),
+            "refill reuses previously free pages")
+    require(reused["size"] == released["size"], "refill reuses storage without file growth")
+
+
 def compare_snapshot(snapshot, baseline, expected, image):
     require(snapshot["identity"] == identity(image), "snapshot identity: " + image.name)
     require(snapshot["queries"] == baseline["queries"], "complete QueryDefs: " + image.name)
@@ -279,6 +286,15 @@ def evaluate(args):
                 results.append(dict(name=label, preserved_pages=preserved, unassigned_rows=unassigned, storage=observations))
             except Exception as error:
                 failures.append(dict(name=label, error=str(error)))
+    if not failures:
+        by_name = {result["name"]: result for result in results}
+        for case in plan["cases"]:
+            for role in ("candidate", "native"):
+                try:
+                    reuse_check(by_name[case["name"]+"-released"]["storage"][role],
+                                by_name[case["name"]+"-reused"]["storage"][role])
+                except Exception as error:
+                    failures.append(dict(name=case["name"]+"/"+role, error=str(error)))
     report = dict(status="fail" if failures else "pass", pairs=len(results), results=results, failures=failures)
     write(args.out / "REPORT.json", report)
     print(json.dumps(dict(status=report["status"], pairs=report["pairs"], failures=failures), indent=2))

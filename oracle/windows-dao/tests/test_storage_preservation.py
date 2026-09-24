@@ -75,6 +75,14 @@ class PreservationTests(unittest.TestCase):
         self.assertEqual(encoded[:253],long[:253])
         self.assertEqual(encoded[-2:],bytes.fromhex("4061"))
 
+    def test_reinsertion_must_reuse_released_storage(self):
+        released = dict(pages=[],free_pages=[5,6],size=16384)
+        reused = dict(pages=[5],size=16384)
+        suite.reuse_check(released,reused)
+        for changed in (dict(pages=[7],size=16384),dict(pages=[5],size=18432)):
+            with self.subTest(changed=changed), self.assertRaises(AssertionError):
+                suite.reuse_check(released,changed)
+
 
 if __name__ == "__main__":
     unittest.main()
