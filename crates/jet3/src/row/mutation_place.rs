@@ -2,7 +2,7 @@
 use crate::{
     DatabaseReader, FileSource, PAGE_BYTES, ResourceBudget, RowLocator, TableDefinition,
     UpdateError,
-    row::{mutation_pages::RowPages, slot::RowSlot},
+    row::{directory::RowSlot, mutation_pages::RowPages},
     write::page_edits::PageEdits,
 };
 
@@ -54,7 +54,7 @@ pub(crate) fn replace(
             edits,
             budget,
         )?;
-        let pointer = crate::row::slot::pointer(target)?;
+        let pointer = crate::row::directory::overflow_pointer(target)?;
         if !pages.replace(
             database,
             definition.root(),
@@ -102,7 +102,7 @@ fn allocate(
         if chain.iter().any(|row| row.page() == page) {
             continue;
         }
-        crate::row::slot::pointer(RowLocator::new(page, 0))?;
+        crate::row::directory::overflow_pointer(RowLocator::new(page, 0))?;
         database.read_raw_page(page, &mut source, budget)?;
         if let Some((after, slot)) = crate::row::insert_page::append_physical(
             page,
@@ -116,7 +116,7 @@ fn allocate(
             return Ok(RowLocator::new(page, slot));
         }
     }
-    let mut plan = crate::row::insert_eof::plan(
+    let mut plan = crate::row::insert_page::plan_eof_insert(
         database,
         definition,
         encoded,
@@ -124,7 +124,7 @@ fn allocate(
         edits.next_append_page()?,
         budget,
     )?;
-    crate::row::slot::hide_first(&mut plan.image, budget)?;
+    crate::row::directory::hide_first(&mut plan.image, budget)?;
     plan.maps.stage(database, edits, budget)?;
     if plan.page.get() < database.geometry().page_count() {
         edits.set_image(database, plan.page, plan.image, budget)?;

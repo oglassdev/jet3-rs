@@ -95,7 +95,7 @@ pub(crate) fn plan(
     budget: &mut ResourceBudget,
 ) -> Result<(crate::write::page_edits::PageEdits, RowLocator), UpdateError> {
     crate::row::mutation_graph::RowGraph::load(database, definition, None, budget)?;
-    let mut auto = crate::write::auto_number_mutation::AutoNumber::load(definition)?;
+    let mut auto = crate::write::auto_number::AutoNumber::load(definition)?;
     let mut lowered = [RowValue::Null; u8::MAX as usize];
     let values = if let Some(state) = auto {
         state.copy_values(values, &mut lowered, budget)?;
@@ -186,7 +186,7 @@ pub(crate) fn plan(
             definition.root(),
             &source_page,
             &encoded[..length],
-            crate::row::slot::RowSlot::Ordinary,
+            crate::row::directory::RowSlot::Ordinary,
             budget,
         )? {
             break Some((page, patched, slot));
@@ -224,7 +224,7 @@ pub(crate) fn plan(
             budget,
         )?
         .get() as usize;
-        let plan = crate::row::insert_eof::plan(
+        let plan = crate::row::insert_page::plan_eof_insert(
             database,
             definition,
             &encoded[..length],

@@ -2,7 +2,7 @@
 use crate::{
     DatabaseReader, FileSource, PAGE_BYTES, PageImage, PageNumber, ResourceBudget, RowLocator,
     TableDefinition, UpdateError,
-    row::slot::RowSlot,
+    row::directory::RowSlot,
     write::page_edits::{PageEdits, reserve},
 };
 

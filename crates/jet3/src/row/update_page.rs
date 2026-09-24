@@ -3,7 +3,7 @@ use crate::{
     PAGE_BYTES, PageImage, PageNumber, PageOffset, ResourceBudget, UpdateError,
     definition::header::ROW_COUNT as TABLE_ROW_COUNT,
     format::data_page_directory::{DIRECTORY_OFFSET, ENTRY_LEN, FREE_SPACE_OFFSET},
-    row::{directory::RowDirectory, slot::RowSlot},
+    row::directory::{RowDirectory, RowSlot},
 };
 
 pub(crate) fn replace(

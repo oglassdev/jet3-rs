@@ -149,7 +149,7 @@ impl AllocationState {
     ) -> Result<Self, StorageValidationError> {
         let global = map(
             database,
-            crate::alloc::mutation_map_write::global_locator(),
+            crate::alloc::mutation_map::global_locator(),
             budget,
         )?;
         let geometry = database.geometry();

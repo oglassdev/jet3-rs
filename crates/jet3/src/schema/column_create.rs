@@ -17,7 +17,7 @@ pub(crate) fn create(
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
     let (catalog_root, row, properties, root, ordinal, auto_record) =
-        crate::schema::publish::apply(file, journal, budget, |database, budget| {
+        crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let order = database.header().sort_order();
             let definition = crate::write::update::indexed_writable_table(database, table, budget)?;
             crate::schema::edit::name(order, column.name(), 64)?;
@@ -155,7 +155,7 @@ pub(crate) fn create(
                 ),
             ))
         })?;
-    crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let definition = database.table_definition(root, budget)?;
         let mut layout = Vec::new();
         reserve(&mut layout, definition.columns().len(), budget)?;
@@ -187,7 +187,7 @@ fn backfill_auto(
     record: [u8; 18],
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    let locators = crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    let locators = crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let table = database.table_definition(root, budget)?;
         let mut locators = Vec::new();
         let mut rows = database.rows(&table, budget)?;
@@ -203,11 +203,11 @@ fn backfill_auto(
         }
         Ok((PageEdits::new(database.geometry().page_count()), locators))
     })?;
-    let mut state = crate::write::auto_number_state::AutoNumberState::default();
+    let mut state = crate::write::auto_number::AutoNumberState::default();
     for row in locators {
         let (next, value) = state.allocate(None);
         state = next;
-        crate::schema::publish::apply(file, journal, budget, |database, budget| {
+        crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let table = database.table_definition(root, budget)?;
             let graph =
                 crate::row::mutation_graph::RowGraph::load(database, &table, Some(row), budget)?;
@@ -222,7 +222,7 @@ fn backfill_auto(
             Ok((edits, ()))
         })?;
     }
-    crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let table = database.table_definition(root, budget)?;
         let mut edited = crate::schema::definition::DefinitionEdit::new(&table, budget)?;
         edited

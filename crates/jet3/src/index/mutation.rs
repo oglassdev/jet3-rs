@@ -1,9 +1,8 @@
 //! Scalar index mutations use EXP-0062/0126/0148/0150, with EXP-0230/0268 counters.
 use crate::{
     DatabaseReader, FieldUpdate, FileSource, IndexNullPolicy, MapRowLocator, PAGE_BYTES, PageImage,
-    PageNumber, ResourceBudget, RowLocator, RowValue, TableDefinition, UpdateError,
+    PageNumber, PageOffset, ResourceBudget, RowLocator, RowValue, TableDefinition, UpdateError,
     index::{
-        counter::Change,
         entry::{EntryError, NumericIndexEntry, NumericIndexField, record_capacity},
         tree::builder::{NumericIndexPages, TreeBuildError},
     },
@@ -26,7 +25,7 @@ pub(super) struct MutableIndex {
     pub(super) mapped: Vec<PageNumber>,
     pub(super) changed: bool,
     pub(super) relationship_counter: bool,
-    pub(super) counter: Option<Change>,
+    pub(super) counter: Option<CounterChange>,
 }
 
 pub(crate) fn entry_error(error: EntryError) -> UpdateError {
@@ -83,7 +82,7 @@ impl MutableIndex {
         self.entries.insert(position, entry);
         self.changed = true;
         if update_counter && !present {
-            self.counter = Some(Change::Increment);
+            self.counter = Some(CounterChange::Increment);
         }
         Ok(())
     }
@@ -116,7 +115,7 @@ impl MutableIndex {
             let mut before = [0; PAGE_BYTES];
             database.read_raw_page(table.root(), &mut before, budget)?;
             let mut after = PageImage::from_bytes(before);
-            crate::index::counter::change(&mut after, self.ordinal, change, budget)?;
+            change_counter(&mut after, self.ordinal, change, budget)?;
             edits.set_image(database, table.root(), after, budget)?;
         }
         Ok(())
@@ -208,7 +207,7 @@ impl Indexes {
         for index in &mut self.indexes {
             index.remove(row, budget)?;
             if index.relationship_counter {
-                index.counter = Some(Change::RemoveRelationshipEntry);
+                index.counter = Some(CounterChange::RemoveRelationshipEntry);
             }
         }
         Ok(())
@@ -247,7 +246,7 @@ impl Indexes {
                     })
                 })
             {
-                index.counter = Some(Change::RemoveRelationshipEntry);
+                index.counter = Some(CounterChange::RemoveRelationshipEntry);
             }
             if old == new.as_ref() {
                 continue;
@@ -324,4 +323,67 @@ impl Indexes {
         }
         Ok(())
     }
+}
+
+/// Plans the index changes of a single-field update; `None` when no index covers the field.
+pub(crate) fn plan_field_update(
+    database: &mut DatabaseReader<FileSource>,
+    table: &TableDefinition,
+    request: FieldUpdate<'_>,
+    budget: &mut ResourceBudget,
+) -> Result<Option<Indexes>, UpdateError> {
+    let mut indexed = false;
+    for index in table.physical_indexes() {
+        for key in index.fields() {
+            budget.charge_items(1)?;
+            indexed |= key.column() == request.column;
+        }
+    }
+    if !indexed {
+        return Ok(None);
+    }
+    let mut index = load(database, table, budget)?;
+    index.replace_field(database, table, request, budget)?;
+    Ok(Some(index))
+}
+
+// EXP-0059 prefixes, EXP-0230 ordinary counters, and EXP-0268/0286 relationship-key edits.
+#[derive(Clone, Copy)]
+pub(super) enum CounterChange {
+    Increment,
+    RemoveRelationshipEntry,
+}
+
+fn change_counter(
+    image: &mut PageImage,
+    ordinal: u16,
+    change: CounterChange,
+    budget: &mut ResourceBudget,
+) -> Result<(), UpdateError> {
+    let offset = crate::definition::header::physical_prefix_offset(ordinal);
+    let raw: [u8; 8] = image
+        .as_bytes()
+        .get(offset..offset + 8)
+        .ok_or(UpdateError::Mismatch("index counter offset"))?
+        .try_into()
+        .map_err(|_| UpdateError::Mismatch("index counter width"))?;
+    let mut first = u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]);
+    let mut second = u32::from_le_bytes([raw[4], raw[5], raw[6], raw[7]]);
+    match change {
+        CounterChange::Increment => {
+            second = second
+                .checked_add(1)
+                .ok_or(UpdateError::Unsupported("index counter overflow"))?
+        }
+        CounterChange::RemoveRelationshipEntry if first > 0 => {
+            first -= 1;
+            second = second.min(first);
+        }
+        CounterChange::RemoveRelationshipEntry => {}
+    }
+    let mut next = [0; 8];
+    next[..4].copy_from_slice(&first.to_le_bytes());
+    next[4..].copy_from_slice(&second.to_le_bytes());
+    image.write_at(PageOffset::new(offset as u64), &next, budget)?;
+    Ok(())
 }

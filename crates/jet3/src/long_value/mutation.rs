@@ -2,9 +2,10 @@
 //! EXP-0234 separates single/chained pools; EXP-0235 permits empty deleted
 //! sibling slots. The inline cutoff and packing remain writer policies.
 use crate::{
-    ColumnOrdinal, ColumnPhysicalType, DatabaseReader, ExternalLongValueStorage, FileSource,
-    LongValueMapDefinition, MapRowLocator, PAGE_BYTES, PageImage, PageNumber, PageOffset,
-    ResourceBudget, RowColumnLayout, RowLocator, RowValue, TableDefinition, UpdateError,
+    ByteCount, ColumnOrdinal, ColumnPhysicalType, DatabaseReader, ExternalLongValueStorage,
+    FileSource, LongValueMapDefinition, MapRowLocator, PAGE_BYTES, PageImage, PageNumber,
+    PageOffset, ResourceBudget, RowColumnLayout, RowLocator, RowValue, TableDefinition,
+    UpdateError,
     long_value::writer::{
         HEADER_LEN, MAX_CHAINED_FRAGMENT, MAX_SINGLE_PAGE_PAYLOAD,
         MAX_SINGLE_PAGE_PROPERTY_PAYLOAD, encode_chained_row, encode_inline_long_value,
@@ -163,7 +164,7 @@ impl LongValues {
                 lowered[ordinal] = RowValue::Null;
                 continue;
             }
-            super::mutation_map::payload_budget(payload.len(), budget)?;
+            payload_budget(payload.len(), budget)?;
             let column = self
                 .maps
                 .iter()
@@ -345,4 +346,9 @@ impl LongValues {
         }
         Ok(())
     }
+}
+
+fn payload_budget(length: usize, budget: &mut ResourceBudget) -> Result<(), UpdateError> {
+    budget.check_decoded_value(ByteCount::new(length as u64))?;
+    Ok(())
 }

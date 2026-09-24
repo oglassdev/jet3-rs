@@ -21,7 +21,7 @@ pub(crate) fn create_unenforced(
         ));
     }
     let (pairs, identity) =
-        crate::schema::publish::apply(file, journal, budget, |database, budget| {
+        crate::schema::edit::apply(file, journal, budget, |database, budget| {
             crate::relationship::catalog::validate(database, budget)?;
             let parent = crate::write::update::indexed_writable_table(database, tables.0, budget)?;
             let child = crate::write::update::indexed_writable_table(database, tables.1, budget)?;
@@ -134,7 +134,7 @@ pub(crate) fn publish(
             budget,
         )?;
     }
-    crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    crate::schema::edit::apply(file, journal, budget, |database, budget| {
         crate::relationship::catalog::validate(database, budget)?;
         Ok((PageEdits::new(database.geometry().page_count()), ()))
     })

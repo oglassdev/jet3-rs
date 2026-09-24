@@ -189,7 +189,7 @@ pub(crate) fn store(
     bytes: &[u8],
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let catalog = database.table_definition(catalog, budget)?;
         let column = crate::schema::catalog::column(&catalog, b"LvProp")?;
         let graph =

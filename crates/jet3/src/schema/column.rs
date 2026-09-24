@@ -14,7 +14,7 @@ pub(crate) fn rename(
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
     let (root, properties, relationships, updates) =
-        crate::schema::publish::apply(file, journal, budget, |database, budget| {
+        crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let order = database.header().sort_order();
             crate::schema::edit::name(order, new, 64)?;
             let definition = crate::write::update::indexed_writable_table(database, table, budget)?;
@@ -93,7 +93,7 @@ pub(crate) fn rename(
         crate::schema::properties::store(file, journal, catalog, row, &bytes, budget)?;
     }
     for (row, column) in updates {
-        crate::schema::publish::apply(file, journal, budget, |database, budget| {
+        crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let definition = database.table_definition(relationships, budget)?;
             let graph = crate::row::mutation_graph::RowGraph::load(
                 database,
@@ -112,7 +112,7 @@ pub(crate) fn rename(
             Ok((edits, ()))
         })?;
     }
-    crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let definition = database.table_definition(root, budget)?;
         crate::properties::value_policy::options(database, &definition, budget)?;
         crate::relationship::catalog::validate(database, budget)?;

@@ -372,11 +372,13 @@ pub(crate) fn remove_position(
     }
     let physical = &table.physical_indexes()[usize::from(ordinal)];
     let map = MapRowLocator::new(physical.usage_map().page(), physical.usage_map().row());
-    for page in crate::alloc::index_allocation::load(database, table.root(), map, budget)? {
+    for page in
+        crate::index::mutation_load::mapped_index_pages(database, table.root(), map, budget)?
+    {
         edits.map_bit(database, map, page, true, false, budget)?;
         edits.map_bit(
             database,
-            crate::alloc::mutation_map_write::global_locator(),
+            crate::alloc::mutation_map::global_locator(),
             page,
             false,
             true,
@@ -405,7 +407,7 @@ pub(crate) fn edit(
     request: SchemaEdit<'_>,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    let retired = crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    let retired = crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let definition = crate::write::update::indexed_writable_table(database, table, budget)?;
         let retired = if let SchemaEdit::DropIndex { index, .. } = request {
             let at = position(&definition, index)?;

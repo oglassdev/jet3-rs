@@ -1,13 +1,10 @@
 //! Validate EXP-0061 references against EXP-0077/0234 per-column ownership.
 //! EXP-0234 supplies release/reuse forms; EXP-0235 permits deleted siblings.
-use super::{
-    mutation::{LongValues, OWNER, PayloadPage},
-    mutation_map::Bitmap,
-};
+use super::mutation::{LongValues, OWNER, PayloadPage};
 use crate::{
     ColumnOrdinal, DatabaseReader, FileSource, LongValue, LongValueReference, MapRowLocator,
     PAGE_BYTES, PageImage, PageNumber, ResourceBudget, RowLocator, TableDefinition, TextCodePage,
-    UpdateError, ValueKind, write::page_edits::reserve,
+    UpdateError, ValueKind, alloc::mutation_map::MapBits, write::page_edits::reserve,
 };
 
 pub(super) fn load(
@@ -30,7 +27,7 @@ pub(super) fn load(
     reserve(&mut result.maps, table.long_value_maps().len(), budget)?;
     result.maps.extend_from_slice(table.long_value_maps());
     let global_locator = MapRowLocator::new(PageNumber::new(1), 0);
-    let global = Bitmap::load(database, global_locator, budget)?;
+    let global = MapBits::load(database, global_locator, budget)?;
     let mut map_locators = Vec::new();
     reserve(&mut map_locators, result.maps.len() * 2, budget)?;
     for (column, map) in result.maps.iter().enumerate() {
@@ -41,8 +38,8 @@ pub(super) fn load(
             }
             map_locators.push(locator);
         }
-        let owned = Bitmap::load(database, map.owned(), budget)?;
-        let available = Bitmap::load(database, map.available(), budget)?;
+        let owned = MapBits::load(database, map.owned(), budget)?;
+        let available = MapBits::load(database, map.available(), budget)?;
         let owned_pages = owned.existing_pages(result.first_append, false, budget)?;
         for page in available.existing_pages(result.first_append, false, budget)? {
             if !owned.contains(page)? {
@@ -226,7 +223,7 @@ fn exclude_other_ownership(
                     "object map page contains long-value fragments",
                 ));
             }
-            let map = Bitmap::load(database, locator, budget)?;
+            let map = MapBits::load(database, locator, budget)?;
             for page in map.existing_pages(database.geometry().page_count(), false, budget)? {
                 budget.charge_work_units((payloads.len().max(1).ilog2() + 1) as u64)?;
                 if payloads.binary_search_by_key(&page, |p| p.page).is_ok() {

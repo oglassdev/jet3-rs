@@ -58,7 +58,7 @@ pub(crate) fn retire(
     locator: MapRowLocator,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let removed = crate::alloc::mutation_map::MapBits::load(database, locator, budget)?;
         if !removed
             .existing_pages(database.geometry().page_count(), false, budget)?
@@ -68,7 +68,7 @@ pub(crate) fn retire(
         }
         let global = crate::alloc::mutation_map::MapBits::load(
             database,
-            crate::alloc::mutation_map_write::global_locator(),
+            crate::alloc::mutation_map::global_locator(),
             budget,
         )?;
         if removed.locator == global.locator || removed.overlaps(&global, budget)? {
@@ -106,7 +106,7 @@ pub(crate) fn retire(
         if matches!(deletion, crate::row::delete_page::Deletion::Released(_)) {
             edits.map_bit(
                 database,
-                crate::alloc::mutation_map_write::global_locator(),
+                crate::alloc::mutation_map::global_locator(),
                 locator.page(),
                 false,
                 true,
@@ -122,7 +122,7 @@ pub(crate) fn retire(
             if span.page != locator.page() {
                 edits.map_bit(
                     database,
-                    crate::alloc::mutation_map_write::global_locator(),
+                    crate::alloc::mutation_map::global_locator(),
                     span.page,
                     false,
                     true,

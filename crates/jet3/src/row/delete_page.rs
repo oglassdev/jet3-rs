@@ -3,7 +3,7 @@ use crate::{
     PAGE_BYTES, PageImage, PageNumber, PageOffset, ResourceBudget, UpdateError,
     definition::header::ROW_COUNT as TABLE_ROW_COUNT,
     format::data_page_directory::{DIRECTORY_OFFSET, ENTRY_LEN, FREE_SPACE_OFFSET},
-    row::{directory::RowDirectory, slot::RowSlot},
+    row::directory::{RowDirectory, RowSlot},
 };
 const TOMBSTONE: u16 = 0xc000;
 // EXP-0162/0224 last-row deletion changes tag, free bytes and directory words.

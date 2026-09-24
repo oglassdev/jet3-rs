@@ -130,14 +130,14 @@ pub(super) fn validate(
     let jumps = if variable_count == 0 {
         0
     } else {
-        crate::row::offsets::jump_count(length)
+        crate::row::reader_layout::jump_count(length)
     };
     length = length
         .checked_add(jumps)
         .ok_or(RowWriteError::Resource(Error::Arithmetic {
             operation: "size encoded-row jump bytes",
         }))?;
-    let maximum = crate::row::offsets::maximum_length(variable_count);
+    let maximum = crate::row::reader_layout::maximum_length(variable_count);
     if length > maximum {
         return Err(RowWriteError::RowTooLong { length, maximum });
     }

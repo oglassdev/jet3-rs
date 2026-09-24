@@ -174,7 +174,7 @@ fn complete_inventory_rejects_an_endpoint_hidden_from_the_central_catalog() -> R
     }
     edits.map_bit(
         &mut db,
-        crate::alloc::mutation_map_write::global_locator(),
+        crate::alloc::mutation_map::global_locator(),
         locator.page(),
         false,
         true,

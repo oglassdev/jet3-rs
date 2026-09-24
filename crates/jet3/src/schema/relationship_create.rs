@@ -42,7 +42,7 @@ pub(crate) fn create(
         parent_kind,
         object_id,
         folder,
-    ) = crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    ) = crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let order = database.header().sort_order();
         crate::schema::edit::name(order, spec.name, 63)?;
         crate::relationship::catalog::validate(database, budget)?;
@@ -300,7 +300,7 @@ fn add_endpoint(
     endpoint: Endpoint<'_>,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let order = database.header().sort_order();
         let table = database.table_definition(endpoint.root, budget)?;
         if !table.physical_indexes().is_empty() {

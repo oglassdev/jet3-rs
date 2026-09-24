@@ -12,7 +12,6 @@ mod index_matrix_tests;
 mod index_tests;
 pub(crate) mod map;
 pub(crate) mod properties;
-pub(crate) mod publish;
 pub(crate) mod relationship_catalog;
 pub(crate) mod relationship_create;
 pub(crate) mod relationship_drop;

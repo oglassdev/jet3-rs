@@ -58,7 +58,10 @@ fn growth_fixed_key_edit_collapse_reuse_and_deletion_keep_logical_addresses() ->
     let grown = fs::read(f.path())?;
     assert_eq!(
         slot(&grown, logical),
-        (0x4000, crate::row::slot::pointer(hidden)?.as_slice())
+        (
+            0x4000,
+            crate::row::directory::overflow_pointer(hidden)?.as_slice()
+        )
     );
     assert_eq!(slot(&grown, hidden).0, 0x8000);
     let equal = values(0, &[b'Y'; 255], &[0x5a; 255]);
@@ -157,7 +160,10 @@ fn full_hidden_page_relocates_directly_and_preserves_ordinary_neighbors() -> Tes
     let raw = fs::read(f.path())?;
     assert_eq!(
         slot(&raw, logical),
-        (0x4000, crate::row::slot::pointer(new_storage)?.as_slice())
+        (
+            0x4000,
+            crate::row::directory::overflow_pointer(new_storage)?.as_slice()
+        )
     );
     assert_eq!(slot(&raw, old_storage), (0xc000, &[][..]));
     let after = f.rows()?;
@@ -188,13 +194,13 @@ fn bad_overflow_graphs_preserve_the_whole_source_for_every_mutation() -> TestRes
         let mut bad = good.clone();
         match defect {
             0 => bad[logical_base + second_start..logical_base + second_start + 4]
-                .copy_from_slice(&crate::row::slot::pointer(first_storage)?),
+                .copy_from_slice(&crate::row::directory::overflow_pointer(first_storage)?),
             1 => bad[storage_base + 4] ^= 1,
             2 => bad[logical_base + 11] ^= 0x80,
             3 => bad[logical_base + 10] ^= 1,
             4 => bad[storage_base + 11 + usize::from(first_storage.slot()) * 2] &= 0x7f,
             _ => bad[logical_base + second_start..logical_base + second_start + 4]
-                .copy_from_slice(&crate::row::slot::pointer(first)?),
+                .copy_from_slice(&crate::row::directory::overflow_pointer(first)?),
         }
         fs::write(f.path(), &bad)?;
         assert!(update_row(f.path(), f.request(0, &large), &mut budget()).is_err());
@@ -250,7 +256,7 @@ fn logical_and_hidden_slots_on_the_same_page_compose_without_losing_neighbors() 
             f.root,
             &source,
             &raw,
-            crate::row::slot::RowSlot::Storage,
+            crate::row::directory::RowSlot::Storage,
             &mut budget(),
         )?
         .ok_or("hidden append capacity")?;
@@ -260,8 +266,8 @@ fn logical_and_hidden_slots_on_the_same_page_compose_without_losing_neighbors() 
             f.root,
             appended.as_bytes(),
             logical.slot(),
-            &crate::row::slot::pointer(hidden)?,
-            crate::row::slot::RowSlot::Link,
+            &crate::row::directory::overflow_pointer(hidden)?,
+            crate::row::directory::RowSlot::Link,
             &mut budget(),
         )?
         .ok_or("logical link capacity")?;
@@ -345,16 +351,16 @@ fn valid_multi_hop_chains_are_refused_without_changing_the_image() -> TestResult
     let body = slot(&bytes, terminal).1.to_vec();
     let mut page = crate::PageImage::from_bytes(bytes[base..base + PAGE_BYTES].try_into()?);
     for (locator, raw, kind) in [
-        (terminal, body, crate::row::slot::RowSlot::Storage),
+        (terminal, body, crate::row::directory::RowSlot::Storage),
         (
             middle,
-            crate::row::slot::pointer(terminal)?.to_vec(),
-            crate::row::slot::RowSlot::StorageLink,
+            crate::row::directory::overflow_pointer(terminal)?.to_vec(),
+            crate::row::directory::RowSlot::StorageLink,
         ),
         (
             logical,
-            crate::row::slot::pointer(middle)?.to_vec(),
-            crate::row::slot::RowSlot::Link,
+            crate::row::directory::overflow_pointer(middle)?.to_vec(),
+            crate::row::directory::RowSlot::Link,
         ),
     ] {
         page = crate::row::update_page::replace_physical(

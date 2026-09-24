@@ -47,7 +47,7 @@ fn globally_free_definitions_and_index_pages_are_rejected() -> TestResult {
         let mut changed = original.clone();
         set_map_bit(
             &mut changed,
-            crate::alloc::mutation_map_write::global_locator(),
+            crate::alloc::mutation_map::global_locator(),
             page,
             true,
         )?;

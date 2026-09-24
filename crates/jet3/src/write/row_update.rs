@@ -115,7 +115,7 @@ pub(crate) fn plan(
         Some(request.row),
         budget,
     )?;
-    let auto = crate::write::auto_number_mutation::AutoNumber::load(definition)?;
+    let auto = crate::write::auto_number::AutoNumber::load(definition)?;
     let mut lowered = [RowValue::Null; u8::MAX as usize];
     if let Some(auto) = auto {
         auto.copy_values(request.values, &mut lowered, budget)?;

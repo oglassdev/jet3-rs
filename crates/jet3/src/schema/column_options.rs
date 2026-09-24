@@ -28,7 +28,7 @@ pub(crate) fn set(
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
     let (catalog, row, bytes) =
-        crate::schema::publish::apply(file, journal, budget, |database, budget| {
+        crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let table = crate::write::update::indexed_writable_table(database, table, budget)?;
             if edit.required.is_none()
                 && edit.allow_zero_length.is_none()

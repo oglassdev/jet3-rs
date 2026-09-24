@@ -316,7 +316,8 @@ pub(crate) fn plan(
             budget,
         )?;
     }
-    let index_change = crate::index::update_key::plan(database, definition, request, budget)?;
+    let index_change =
+        crate::index::mutation::plan_field_update(database, definition, request, budget)?;
     let mut original_page = [0; PAGE_BYTES];
     database.read_raw_page(storage.page(), &mut original_page, budget)?;
     let directory =

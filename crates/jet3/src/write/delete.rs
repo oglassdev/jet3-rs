@@ -116,7 +116,7 @@ pub(crate) fn plan(
             budget,
         )?;
     }
-    let auto = crate::write::auto_number_mutation::AutoNumber::load(definition)?;
+    let auto = crate::write::auto_number::AutoNumber::load(definition)?;
     let mut index = if definition.indexes().is_empty() && definition.physical_indexes().is_empty() {
         None
     } else {

@@ -47,7 +47,7 @@ pub(crate) fn release_table(
     let mut maps: Vec<MapBits> = Vec::new();
     let global = MapBits::load(
         database,
-        crate::alloc::mutation_map_write::global_locator(),
+        crate::alloc::mutation_map::global_locator(),
         budget,
     )?;
     let selected = locators(table, budget)?;
@@ -128,7 +128,7 @@ pub(crate) fn release_table(
     for page in content {
         edits.map_bit(
             database,
-            crate::alloc::mutation_map_write::global_locator(),
+            crate::alloc::mutation_map::global_locator(),
             page,
             false,
             true,

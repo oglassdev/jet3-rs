@@ -182,7 +182,7 @@ fn last_inline_bit_and_conversion_preserve_rows_and_metadata() -> TestResult {
         let definition = db.table_definition(f.root, &mut b)?;
         let global = crate::alloc::mutation_map::MapBits::load(
             &mut db,
-            crate::alloc::mutation_map_write::global_locator(),
+            crate::alloc::mutation_map::global_locator(),
             &mut b,
         )?;
         for page in pages as u64..expected_pages {

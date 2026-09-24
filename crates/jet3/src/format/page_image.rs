@@ -6,12 +6,15 @@
 //! exact inverse of the crate's row-directory decoder. Neither type performs
 //! I/O or chooses page numbers.
 
-use crate::format::page_kind::page_tag;
 use crate::{
     BinaryWriter, ByteCount, ByteOffset, Error, PAGE_BYTES, PageKind, PageNumber, PageOffset,
     ResourceBudget,
-    format::data_page_directory::{
-        DIRECTORY_OFFSET, ENTRY_LEN, LONG_VALUE_OWNER, OFFSET_MASK, OWNER_OFFSET, ROW_COUNT_OFFSET,
+    format::{
+        data_page_directory::{
+            DIRECTORY_OFFSET, ENTRY_LEN, LONG_VALUE_OWNER, OFFSET_MASK, OWNER_OFFSET,
+            ROW_COUNT_OFFSET,
+        },
+        page_kind::page_tag,
     },
 };
 use std::fmt;

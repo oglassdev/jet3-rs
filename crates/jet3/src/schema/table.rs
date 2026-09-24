@@ -13,7 +13,7 @@ pub(crate) fn create(
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
     let (root, parent, order) =
-        crate::schema::publish::apply(file, journal, budget, |database, budget| {
+        crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let order = database.header().sort_order();
             crate::create::schema_plan::plan_table_schema_for_order(
                 &spec,
@@ -145,7 +145,7 @@ pub(crate) fn create(
         )?;
     }
     for index in spec.indexes {
-        crate::schema::publish::apply(file, journal, budget, |database, budget| {
+        crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let table = database.table_definition(root, budget)?;
             let edits = crate::schema::index::plan(
                 database,
@@ -169,7 +169,7 @@ pub(crate) fn insert(
     assigned: &[(&[u8], RowValue<'_>)],
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let table = crate::schema::catalog::table(database, name, budget)?;
         if table.columns().len() > 255 {
             return Err(UpdateError::Unsupported("system column count"));

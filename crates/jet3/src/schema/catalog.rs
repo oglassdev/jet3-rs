@@ -65,7 +65,7 @@ pub(crate) fn rename_table(
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
     let (relationships, updates) =
-        crate::schema::publish::apply(file, journal, budget, |database, budget| {
+        crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let order = database.header().sort_order();
             let selected = crate::write::update::indexed_writable_table(database, old, budget)?;
             crate::schema::table::validate_name(database, new, Some(selected.root()), budget)?;
@@ -110,7 +110,7 @@ pub(crate) fn rename_table(
             Ok((edits, (relationships.root(), updates)))
         })?;
     for (row, column) in updates {
-        crate::schema::publish::apply(file, journal, budget, |database, budget| {
+        crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let definition = database.table_definition(relationships, budget)?;
             let graph = crate::row::mutation_graph::RowGraph::load(
                 database,
@@ -129,7 +129,7 @@ pub(crate) fn rename_table(
             Ok((edits, ()))
         })?;
     }
-    crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    crate::schema::edit::apply(file, journal, budget, |database, budget| {
         crate::relationship::catalog::validate(database, budget)?;
         Ok((PageEdits::new(database.geometry().page_count()), ()))
     })

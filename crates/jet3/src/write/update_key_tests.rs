@@ -95,7 +95,7 @@ fn unique_long_reorders_leaf_preserving_counts_bitmap_and_slack() -> TestResult 
                 assert_eq!(tree.entries()[0].row(), row);
             }
             assert_eq!(tree.entries().iter().filter(|e| e.row() == row).count(), 1);
-            let expected_key = crate::index::key::long::encode(
+            let expected_key = crate::index::key::scalar::encode_long(
                 value,
                 table.physical_indexes()[0].fields()[0].direction(),
             );
@@ -271,7 +271,9 @@ fn branch_fences_require_schema_width_even_when_their_bounds_are_valid() -> Test
         assert!(old_fence.as_slice() < fence);
         // The next child starts at Long(1); both corrupt fences stay in its gap.
         assert!(
-            fence < crate::index::key::long::encode(1, crate::IndexDirection::Ascending).as_slice()
+            fence
+                < crate::index::key::scalar::encode_long(1, crate::IndexDirection::Ascending)
+                    .as_slice()
         );
         page[22..ENTRY_AREA_OFFSET].fill(0);
         for end in ends {

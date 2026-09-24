@@ -130,12 +130,12 @@ pub(crate) fn validate_column_layout(
         }))?;
     if variables > 0 {
         minimum_row_len = minimum_row_len
-            .checked_add(crate::row::offsets::jump_count(minimum_row_len))
+            .checked_add(crate::row::reader_layout::jump_count(minimum_row_len))
             .ok_or(TableDefinitionWriteError::Resource(Error::Arithmetic {
                 operation: "size minimum encoded-row jump table",
             }))?;
     }
-    let maximum = crate::row::offsets::maximum_length(usize::from(variables));
+    let maximum = crate::row::reader_layout::maximum_length(usize::from(variables));
     if minimum_row_len > maximum {
         return Err(TableDefinitionWriteError::RowLayoutTooLarge {
             minimum: minimum_row_len,

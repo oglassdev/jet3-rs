@@ -1,6 +1,9 @@
 //! Atomic edits of existing user schemas. Format layouts are sourced by the low-level planners.
-use crate::{IndexSpec, ResourceBudget, UpdateError, schema::column_options::PropertyEdit};
-use std::path::Path;
+use crate::{
+    DatabaseReader, FileSource, IndexSpec, ResourceBudget, UpdateError,
+    schema::column_options::PropertyEdit, write::page_edits::PageEdits,
+};
+use std::{cell::Cell, convert::Infallible, fs::File, path::Path};
 
 /// A requested change to one stored text property.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -165,7 +168,7 @@ pub fn edit_schema(
     request: SchemaEdit<'_>,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    crate::schema::publish::run(
+    run(
         path.as_ref(),
         budget,
         |file, journal, budget| match request {
@@ -314,4 +317,54 @@ pub(crate) fn distinct<'a>(
         }
     }
     Ok(())
+}
+
+// One private file and one verified page journal for a complete schema operation.
+pub(crate) fn run(
+    path: &Path,
+    budget: &mut ResourceBudget,
+    stage: impl FnOnce(&mut File, &mut PageEdits, &mut ResourceBudget) -> Result<(), UpdateError>,
+) -> Result<(), UpdateError> {
+    let database = DatabaseReader::open(path, budget)?;
+    crate::write::update::require_writable_sort_order(&database)?;
+    let journal = Cell::new(Some(PageEdits::new(database.geometry().page_count())));
+    let mut original = database.into_source();
+    crate::write::atomic::atomic_update_budgeted(
+        path,
+        budget,
+        |file, budget| -> Result<(), UpdateError> {
+            let mut combined = journal
+                .take()
+                .ok_or(UpdateError::Mismatch("schema journal absent"))?;
+            stage(file, &mut combined, budget)?;
+            journal.set(Some(combined));
+            Ok(())
+        },
+        |private, budget| -> Result<(), UpdateError> {
+            let combined = journal
+                .take()
+                .ok_or(UpdateError::Mismatch("schema journal absent"))?;
+            let mut candidate = FileSource::open(private, budget.read_budget())?;
+            combined.verify_private(&mut original, &mut candidate, budget)?;
+            Ok(())
+        },
+        |_| Ok::<(), Infallible>(()),
+    )?;
+    Ok(())
+}
+
+pub(crate) fn apply<T>(
+    file: &mut File,
+    combined: &mut PageEdits,
+    budget: &mut ResourceBudget,
+    plan: impl FnOnce(
+        &mut DatabaseReader<FileSource>,
+        &mut ResourceBudget,
+    ) -> Result<(PageEdits, T), UpdateError>,
+) -> Result<T, UpdateError> {
+    let source = FileSource::from_file(file.try_clone()?, budget.read_budget())?;
+    let mut database = DatabaseReader::from_source(source, budget)?;
+    let (edits, result) = plan(&mut database, budget)?;
+    edits.apply_private(&mut database, file, combined, budget)?;
+    Ok(result)
 }

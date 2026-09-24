@@ -229,8 +229,8 @@ fn self_relationship_add_drop_and_orphan_refusal_are_atomic() -> TestResult {
 }
 
 fn vary_parent_spelling(fixture: &Fixture) -> TestResult {
-    crate::schema::publish::run(&fixture.path(), &mut budget(), |file, journal, budget| {
-        crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    crate::schema::edit::run(&fixture.path(), &mut budget(), |file, journal, budget| {
+        crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let table = crate::schema::catalog::table(database, b"MSysRelationships", budget)?;
             let object = crate::schema::catalog::column(&table, b"szReferencedObject")?;
             let column = crate::schema::catalog::column(&table, b"szReferencedColumn")?;
@@ -255,7 +255,7 @@ fn vary_parent_spelling(fixture: &Fixture) -> TestResult {
             )?;
             Ok((edits, ()))
         })?;
-        crate::schema::publish::apply(file, journal, budget, |database, budget| {
+        crate::schema::edit::apply(file, journal, budget, |database, budget| {
             crate::relationship::catalog::validate(database, budget)?;
             Ok((
                 crate::write::page_edits::PageEdits::new(database.geometry().page_count()),

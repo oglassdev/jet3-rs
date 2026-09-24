@@ -1,11 +1,11 @@
 //! Bounded row-anchored allocation-map views from `SRC-0020` and `EXP-0057`.
 //! `EXP-0297` permits unrelated empty deleted map slots after schema edits.
 
-use crate::format::data_page_directory::{
-    DIRECTORY_OFFSET, ENTRY_LEN, MAX_ROW_COUNT, OFFSET_MASK, ROW_COUNT_OFFSET,
-};
 use crate::{
     ClassifiedPage, Error, MapRowLocator, PAGE_BYTES, PageKind, PageNumber, ResourceBudget,
+    format::data_page_directory::{
+        DIRECTORY_OFFSET, ENTRY_LEN, MAX_ROW_COUNT, OFFSET_MASK, ROW_COUNT_OFFSET,
+    },
 };
 use std::fmt;
 use std::ops::Range;

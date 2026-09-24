@@ -1,6 +1,6 @@
 //! Initial generated/explicit Long values and persisted allocation state (EXP-0136/0237).
 use super::*;
-use crate::{PAGE_BYTES, write::auto_number_state::AutoNumberState};
+use crate::{PAGE_BYTES, write::auto_number::AutoNumberState};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct InitialAutoIncrement {

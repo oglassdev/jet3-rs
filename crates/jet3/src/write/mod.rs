@@ -3,8 +3,7 @@ pub(crate) mod atomic;
 mod atomic_tests;
 #[cfg(windows)]
 mod atomic_windows;
-pub(crate) mod auto_number_mutation;
-pub(crate) mod auto_number_state;
+pub(crate) mod auto_number;
 pub(crate) mod delete;
 #[cfg(all(test, any(unix, windows)))]
 mod delete_compaction_tests;

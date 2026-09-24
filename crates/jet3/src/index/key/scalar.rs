@@ -201,10 +201,7 @@ impl NumericKeyType {
                 3
             }
             (Self::Long, RowValue::Long(value)) => {
-                output[..5].copy_from_slice(&crate::index::key::long::encode(
-                    value,
-                    IndexDirection::Ascending,
-                ));
+                output[..5].copy_from_slice(&encode_long(value, IndexDirection::Ascending));
                 5
             }
             (Self::Currency, RowValue::Currency { scaled }) => {
@@ -244,6 +241,19 @@ impl NumericKeyType {
         }
         Some(length)
     }
+}
+
+// Long component bytes from EXP-0062/0126, including descending complement.
+pub(crate) fn encode_long(value: i32, direction: IndexDirection) -> [u8; 5] {
+    let mut key = [0x7f, 0, 0, 0, 0];
+    key[1..].copy_from_slice(&value.to_be_bytes());
+    key[1] ^= 0x80;
+    if direction == IndexDirection::Descending {
+        for byte in &mut key {
+            *byte ^= 0xff;
+        }
+    }
+    key
 }
 
 #[cfg(test)]

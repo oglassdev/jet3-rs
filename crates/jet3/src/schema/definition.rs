@@ -154,7 +154,7 @@ pub(crate) fn stage_bytes(
     for &page in original_pages.iter().skip(count) {
         edits.map_bit(
             database,
-            crate::alloc::mutation_map_write::global_locator(),
+            crate::alloc::mutation_map::global_locator(),
             page,
             false,
             true,
@@ -173,7 +173,7 @@ pub(crate) fn allocate(
     let page = edits.append(image, budget)?;
     edits.map_bit(
         database,
-        crate::alloc::mutation_map_write::global_locator(),
+        crate::alloc::mutation_map::global_locator(),
         page,
         true,
         false,

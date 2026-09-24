@@ -5,12 +5,12 @@ use super::{
     ComposeError, catalog_row_number, compose_database, compose_table_database, creation_counter,
     tests::{compose_budget, inline_map_bit, read_budget},
 };
-use crate::format::page_kind::page_tag;
 use crate::{
     ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec,
     IndexDirection, MapRowLocator, PAGE_BYTES, PageKind, PageNumber, SliceSource,
     create::schema_plan::{IndexKind, IndexSpec, TableSpec},
     definition::column_writer::nz,
+    format::page_kind::page_tag,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;

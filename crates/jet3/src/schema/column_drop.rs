@@ -13,7 +13,7 @@ pub(crate) fn drop_column(
 ) -> Result<(), UpdateError> {
     let table_name = table;
     let (catalog, row, properties, retired) =
-        crate::schema::publish::apply(file, journal, budget, |database, budget| {
+        crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let order = database.header().sort_order();
             let table = crate::write::update::indexed_writable_table(database, table, budget)?;
             let column = table
@@ -73,7 +73,7 @@ pub(crate) fn drop_column(
                         if position == 0 {
                             edits.map_bit(
                                 database,
-                                crate::alloc::mutation_map_write::global_locator(),
+                                crate::alloc::mutation_map::global_locator(),
                                 page,
                                 false,
                                 true,

@@ -1,7 +1,8 @@
 use super::mutation::*;
 use crate::{
-    DatabaseReader, FileSource, IndexNullPolicy, MapRowLocator, PageNumber, ResourceBudget,
-    TableDefinition, UpdateError,
+    DatabaseReader, FileSource, IndexNullPolicy, MapRowLocator, PAGE_BYTES, PageNumber,
+    ResourceBudget, TableDefinition, UpdateError,
+    alloc::mutation_map::MapBits,
     index::{
         entry::{NumericIndexField, record_capacity, sort_cost},
         key::scalar::NumericKeyType,
@@ -69,7 +70,7 @@ pub(crate) fn load(
         {
             return Err(UpdateError::Mismatch("aliased index allocation map"));
         }
-        let mapped = crate::alloc::index_allocation::load(database, table.root(), map, budget)?;
+        let mapped = mapped_index_pages(database, table.root(), map, budget)?;
         for previous in &result.indexes {
             budget.charge_work_units(
                 (mapped.len() as u64)
@@ -184,4 +185,37 @@ pub(crate) fn load(
         }
     }
     Ok(result)
+}
+
+// EXP-0051/0057/0062: index ownership and global allocated membership.
+pub(crate) fn mapped_index_pages(
+    database: &mut DatabaseReader<FileSource>,
+    root: PageNumber,
+    location: MapRowLocator,
+    budget: &mut ResourceBudget,
+) -> Result<Vec<PageNumber>, UpdateError> {
+    let map = MapBits::load(database, location, budget)?;
+    let mapped = map.existing_pages(database.geometry().page_count(), false, budget)?;
+    let global = MapBits::load(
+        database,
+        crate::alloc::mutation_map::global_locator(),
+        budget,
+    )?;
+    if map.overlaps(&global, budget)? {
+        return Err(UpdateError::Mismatch("aliased index and global maps"));
+    }
+    let mut bytes = [0; PAGE_BYTES];
+    let owner =
+        u32::try_from(root.get()).map_err(|_| UpdateError::Mismatch("index owner width"))?;
+    for page in &mapped {
+        budget.charge_items(1)?;
+        if global.contains(*page)? {
+            return Err(UpdateError::Mismatch("mapped index page is globally free"));
+        }
+        database.read_raw_page(*page, &mut bytes, budget)?;
+        if !matches!(bytes[0], 3 | 4) || bytes[1] != 1 || bytes[4..8] != owner.to_le_bytes() {
+            return Err(UpdateError::Mismatch("mapped index page kind or owner"));
+        }
+    }
+    Ok(mapped)
 }

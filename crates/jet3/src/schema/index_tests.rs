@@ -95,7 +95,7 @@ fn index_edits_preserve_rows_payloads_and_unrelated_source_pages() -> TestResult
     let mut database = DatabaseReader::open(fixture.path(), &mut budget())?;
     let global = crate::alloc::mutation_map::MapBits::load(
         &mut database,
-        crate::alloc::mutation_map_write::global_locator(),
+        crate::alloc::mutation_map::global_locator(),
         &mut budget(),
     )?;
     let allocation: Vec<_> = global
@@ -488,7 +488,7 @@ fn drop_columns_retains_rows_releases_payloads_and_allows_sparse_mutations() -> 
     let mut database = DatabaseReader::open(fixture.path(), &mut b)?;
     let global = crate::alloc::mutation_map::MapBits::load(
         &mut database,
-        crate::alloc::mutation_map_write::global_locator(),
+        crate::alloc::mutation_map::global_locator(),
         &mut b,
     )?;
     for page in payload_pages {
@@ -560,7 +560,7 @@ fn drop_table_removes_catalog_grants_and_releases_its_storage() -> TestResult {
     assert!(crate::write::update::indexed_writable_table(&mut database, b"Items", &mut b).is_err());
     let global = crate::alloc::mutation_map::MapBits::load(
         &mut database,
-        crate::alloc::mutation_map_write::global_locator(),
+        crate::alloc::mutation_map::global_locator(),
         &mut b,
     )?;
     assert!(global.contains(table.root())?);

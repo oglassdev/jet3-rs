@@ -12,7 +12,7 @@ pub(crate) fn drop_relationship(
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
     let (endpoints, catalog, object, id, central, records) =
-        crate::schema::publish::apply(file, journal, budget, |database, budget| {
+        crate::schema::edit::apply(file, journal, budget, |database, budget| {
             crate::relationship::catalog::validate(database, budget)?;
             let central = crate::schema::catalog::table(database, b"MSysRelationships", budget)?;
             let relationship = crate::schema::catalog::column(&central, b"szRelationship")?;
@@ -104,7 +104,7 @@ pub(crate) fn drop_relationship(
             ))
         })?;
     for (root, selector) in endpoints.into_iter().flatten() {
-        let retired = crate::schema::publish::apply(file, journal, budget, |database, budget| {
+        let retired = crate::schema::edit::apply(file, journal, budget, |database, budget| {
             let table = database.table_definition(root, budget)?;
             crate::index::mutation::load(database, &table, budget)?;
             let position = table.indexes().iter().position(|index| matches!(index.kind(), crate::IndexDefinitionKind::Relationship(relation) if relation.raw_selector() == selector)).ok_or(UpdateError::Mismatch("relationship index identity"))?;
@@ -138,7 +138,7 @@ pub(crate) fn drop_relationship(
     }
     delete_row(file, journal, catalog, object, budget)?;
     delete_grants(file, journal, id, budget)?;
-    crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    crate::schema::edit::apply(file, journal, budget, |database, budget| {
         crate::relationship::catalog::validate(database, budget)?;
         Ok((PageEdits::new(database.geometry().page_count()), ()))
     })
@@ -180,7 +180,7 @@ pub(crate) fn delete_row(
     row: RowLocator,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    crate::schema::publish::apply(file, journal, budget, |database, budget| {
+    crate::schema::edit::apply(file, journal, budget, |database, budget| {
         let table = database.table_definition(root, budget)?;
         let edits = crate::write::delete::plan(
             database,
@@ -199,7 +199,7 @@ pub(crate) fn delete_grants(
     id: i32,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {
-    let (root, locators) = crate::schema::publish::apply(
+    let (root, locators) = crate::schema::edit::apply(
         file,
         journal,
         budget,

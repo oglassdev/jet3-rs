@@ -1,11 +1,10 @@
 //! Bounded inline and external long-value streaming from `EXP-0061`.
 
-use crate::format::data_page_directory::{DIRECTORY_OFFSET, ENTRY_LEN, OFFSET_MASK};
 use crate::{
     AllocationTraversalError, ByteCount, Error, OwnedPages, PAGE_BYTES, PageKind, PageNumber,
     ReadAt, ResourceBudget, RowCursor, RowLocator,
     format::{
-        data_page_directory::LONG_VALUE_OWNER,
+        data_page_directory::{DIRECTORY_OFFSET, ENTRY_LEN, LONG_VALUE_OWNER, OFFSET_MASK},
         text::{DecodedText, TextCodePage, TextError, decode_text, decoded_text_length},
     },
 };

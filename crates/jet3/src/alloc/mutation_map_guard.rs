@@ -1,10 +1,7 @@
 //! Reject shared bitmap storage before changing any allocation role (EXP-0057/0077).
 use crate::{
     DatabaseReader, FileSource, MapRowLocator, ResourceBudget, UpdateError,
-    alloc::{
-        mutation_map::MapBits,
-        mutation_map_write::{PendingMap, global_locator},
-    },
+    alloc::mutation_map::{MapBits, PendingMap, global_locator},
     write::page_edits::reserve,
 };
 

@@ -44,7 +44,7 @@ pub(crate) struct PageEdits {
     pub(super) first_append: u64,
     pub(super) changes: Vec<Change>,
     pub(super) append: Vec<PageImage>,
-    maps: Vec<crate::alloc::mutation_map_write::PendingMap>,
+    maps: Vec<crate::alloc::mutation_map::PendingMap>,
 }
 
 impl PageEdits {
@@ -168,7 +168,7 @@ impl PageEdits {
                 }
                 reserve(&mut self.maps, 1, budget)?;
                 self.maps
-                    .push(crate::alloc::mutation_map_write::PendingMap::new(bits));
+                    .push(crate::alloc::mutation_map::PendingMap::new(bits));
                 self.maps.len() - 1
             };
         self.maps[position].change(member, expected, desired, self.first_append, budget)
@@ -309,13 +309,11 @@ impl PageEdits {
         let global = if let Some(position) = global_position {
             maps.remove(position)
         } else {
-            crate::alloc::mutation_map_write::PendingMap::new(
-                crate::alloc::mutation_map::MapBits::load(
-                    database,
-                    crate::alloc::mutation_map_write::global_locator(),
-                    budget,
-                )?,
-            )
+            crate::alloc::mutation_map::PendingMap::new(crate::alloc::mutation_map::MapBits::load(
+                database,
+                crate::alloc::mutation_map::global_locator(),
+                budget,
+            )?)
         };
         for map in maps {
             map.apply(database, self, budget)?;
