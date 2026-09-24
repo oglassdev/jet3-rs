@@ -1,8 +1,8 @@
 //! Generates bounded EXP-0222/0241 catalog and table-layout candidates.
 use jet3::{
-    ColumnSpec, ColumnType, ComposeError, CreateDatabaseError, IndexColumnSpec, IndexKind,
-    IndexSpec, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec, create_database,
-    create_database_with_table_rows,
+    ColumnSpec, ColumnType, ComposeError, CreateDatabaseError, DatabaseSpec, IndexColumnSpec,
+    IndexKind, IndexSpec, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec,
+    create_database,
 };
 use std::path::Path;
 
@@ -98,9 +98,27 @@ fn create(
                 rows: &rows,
             })
             .collect::<Vec<_>>();
-        create_database_with_table_rows(path, &requests, &mut budget)
+        create_database(
+            path,
+            &DatabaseSpec {
+                tables: &requests,
+                ..DatabaseSpec::default()
+            },
+            &mut budget,
+        )
     } else {
-        create_database(path, &tables, &mut budget)
+        create_database(
+            path,
+            &DatabaseSpec {
+                tables: &tables
+                    .iter()
+                    .copied()
+                    .map(TableRows::empty)
+                    .collect::<Vec<_>>(),
+                ..DatabaseSpec::default()
+            },
+            &mut budget,
+        )
     }
 }
 

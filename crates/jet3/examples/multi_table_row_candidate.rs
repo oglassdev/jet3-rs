@@ -1,7 +1,7 @@
 //! Deterministic mixed-table and empty-first initial-row candidates.
 use jet3::{
-    ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, ResourceBudget, ResourceLimits,
-    RowValue, TableRows, TableSpec, create_database_with_table_rows,
+    ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexKind, IndexSpec, ResourceBudget,
+    ResourceLimits, RowValue, TableRows, TableSpec, create_database,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -37,58 +37,64 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let mut budget = ResourceBudget::new(ResourceLimits::default());
     match arm.to_str() {
-        Some("mixed") => create_database_with_table_rows(
+        Some("mixed") => create_database(
             path,
-            &[
-                TableRows {
-                    table: TableSpec {
-                        validation: jet3::TableValidation::NONE,
-                        name: b"Numbers",
-                        columns: &id,
-                        indexes: &[],
+            &DatabaseSpec {
+                tables: &[
+                    TableRows {
+                        table: TableSpec {
+                            validation: jet3::TableValidation::NONE,
+                            name: b"Numbers",
+                            columns: &id,
+                            indexes: &[],
+                        },
+                        rows: &first_rows,
                     },
-                    rows: &first_rows,
-                },
-                TableRows {
-                    table: TableSpec {
-                        validation: jet3::TableValidation::NONE,
-                        name: b"Keys",
-                        columns: &id,
-                        indexes: &indexes,
+                    TableRows {
+                        table: TableSpec {
+                            validation: jet3::TableValidation::NONE,
+                            name: b"Keys",
+                            columns: &id,
+                            indexes: &indexes,
+                        },
+                        rows: &[
+                            &[RowValue::Long(3)],
+                            &[RowValue::Long(-1)],
+                            &[RowValue::Long(2)],
+                        ],
                     },
-                    rows: &[
-                        &[RowValue::Long(3)],
-                        &[RowValue::Long(-1)],
-                        &[RowValue::Long(2)],
-                    ],
-                },
-                TableRows {
-                    table: TableSpec {
-                        validation: jet3::TableValidation::NONE,
-                        name: b"Notes",
-                        columns: &[ColumnSpec::new(b"Payload", ColumnType::Memo)],
-                        indexes: &[],
+                    TableRows {
+                        table: TableSpec {
+                            validation: jet3::TableValidation::NONE,
+                            name: b"Notes",
+                            columns: &[ColumnSpec::new(b"Payload", ColumnType::Memo)],
+                            indexes: &[],
+                        },
+                        rows: &[&[RowValue::Memo(&memo)], &[RowValue::Null]],
                     },
-                    rows: &[&[RowValue::Memo(&memo)], &[RowValue::Null]],
-                },
-                empty,
-            ],
+                    empty,
+                ],
+                ..DatabaseSpec::default()
+            },
             &mut budget,
         )?,
-        Some("empty-first") => create_database_with_table_rows(
+        Some("empty-first") => create_database(
             path,
-            &[
-                empty,
-                TableRows {
-                    table: TableSpec {
-                        validation: jet3::TableValidation::NONE,
-                        name: b"Binary",
-                        columns: &[ColumnSpec::new(b"Payload", ColumnType::LongBinary)],
-                        indexes: &[],
+            &DatabaseSpec {
+                tables: &[
+                    empty,
+                    TableRows {
+                        table: TableSpec {
+                            validation: jet3::TableValidation::NONE,
+                            name: b"Binary",
+                            columns: &[ColumnSpec::new(b"Payload", ColumnType::LongBinary)],
+                            indexes: &[],
+                        },
+                        rows: &[&[RowValue::LongBinary(&ole)]],
                     },
-                    rows: &[&[RowValue::LongBinary(&ole)]],
-                },
-            ],
+                ],
+                ..DatabaseSpec::default()
+            },
             &mut budget,
         )?,
         _ => return Err("arm must be mixed or empty-first".into()),

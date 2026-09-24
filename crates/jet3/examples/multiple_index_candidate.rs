@@ -1,7 +1,7 @@
 //! Finite multiple populated-index candidates for EXP-0193.
 use jet3::{
-    ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, ResourceBudget, ResourceLimits,
-    RowValue, TableSpec, create_database_with_rows,
+    ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexKind, IndexSpec, ResourceBudget,
+    ResourceLimits, RowValue, TableRows, TableSpec, create_database,
 };
 use std::{env, fs, path::Path};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -76,19 +76,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
             .collect();
         let row_refs: Vec<_> = rows.iter().map(Vec::as_slice).collect();
-        create_database_with_rows(
+        create_database(
             directory.join(if mixed {
                 "mixed-null.mdb"
             } else {
                 "three-long.mdb"
             }),
-            &TableSpec {
-                validation: jet3::TableValidation::NONE,
-                name: b"Rows",
-                columns: &columns,
-                indexes: &indexes,
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: b"Rows",
+                        columns: &columns,
+                        indexes: &indexes,
+                    },
+                    rows: &row_refs,
+                }],
+                ..DatabaseSpec::default()
             },
-            &row_refs,
             &mut ResourceBudget::new(ResourceLimits::default()),
         )?;
     }

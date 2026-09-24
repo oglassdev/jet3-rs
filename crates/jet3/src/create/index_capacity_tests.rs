@@ -1,8 +1,8 @@
 use crate::{
-    ColumnSpec, ColumnType, DatabaseReader, IndexDirection, IndexKind, IndexSpec, PageNumber,
-    RowValue, TableSpec,
+    ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, IndexDirection, IndexKind, IndexSpec,
+    PageNumber, RowValue, TableRows, TableSpec,
     create::{api_tests::*, initial_rows_tests::*},
-    create_database_with_rows,
+    create_database,
 };
 use std::collections::BTreeSet;
 use std::fs;
@@ -62,7 +62,14 @@ fn thirty_two_indexes_span_maps_and_validate_the_final_unique_index() -> TestRes
         })
         .collect::<Vec<_>>();
     let rows = values.iter().map(Vec::as_slice).collect::<Vec<_>>();
-    create_database_with_rows(directory.target(), &table, &rows, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let original = fs::read(directory.target())?;
     let mut b = budget();
     let mut db = DatabaseReader::open(directory.target(), &mut b)?;

@@ -2,13 +2,7 @@ use super::api_relationship_graph_tests::*;
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec,
     RelationshipField, RelationshipSpec, RowValue, TableSpec, TextCodePage,
-    create::{
-        api::*,
-        api_relationship_graph::{
-            create_database_with_relationships, create_database_with_relationships_and_rows,
-        },
-        composer::ComposeError,
-    },
+    create::{api::*, composer::ComposeError},
 };
 use std::fs;
 
@@ -87,10 +81,13 @@ fn graph_selects_later_unique_parent_and_preserves_declared_foreign_indexes() ->
                 child: ColumnRef::Ordinal(1),
             }];
             let directory = Directory::new()?;
-            create_database_with_relationships_and_rows(
+            create_database(
                 directory.target(),
-                &requests,
-                &[edge],
+                &DatabaseSpec {
+                    tables: &requests,
+                    relationships: &[edge],
+                    ..DatabaseSpec::default()
+                },
                 &mut budget(),
             )?;
             let parent_locator = {
@@ -176,10 +173,13 @@ fn relationship_alias_consumes_a_logical_index_slot_when_reusing_a_tree() -> Tes
                 indexes: &indexes[..count],
                 ..TABLES[1]
             };
-            let result = create_database_with_relationships(
+            let result = create_database(
                 directory.target(),
-                &[TABLES[0], child],
-                &[relation(b"Relation", 0, 1, 1)],
+                &DatabaseSpec {
+                    tables: &[TableRows::empty(TABLES[0]), TableRows::empty(child)],
+                    relationships: &[relation(b"Relation", 0, 1, 1)],
+                    ..DatabaseSpec::default()
+                },
                 &mut budget(),
             );
             if count == 32 {
@@ -232,10 +232,13 @@ fn graph_parent_selection_follows_logical_name_order_before_primary_status() -> 
             ..TABLES[0]
         };
         let directory = Directory::new()?;
-        create_database_with_relationships(
+        create_database(
             directory.target(),
-            &[parent, TABLES[1]],
-            &[relation(b"Relation", 0, 1, 1)],
+            &DatabaseSpec {
+                tables: &[TableRows::empty(parent), TableRows::empty(TABLES[1])],
+                relationships: &[relation(b"Relation", 0, 1, 1)],
+                ..DatabaseSpec::default()
+            },
             &mut budget(),
         )?;
         let mut work = budget();
@@ -277,19 +280,22 @@ fn graph_nullable_unique_parent_allows_duplicate_nulls_and_null_foreign_keys() -
         RowValue::Null,
     ];
     let directory = Directory::new()?;
-    create_database_with_relationships_and_rows(
+    create_database(
         directory.target(),
-        &[
-            TableRows {
-                table: parent,
-                rows: &[keyed, null, null],
-            },
-            TableRows {
-                table: TABLES[1],
-                rows: &[keyed],
-            },
-        ],
-        &[relation(b"Relation", 0, 1, 1)],
+        &DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: parent,
+                    rows: &[keyed, null, null],
+                },
+                TableRows {
+                    table: TABLES[1],
+                    rows: &[keyed],
+                },
+            ],
+            relationships: &[relation(b"Relation", 0, 1, 1)],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     crate::insert_row(
@@ -356,10 +362,13 @@ fn graph_parent_hidden_names_cross_the_native_nibble_boundary() -> TestResult {
             indexes: &indexes[..count],
             ..TABLES[0]
         };
-        let result = create_database_with_relationships(
+        let result = create_database(
             directory.target(),
-            &[parent, TABLES[1]],
-            &[relation(b"Relation", 0, 1, 1)],
+            &DatabaseSpec {
+                tables: &[TableRows::empty(parent), TableRows::empty(TABLES[1])],
+                relationships: &[relation(b"Relation", 0, 1, 1)],
+                ..DatabaseSpec::default()
+            },
             &mut budget(),
         );
         if count == 32 {
@@ -428,10 +437,13 @@ fn one_to_one_graph_selects_only_unique_include_null_child_indexes() -> TestResu
             unique: true,
             ..relation(b"One", 0, 1, 1)
         };
-        create_database_with_relationships(
+        create_database(
             directory.target(),
-            &[TABLES[0], child],
-            &[edge],
+            &DatabaseSpec {
+                tables: &[TableRows::empty(TABLES[0]), TableRows::empty(child)],
+                relationships: &[edge],
+                ..DatabaseSpec::default()
+            },
             &mut budget(),
         )?;
         let mut b = budget();
@@ -464,7 +476,15 @@ fn one_to_one_and_ordinary_graph_edges_keep_distinct_child_trees() -> TestResult
             ..relation(b"One", 1, 2, 1)
         },
     ];
-    create_database_with_relationships(directory.target(), &TABLES, &edges, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &TABLES.map(TableRows::empty),
+            relationships: &edges,
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let mut b = budget();
     let mut db = DatabaseReader::open(directory.target(), &mut b)?;
     let table = crate::write::update::indexed_writable_table(&mut db, TABLES[2].name, &mut b)?;
@@ -520,10 +540,13 @@ fn one_to_one_creation_refuses_duplicate_children_before_publication() -> TestRe
         ..relation(b"One", 0, 1, 1)
     };
     assert!(
-        create_database_with_relationships_and_rows(
+        create_database(
             directory.target(),
-            &requests,
-            &[edge],
+            &DatabaseSpec {
+                tables: &requests,
+                relationships: &[edge],
+                ..DatabaseSpec::default()
+            },
             &mut budget()
         )
         .is_err()
@@ -573,19 +596,22 @@ fn generated_one_to_one_index_records_initial_child_row_count() -> TestResult {
         unique: true,
         ..relation(b"One", 0, 1, 1)
     };
-    create_database_with_relationships_and_rows(
+    create_database(
         directory.target(),
-        &[
-            TableRows {
-                table: TABLES[0],
-                rows: parent_rows,
-            },
-            TableRows {
-                table: TABLES[1],
-                rows: child_rows,
-            },
-        ],
-        &[edge],
+        &DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: TABLES[0],
+                    rows: parent_rows,
+                },
+                TableRows {
+                    table: TABLES[1],
+                    rows: child_rows,
+                },
+            ],
+            relationships: &[edge],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let mut work = budget();

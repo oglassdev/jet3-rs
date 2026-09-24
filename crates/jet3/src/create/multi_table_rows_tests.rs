@@ -1,9 +1,10 @@
 use super::initial_rows_tests::*;
 use crate::{
-    ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexDirection, IndexKind, IndexSpec,
-    PageNumber, ResourceBudget, ResourceLimits, RowValue, RowWriteError, TableRows, TableSpec,
+    ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexDirection, IndexKind,
+    IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue, RowWriteError, TableRows,
+    TableSpec,
     create::{api::CreateDatabaseError, api_tests::*},
-    create_database_with_table_rows,
+    create_database,
 };
 use std::fs;
 
@@ -62,7 +63,14 @@ fn mixed_tables_assign_later_roots_maps_indexes_and_payloads() -> TestResult {
             rows: &[],
         },
     ];
-    create_database_with_table_rows(directory.target(), &requests, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &requests,
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let bytes = fs::read(directory.target())?;
     assert_eq!(bytes.len(), 37 * crate::PAGE_BYTES);
     for page in 23..26 {
@@ -101,7 +109,7 @@ fn mixed_tables_assign_later_roots_maps_indexes_and_payloads() -> TestResult {
         changed[offset] ^= 1;
         fs::write(directory.target(), changed)?;
         assert!(
-            super::api::check_initial_tables(
+            super::check::check_initial_tables(
                 &directory.target(),
                 &tables,
                 &requests,
@@ -116,7 +124,14 @@ fn mixed_tables_assign_later_roots_maps_indexes_and_payloads() -> TestResult {
 #[test]
 fn empty_requests_and_empty_first_table_keep_first_create_placement() -> TestResult {
     let empty = TestDirectory::create()?;
-    create_database_with_table_rows(empty.target(), &[], &mut budget())?;
+    create_database(
+        empty.target(),
+        &DatabaseSpec {
+            tables: &[],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     assert_eq!(
         fs::metadata(empty.target())?.len(),
         20 * crate::PAGE_BYTES as u64
@@ -143,7 +158,14 @@ fn empty_requests_and_empty_first_table_keep_first_create_placement() -> TestRes
             rows: &[&[RowValue::LongBinary(&payload)]],
         },
     ];
-    create_database_with_table_rows(directory.target(), &requests, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &requests,
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let bytes = fs::read(directory.target())?;
     assert_eq!(bytes.len(), 28 * crate::PAGE_BYTES);
     assert!(map_bit(&bytes, 24, 2, 25)?);
@@ -171,10 +193,24 @@ fn table_limit_duplicate_names_and_later_failure_preserve_destination() -> TestR
         },
         ..first
     };
-    create_database_with_table_rows(directory.target(), &[first, second], &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[first, second],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let original = fs::read(directory.target())?;
     assert!(matches!(
-        create_database_with_table_rows(directory.target(), &vec![first; 32640], &mut budget()),
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &vec![first; 32640],
+                ..DatabaseSpec::default()
+            },
+            &mut budget()
+        ),
         Err(CreateDatabaseError::Compose(
             ComposeError::TableCountOverflow { count: 32640, .. }
         ))
@@ -187,7 +223,14 @@ fn table_limit_duplicate_names_and_later_failure_preserve_destination() -> TestR
         ..first
     };
     assert!(matches!(
-        create_database_with_table_rows(directory.target(), &[first, duplicate], &mut budget()),
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[first, duplicate],
+                ..DatabaseSpec::default()
+            },
+            &mut budget()
+        ),
         Err(CreateDatabaseError::Compose(
             ComposeError::DuplicateTableName {
                 first: 0,
@@ -200,7 +243,14 @@ fn table_limit_duplicate_names_and_later_failure_preserve_destination() -> TestR
         ..second
     };
     assert!(matches!(
-        create_database_with_table_rows(directory.target(), &[first, wrong], &mut budget()),
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[first, wrong],
+                ..DatabaseSpec::default()
+            },
+            &mut budget()
+        ),
         Err(CreateDatabaseError::Compose(ComposeError::Row(
             RowWriteError::TypeMismatch { .. }
         )))
@@ -209,8 +259,15 @@ fn table_limit_duplicate_names_and_later_failure_preserve_destination() -> TestR
         ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(1)),
     );
     assert!(
-        create_database_with_table_rows(directory.target(), &[first, second], &mut limited)
-            .is_err()
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[first, second],
+                ..DatabaseSpec::default()
+            },
+            &mut limited
+        )
+        .is_err()
     );
     assert_eq!(fs::read(directory.target())?, original);
     assert_eq!(directory.entries()?, ["created.mdb"]);
@@ -247,7 +304,14 @@ fn later_table_pages_share_the_same_inline_allocation_limit() -> TestResult {
         },
         rows: &[],
     };
-    create_database_with_table_rows(directory.target(), &[first, later], &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[first, later],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let original = fs::read(directory.target())?;
     assert_eq!(original.len(), 1024 * crate::PAGE_BYTES);
     let larger = TableRows {
@@ -255,8 +319,15 @@ fn later_table_pages_share_the_same_inline_allocation_limit() -> TestResult {
         ..first
     };
     assert!(
-        create_database_with_table_rows(directory.target(), &[larger, later], &mut budget())
-            .is_err()
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[larger, later],
+                ..DatabaseSpec::default()
+            },
+            &mut budget()
+        )
+        .is_err()
     );
     assert_eq!(fs::read(directory.target())?, original);
     Ok(())

@@ -49,15 +49,20 @@ fn fixture(
         },
     ];
     let rows: Vec<_> = values.iter().map(|v| v.as_slice()).collect();
-    crate::create_database_with_rows(
+    crate::create_database(
         f.path(),
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Rows",
-            columns: &columns,
-            indexes: &indexes,
+        &crate::DatabaseSpec {
+            tables: &[crate::TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &columns,
+                    indexes: &indexes,
+                },
+                rows: &rows,
+            }],
+            ..crate::DatabaseSpec::default()
         },
-        &rows,
         &mut budget(),
     )?;
     Ok(f)

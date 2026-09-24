@@ -20,15 +20,20 @@ impl Fixture {
     ) -> Result<Self, Box<dyn StdError>> {
         let directory = crate::testkit::TempDir::new("insert")?;
         let path = directory.join("source.mdb");
-        crate::create_database_with_rows(
+        crate::create_database(
             &path,
-            &TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Rows",
-                columns,
-                indexes: &[],
+            &crate::DatabaseSpec {
+                tables: &[crate::TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Rows",
+                        columns,
+                        indexes: &[],
+                    },
+                    rows,
+                }],
+                ..crate::DatabaseSpec::default()
             },
-            rows,
             &mut budget(),
         )?;
         let mut b = budget();

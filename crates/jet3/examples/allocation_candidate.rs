@@ -185,36 +185,39 @@ fn create(path: &Path, case: Case) -> Result<()> {
         .collect::<Vec<_>>();
     let values = owned.iter().map(|r| r.values(case)).collect::<Vec<_>>();
     let rows = values.iter().map(Vec::as_slice).collect::<Vec<_>>();
-    jet3::create_database_with_table_rows(
+    jet3::create_database(
         path,
-        &[
-            TableRows {
-                table: TableSpec {
-                    validation: jet3::TableValidation::NONE,
-                    name: b"Items",
-                    columns: &columns,
-                    indexes: &indexes[..if case.payload { 2 } else { 1 }],
+        &jet3::DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: b"Items",
+                        columns: &columns,
+                        indexes: &indexes[..if case.payload { 2 } else { 1 }],
+                    },
+                    rows: &rows,
                 },
-                rows: &rows,
-            },
-            TableRows {
-                table: TableSpec {
-                    validation: jet3::TableValidation::NONE,
-                    name: b"Notes",
-                    columns: &[
-                        ColumnSpec::new(b"Id", ColumnType::Long),
-                        ColumnSpec::new(
-                            b"Body",
-                            ColumnType::Text {
-                                max_len: std::num::NonZeroU8::new(64).ok_or("Notes width")?,
-                            },
-                        ),
-                    ],
-                    indexes: &[],
+                TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: b"Notes",
+                        columns: &[
+                            ColumnSpec::new(b"Id", ColumnType::Long),
+                            ColumnSpec::new(
+                                b"Body",
+                                ColumnType::Text {
+                                    max_len: std::num::NonZeroU8::new(64).ok_or("Notes width")?,
+                                },
+                            ),
+                        ],
+                        indexes: &[],
+                    },
+                    rows: &[&[RowValue::Long(7), RowValue::Text(b"allocation-control")]],
                 },
-                rows: &[&[RowValue::Long(7), RowValue::Text(b"allocation-control")]],
-            },
-        ],
+            ],
+            ..jet3::DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     Ok(())

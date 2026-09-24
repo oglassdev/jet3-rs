@@ -2,7 +2,9 @@ use super::memo_option_tests::*;
 use crate::{
     ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, IndexSpec, PageNumber, ResourceBudget,
     ResourceLimits, RowValue, TableSpec,
-    create::{api::*, api_tests::TestDirectory, composer::compose_database_with_table_rows},
+    create::{
+        api::*, api_tests::TestDirectory, check::*, composer::compose_database_with_table_rows,
+    },
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -38,38 +40,41 @@ fn empty_options_are_per_column_on_later_indexed_tables() -> Result<(), Box<dyn 
         columns: &columns,
         indexes: &indexes,
     };
-    create_database_with_table_rows(
+    create_database(
         &path,
-        &[
-            TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Anchor",
-                    columns: &[ColumnSpec::new(b"Id", ColumnType::Long)],
-                    indexes: &[],
+        &DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Anchor",
+                        columns: &[ColumnSpec::new(b"Id", ColumnType::Long)],
+                        indexes: &[],
+                    },
+                    rows: &[&[RowValue::Long(9)]],
                 },
-                rows: &[&[RowValue::Long(9)]],
-            },
-            TableRows {
-                table,
-                rows: &[
-                    &[
-                        RowValue::Long(1),
-                        RowValue::Null,
-                        RowValue::Null,
-                        RowValue::Null,
-                        RowValue::Null,
+                TableRows {
+                    table,
+                    rows: &[
+                        &[
+                            RowValue::Long(1),
+                            RowValue::Null,
+                            RowValue::Null,
+                            RowValue::Null,
+                            RowValue::Null,
+                        ],
+                        &[
+                            RowValue::Long(2),
+                            RowValue::Text(b""),
+                            RowValue::Memo(b""),
+                            RowValue::Null,
+                            RowValue::LongBinary(b""),
+                        ],
                     ],
-                    &[
-                        RowValue::Long(2),
-                        RowValue::Text(b""),
-                        RowValue::Memo(b""),
-                        RowValue::Null,
-                        RowValue::LongBinary(b""),
-                    ],
-                ],
-            },
-        ],
+                },
+            ],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let locator = {
@@ -159,15 +164,20 @@ fn malformed_properties_and_disabled_empty_values_preserve_input() -> Result<(),
     let directory = TestDirectory::create()?;
     let path = directory.path.join("properties.mdb");
     let fields = columns(b"M");
-    create_database_with_rows(
+    create_database(
         &path,
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Rows",
-            columns: &fields,
-            indexes: &[],
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &fields,
+                    indexes: &[],
+                },
+                rows: &[&[RowValue::Long(1), RowValue::Memo(b"kept")]],
+            }],
+            ..DatabaseSpec::default()
         },
-        &[&[RowValue::Long(1), RowValue::Memo(b"kept")]],
         &mut budget(),
     )?;
     let original = fs::read(&path)?;
@@ -298,15 +308,20 @@ fn chained_properties_keep_options_independent() -> Result<(), Box<dyn StdError>
     }
     let mut initial = vec![RowValue::Long(1)];
     initial.extend((0..26).map(|i| RowValue::Text(if i % 2 == 0 { b"" } else { b"value" })));
-    create_database_with_rows(
+    create_database(
         &path,
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Rows",
-            columns: &fields,
-            indexes: &[],
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &fields,
+                    indexes: &[],
+                },
+                rows: &[&initial],
+            }],
+            ..DatabaseSpec::default()
         },
-        &[&initial],
         &mut budget(),
     )?;
     let mut work = budget();
@@ -369,7 +384,14 @@ fn text_only_properties_are_checked_before_publication() -> Result<(), Box<dyn S
         indexes: &[],
     };
     let rows: &[&[RowValue<'_>]] = &[&[RowValue::Text(b"")]];
-    create_database_with_rows(&path, &table, rows, &mut budget())?;
+    create_database(
+        &path,
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let pages =
         compose_database_with_table_rows(&[TableRows { table, rows }], &mut budget())?.into_pages();
     let mut changed = fs::read(&path)?;
@@ -381,20 +403,23 @@ fn text_only_properties_are_checked_before_publication() -> Result<(), Box<dyn S
     ));
 
     // A Text-only target must reject a property fragment also claimed as table data.
-    create_database_with_table_rows(
+    create_database(
         directory.path.join("alias.mdb"),
-        &[
-            TableRows { table, rows },
-            TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Other",
-                    columns: &[ColumnSpec::new(b"Id", ColumnType::Long)],
-                    indexes: &[],
+        &DatabaseSpec {
+            tables: &[
+                TableRows { table, rows },
+                TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Other",
+                        columns: &[ColumnSpec::new(b"Id", ColumnType::Long)],
+                        indexes: &[],
+                    },
+                    rows: &[&[RowValue::Long(1)]],
                 },
-                rows: &[&[RowValue::Long(1)]],
-            },
-        ],
+            ],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let alias = directory.path.join("alias.mdb");
@@ -449,7 +474,17 @@ fn text_only_properties_are_checked_before_publication() -> Result<(), Box<dyn S
     assert_eq!(plan.property_page_count(), 2);
     let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_chain_depth(1));
     let destination = directory.path.join("limited.mdb");
-    assert!(create_database(&destination, &[table], &mut limited).is_err());
+    assert!(
+        create_database(
+            &destination,
+            &DatabaseSpec {
+                tables: &[TableRows::empty(table)],
+                ..DatabaseSpec::default()
+            },
+            &mut limited
+        )
+        .is_err()
+    );
     assert!(!destination.exists());
     Ok(())
 }

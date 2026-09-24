@@ -316,10 +316,13 @@ fn database_creation_stores_joins_and_refuses_unenforced_relationships() -> Test
         },
         rows: &[],
     }];
-    let result = create_database_with_relationships_and_rows(
+    let result = create_database(
         &target,
-        &tables,
-        &[relation(b"Self", b"Items", b"Items", &fields)],
+        &DatabaseSpec {
+            tables: &tables,
+            relationships: &[relation(b"Self", b"Items", b"Items", &fields)],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     );
     assert!(matches!(
@@ -347,13 +350,16 @@ fn database_creation_stores_joins_and_refuses_unenforced_relationships() -> Test
         },
         rows: &[],
     }];
-    create_database_with_relationships_and_rows(
+    create_database(
         &target,
-        &tables,
-        &[RelationshipSpec {
-            fields: &fields,
-            ..joined
-        }],
+        &DatabaseSpec {
+            tables: &tables,
+            relationships: &[RelationshipSpec {
+                fields: &fields,
+                ..joined
+            }],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let mut b = budget();

@@ -4,10 +4,7 @@ use crate::{
     ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec,
     IndexDirection, IndexKind, IndexSpec, RelationshipField, RelationshipSpec, RowLocator,
     RowValue, TableRef, TableSpec, TextCodePage, UpdateError, ValueKind,
-    create::{
-        api::*, api_relationship_graph::create_database_with_relationships_and_rows,
-        composer::ComposeError,
-    },
+    create::{DatabaseSpec, TableRows, api::*, composer::ComposeError, create_database},
 };
 use std::fs;
 use std::path::Path;
@@ -40,49 +37,52 @@ fn schema(
     child_rows: &[&[RowValue<'_>]],
     path: &Path,
 ) -> Result<(), CreateDatabaseError> {
-    create_database_with_relationships_and_rows(
+    create_database(
         path,
-        &[
-            TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Parent",
-                    columns: &[
-                        ColumnSpec::new(b"Id", ColumnType::Long),
-                        ColumnSpec::new(b"Key", parent),
-                    ],
-                    indexes: PARENT_INDEXES,
+        &DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Parent",
+                        columns: &[
+                            ColumnSpec::new(b"Id", ColumnType::Long),
+                            ColumnSpec::new(b"Key", parent),
+                        ],
+                        indexes: PARENT_INDEXES,
+                    },
+                    rows: parent_rows,
                 },
-                rows: parent_rows,
-            },
-            TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Child",
-                    columns: &[
-                        ColumnSpec::new(b"Id", ColumnType::Long),
-                        ColumnSpec::new(b"Key", child),
-                        ColumnSpec::new(b"Body", ColumnType::Memo),
-                    ],
-                    indexes: &PARENT_INDEXES[..1],
+                TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Child",
+                        columns: &[
+                            ColumnSpec::new(b"Id", ColumnType::Long),
+                            ColumnSpec::new(b"Key", child),
+                            ColumnSpec::new(b"Body", ColumnType::Memo),
+                        ],
+                        indexes: &PARENT_INDEXES[..1],
+                    },
+                    rows: child_rows,
                 },
-                rows: child_rows,
-            },
-        ],
-        &[RelationshipSpec {
-            unique: false,
-            enforce: true,
-            join: crate::RelationshipJoin::Inner,
-            cascade_updates: false,
-            cascade_deletes: false,
-            name: b"ParentChild",
-            parent: TableRef::Ordinal(0),
-            child: TableRef::Ordinal(1),
-            fields: &[RelationshipField {
-                parent: ColumnRef::Ordinal(1),
-                child: ColumnRef::Ordinal(1),
+            ],
+            relationships: &[RelationshipSpec {
+                unique: false,
+                enforce: true,
+                join: crate::RelationshipJoin::Inner,
+                cascade_updates: false,
+                cascade_deletes: false,
+                name: b"ParentChild",
+                parent: TableRef::Ordinal(0),
+                child: TableRef::Ordinal(1),
+                fields: &[RelationshipField {
+                    parent: ColumnRef::Ordinal(1),
+                    child: ColumnRef::Ordinal(1),
+                }],
             }],
-        }],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )
 }

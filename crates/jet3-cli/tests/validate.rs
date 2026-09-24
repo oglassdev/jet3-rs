@@ -6,8 +6,8 @@ use std::{
 };
 
 use jet3::{
-    ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, ResourceBudget, ResourceLimits,
-    RowValue, TableRows, TableSpec, create_database_with_table_rows,
+    ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexKind, IndexSpec, ResourceBudget,
+    ResourceLimits, RowValue, TableRows, TableSpec, create_database,
 };
 use serde_json::Value;
 
@@ -38,9 +38,12 @@ fn fixture(path: &Path) -> TestResult {
             rows: &[&[RowValue::Memo(&[b'a'; 4096])]],
         },
     ];
-    create_database_with_table_rows(
+    create_database(
         path,
-        &requests,
+        &DatabaseSpec {
+            tables: &requests,
+            ..DatabaseSpec::default()
+        },
         &mut ResourceBudget::new(ResourceLimits::default()),
     )?;
     Ok(())

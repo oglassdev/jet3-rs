@@ -291,28 +291,31 @@ fn later_table_ownership_and_minimum_row_availability() -> TestResult {
             },
         )
     });
-    crate::create_database_with_table_rows(
+    crate::create_database(
         f.path(),
-        &[
-            crate::TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"First",
-                    columns: &first_columns,
-                    indexes: &[],
+        &crate::DatabaseSpec {
+            tables: &[
+                crate::TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"First",
+                        columns: &first_columns,
+                        indexes: &[],
+                    },
+                    rows: &[&[RowValue::Long(42)]],
                 },
-                rows: &[&[RowValue::Long(42)]],
-            },
-            crate::TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Rows",
-                    columns: &columns,
-                    indexes: &[],
+                crate::TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Rows",
+                        columns: &columns,
+                        indexes: &[],
+                    },
+                    rows: &[],
                 },
-                rows: &[],
-            },
-        ],
+            ],
+            ..crate::DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let mut b = budget();

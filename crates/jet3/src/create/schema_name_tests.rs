@@ -3,7 +3,7 @@ use crate::{
     ColumnRef, ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexColumnSpec, IndexKind,
     IndexSpec, RowValue, TableRows, TableSpec, TextCodePage,
     create::{
-        api::{CreateDatabaseError, create_database},
+        api::{CreateDatabaseError, DatabaseSpec, create_database},
         schema_plan::TableSchemaPlanError,
     },
     definition::column_writer::nz,
@@ -35,7 +35,17 @@ fn cp1252_schema_names_preserve_bytes_and_order_logical_indexes() -> TestResult 
         indexes: &indexes,
     };
     let row = [RowValue::Long(1), RowValue::Text(b""), RowValue::Memo(b"")];
-    crate::create_database_with_rows(directory.target(), &table, &[&row], &mut budget())?;
+    crate::create_database(
+        directory.target(),
+        &crate::DatabaseSpec {
+            tables: &[crate::TableRows {
+                table,
+                rows: &[&row],
+            }],
+            ..crate::DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     crate::insert_row(
         directory.target(),
         table.name,
@@ -93,7 +103,14 @@ fn collation_equal_names_are_refused_before_publication() -> TestResult {
             indexes: &[],
         });
         assert!(matches!(
-            create_database(directory.target(), &tables, &mut budget()),
+            create_database(
+                directory.target(),
+                &DatabaseSpec {
+                    tables: &tables.map(TableRows::empty),
+                    ..DatabaseSpec::default()
+                },
+                &mut budget()
+            ),
             Err(CreateDatabaseError::Compose(
                 ComposeError::DuplicateTableName {
                     first: 0,
@@ -109,7 +126,14 @@ fn collation_equal_names_are_refused_before_publication() -> TestResult {
             indexes: &[],
         };
         assert!(matches!(
-            create_database(directory.target(), &[table], &mut budget()),
+            create_database(
+                directory.target(),
+                &DatabaseSpec {
+                    tables: &[TableRows::empty(table)],
+                    ..DatabaseSpec::default()
+                },
+                &mut budget()
+            ),
             Err(CreateDatabaseError::Compose(ComposeError::Schema(
                 TableSchemaPlanError::Definition(crate::TableDefinitionWriteError::DuplicateName {
                     role: "column",
@@ -129,7 +153,14 @@ fn collation_equal_names_are_refused_before_publication() -> TestResult {
             ..table
         };
         assert!(matches!(
-            create_database(directory.target(), &[table], &mut budget()),
+            create_database(
+                directory.target(),
+                &DatabaseSpec {
+                    tables: &[TableRows::empty(table)],
+                    ..DatabaseSpec::default()
+                },
+                &mut budget()
+            ),
             Err(CreateDatabaseError::Compose(ComposeError::Schema(
                 TableSchemaPlanError::Definition(crate::TableDefinitionWriteError::DuplicateName {
                     role: "logical index",
@@ -185,10 +216,13 @@ fn accented_relationship_endpoints_validate_and_enforce_mutations() -> TestResul
             rows: &[],
         },
     ];
-    crate::create_database_with_relationships_and_rows(
+    crate::create_database(
         directory.target(),
-        &requests,
-        &[relation],
+        &crate::DatabaseSpec {
+            tables: &requests,
+            relationships: &[relation],
+            ..crate::DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     crate::insert_row(

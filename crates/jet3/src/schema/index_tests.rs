@@ -6,18 +6,23 @@ impl Fixture {
     pub(super) fn new(rows: &[&[RowValue<'_>]]) -> Result<Self, Box<dyn std::error::Error>> {
         let path = crate::testkit::TempDir::new("schema-index")?;
         let fixture = Self(path);
-        create_database_with_rows(
+        create_database(
             fixture.path(),
-            &TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Items",
-                columns: &[
-                    ColumnSpec::new(b"Id", ColumnType::Long),
-                    ColumnSpec::new(b"Payload", ColumnType::Memo),
-                ],
-                indexes: &[],
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Items",
+                        columns: &[
+                            ColumnSpec::new(b"Id", ColumnType::Long),
+                            ColumnSpec::new(b"Payload", ColumnType::Memo),
+                        ],
+                        indexes: &[],
+                    },
+                    rows,
+                }],
+                ..DatabaseSpec::default()
             },
-            rows,
             &mut budget(),
         )?;
         Ok(fixture)

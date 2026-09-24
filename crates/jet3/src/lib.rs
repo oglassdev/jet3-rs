@@ -30,7 +30,7 @@
 //!     validation: TableValidation::NONE,
 //! };
 //! let mut budget = ResourceBudget::new(ResourceLimits::default());
-//! create_database("people.mdb", &[people], &mut budget)?;
+//! create_database("people.mdb", &DatabaseSpec { tables: &[TableRows::empty(people)], ..DatabaseSpec::default() }, &mut budget)?;
 //! # Ok::<(), jet3::CreateDatabaseError>(())
 //! ```
 //!
@@ -79,11 +79,9 @@ pub use create::page_append_plan::AppendPageError;
 pub use create::whole_file_plan::WholeFilePlanError;
 pub use create::{
     ColumnRef, ColumnSpec, ColumnStorageKind, ColumnType, ComposeError, CreateDatabaseError,
-    IndexColumnSpec, IndexKind, IndexNullPolicy, IndexSpec, RelationshipField, RelationshipJoin,
-    RelationshipSpec, TableRef, TableRows, TableSchemaPlanError, TableSpec, TableValidation,
-    create_database, create_database_with_relationship, create_database_with_relationship_rows,
-    create_database_with_relationships, create_database_with_relationships_and_rows,
-    create_database_with_rows, create_database_with_table_rows,
+    DatabaseSpec, IndexColumnSpec, IndexKind, IndexNullPolicy, IndexSpec, RelationshipField,
+    RelationshipJoin, RelationshipLayout, RelationshipSpec, TableRef, TableRows,
+    TableSchemaPlanError, TableSpec, TableValidation, create_database,
 };
 pub use database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 pub use definition::column::{

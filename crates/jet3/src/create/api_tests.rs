@@ -6,7 +6,10 @@ use crate::{
 use std::fs;
 use std::path::PathBuf;
 
-use super::api::{CreateDatabaseError, ImageCheckError, check_image, create_database};
+use super::{
+    api::{CreateDatabaseError, DatabaseSpec, TableRows, create_database},
+    check::{ImageCheckError, check_image},
+};
 
 pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
 type Accepts = fn(&ComposeError) -> bool;
@@ -81,7 +84,14 @@ fn a_mixed_table_with_three_indexes_is_created_and_reopens() -> TestResult {
         columns: &columns,
         indexes: &indexes,
     };
-    create_database(&target, std::slice::from_ref(&spec), &mut budget())?;
+    create_database(
+        &target,
+        &DatabaseSpec {
+            tables: &[TableRows::empty(spec)],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     assert_eq!(directory.entries()?, ["created.mdb"]);
     assert_eq!(fs::metadata(&target)?.len(), 26 * crate::PAGE_BYTES as u64);
 
@@ -123,12 +133,15 @@ fn candidate_check_rejects_an_index_kind_mismatch() -> TestResult {
     }];
     create_database(
         &target,
-        &[TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &columns,
-            indexes: &unique_indexes,
-        }],
+        &DatabaseSpec {
+            tables: &[TableRows::empty(TableSpec {
+                validation: crate::TableValidation::NONE,
+                name: b"Items",
+                columns: &columns,
+                indexes: &unique_indexes,
+            })],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
 
@@ -171,7 +184,14 @@ fn a_memo_table_is_created_and_reopens() -> TestResult {
         columns: &columns,
         indexes: &[],
     };
-    create_database(&target, std::slice::from_ref(&spec), &mut budget())?;
+    create_database(
+        &target,
+        &DatabaseSpec {
+            tables: &[TableRows::empty(spec)],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     assert_eq!(fs::metadata(&target)?.len(), 23 * crate::PAGE_BYTES as u64);
     let mut budget = budget();
     let mut database = DatabaseReader::open(&target, &mut budget)?;
@@ -225,7 +245,14 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
         ),
     ];
     for (spec, accepts) in cases {
-        match create_database(&target, std::slice::from_ref(&spec), &mut budget()) {
+        match create_database(
+            &target,
+            &DatabaseSpec {
+                tables: &[TableRows::empty(spec)],
+                ..DatabaseSpec::default()
+            },
+            &mut budget(),
+        ) {
             Err(CreateDatabaseError::Compose(error)) if accepts(&error) => {}
             other => return Err(format!("unexpected result: {other:?}").into()),
         }
@@ -246,7 +273,14 @@ fn an_existing_destination_is_refused_and_left_unchanged() -> TestResult {
         columns: &columns,
         indexes: &[],
     };
-    match create_database(&target, std::slice::from_ref(&spec), &mut budget()) {
+    match create_database(
+        &target,
+        &DatabaseSpec {
+            tables: &[TableRows::empty(spec)],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    ) {
         Err(CreateDatabaseError::Publish(error)) => {
             assert_eq!(error.stage(), PublishStage::PrivateCopyCreation);
         }
@@ -276,7 +310,14 @@ fn a_definition_spanning_one_continuation_is_created_and_reopens() -> TestResult
         columns: &columns,
         indexes: &[],
     };
-    create_database(&target, std::slice::from_ref(&spec), &mut budget())?;
+    create_database(
+        &target,
+        &DatabaseSpec {
+            tables: &[TableRows::empty(spec)],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     assert_eq!(fs::metadata(&target)?.len(), 24 * crate::PAGE_BYTES as u64);
     let mut budget = budget();
     let mut database = DatabaseReader::open(&target, &mut budget)?;
@@ -296,7 +337,14 @@ fn case_folded_duplicates_are_refused_before_writing() -> TestResult {
         indexes: &[],
     };
     let duplicate = [table(b"Alpha"), table(b"ALPHA")];
-    match create_database(&target, &duplicate, &mut budget()) {
+    match create_database(
+        &target,
+        &DatabaseSpec {
+            tables: &duplicate.map(TableRows::empty),
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    ) {
         Err(CreateDatabaseError::Compose(ComposeError::DuplicateTableName {
             first: 0,
             second: 1,
@@ -330,7 +378,14 @@ fn two_tables_are_created_in_order_and_reopen() -> TestResult {
             indexes: &indexes,
         },
     ];
-    create_database(&target, &tables, &mut budget())?;
+    create_database(
+        &target,
+        &DatabaseSpec {
+            tables: &tables.map(TableRows::empty),
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     assert_eq!(fs::metadata(&target)?.len(), 27 * crate::PAGE_BYTES as u64);
     let mut budget = budget();
     let mut database = DatabaseReader::open(&target, &mut budget)?;

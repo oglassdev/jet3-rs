@@ -1,12 +1,11 @@
 use super::api_tests::*;
 use crate::{
-    ColumnOrdinal, ColumnSpec, ColumnType, ComposeError, DatabaseReader, PageNumber, RawField,
-    RowValue, SliceSource, TableSpec,
+    ColumnOrdinal, ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, PageNumber,
+    RawField, RowValue, SliceSource, TableRows, TableSpec,
     create::{
         api::{CreateDatabaseError, create_database},
         schema_plan::TableSchemaPlanError,
     },
-    create_database_with_rows,
     definition::column_writer::nz,
 };
 use std::fs;
@@ -37,7 +36,17 @@ fn fixed_schema_capacity_includes_the_presence_map() -> TestResult {
             columns: &columns,
             indexes: &[],
         };
-        create_database_with_rows(directory.target(), &spec, &[&values], &mut budget())?;
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: spec,
+                    rows: &[&values],
+                }],
+                ..DatabaseSpec::default()
+            },
+            &mut budget(),
+        )?;
         let original = fs::read(directory.target())?;
         {
             let mut work = budget();
@@ -66,7 +75,14 @@ fn fixed_schema_capacity_includes_the_presence_map() -> TestResult {
             indexes: &[],
         };
         assert!(matches!(
-            create_database(directory.target(), &[invalid], &mut budget()),
+            create_database(
+                directory.target(),
+                &DatabaseSpec {
+                    tables: &[TableRows::empty(invalid)],
+                    ..DatabaseSpec::default()
+                },
+                &mut budget()
+            ),
             Err(CreateDatabaseError::Compose(ComposeError::Schema(
                 TableSchemaPlanError::Definition(
                     crate::TableDefinitionWriteError::RowLayoutTooLarge {
@@ -132,15 +148,20 @@ fn all_variable_rows_disambiguate_the_final_boundary_and_reject_bad_trailers() -
         })
         .collect();
     let rows: Vec<_> = values.iter().map(Vec::as_slice).collect();
-    create_database_with_rows(
+    create_database(
         directory.target(),
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &columns,
-            indexes: &[],
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Items",
+                    columns: &columns,
+                    indexes: &[],
+                },
+                rows: &rows,
+            }],
+            ..DatabaseSpec::default()
         },
-        &rows,
         &mut budget(),
     )?;
     let bytes = fs::read(directory.target())?;

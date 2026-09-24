@@ -1,6 +1,9 @@
 //! Atomic publication of the bounded EXP-0118/0122 relationship construction.
 
-use super::api::*;
+use super::{
+    api::{CreateDatabaseError, TableRows, write_pages},
+    check::{ImageCheckError, check_initial_table_rows_from},
+};
 use crate::{
     CatalogObjectClass, CatalogObjectKind, DatabaseReader, IndexColumnSpec, IndexDirection,
     IndexKind, IndexSpec, RelationshipSide, RelationshipSpec, ResourceBudget, TableSpec,
@@ -12,17 +15,7 @@ use crate::{
 };
 use std::path::Path;
 
-/// Creates two empty tables joined by one enforced, non-cascading Long
-/// relationship.
-///
-/// Use [`create_database_with_relationships`] for other relationship forms.
-/// The result is checked and published like [`create_database`].
-///
-/// # Errors
-///
-/// As [`create_database`]; unsupported relationship forms fail before writing.
-/// See `docs/plans/V1_SCOPE.md` for the supported scope.
-pub fn create_database_with_relationship(
+pub(super) fn create(
     path: impl AsRef<Path>,
     tables: &[TableSpec<'_>],
     relationship: &RelationshipSpec<'_>,
@@ -42,17 +35,7 @@ pub fn create_database_with_relationship(
     .map_err(CreateDatabaseError::Publish)
 }
 
-/// Creates the parent and child tables of one enforced Long relationship with
-/// initial rows.
-///
-/// Every non-null foreign key must exist in the parent. The result is checked
-/// and published like [`create_database`].
-///
-/// # Errors
-///
-/// As [`create_database_with_relationship`]; rows that break the relationship
-/// fail before writing. See `docs/plans/V1_SCOPE.md` for the supported scope.
-pub fn create_database_with_relationship_rows(
+pub(super) fn create_with_rows(
     path: impl AsRef<Path>,
     requests: &[TableRows<'_>],
     relationship: &RelationshipSpec<'_>,

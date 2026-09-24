@@ -155,8 +155,7 @@ pub enum RelationshipJoin {
 /// One relationship between two tables.
 ///
 /// Names are database-encoded bytes, subject to the bounded creation name
-/// encoder. See [`crate::create_database_with_relationships`] for scalar graph
-/// support and [`crate::create_database_with_relationship`] for singular API limits.
+/// encoder. See [`crate::RelationshipLayout`] for the limits of each layout.
 /// Unenforced relationships are created through [`crate::SchemaEdit`].
 ///
 /// ```

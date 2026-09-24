@@ -48,15 +48,20 @@ fn create(
         kind,
         fields: &[IndexColumnSpec::ascending(column)],
     }];
-    create_database_with_rows(
+    create_database(
         path,
-        &TableSpec {
-            validation: TableValidation::NONE,
-            name: b"T",
-            columns: &COLUMNS,
-            indexes: &indexes,
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: TableSpec {
+                    validation: TableValidation::NONE,
+                    name: b"T",
+                    columns: &COLUMNS,
+                    indexes: &indexes,
+                },
+                rows,
+            }],
+            ..DatabaseSpec::default()
         },
-        rows,
         &mut budget(),
     )
 }

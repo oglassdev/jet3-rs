@@ -1,7 +1,7 @@
 use super::update_tests::*;
 use crate::{
-    ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PublishStage,
-    ResourceBudget, ResourceLimits, RowValue, TableSpec, create_database_with_rows,
+    ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, PAGE_BYTES, PublishStage,
+    ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec, create_database,
     row::directory::RowDirectory, write::update::*,
 };
 use std::error::Error as StdError;
@@ -41,15 +41,20 @@ fn keyed_from(
         .map(|i| [RowValue::Long(first + i as i32), RowValue::Long(77)])
         .collect();
     let rows: Vec<_> = values.iter().map(|v| v.as_slice()).collect();
-    create_database_with_rows(
+    create_database(
         fixture.path(),
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &columns,
-            indexes: &indexes,
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Items",
+                    columns: &columns,
+                    indexes: &indexes,
+                },
+                rows: &rows,
+            }],
+            ..DatabaseSpec::default()
         },
-        &rows,
         &mut budget(),
     )?;
     Ok(fixture)

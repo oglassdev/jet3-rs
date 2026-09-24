@@ -85,7 +85,14 @@ pub(super) fn fixture(edges: &[Edge]) -> Result<Fixture> {
             &[RowValue::Long(3), RowValue::Long(2), RowValue::Long(2)],
         ],
     });
-    crate::create_database_with_table_rows(fixture.path(), &requests, &mut budget())?;
+    crate::create_database(
+        fixture.path(),
+        &crate::DatabaseSpec {
+            tables: &requests,
+            ..crate::DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let mut work = budget();
     let mut db = DatabaseReader::open(fixture.path(), &mut work)?;
     let tables = NAMES

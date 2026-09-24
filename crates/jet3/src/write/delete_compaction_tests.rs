@@ -78,15 +78,20 @@ fn first_middle_and_tail_unequal_rows_preserve_slots_and_vacated_slack() -> Resu
         [RowValue::Long(4), RowValue::Text(&text)],
     ];
     let rows: Vec<_> = values.iter().map(|r| r.as_slice()).collect();
-    crate::create_database_with_rows(
+    crate::create_database(
         f.path(),
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Rows",
-            columns: &columns,
-            indexes: &[],
+        &crate::DatabaseSpec {
+            tables: &[crate::TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &columns,
+                    indexes: &[],
+                },
+                rows: &rows,
+            }],
+            ..crate::DatabaseSpec::default()
         },
-        &rows,
         &mut budget(),
     )?;
     let before = fs::read(f.path())?;

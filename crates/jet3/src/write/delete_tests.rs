@@ -25,15 +25,20 @@ impl Fixture {
             .map(|n| [RowValue::Long(n as i32), RowValue::Long(-(n as i32))])
             .collect();
         let rows: Vec<_> = values.iter().map(|r| r.as_slice()).collect();
-        crate::create_database_with_rows(
+        crate::create_database(
             &path,
-            &TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Rows",
-                columns: &columns,
-                indexes: &[],
+            &crate::DatabaseSpec {
+                tables: &[crate::TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Rows",
+                        columns: &columns,
+                        indexes: &[],
+                    },
+                    rows: &rows,
+                }],
+                ..crate::DatabaseSpec::default()
             },
-            &rows,
             &mut budget(),
         )?;
         let mut b = budget();

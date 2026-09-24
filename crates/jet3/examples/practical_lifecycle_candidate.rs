@@ -168,43 +168,46 @@ fn locate(path: &Path, id: i32) -> Result<RowLocator> {
 }
 fn create(path: &Path) -> Result<()> {
     let width = NonZeroU8::new(80).ok_or("width")?;
-    jet3::create_database_with_table_rows(
+    jet3::create_database(
         path,
-        &[
-            TableRows {
-                table: TableSpec {
-                    validation: jet3::TableValidation::NONE,
-                    name: b"Items",
-                    columns: &[
-                        ColumnSpec::new(b"Id", ColumnType::Long),
-                        ColumnSpec::new(b"Name", ColumnType::Text { max_len: width }),
-                        ColumnSpec::new(b"Price", ColumnType::Currency),
-                        ColumnSpec::new(b"Active", ColumnType::Boolean),
-                    ],
-                    indexes: &[IndexSpec {
-                        name: b"ById",
-                        fields: &[IndexColumnSpec::ascending(0)],
-                        kind: IndexKind::Primary,
-                    }],
+        &jet3::DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: b"Items",
+                        columns: &[
+                            ColumnSpec::new(b"Id", ColumnType::Long),
+                            ColumnSpec::new(b"Name", ColumnType::Text { max_len: width }),
+                            ColumnSpec::new(b"Price", ColumnType::Currency),
+                            ColumnSpec::new(b"Active", ColumnType::Boolean),
+                        ],
+                        indexes: &[IndexSpec {
+                            name: b"ById",
+                            fields: &[IndexColumnSpec::ascending(0)],
+                            kind: IndexKind::Primary,
+                        }],
+                    },
+                    rows: &[],
                 },
-                rows: &[],
-            },
-            TableRows {
-                table: TableSpec {
-                    validation: jet3::TableValidation::NONE,
-                    name: b"Notes",
-                    columns: &[
-                        ColumnSpec::new(b"Id", ColumnType::Long),
-                        ColumnSpec::new(b"Body", ColumnType::Memo),
+                TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: b"Notes",
+                        columns: &[
+                            ColumnSpec::new(b"Id", ColumnType::Long),
+                            ColumnSpec::new(b"Body", ColumnType::Memo),
+                        ],
+                        indexes: &[],
+                    },
+                    rows: &[
+                        &[RowValue::Long(7), RowValue::Memo(MEMO)],
+                        &[RowValue::Long(8), RowValue::Null],
                     ],
-                    indexes: &[],
                 },
-                rows: &[
-                    &[RowValue::Long(7), RowValue::Memo(MEMO)],
-                    &[RowValue::Long(8), RowValue::Null],
-                ],
-            },
-        ],
+            ],
+            ..jet3::DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     Ok(())

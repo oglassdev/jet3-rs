@@ -4,9 +4,8 @@ use crate::{
     TableSpec, TextCodePage,
     create::{
         api::*,
-        api_relationship_graph::{
-            create_database_with_relationships, create_database_with_relationships_and_rows, *,
-        },
+        api_relationship_graph::*,
+        check::*,
         composer::{ComposeError, GraphImage, compose_relationship_graph},
     },
 };
@@ -18,7 +17,15 @@ fn graph_candidate_rejects_uninterpreted_generated_relationship_metadata() -> Te
     let directory = Directory::new()?;
     let relationships = [relation(b"Link", 0, 1, 1)];
     let requests = TABLES.map(|table| TableRows { table, rows: &[] });
-    create_database_with_relationships(directory.target(), &TABLES, &relationships, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &TABLES.map(TableRows::empty),
+            relationships: &relationships,
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let GraphImage { image, tables } =
         compose_relationship_graph(&requests, &relationships, &mut budget())?;
     let mut pages = image.into_pages();
@@ -99,7 +106,19 @@ fn relationship_catalog_spans_pages_and_index_branches_with_complete_locators() 
         })
         .collect::<Vec<_>>();
     let mut work = budget();
-    create_database_with_relationships(directory.target(), &tables, &relationships, &mut work)?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &tables
+                .iter()
+                .copied()
+                .map(TableRows::empty)
+                .collect::<Vec<_>>(),
+            relationships: &relationships,
+            ..DatabaseSpec::default()
+        },
+        &mut work,
+    )?;
     let mut database = DatabaseReader::open(directory.target(), &mut budget())?;
     let report = database.validate(TextCodePage::Windows1252, &mut budget())?;
     assert_eq!(report.relationships_with_verified_keys, 32);
@@ -144,8 +163,20 @@ fn relationship_catalog_spans_pages_and_index_branches_with_complete_locators() 
         ResourceLimits::default().with_max_total_work_units(work.total_work_units() - 1),
     );
     assert!(
-        create_database_with_relationships(&refused, &tables, &relationships, &mut limited)
-            .is_err()
+        create_database(
+            &refused,
+            &DatabaseSpec {
+                tables: &tables
+                    .iter()
+                    .copied()
+                    .map(TableRows::empty)
+                    .collect::<Vec<_>>(),
+                relationships: &relationships,
+                ..DatabaseSpec::default()
+            },
+            &mut limited
+        )
+        .is_err()
     );
     assert!(!refused.exists());
     assert_eq!(fs::read_dir(&directory.0)?.count(), 1);
@@ -177,10 +208,17 @@ fn relationship_capacity_is_per_table_and_counts_both_self_sides() -> TestResult
         let accepted = if self_references { 15 } else { 31 };
         for count in [accepted, accepted + 1] {
             let directory = Directory::new()?;
-            let result = create_database_with_relationships(
+            let result = create_database(
                 directory.target(),
-                &tables,
-                &relationships[..count],
+                &DatabaseSpec {
+                    tables: &tables
+                        .iter()
+                        .copied()
+                        .map(TableRows::empty)
+                        .collect::<Vec<_>>(),
+                    relationships: &relationships[..count],
+                    ..DatabaseSpec::default()
+                },
                 &mut budget(),
             );
             if count == accepted {
@@ -262,10 +300,13 @@ fn third_shared_parent_constraint_is_enforced_on_mutation() -> TestResult {
         relation(b"Second", 1, 3, 1),
         relation(b"Third", 2, 3, 1),
     ];
-    create_database_with_relationships_and_rows(
+    create_database(
         directory.target(),
-        &requests,
-        &relationships,
+        &DatabaseSpec {
+            tables: &requests,
+            relationships: &relationships,
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     crate::insert_row(

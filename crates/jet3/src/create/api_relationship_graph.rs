@@ -1,8 +1,11 @@
 //! Atomic relationship graph creation using EXP-0273/0279 endpoint records.
-use super::api::*;
+use super::{
+    api::{CreateDatabaseError, TableRows, write_pages},
+    check::{ImageCheckError, check_columns, check_initial_table_rows_from},
+};
 use crate::{
     CatalogObjectClass, CatalogObjectKind, DatabaseReader, PageNumber, RelationshipSpec,
-    ResourceBudget, TableRef, TableSpec, TextCodePage,
+    ResourceBudget, TableRef, TextCodePage,
     create::{
         composer::{GraphImage, compose_relationship_graph},
         page_append_plan::PlannedPage,
@@ -11,41 +14,11 @@ use crate::{
 };
 use std::path::Path;
 
-/// Creates empty tables joined by enforced relationships of one to ten scalar
-/// fields each.
-///
-/// Table order is independent of relationship direction; chains, multiple
-/// endpoints and self-references are admitted. Missing parent or child
-/// indexes are generated. The result is checked and published like
-/// [`create_database`].
-///
-/// # Errors
-///
-/// As [`create_database`]; unsupported relationship forms fail before writing.
-/// See `docs/plans/V1_SCOPE.md` for the supported scope.
-pub fn create_database_with_relationships(
-    path: impl AsRef<Path>,
-    tables: &[TableSpec<'_>],
-    relationships: &[RelationshipSpec<'_>],
-    budget: &mut ResourceBudget,
-) -> Result<(), CreateDatabaseError> {
-    crate::create::composer::table_count_limit(tables.len())
-        .map_err(CreateDatabaseError::Compose)?;
-    let mut requests = Vec::new();
-    crate::format::resource::reserve(&mut requests, tables.len(), budget)
-        .map_err(|error| CreateDatabaseError::Compose(error.into()))?;
-    requests.extend(tables.iter().map(|&table| TableRows { table, rows: &[] }));
-    create_database_with_relationships_and_rows(path, &requests, relationships, budget)
-}
-
-/// Creates tables, their initial rows and relationships with one to ten scalar fields.
-///
-/// The schema restrictions of [`create_database_with_relationships`] apply.
-/// Each foreign key with any non-null component must occur in its parent's initial rows, including
-/// self-references and keys shared by multiple parents. Complete rows, Memo/OLE
+/// Composes, checks and publishes tables and rows joined by
+/// [`crate::RelationshipLayout::Graph`] relationships. Complete rows, Memo/OLE
 /// payloads, indexes, reciprocal metadata and allocation ownership are checked
-/// before atomic publication. An empty relationship slice creates ordinary tables.
-pub fn create_database_with_relationships_and_rows(
+/// before atomic publication.
+pub(super) fn create(
     path: impl AsRef<Path>,
     requests: &[TableRows<'_>],
     relationships: &[RelationshipSpec<'_>],

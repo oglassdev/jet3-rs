@@ -1,7 +1,7 @@
 use super::update_tests::*;
 use crate::{
-    ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, RowValue, TableSpec,
-    create_database_with_rows, row::directory::RowDirectory, write::update::*,
+    ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, PAGE_BYTES, RowValue,
+    TableRows, TableSpec, create_database, row::directory::RowDirectory, write::update::*,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -23,18 +23,23 @@ pub(super) fn indexed() -> Result<Fixture, Box<dyn StdError>> {
         kind: crate::IndexKind::Ordinary,
         fields: &composite,
     }];
-    create_database_with_rows(
+    create_database(
         fixture.path(),
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &columns,
-            indexes: &indexes,
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Items",
+                    columns: &columns,
+                    indexes: &indexes,
+                },
+                rows: &[
+                    &[RowValue::Long(1), RowValue::Long(3), RowValue::Long(77)],
+                    &[RowValue::Long(2), RowValue::Long(3), RowValue::Long(88)],
+                ],
+            }],
+            ..DatabaseSpec::default()
         },
-        &[
-            &[RowValue::Long(1), RowValue::Long(3), RowValue::Long(77)],
-            &[RowValue::Long(2), RowValue::Long(3), RowValue::Long(88)],
-        ],
         &mut budget(),
     )?;
     Ok(fixture)

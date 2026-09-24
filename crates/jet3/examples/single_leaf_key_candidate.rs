@@ -1,7 +1,8 @@
 //! Deterministic public creation/update images for EXP-0179.
 use jet3::{
-    ColumnSpec, ColumnType, DatabaseReader, FieldUpdate, IndexColumnSpec, IndexKind, IndexSpec,
-    ResourceBudget, ResourceLimits, RowValue, TableSpec, create_database_with_rows, update_field,
+    ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, FieldUpdate, IndexColumnSpec, IndexKind,
+    IndexSpec, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec, create_database,
+    update_field,
 };
 use std::{env, fs, path::Path};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -73,15 +74,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
             .collect();
         let rows: Vec<_> = values.iter().map(|v| v.as_slice()).collect();
-        create_database_with_rows(
+        create_database(
             &original,
-            &TableSpec {
-                validation: jet3::TableValidation::NONE,
-                name: b"Items",
-                columns: &columns,
-                indexes: &indexes,
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: TableSpec {
+                        validation: jet3::TableValidation::NONE,
+                        name: b"Items",
+                        columns: &columns,
+                        indexes: &indexes,
+                    },
+                    rows: &rows,
+                }],
+                ..DatabaseSpec::default()
             },
-            &rows,
             &mut budget,
         )?;
         let mut db = DatabaseReader::open(&original, &mut budget)?;

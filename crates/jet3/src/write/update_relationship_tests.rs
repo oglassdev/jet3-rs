@@ -11,60 +11,63 @@ use std::fs;
 fn fixture() -> Result<Fixture, Box<dyn StdError>> {
     let fixture = simple()?;
     fs::remove_file(fixture.path())?;
-    crate::create_database_with_relationship_rows(
+    crate::create_database(
         fixture.path(),
-        &[
-            TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Parent",
-                    columns: &[
-                        ColumnSpec::new(b"Id", ColumnType::Long),
-                        ColumnSpec::new(b"Other", ColumnType::Long),
+        &crate::DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Parent",
+                        columns: &[
+                            ColumnSpec::new(b"Id", ColumnType::Long),
+                            ColumnSpec::new(b"Other", ColumnType::Long),
+                        ],
+                        indexes: &[IndexSpec {
+                            name: b"ById",
+                            fields: &[IndexColumnSpec::ascending(0)],
+                            kind: IndexKind::Primary,
+                        }],
+                    },
+                    rows: &[
+                        &[RowValue::Long(1), RowValue::Long(11)],
+                        &[RowValue::Long(2), RowValue::Long(22)],
+                        &[RowValue::Long(3), RowValue::Long(33)],
                     ],
-                    indexes: &[IndexSpec {
-                        name: b"ById",
-                        fields: &[IndexColumnSpec::ascending(0)],
-                        kind: IndexKind::Primary,
-                    }],
                 },
-                rows: &[
-                    &[RowValue::Long(1), RowValue::Long(11)],
-                    &[RowValue::Long(2), RowValue::Long(22)],
-                    &[RowValue::Long(3), RowValue::Long(33)],
-                ],
-            },
-            TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Child",
-                    columns: &[
-                        ColumnSpec::new(b"Id", ColumnType::Long),
-                        ColumnSpec::new(b"ParentId", ColumnType::Long),
-                        ColumnSpec::new(b"Other", ColumnType::Long),
+                TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Child",
+                        columns: &[
+                            ColumnSpec::new(b"Id", ColumnType::Long),
+                            ColumnSpec::new(b"ParentId", ColumnType::Long),
+                            ColumnSpec::new(b"Other", ColumnType::Long),
+                        ],
+                        indexes: &[],
+                    },
+                    rows: &[
+                        &[RowValue::Long(10), RowValue::Long(1), RowValue::Long(7)],
+                        &[RowValue::Long(11), RowValue::Long(1), RowValue::Long(8)],
+                        &[RowValue::Long(12), RowValue::Long(2), RowValue::Long(9)],
                     ],
-                    indexes: &[],
                 },
-                rows: &[
-                    &[RowValue::Long(10), RowValue::Long(1), RowValue::Long(7)],
-                    &[RowValue::Long(11), RowValue::Long(1), RowValue::Long(8)],
-                    &[RowValue::Long(12), RowValue::Long(2), RowValue::Long(9)],
-                ],
-            },
-        ],
-        &RelationshipSpec {
-            unique: false,
-            enforce: true,
-            join: crate::RelationshipJoin::Inner,
-            cascade_updates: false,
-            cascade_deletes: false,
-            name: b"ParentChild",
-            parent: TableRef::Ordinal(0),
-            child: TableRef::Ordinal(1),
-            fields: &[RelationshipField {
-                parent: ColumnRef::Ordinal(0),
-                child: ColumnRef::Ordinal(1),
-            }],
+            ],
+            relationships: std::slice::from_ref(&RelationshipSpec {
+                unique: false,
+                enforce: true,
+                join: crate::RelationshipJoin::Inner,
+                cascade_updates: false,
+                cascade_deletes: false,
+                name: b"ParentChild",
+                parent: TableRef::Ordinal(0),
+                child: TableRef::Ordinal(1),
+                fields: &[RelationshipField {
+                    parent: ColumnRef::Ordinal(0),
+                    child: ColumnRef::Ordinal(1),
+                }],
+            }),
+            relationship_layout: crate::RelationshipLayout::SingleLong,
         },
         &mut budget(),
     )?;

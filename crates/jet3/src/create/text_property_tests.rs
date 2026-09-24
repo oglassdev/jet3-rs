@@ -1,14 +1,14 @@
 //! EXP-0299 text properties: API limits, refusals of unevaluated rules and the sort-order guard.
 use super::api_tests::*;
 use crate::{
-    ColumnOrdinal, ColumnSpec, ColumnType, ComposeError, DatabaseReader, FieldUpdate,
-    PropertyChange, RowDelete, RowUpdate, RowValue, SchemaEdit, SortOrder, TableSpec,
+    ColumnOrdinal, ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, FieldUpdate,
+    PropertyChange, RowDelete, RowUpdate, RowValue, SchemaEdit, SortOrder, TableRows, TableSpec,
     TableValidation, TextCodePage, UpdateError,
     create::{
         api::{CreateDatabaseError, create_database},
         schema_plan::TableSchemaPlanError,
     },
-    create_database_with_rows, delete_row, edit_schema, insert_row, update_field, update_row,
+    delete_row, edit_schema, insert_row, update_field, update_row,
 };
 use std::fs;
 
@@ -65,10 +65,15 @@ fn stored_rules_refuse_row_writes_and_preserve_the_file() -> TestResult {
         ColumnSpec::new(b"Amount", ColumnType::Long).with_default_value(b"5"),
     ];
     let plain = table(b"Items", &columns, TableValidation::NONE);
-    create_database_with_rows(
+    create_database(
         &path,
-        &plain,
-        &[&[RowValue::Long(1), RowValue::Null]],
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: plain,
+                rows: &[&[RowValue::Long(1), RowValue::Null]],
+            }],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let row = first_row(&path, b"Items")?;
@@ -146,7 +151,17 @@ fn table_rules_refuse_initial_and_later_rows() -> TestResult {
         text: Some(b"positive"),
     };
     let ruled = table(b"Checked", &columns, rule);
-    let error = create_database_with_rows(&path, &ruled, &[&[RowValue::Long(1)]], &mut budget());
+    let error = create_database(
+        &path,
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: ruled,
+                rows: &[&[RowValue::Long(1)]],
+            }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    );
     assert!(matches!(
         error,
         Err(CreateDatabaseError::Compose(
@@ -154,7 +169,14 @@ fn table_rules_refuse_initial_and_later_rows() -> TestResult {
         ))
     ));
     assert!(!path.exists());
-    create_database(&path, &[ruled], &mut budget())?;
+    create_database(
+        &path,
+        &DatabaseSpec {
+            tables: &[TableRows::empty(ruled)],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let stored = properties(&path, b"Checked")?;
     assert_eq!(stored.validation_rule(), Some(b"[A]>0".as_slice()));
     assert_eq!(stored.validation_text(), Some(b"positive".as_slice()));
@@ -201,7 +223,14 @@ fn unsupported_property_requests_are_refused_before_writing() -> TestResult {
         let columns = [column];
         let result = create_database(
             &path,
-            &[table(b"T", &columns, TableValidation::NONE)],
+            &DatabaseSpec {
+                tables: &[TableRows::empty(table(
+                    b"T",
+                    &columns,
+                    TableValidation::NONE,
+                ))],
+                ..DatabaseSpec::default()
+            },
             &mut budget(),
         );
         assert!(matches!(
@@ -218,7 +247,14 @@ fn unsupported_property_requests_are_refused_before_writing() -> TestResult {
     let columns = [guid, auto.with_description(b"numbered")];
     create_database(
         &path,
-        &[table(b"T", &columns, TableValidation::NONE)],
+        &DatabaseSpec {
+            tables: &[TableRows::empty(table(
+                b"T",
+                &columns,
+                TableValidation::NONE,
+            ))],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let before = fs::read(&path)?;
@@ -260,7 +296,14 @@ fn unknown_sort_orders_are_readable_but_not_writable() -> TestResult {
     let columns = [ColumnSpec::new(b"A", ColumnType::Long)];
     create_database(
         &path,
-        &[table(b"T", &columns, TableValidation::NONE)],
+        &DatabaseSpec {
+            tables: &[TableRows::empty(table(
+                b"T",
+                &columns,
+                TableValidation::NONE,
+            ))],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let mut work = budget();
@@ -352,10 +395,13 @@ fn rules_refuse_cascaded_updates_and_autoincrement_backfill() -> TestResult {
             child: crate::ColumnRef::Name(b"ParentId"),
         }],
     };
-    crate::create_database_with_relationships_and_rows(
+    crate::create_database(
         &path,
-        &tables,
-        &[relationship],
+        &crate::DatabaseSpec {
+            tables: &tables,
+            relationships: &[relationship],
+            ..crate::DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let row = first_row(&path, b"Parent")?;
@@ -412,10 +458,15 @@ fn chained_property_blobs_grow_and_shrink_without_touching_rows() -> TestResult 
     ];
     let plain = table(b"Items", &columns, TableValidation::NONE);
     let memo = [b'm'; 3000];
-    create_database_with_rows(
+    create_database(
         &path,
-        &plain,
-        &[&[RowValue::Long(1), RowValue::Memo(&memo)]],
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: plain,
+                rows: &[&[RowValue::Long(1), RowValue::Memo(&memo)]],
+            }],
+            ..DatabaseSpec::default()
+        },
         &mut budget(),
     )?;
     let user_pages = |bytes: &[u8]| -> Result<Vec<Vec<u8>>, Box<dyn std::error::Error>> {

@@ -2,8 +2,8 @@
 use std::num::NonZeroU8;
 
 use jet3::{
-    ColumnSpec, ColumnType, ResourceBudget, ResourceLimits, RowValue, TableSpec,
-    create_database_with_rows,
+    ColumnSpec, ColumnType, DatabaseSpec, ResourceBudget, ResourceLimits, RowValue, TableRows,
+    TableSpec, create_database,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -30,10 +30,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &[RowValue::Long(-2), RowValue::Text(b"two")],
         &[RowValue::Null, RowValue::Null],
     ];
-    create_database_with_rows(
+    create_database(
         path,
-        &table,
-        rows,
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows }],
+            ..DatabaseSpec::default()
+        },
         &mut ResourceBudget::new(ResourceLimits::default()),
     )?;
     Ok(())

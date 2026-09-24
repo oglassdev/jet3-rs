@@ -1,7 +1,7 @@
 //! Deterministic multiple-data-page candidate for a preregistered DAO run.
 use jet3::{
-    ColumnSpec, ColumnType, ResourceBudget, ResourceLimits, RowValue, TableSpec,
-    create_database_with_rows,
+    ColumnSpec, ColumnType, DatabaseSpec, ResourceBudget, ResourceLimits, RowValue, TableRows,
+    TableSpec, create_database,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -20,10 +20,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|value| [RowValue::Long(value - 254)])
         .collect::<Vec<_>>();
     let rows = values.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
-    create_database_with_rows(
+    create_database(
         path,
-        &table,
-        &rows,
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &rows }],
+            ..DatabaseSpec::default()
+        },
         &mut ResourceBudget::new(ResourceLimits::default()),
     )?;
     Ok(())

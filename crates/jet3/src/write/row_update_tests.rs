@@ -57,15 +57,20 @@ impl Fixture {
             kind: crate::IndexKind::Unique,
             fields: &keys,
         }];
-        crate::create_database_with_rows(
+        crate::create_database(
             &path,
-            &TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Rows",
-                columns: &columns,
-                indexes: if indexed { &indexes } else { &[] },
+            &crate::DatabaseSpec {
+                tables: &[crate::TableRows {
+                    table: TableSpec {
+                        validation: crate::TableValidation::NONE,
+                        name: b"Rows",
+                        columns: &columns,
+                        indexes: if indexed { &indexes } else { &[] },
+                    },
+                    rows: &rows,
+                }],
+                ..crate::DatabaseSpec::default()
             },
-            &rows,
             &mut budget(),
         )?;
         let mut b = budget();
@@ -493,15 +498,20 @@ fn boolean_zero_and_legacy_offsets_reach_public_row_replacement() -> TestResult 
         RowValue::Binary(&[0, 17]),
         RowValue::Boolean(true),
     ];
-    crate::create_database_with_rows(
+    crate::create_database(
         f.path(),
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Rows",
-            columns: &columns,
-            indexes: &[],
+        &crate::DatabaseSpec {
+            tables: &[crate::TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &columns,
+                    indexes: &[],
+                },
+                rows: &[&original_values, &original_values],
+            }],
+            ..crate::DatabaseSpec::default()
         },
-        &[&original_values, &original_values],
         &mut budget(),
     )?;
     let mut b = budget();

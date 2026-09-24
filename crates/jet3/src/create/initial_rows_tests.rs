@@ -1,9 +1,9 @@
 use super::api_tests::*;
 use crate::{
-    ColumnSpec, ColumnType, ComposeError, DatabaseReader, PageNumber, ResourceBudget,
-    ResourceLimits, RowValue, RowWriteError, TableSpec,
-    create::api::{CreateDatabaseError, ImageCheckError},
-    create_database_with_rows,
+    ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, PageNumber, ResourceBudget,
+    ResourceLimits, RowValue, RowWriteError, TableRows, TableSpec,
+    create::{api::CreateDatabaseError, check::ImageCheckError},
+    create_database,
     definition::column_writer::nz,
 };
 use std::fs;
@@ -26,8 +26,18 @@ fn scalar_rows_publish_and_match_requested_values() -> TestResult {
         &[RowValue::Long(-2), RowValue::Text(b"two")],
         &[RowValue::Null, RowValue::Null],
     ];
-    create_database_with_rows(&target, &scalar_table(), rows, &mut budget())?;
-    super::api::check_initial_rows(&target, &scalar_table(), rows, &mut budget())?;
+    create_database(
+        &target,
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: scalar_table(),
+                rows,
+            }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
+    super::check::check_initial_rows(&target, &scalar_table(), rows, &mut budget())?;
     let bytes = fs::read(&target)?;
     assert_eq!(bytes.len(), 24 * crate::PAGE_BYTES);
     assert_eq!(
@@ -41,7 +51,17 @@ fn scalar_rows_publish_and_match_requested_values() -> TestResult {
 #[test]
 fn empty_initial_rows_do_not_allocate_a_data_page() -> TestResult {
     let directory = TestDirectory::create()?;
-    create_database_with_rows(directory.target(), &scalar_table(), &[], &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: scalar_table(),
+                rows: &[],
+            }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     assert_eq!(
         fs::metadata(directory.target())?.len(),
         23 * crate::PAGE_BYTES as u64
@@ -53,10 +73,15 @@ fn empty_initial_rows_do_not_allocate_a_data_page() -> TestResult {
 fn rows_with_wrong_types_leave_no_file() -> TestResult {
     let directory = TestDirectory::create()?;
     assert!(matches!(
-        create_database_with_rows(
+        create_database(
             directory.target(),
-            &scalar_table(),
-            &[&[RowValue::Byte(1), RowValue::Null]],
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: scalar_table(),
+                    rows: &[&[RowValue::Byte(1), RowValue::Null]]
+                }],
+                ..DatabaseSpec::default()
+            },
             &mut budget()
         ),
         Err(CreateDatabaseError::Compose(ComposeError::Row(
@@ -64,7 +89,17 @@ fn rows_with_wrong_types_leave_no_file() -> TestResult {
         )))
     ));
     assert!(matches!(
-        create_database_with_rows(directory.target(), &scalar_table(), &[&[]], &mut budget()),
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: scalar_table(),
+                    rows: &[&[]]
+                }],
+                ..DatabaseSpec::default()
+            },
+            &mut budget()
+        ),
         Err(CreateDatabaseError::Compose(ComposeError::Row(
             RowWriteError::ValueCountMismatch { .. }
         )))
@@ -85,10 +120,15 @@ fn unsupported_initial_row_schemas_leave_no_file() -> TestResult {
             indexes: &[],
         };
         assert!(matches!(
-            create_database_with_rows(
+            create_database(
                 directory.target(),
-                &table,
-                &[&[RowValue::Null]],
+                &DatabaseSpec {
+                    tables: &[TableRows {
+                        table,
+                        rows: &[&[RowValue::Null]]
+                    }],
+                    ..DatabaseSpec::default()
+                },
                 &mut budget()
             ),
             Err(CreateDatabaseError::Compose(
@@ -104,7 +144,17 @@ fn unsupported_initial_row_schemas_leave_no_file() -> TestResult {
 fn initial_row_check_detects_wrong_values_and_counts() -> TestResult {
     let directory = TestDirectory::create()?;
     let rows: &[&[RowValue<'_>]] = &[&[RowValue::Long(1), RowValue::Text(b"one")]];
-    create_database_with_rows(directory.target(), &scalar_table(), rows, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: scalar_table(),
+                rows,
+            }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     for (rows, detail) in [
         (
             &[&[RowValue::Long(2), RowValue::Text(b"one")][..]][..],
@@ -114,7 +164,7 @@ fn initial_row_check_detects_wrong_values_and_counts() -> TestResult {
         (&[rows[0], rows[0]][..], "initial row count"),
     ] {
         assert!(
-            matches!(super::api::check_initial_rows(&directory.target(), &scalar_table(), rows, &mut budget()),
+            matches!(super::check::check_initial_rows(&directory.target(), &scalar_table(), rows, &mut budget()),
             Err(ImageCheckError::Mismatch { detail: actual }) if actual == detail)
         );
     }
@@ -127,16 +177,31 @@ fn initial_rows_preserve_existing_destination_and_enforce_budget() -> TestResult
     fs::write(directory.target(), b"keep me")?;
     let rows: &[&[RowValue<'_>]] = &[&[RowValue::Long(1), RowValue::Null]];
     assert!(matches!(
-        create_database_with_rows(directory.target(), &scalar_table(), rows, &mut budget()),
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: scalar_table(),
+                    rows
+                }],
+                ..DatabaseSpec::default()
+            },
+            &mut budget()
+        ),
         Err(CreateDatabaseError::Publish(_))
     ));
     assert_eq!(fs::read(directory.target())?, b"keep me");
     let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(0));
     assert!(matches!(
-        create_database_with_rows(
+        create_database(
             directory.path.join("limited.mdb"),
-            &scalar_table(),
-            rows,
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: scalar_table(),
+                    rows
+                }],
+                ..DatabaseSpec::default()
+            },
             &mut limited
         ),
         Err(CreateDatabaseError::Compose(_))
@@ -180,7 +245,14 @@ fn exhausted_row_slots_spill_to_the_next_page() -> TestResult {
     };
     let row = [RowValue::Boolean(true)];
     let rows = vec![row.as_slice(); 257];
-    create_database_with_rows(directory.target(), &table, &rows, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let bytes = fs::read(directory.target())?;
     assert_eq!(bytes.len(), 25 * crate::PAGE_BYTES);
     assert_eq!((page_rows(&bytes, 23), page_rows(&bytes, 24)), (255, 2));
@@ -206,7 +278,17 @@ fn initial_rows_create_and_reopen_a_continued_definition() -> TestResult {
         indexes: &[],
     };
     let row = vec![RowValue::Long(37); columns.len()];
-    create_database_with_rows(directory.target(), &table, &[&row], &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table,
+                rows: &[&row],
+            }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let mut b = budget();
     let mut db = DatabaseReader::open(directory.target(), &mut b)?;
     let definition = db.table_definition(PageNumber::new(20), &mut b)?;
@@ -240,7 +322,14 @@ fn packed_pages_track_ownership_availability_and_total_rows() -> TestResult {
         .map(|value| [RowValue::Long(value)])
         .collect::<Vec<_>>();
     let rows = values.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
-    create_database_with_rows(directory.target(), &table, &rows, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let bytes = fs::read(directory.target())?;
     assert_eq!(bytes.len(), 26 * crate::PAGE_BYTES);
     assert_eq!(
@@ -278,7 +367,14 @@ fn spilling_a_large_row_keeps_space_for_smaller_rows_available() -> TestResult {
     let text = [b'x'; 255];
     let row = [RowValue::Long(1), RowValue::Text(&text)];
     let rows = vec![row.as_slice(); 8];
-    create_database_with_rows(directory.target(), &table, &rows, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let bytes = fs::read(directory.target())?;
     assert_eq!(bytes.len(), 25 * crate::PAGE_BYTES);
     assert_eq!((page_rows(&bytes, 23), page_rows(&bytes, 24)), (7, 1));
@@ -298,13 +394,20 @@ fn later_page_corruption_and_missing_owned_pages_are_detected() -> TestResult {
     };
     let row = [RowValue::Long(1)];
     let rows = vec![row.as_slice(); 255];
-    create_database_with_rows(directory.target(), &table, &rows, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let original = fs::read(directory.target())?;
     let mut changed = original.clone();
     changed[24 * crate::PAGE_BYTES + 4] = 21;
     fs::write(directory.target(), &changed)?;
     assert!(matches!(
-        super::api::check_initial_rows(&directory.target(), &table, &rows, &mut budget()),
+        super::check::check_initial_rows(&directory.target(), &table, &rows, &mut budget()),
         Err(ImageCheckError::Rows(_))
     ));
     let mut changed = original;
@@ -313,7 +416,7 @@ fn later_page_corruption_and_missing_owned_pages_are_detected() -> TestResult {
     changed[21 * crate::PAGE_BYTES + start + 5 + 24 / 8] &= !1;
     fs::write(directory.target(), &changed)?;
     assert!(matches!(
-        super::api::check_initial_rows(&directory.target(), &table, &rows, &mut budget()),
+        super::check::check_initial_rows(&directory.target(), &table, &rows, &mut budget()),
         Err(ImageCheckError::Mismatch {
             detail: "initial row count"
         })
@@ -340,15 +443,42 @@ fn initial_rows_extend_past_inline_maps_and_preserve_existing_destinations() -> 
     let row = [RowValue::Double(1.0); 70];
     // Three 570-byte fixed-width rows per page, without wide variable offsets.
     let rows = vec![row.as_slice(); 3004];
-    create_database_with_rows(directory.target(), &table, &rows[..3003], &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table,
+                rows: &rows[..3003],
+            }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let original = fs::read(directory.target())?;
     assert_eq!(original.len(), 1024 * crate::PAGE_BYTES);
     assert!(map_bit(&original, 21, 0, 1023)?);
     assert!(!map_bit(&original, 1, 0, 1023)?);
-    assert!(create_database_with_rows(directory.target(), &table, &rows, &mut budget()).is_err());
+    assert!(
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[TableRows { table, rows: &rows }],
+                ..DatabaseSpec::default()
+            },
+            &mut budget()
+        )
+        .is_err()
+    );
     assert_eq!(fs::read(directory.target())?, original);
     let grown = directory.target().with_file_name("grown.mdb");
-    create_database_with_rows(&grown, &table, &rows, &mut budget())?;
+    create_database(
+        &grown,
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);
     Ok(())
 }
@@ -367,17 +497,32 @@ fn oversized_rows_and_page_storage_budget_fail_before_publication() -> TestResul
     let text = [b'x'; 255];
     let row = [RowValue::Text(&text); 9];
     assert!(matches!(
-        create_database_with_rows(directory.target(), &table, &[&row], &mut budget()),
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table,
+                    rows: &[&row]
+                }],
+                ..DatabaseSpec::default()
+            },
+            &mut budget()
+        ),
         Err(CreateDatabaseError::Compose(ComposeError::Row(_)))
     ));
     let mut limited = ResourceBudget::new(
         ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(2000)),
     );
     assert!(matches!(
-        create_database_with_rows(
+        create_database(
             directory.target(),
-            &scalar_table(),
-            &[&[RowValue::Long(1), RowValue::Null]],
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: scalar_table(),
+                    rows: &[&[RowValue::Long(1), RowValue::Null]]
+                }],
+                ..DatabaseSpec::default()
+            },
             &mut limited
         ),
         Err(CreateDatabaseError::Compose(ComposeError::Encoding(

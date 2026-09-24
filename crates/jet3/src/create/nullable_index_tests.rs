@@ -1,10 +1,10 @@
 use super::initial_index_tests::*;
 use crate::{
-    ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexColumnSpec, IndexDirection,
-    IndexKind, IndexNullPolicy, IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue,
-    TableSpec,
+    ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexColumnSpec,
+    IndexDirection, IndexKind, IndexNullPolicy, IndexSpec, PageNumber, ResourceBudget,
+    ResourceLimits, RowValue, TableRows, TableSpec,
     create::{api::CreateDatabaseError, api_tests::*},
-    create_database_with_rows,
+    create_database,
 };
 use std::fs;
 
@@ -55,7 +55,14 @@ fn nullable_components_uniqueness_omission_and_distinct_counts_match_policy() ->
             columns: &COLUMNS,
             indexes: &indexes,
         };
-        create_database_with_rows(directory.target(), &table, &rows, &mut budget())?;
+        create_database(
+            directory.target(),
+            &DatabaseSpec {
+                tables: &[TableRows { table, rows: &rows }],
+                ..DatabaseSpec::default()
+            },
+            &mut budget(),
+        )?;
         let index = tree(&directory.target())?;
         assert_eq!(index.entries().len(), entries);
         let keys: Vec<_> = index
@@ -105,10 +112,15 @@ fn single_null_keys_and_empty_ignored_tree_keep_real_row_counts() -> TestResult 
                 columns: &[ID],
                 indexes: &indexes,
             };
-            create_database_with_rows(
+            create_database(
                 directory.target(),
-                &table,
-                &[&[RowValue::Null], &[RowValue::Null]],
+                &DatabaseSpec {
+                    tables: &[TableRows {
+                        table,
+                        rows: &[&[RowValue::Null], &[RowValue::Null]],
+                    }],
+                    ..DatabaseSpec::default()
+                },
                 &mut budget(),
             )?;
             let index = tree(&directory.target())?;
@@ -152,7 +164,14 @@ fn required_null_and_present_duplicate_refusals_preserve_destination() -> TestRe
             indexes: &indexes,
         };
         assert!(matches!(
-            create_database_with_rows(directory.target(), &table, rows, &mut budget()),
+            create_database(
+                directory.target(),
+                &DatabaseSpec {
+                    tables: &[TableRows { table, rows }],
+                    ..DatabaseSpec::default()
+                },
+                &mut budget()
+            ),
             Err(CreateDatabaseError::Compose(
                 ComposeError::NullInitialIndexKey { row: 0 }
             ))
@@ -172,10 +191,15 @@ fn required_null_and_present_duplicate_refusals_preserve_destination() -> TestRe
     };
     let duplicate: &[RowValue<'_>] = &[RowValue::Long(1), RowValue::Long(2)];
     assert!(matches!(
-        create_database_with_rows(
+        create_database(
             directory.target(),
-            &table,
-            &[duplicate, duplicate],
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table,
+                    rows: &[duplicate, duplicate]
+                }],
+                ..DatabaseSpec::default()
+            },
             &mut budget()
         ),
         Err(CreateDatabaseError::Compose(
@@ -188,13 +212,18 @@ fn required_null_and_present_duplicate_refusals_preserve_destination() -> TestRe
         ..indexes[0]
     }];
     assert!(
-        create_database_with_rows(
+        create_database(
             directory.target(),
-            &TableSpec {
-                indexes: &invalid,
-                ..table
+            &DatabaseSpec {
+                tables: &[TableRows {
+                    table: TableSpec {
+                        indexes: &invalid,
+                        ..table
+                    },
+                    rows: &[]
+                }],
+                ..DatabaseSpec::default()
             },
-            &[],
             &mut budget()
         )
         .is_err()
@@ -241,7 +270,14 @@ fn variable_width_duplicate_runs_span_three_levels_and_later_table_maps() -> Tes
         },
         crate::TableRows { table, rows: &rows },
     ];
-    crate::create_database_with_table_rows(directory.target(), &requests, &mut budget())?;
+    crate::create_database(
+        directory.target(),
+        &crate::DatabaseSpec {
+            tables: &requests,
+            ..crate::DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let mut b = budget();
     let mut db = DatabaseReader::open(directory.target(), &mut b)?;
     let root = {
@@ -271,8 +307,15 @@ fn variable_width_duplicate_runs_span_three_levels_and_later_table_maps() -> Tes
         ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(100)),
     );
     assert!(
-        crate::create_database_with_table_rows(directory.target(), &requests, &mut insufficient)
-            .is_err()
+        crate::create_database(
+            directory.target(),
+            &crate::DatabaseSpec {
+                tables: &requests,
+                ..crate::DatabaseSpec::default()
+            },
+            &mut insufficient
+        )
+        .is_err()
     );
     assert_eq!(fs::read(directory.target())?, original);
     Ok(())
@@ -297,7 +340,14 @@ fn nullable_auto_components_and_corrupt_flags_or_keys_are_checked() -> TestResul
         &[RowValue::Null, RowValue::AutoIncrement],
         &[RowValue::Long(1), RowValue::AutoIncrement],
     ];
-    create_database_with_rows(directory.target(), &table, rows, &mut budget())?;
+    create_database(
+        directory.target(),
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     assert_eq!(
         tree(&directory.target())?.entries()[0].key().raw_bytes(),
         &[0, 0x80, 0x7f, 0xff, 0xff, 0xfe]
@@ -307,7 +357,7 @@ fn nullable_auto_components_and_corrupt_flags_or_keys_are_checked() -> TestResul
     corrupt[23 * crate::PAGE_BYTES + 248] = 1;
     fs::write(directory.target(), corrupt)?;
     assert!(
-        super::api::check_initial_rows(&directory.target(), &table, rows, &mut budget()).is_err()
+        super::check::check_initial_rows(&directory.target(), &table, rows, &mut budget()).is_err()
     );
     let mut corrupt = original;
     // Two column records followed by their exact length-prefixed names.

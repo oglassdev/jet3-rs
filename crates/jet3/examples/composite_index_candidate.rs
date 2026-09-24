@@ -1,7 +1,7 @@
 //! Deterministic EXP-0126-shaped candidates for subsequent DAO validation.
 use jet3::{
-    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec,
-    ResourceBudget, ResourceLimits, RowValue, TableSpec, create_database_with_rows,
+    ColumnRef, ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexDirection, IndexKind,
+    IndexSpec, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec, create_database,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -61,10 +61,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|row| row.map(RowValue::Long))
         .collect::<Vec<_>>();
     let rows = values.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
-    create_database_with_rows(
+    create_database(
         path,
-        &table,
-        &rows,
+        &DatabaseSpec {
+            tables: &[TableRows { table, rows: &rows }],
+            ..DatabaseSpec::default()
+        },
         &mut ResourceBudget::new(ResourceLimits::default()),
     )?;
     Ok(())

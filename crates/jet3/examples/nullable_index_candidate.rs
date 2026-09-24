@@ -1,7 +1,7 @@
 //! Deterministic nullable Long candidates; validation is separately preregistered.
 use jet3::{
-    ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexNullPolicy, IndexSpec, ResourceBudget,
-    ResourceLimits, RowValue, TableRows, TableSpec, create_database_with_table_rows,
+    ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexKind, IndexNullPolicy, IndexSpec,
+    ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec, create_database,
 };
 use std::{env, error::Error};
 
@@ -109,9 +109,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             rows: &rows,
         },
     ];
-    create_database_with_table_rows(
+    create_database(
         path,
-        &tables,
+        &DatabaseSpec {
+            tables: &tables,
+            ..DatabaseSpec::default()
+        },
         &mut ResourceBudget::new(ResourceLimits::default()),
     )?;
     Ok(())

@@ -1,10 +1,9 @@
 use super::api_tests::*;
 use crate::{
     ColumnOrdinal, ColumnPropertyError, ColumnSpec, ColumnType, ComposeError, DatabaseReader,
-    RowUpdate, RowValue, RowWriteError, TableSpec, TableValidationError, TextCodePage, UpdateError,
-    ValidationError, ValueKind,
+    DatabaseSpec, RowUpdate, RowValue, RowWriteError, TableRows, TableSpec, TableValidationError,
+    TextCodePage, UpdateError, ValidationError, ValueKind,
     create::api::{CreateDatabaseError, create_database},
-    create_database_with_rows,
     definition::column_writer::nz,
     insert_row, update_row,
 };
@@ -41,9 +40,19 @@ fn required_columns_enforce_nulls_without_indexes_and_keep_scalar_exceptions() -
         RowValue::Null,
         RowValue::AutoIncrement,
     ];
-    let error = create_database_with_rows(&path, &table, &[&invalid], &mut budget())
-        .err()
-        .ok_or("null creation accepted")?;
+    let error = create_database(
+        &path,
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table,
+                rows: &[&invalid],
+            }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )
+    .err()
+    .ok_or("null creation accepted")?;
     assert!(
         matches!(
             error,
@@ -61,7 +70,17 @@ fn required_columns_enforce_nulls_without_indexes_and_keep_scalar_exceptions() -
         RowValue::Null,
         RowValue::AutoIncrement,
     ];
-    create_database_with_rows(&path, &table, &[&values], &mut budget())?;
+    create_database(
+        &path,
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table,
+                rows: &[&values],
+            }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let original = fs::read(&path)?;
     let row = first_row(&path)?;
     for result in [
@@ -149,15 +168,20 @@ fn required_payloads_distinguish_empty_strings_from_storage_nulls() -> TestResul
         RowValue::LongBinary(b"x"),
         RowValue::Text(b"    "),
     ];
-    create_database_with_rows(
+    create_database(
         &path,
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Rows",
-            columns: &columns,
-            indexes: &[],
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &columns,
+                    indexes: &[],
+                },
+                rows: &[&values],
+            }],
+            ..DatabaseSpec::default()
         },
-        &[&values],
         &mut budget(),
     )?;
     let original = fs::read(&path)?;
@@ -205,7 +229,17 @@ fn required_property_corruption_and_stored_nulls_are_reported() -> TestResult {
         columns: &columns,
         indexes: &[],
     };
-    create_database_with_rows(&path, &table, &[&[RowValue::Long(1)]], &mut budget())?;
+    create_database(
+        &path,
+        &DatabaseSpec {
+            tables: &[TableRows {
+                table,
+                rows: &[&[RowValue::Long(1)]],
+            }],
+            ..DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     let property = crate::properties::column::CreationProperties::new(
         &columns,
         crate::TableValidation::NONE,
@@ -280,12 +314,15 @@ fn missing_zero_length_properties_do_not_disable_empty_strings() -> TestResult {
         let columns = [ID, ColumnSpec::new(b"Payload", kind)];
         create_database(
             &path,
-            &[TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Rows",
-                columns: &columns,
-                indexes: &[],
-            }],
+            &DatabaseSpec {
+                tables: &[TableRows::empty(TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &columns,
+                    indexes: &[],
+                })],
+                ..DatabaseSpec::default()
+            },
             &mut budget(),
         )?;
         let mut db = DatabaseReader::open(&path, &mut budget())?;

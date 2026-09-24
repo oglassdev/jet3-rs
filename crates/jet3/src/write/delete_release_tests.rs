@@ -167,15 +167,20 @@ fn sole_row_on_later_page_releases_only_that_page_and_keeps_other_rows() -> Resu
         .map(|i| [RowValue::Long(i), RowValue::Long(-i)])
         .collect();
     let rows: Vec<_> = values.iter().map(|r| r.as_slice()).collect();
-    crate::create_database_with_rows(
+    crate::create_database(
         f.path(),
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Rows",
-            columns: &columns,
-            indexes: &[],
+        &crate::DatabaseSpec {
+            tables: &[crate::TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &columns,
+                    indexes: &[],
+                },
+                rows: &rows,
+            }],
+            ..crate::DatabaseSpec::default()
         },
-        &rows,
         &mut budget(),
     )?;
     let mut b = budget();
@@ -221,15 +226,20 @@ fn null_long_value_row_releases_only_its_data_page() -> ResultTest {
     let f = Fixture::new(1)?;
     fs::remove_file(f.path())?;
     let columns = [ColumnSpec::new(b"Memo", ColumnType::Memo)];
-    crate::create_database_with_rows(
+    crate::create_database(
         f.path(),
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Rows",
-            columns: &columns,
-            indexes: &[],
+        &crate::DatabaseSpec {
+            tables: &[crate::TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &columns,
+                    indexes: &[],
+                },
+                rows: &[&[RowValue::Null]],
+            }],
+            ..crate::DatabaseSpec::default()
         },
-        &[&[RowValue::Null]],
         &mut budget(),
     )?;
     let before = fs::read(f.path())?;

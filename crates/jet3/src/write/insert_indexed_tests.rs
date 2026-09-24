@@ -59,7 +59,14 @@ impl Fixture {
                 rows: &rows,
             },
         ];
-        crate::create_database_with_table_rows(f.path(), &tables, &mut budget())?;
+        crate::create_database(
+            f.path(),
+            &crate::DatabaseSpec {
+                tables: &tables,
+                ..crate::DatabaseSpec::default()
+            },
+            &mut budget(),
+        )?;
         let mut bytes = fs::read(f.path())?;
         bytes.extend_from_slice(&[0xb7; PAGE_BYTES]);
         fs::write(f.path(), bytes)?;
@@ -500,15 +507,20 @@ fn indexed_rows_no_available_page_appends_and_multiple_indexes_mutate() -> TestR
         [RowValue::Long(1), RowValue::Long(2)],
         [RowValue::Long(2), RowValue::Long(3)],
     ];
-    crate::create_database_with_rows(
+    crate::create_database(
         f.path(),
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Rows",
-            columns: &columns,
-            indexes: &indexes,
+        &crate::DatabaseSpec {
+            tables: &[crate::TableRows {
+                table: TableSpec {
+                    validation: crate::TableValidation::NONE,
+                    name: b"Rows",
+                    columns: &columns,
+                    indexes: &indexes,
+                },
+                rows: &[&values[0], &values[1]],
+            }],
+            ..crate::DatabaseSpec::default()
         },
-        &[&values[0], &values[1]],
         &mut budget(),
     )?;
     let row = f.rows()?[0].1;

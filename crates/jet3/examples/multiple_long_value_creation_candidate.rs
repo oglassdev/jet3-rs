@@ -255,7 +255,14 @@ fn create(path: &Path, case: Case) -> Result<()> {
     } else {
         [items, notes]
     };
-    jet3::create_database_with_table_rows(path, &requests, &mut budget())?;
+    jet3::create_database(
+        path,
+        &jet3::DatabaseSpec {
+            tables: &requests,
+            ..jet3::DatabaseSpec::default()
+        },
+        &mut budget(),
+    )?;
     Ok(())
 }
 fn definition(

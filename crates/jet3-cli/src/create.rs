@@ -1,14 +1,10 @@
-//! JSON input translation for the public database creation APIs.
+//! JSON input translation for the public database creation API.
 use std::{ffi::OsString, path::PathBuf};
 
 use crate::names::Name;
 use crate::schema_input::{Column, Index, Relation, validation};
 use crate::values::{self, Cell};
-use jet3::{
-    RowValue, TableRows, TableSpec, create_database, create_database_with_relationship,
-    create_database_with_relationship_rows, create_database_with_relationships,
-    create_database_with_relationships_and_rows, create_database_with_table_rows,
-};
+use jet3::{DatabaseSpec, RelationshipLayout, RowValue, TableRows, TableSpec, create_database};
 use serde::Deserialize;
 
 pub(crate) const HELP: &str = "\
@@ -131,53 +127,30 @@ pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
             rows: &slices[n],
         })
         .collect::<Vec<_>>();
-    let mut budget = values::budget();
-    let empty = tables.iter().all(|table| table.rows.is_empty());
-    let schema = tables.iter().map(|table| table.table).collect::<Vec<_>>();
-    if let Some(relations) = &request.relationships {
-        let fields = relations
-            .iter()
-            .map(Relation::fields)
-            .collect::<Result<Vec<_>, _>>()?;
-        let relationships = relations
-            .iter()
-            .zip(&fields)
-            .map(|(relation, fields)| relation.spec(fields))
-            .collect::<Vec<_>>();
-        if empty {
-            create_database_with_relationships(
-                &command.output,
-                &schema,
-                &relationships,
-                &mut budget,
-            )
-        } else {
-            create_database_with_relationships_and_rows(
-                &command.output,
-                &tables,
-                &relationships,
-                &mut budget,
-            )
-        }
-    } else if let Some(relation) = &request.relationship {
-        let fields = relation.fields()?;
-        let relationship = relation.spec(&fields);
-        if empty {
-            create_database_with_relationship(&command.output, &schema, &relationship, &mut budget)
-        } else {
-            create_database_with_relationship_rows(
-                &command.output,
-                &tables,
-                &relationship,
-                &mut budget,
-            )
-        }
-    } else if empty {
-        create_database(&command.output, &schema, &mut budget)
-    } else {
-        create_database_with_table_rows(&command.output, &tables, &mut budget)
-    }
-    .map_err(|e| format!("create database: {e}"))?;
+    let (relations, relationship_layout) = match (&request.relationships, &request.relationship) {
+        (Some(relations), _) => (relations.as_slice(), RelationshipLayout::Graph),
+        (None, Some(relation)) => (
+            std::slice::from_ref(relation),
+            RelationshipLayout::SingleLong,
+        ),
+        (None, None) => (&[][..], RelationshipLayout::Graph),
+    };
+    let fields = relations
+        .iter()
+        .map(Relation::fields)
+        .collect::<Result<Vec<_>, _>>()?;
+    let relationships = relations
+        .iter()
+        .zip(&fields)
+        .map(|(relation, fields)| relation.spec(fields))
+        .collect::<Vec<_>>();
+    let spec = DatabaseSpec {
+        tables: &tables,
+        relationships: &relationships,
+        relationship_layout,
+    };
+    create_database(&command.output, &spec, &mut values::budget())
+        .map_err(|e| format!("create database: {e}"))?;
     Ok(
         serde_json::json!({"ok": true, "operation": "create", "output": command.output.to_string_lossy()})
             .to_string()

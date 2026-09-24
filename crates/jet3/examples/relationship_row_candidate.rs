@@ -1,8 +1,8 @@
 //! Deterministic relationship candidate with repeated foreign keys across pages.
 use jet3::{
-    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, RelationshipField,
-    RelationshipSpec, ResourceBudget, ResourceLimits, RowValue, TableRef, TableRows, TableSpec,
-    create_database_with_relationship_rows,
+    ColumnRef, ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexKind, IndexSpec,
+    RelationshipField, RelationshipLayout, RelationshipSpec, ResourceBudget, ResourceLimits,
+    RowValue, TableRef, TableRows, TableSpec, create_database,
 };
 use std::num::NonZeroU8;
 
@@ -68,23 +68,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect::<Vec<_>>();
     let child_rows = values.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
-    create_database_with_relationship_rows(
+    create_database(
         path,
-        &[
-            TableRows {
-                table: parent,
-                rows: &[
-                    &[RowValue::Long(9), RowValue::Long(1)],
-                    &[RowValue::Long(8), RowValue::Long(2)],
-                    &[RowValue::Long(7), RowValue::Long(3)],
-                ],
-            },
-            TableRows {
-                table: child,
-                rows: &child_rows,
-            },
-        ],
-        &relationship,
+        &DatabaseSpec {
+            tables: &[
+                TableRows {
+                    table: parent,
+                    rows: &[
+                        &[RowValue::Long(9), RowValue::Long(1)],
+                        &[RowValue::Long(8), RowValue::Long(2)],
+                        &[RowValue::Long(7), RowValue::Long(3)],
+                    ],
+                },
+                TableRows {
+                    table: child,
+                    rows: &child_rows,
+                },
+            ],
+            relationships: std::slice::from_ref(&relationship),
+            relationship_layout: RelationshipLayout::SingleLong,
+        },
         &mut ResourceBudget::new(ResourceLimits::default()),
     )?;
     Ok(())
