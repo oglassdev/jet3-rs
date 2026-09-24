@@ -1,9 +1,11 @@
 use super::initial_rows_tests::*;
 use crate::WriteError;
+use crate::testkit::create;
+use crate::testkit::{index, table};
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexColumnSpec,
     IndexDirection, IndexKind, IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue,
-    TableRows, TableSpec,
+    TableRows,
     create::{api_tests::*, check::ImageCheckError},
     create_database,
     definition::column_writer::nz,
@@ -13,11 +15,7 @@ use std::fs;
 pub(super) const ID_FIELD: [IndexColumnSpec<'static>; 1] = [field(0, IndexDirection::Ascending)];
 
 pub(super) fn one_index(kind: IndexKind) -> [IndexSpec<'static>; 1] {
-    [IndexSpec {
-        name: b"ById",
-        fields: &ID_FIELD,
-        kind,
-    }]
+    [index(b"ById", &ID_FIELD, kind)]
 }
 
 pub(super) fn tree(path: &std::path::Path) -> Result<crate::IndexTree, Box<dyn std::error::Error>> {
@@ -29,28 +27,16 @@ pub(super) fn tree(path: &std::path::Path) -> Result<crate::IndexTree, Box<dyn s
 
 #[test]
 fn ascending_long_keys_sort_signed_extremes_and_retain_row_locators() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let indexes = one_index(IndexKind::Primary);
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &[ID],
-        indexes: &indexes,
-    };
+    let table = table(b"Items", &[ID], &indexes);
     let rows: &[&[RowValue<'_>]] = &[
         &[RowValue::Long(i32::MAX)],
         &[RowValue::Long(i32::MIN)],
         &[RowValue::Long(0)],
         &[RowValue::Long(-1)],
     ];
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows { table, rows }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(directory.target(), &[TableRows { table, rows }])?;
     let index = tree(&directory.target())?;
     let expected = [
         ([0x7f, 0, 0, 0, 0], 1),
@@ -84,22 +70,10 @@ fn duplicate_keys_are_distinct_counted_for_ordinary_and_rejected_for_unique() ->
         &[RowValue::Long(2)],
     ];
     for kind in [IndexKind::Primary, IndexKind::Unique, IndexKind::Ordinary] {
-        let directory = TestDirectory::create()?;
+        let directory = TempDir::new("create")?;
         let indexes = one_index(kind);
-        let table = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &[ID],
-            indexes: &indexes,
-        };
-        let result = create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows { table, rows }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
-        );
+        let table = table(b"Items", &[ID], &indexes);
+        let result = create(directory.target(), &[TableRows { table, rows }]);
         if kind == IndexKind::Ordinary {
             result?;
             let bytes = fs::read(directory.target())?;
@@ -131,31 +105,19 @@ fn duplicate_keys_are_distinct_counted_for_ordinary_and_rejected_for_unique() ->
 
 #[test]
 fn indexed_payload_rows_can_reference_multiple_data_pages() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let columns = [
         ID,
         ColumnSpec::new(b"Payload", ColumnType::Text { max_len: nz(255) }),
     ];
     let indexes = one_index(IndexKind::Unique);
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &columns,
-        indexes: &indexes,
-    };
+    let table = table(b"Items", &columns, &indexes);
     let text = [b'x'; 255];
     let values = (0..20)
         .map(|value| [RowValue::Long(19 - value), RowValue::Text(&text)])
         .collect::<Vec<_>>();
     let rows = values.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows { table, rows: &rows }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(directory.target(), &[TableRows { table, rows: &rows }])?;
     for (key, entry) in tree(&directory.target())?.entries().iter().enumerate() {
         let ordinal = 19 - key;
         assert_eq!(
@@ -171,28 +133,19 @@ fn indexed_payload_rows_can_reference_multiple_data_pages() -> TestResult {
 
 #[test]
 fn leaf_capacity_spills_into_a_branch_root() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let indexes = one_index(IndexKind::Primary);
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &[ID],
-        indexes: &indexes,
-    };
+    let table = table(b"Items", &[ID], &indexes);
     let values = (0..201)
         .map(|value| [RowValue::Long(value)])
         .collect::<Vec<_>>();
     let rows = values.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
-    create_database(
+    create(
         directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table,
-                rows: &rows[..200],
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table,
+            rows: &rows[..200],
+        }],
     )?;
     let original = fs::read(directory.target())?;
     assert_eq!(tree(&directory.target())?.entries().len(), 200);
@@ -201,26 +154,12 @@ fn leaf_capacity_spills_into_a_branch_root() -> TestResult {
         &[0, 0]
     );
     assert!(matches!(
-        create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows { table, rows: &rows }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget()
-        ),
+        create(directory.target(), &[TableRows { table, rows: &rows }]),
         Err(WriteError::CreatePublish(_))
     ));
     assert_eq!(fs::read(directory.target())?, original);
-    let directory = TestDirectory::create()?;
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows { table, rows: &rows }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    let directory = TempDir::new("create")?;
+    create(directory.target(), &[TableRows { table, rows: &rows }])?;
     let expanded = tree(&directory.target())?;
     assert_eq!(expanded.entries().len(), 201);
     assert_eq!(expanded.nodes().len(), 3);
@@ -231,29 +170,20 @@ fn leaf_capacity_spills_into_a_branch_root() -> TestResult {
 
 #[test]
 fn required_null_keys_fail_before_publication() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     for kind in [
         IndexKind::Primary,
         IndexKind::Ordinary.with_null_policy(crate::IndexNullPolicy::Required),
     ] {
         let indexes = one_index(kind);
-        let table = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &[ID],
-            indexes: &indexes,
-        };
+        let table = table(b"Items", &[ID], &indexes);
         assert!(matches!(
-            create_database(
+            create(
                 directory.target(),
-                &DatabaseSpec {
-                    tables: &[TableRows {
-                        table,
-                        rows: &[&[RowValue::Null]]
-                    }],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget()
+                &[TableRows {
+                    table,
+                    rows: &[&[RowValue::Null]]
+                }]
             ),
             Err(WriteError::Compose(ComposeError::NullInitialIndexKey {
                 row: 0
@@ -266,23 +196,11 @@ fn required_null_keys_fail_before_publication() -> TestResult {
 
 #[test]
 fn candidate_check_rejects_index_owner_and_key_corruption() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let indexes = one_index(IndexKind::Primary);
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &[ID],
-        indexes: &indexes,
-    };
+    let table = table(b"Items", &[ID], &indexes);
     let rows: &[&[RowValue<'_>]] = &[&[RowValue::Long(1)], &[RowValue::Long(2)]];
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows { table, rows }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(directory.target(), &[TableRows { table, rows }])?;
     let original = fs::read(directory.target())?;
     let mut changed = original.clone();
     changed[23 * crate::PAGE_BYTES + 4] = 19;
@@ -305,22 +223,10 @@ fn candidate_check_rejects_index_owner_and_key_corruption() -> TestResult {
 
 #[test]
 fn index_storage_budget_and_empty_index_are_handled() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let indexes = one_index(IndexKind::Primary);
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &[ID],
-        indexes: &indexes,
-    };
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows { table, rows: &[] }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    let table = table(b"Items", &[ID], &indexes);
+    create(directory.target(), &[TableRows { table, rows: &[] }])?;
     assert!(tree(&directory.target())?.entries().is_empty());
     let original = fs::read(directory.target())?;
     let mut limited = ResourceBudget::new(

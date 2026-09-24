@@ -1,6 +1,8 @@
 //! EXP-0290 ordered composite fields and partial-null key matching.
 use super::api_relationship_graph_tests::*;
 use crate::WriteError;
+use crate::testkit::create_spec;
+use crate::testkit::{index, table};
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexDirection, IndexKind,
     IndexSpec, RelationshipField, RelationshipSpec, RowValue, TableRef, TableSpec, TextCodePage,
@@ -29,14 +31,8 @@ const FIELDS: &[RelationshipField<'static>] = &[
         child: ColumnRef::Ordinal(2),
     },
 ];
-const PARENT_INDEXES: &[IndexSpec<'static>] = &[
-    INDEXES[0],
-    IndexSpec {
-        name: b"Pair",
-        fields: PAIR,
-        kind: IndexKind::Unique,
-    },
-];
+const PARENT_INDEXES: &[IndexSpec<'static>] =
+    &[INDEXES[0], index(b"Pair", PAIR, IndexKind::Unique)];
 fn schema() -> [TableSpec<'static>; 2] {
     [
         TableSpec {
@@ -62,7 +58,7 @@ fn edge() -> RelationshipSpec<'static> {
 
 #[test]
 fn composite_relationship_creation_checks_full_tuple_and_catalog_inventory() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let tables = schema();
     let parent = [
         &[
@@ -102,14 +98,13 @@ fn composite_relationship_creation_checks_full_tuple_and_catalog_inventory() -> 
             rows: &child,
         },
     ];
-    create_database(
+    create_spec(
         directory.target(),
         &DatabaseSpec {
             tables: &requests,
             relationships: &[edge()],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
     let mut database = DatabaseReader::open(directory.target(), &mut budget())?;
     let report = database.validate(TextCodePage::Windows1252, &mut budget())?;
@@ -118,7 +113,7 @@ fn composite_relationship_creation_checks_full_tuple_and_catalog_inventory() -> 
     assert!(report.relationship_inventory_checked);
     for key in [RowValue::Long(999), RowValue::Null] {
         let orphan = [&[RowValue::Long(12), key, RowValue::Long(111), RowValue::Null][..]];
-        let missing = directory.0.join(if matches!(key, RowValue::Null) {
+        let missing = directory.join(if matches!(key, RowValue::Null) {
             "partial.mdb"
         } else {
             "orphan.mdb"
@@ -131,14 +126,13 @@ fn composite_relationship_creation_checks_full_tuple_and_catalog_inventory() -> 
             },
         ];
         assert!(matches!(
-            create_database(
+            create_spec(
                 &missing,
                 &DatabaseSpec {
                     tables: &requests,
                     relationships: &[edge()],
                     ..DatabaseSpec::default()
-                },
-                &mut budget()
+                }
             ),
             Err(WriteError::Compose(
                 ComposeError::OrphanInitialScalarRelationshipKey { row: 0 }
@@ -151,7 +145,7 @@ fn composite_relationship_creation_checks_full_tuple_and_catalog_inventory() -> 
 
 #[test]
 fn composite_relationship_requires_aligned_unique_fields_and_distinct_components() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let tables = schema();
     for fields in [
         &[FIELDS[1], FIELDS[0]][..],
@@ -161,14 +155,13 @@ fn composite_relationship_requires_aligned_unique_fields_and_distinct_components
     ] {
         let invalid = RelationshipSpec { fields, ..edge() };
         assert!(matches!(
-            create_database(
+            create_spec(
                 directory.target(),
                 &DatabaseSpec {
                     tables: &tables.map(TableRows::empty),
                     relationships: &[invalid],
                     ..DatabaseSpec::default()
-                },
-                &mut budget()
+                }
             ),
             Err(WriteError::Compose(
                 ComposeError::UnsupportedRelationship { .. }
@@ -181,7 +174,7 @@ fn composite_relationship_requires_aligned_unique_fields_and_distinct_components
 
 #[test]
 fn self_relationship_creation_refuses_identical_keys_but_admits_partial_overlap() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let tables = schema();
     let scalar = [RelationshipField {
         parent: ColumnRef::Name(b"Id"),
@@ -200,7 +193,7 @@ fn self_relationship_creation_refuses_identical_keys_but_admits_partial_overlap(
             fields,
         };
         assert!(matches!(
-            create_database(
+            create_spec(
                 directory.target(),
                 &DatabaseSpec {
                     tables: &tables[..1]
@@ -210,8 +203,7 @@ fn self_relationship_creation_refuses_identical_keys_but_admits_partial_overlap(
                         .collect::<Vec<_>>(),
                     relationships: &[relation],
                     ..DatabaseSpec::default()
-                },
-                &mut budget()
+                }
             ),
             Err(WriteError::Compose(
                 ComposeError::UnsupportedRelationship { .. }
@@ -237,8 +229,8 @@ fn self_relationship_creation_refuses_identical_keys_but_admits_partial_overlap(
         },
     ];
     for fields in [&partial[..], &swapped[..]] {
-        let directory = Directory::new()?;
-        create_database(
+        let directory = TempDir::new("create")?;
+        create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &tables[..1]
@@ -259,7 +251,6 @@ fn self_relationship_creation_refuses_identical_keys_but_admits_partial_overlap(
                 }],
                 ..DatabaseSpec::default()
             },
-            &mut budget(),
         )?;
         let mut database = DatabaseReader::open(directory.target(), &mut budget())?;
         let report = database.validate(TextCodePage::Windows1252, &mut budget())?;
@@ -288,7 +279,7 @@ fn locate(
 
 #[test]
 fn referenced_parent_payload_field_edit_does_not_assign_its_composite_key() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
     let mut columns = COLUMNS.to_vec();
     columns[3] = ColumnSpec::new(
@@ -311,7 +302,7 @@ fn referenced_parent_payload_field_edit_does_not_assign_its_composite_key() -> T
         RowValue::Long(111),
         RowValue::Null,
     ];
-    create_database(
+    create_spec(
         &path,
         &DatabaseSpec {
             tables: &[
@@ -327,7 +318,6 @@ fn referenced_parent_payload_field_edit_does_not_assign_its_composite_key() -> T
             relationships: &[edge()],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
     let row = locate(&path, b"Alpha", 1)?;
     let original = fs::read(&path)?;
@@ -378,7 +368,7 @@ fn referenced_parent_payload_field_edit_does_not_assign_its_composite_key() -> T
 
 #[test]
 fn composite_mutations_protect_assigned_parent_rows_and_admit_all_null_children() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
     let tables = schema();
     let parent = [
@@ -427,7 +417,7 @@ fn composite_mutations_protect_assigned_parent_rows_and_admit_all_null_children(
             RowValue::Null,
         ][..],
     ];
-    create_database(
+    create_spec(
         &path,
         &DatabaseSpec {
             tables: &[
@@ -443,7 +433,6 @@ fn composite_mutations_protect_assigned_parent_rows_and_admit_all_null_children(
             relationships: &[edge()],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
     let original = fs::read(&path)?;
     let delete = |table: &[u8], id| -> TestResult {
@@ -538,18 +527,9 @@ fn full_self_replacement_excludes_only_its_own_child_from_parent_guards() -> Tes
     for arity in [1, 2] {
         let indexes = [
             INDEXES[0],
-            IndexSpec {
-                name: b"ParentKey",
-                fields: &PAIR[..arity],
-                kind: IndexKind::Unique,
-            },
+            index(b"ParentKey", &PAIR[..arity], IndexKind::Unique),
         ];
-        let table = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Alpha",
-            columns: &columns,
-            indexes: &indexes,
-        };
+        let table = table(b"Alpha", &columns, &indexes);
         for null_key in [false, true] {
             let first = if null_key {
                 RowValue::Null
@@ -571,9 +551,9 @@ fn full_self_replacement_excludes_only_its_own_child_from_parent_guards() -> Tes
             ];
             let rows = [&selected[..], &external[..]];
             for external_child in [false, true] {
-                let directory = Directory::new()?;
+                let directory = TempDir::new("create")?;
                 let path = directory.target();
-                create_database(
+                create_spec(
                     &path,
                     &DatabaseSpec {
                         tables: &[TableRows {
@@ -593,7 +573,6 @@ fn full_self_replacement_excludes_only_its_own_child_from_parent_guards() -> Tes
                         }],
                         ..DatabaseSpec::default()
                     },
-                    &mut budget(),
                 )?;
                 let row = locate(&path, b"Alpha", 1)?;
                 let before = fs::read(&path)?;

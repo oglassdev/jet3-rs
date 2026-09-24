@@ -1,9 +1,11 @@
 //! EXP-0286 self-reference boundaries and physical index update order.
 use super::descending_parent_tests::*;
+use crate::testkit::create_spec;
+use crate::testkit::{index, table};
 use crate::{
-    ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec,
-    RelationshipField, RelationshipSide, RowValue, TableSpec, TextCodePage,
-    create::{DatabaseSpec, TableRows, api_relationship_graph_tests::*, create_database},
+    ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind,
+    RelationshipField, RelationshipSide, RowValue, TextCodePage,
+    create::{DatabaseSpec, TableRows, api_relationship_graph_tests::*},
 };
 use std::fs;
 
@@ -15,30 +17,17 @@ fn deleting_the_only_null_self_reference_removes_its_child_reference() -> TestRe
         ColumnSpec::new(b"ParentId", ColumnType::Long),
     ];
     let indexes = [
-        IndexSpec {
-            name: b"ById",
-            fields: ID,
-            kind: IndexKind::Primary,
-        },
-        IndexSpec {
-            name: b"Key",
-            fields: DESC,
-            kind: IndexKind::Unique,
-        },
+        index(b"ById", ID, IndexKind::Primary),
+        index(b"Key", DESC, IndexKind::Unique),
     ];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Node",
-        columns: &columns,
-        indexes: &indexes,
-    };
+    let table = table(b"Node", &columns, &indexes);
     let mut relation = edge(0);
     relation.fields = &[RelationshipField {
         parent: ColumnRef::Ordinal(1),
         child: ColumnRef::Ordinal(2),
     }];
-    let directory = Directory::new()?;
-    create_database(
+    let directory = TempDir::new("create")?;
+    create_spec(
         directory.target(),
         &DatabaseSpec {
             tables: &[TableRows {
@@ -48,7 +37,6 @@ fn deleting_the_only_null_self_reference_removes_its_child_reference() -> TestRe
             relationships: &[relation],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
     let d = definition(&directory.target(), b"Node")?;
     let row = {
@@ -93,23 +81,10 @@ fn parent_tree_after_foreign_requires_existing_self_keys() -> TestResult {
         ColumnSpec::new(b"ParentId", ColumnType::Long),
     ];
     let indexes = [
-        IndexSpec {
-            name: b"ById",
-            fields: ID,
-            kind: IndexKind::Primary,
-        },
-        IndexSpec {
-            name: b"Key",
-            fields: DESC,
-            kind: IndexKind::Unique,
-        },
+        index(b"ById", ID, IndexKind::Primary),
+        index(b"Key", DESC, IndexKind::Unique),
     ];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Node",
-        columns: &columns,
-        indexes: &indexes,
-    };
+    let table = table(b"Node", &columns, &indexes);
     let mut relation = edge(0);
     relation.fields = &[RelationshipField {
         parent: ColumnRef::Ordinal(1),
@@ -122,10 +97,10 @@ fn parent_tree_after_foreign_requires_existing_self_keys() -> TestResult {
         Some([RowValue::Long(1), RowValue::Long(1), RowValue::Long(1)]),
     ];
     for initial in states {
-        let directory = Directory::new()?;
+        let directory = TempDir::new("create")?;
         let initial_rows: Vec<&[RowValue<'_>]> =
             initial.as_ref().map(|r| r.as_slice()).into_iter().collect();
-        create_database(
+        create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &[TableRows {
@@ -135,7 +110,6 @@ fn parent_tree_after_foreign_requires_existing_self_keys() -> TestResult {
                 relationships: &[relation],
                 ..DatabaseSpec::default()
             },
-            &mut budget(),
         )?;
         let before = fs::read(directory.target())?;
         let replacement = [RowValue::Long(1), RowValue::Long(4), RowValue::Long(4)];
@@ -168,8 +142,8 @@ fn parent_tree_after_foreign_requires_existing_self_keys() -> TestResult {
         assert_eq!(fs::read(directory.target())?, before);
     }
 
-    let directory = Directory::new()?;
-    create_database(
+    let directory = TempDir::new("create")?;
+    create_spec(
         directory.target(),
         &DatabaseSpec {
             tables: &[TableRows {
@@ -182,7 +156,6 @@ fn parent_tree_after_foreign_requires_existing_self_keys() -> TestResult {
             relationships: &[relation],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
     let d = definition(&directory.target(), b"Node")?;
     let row = {
@@ -222,48 +195,18 @@ fn self_key_checks_follow_physical_order_for_generated_and_declared_parents() ->
     for generated_parent_first in [false, true] {
         let indexes = if generated_parent_first {
             vec![
-                IndexSpec {
-                    name: b"ById",
-                    fields: ID,
-                    kind: IndexKind::Primary,
-                },
-                IndexSpec {
-                    name: b"Descending",
-                    fields: DESC,
-                    kind: IndexKind::Unique,
-                },
+                index(b"ById", ID, IndexKind::Primary),
+                index(b"Descending", DESC, IndexKind::Unique),
             ]
         } else {
             vec![
-                IndexSpec {
-                    name: b"ById",
-                    fields: ID,
-                    kind: IndexKind::Primary,
-                },
-                IndexSpec {
-                    name: b"Child",
-                    fields: &foreign_fields,
-                    kind: IndexKind::Ordinary,
-                },
-                IndexSpec {
-                    name: b"Ascending",
-                    fields: ASC,
-                    kind: IndexKind::Unique,
-                },
+                index(b"ById", ID, IndexKind::Primary),
+                index(b"Child", &foreign_fields, IndexKind::Ordinary),
+                index(b"Ascending", ASC, IndexKind::Unique),
             ]
         };
-        let table = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Node",
-            columns: &columns,
-            indexes: &indexes,
-        };
-        let child = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Child",
-            columns: PAIR_COLUMNS,
-            indexes: &[],
-        };
+        let table = table(b"Node", &columns, &indexes);
+        let child = crate::testkit::table(b"Child", PAIR_COLUMNS, &[]);
         let mut external = edge(1);
         external.name = b"External";
         let mut self_relation = edge(0);
@@ -274,10 +217,10 @@ fn self_key_checks_follow_physical_order_for_generated_and_declared_parents() ->
         }];
         let relations = [external, self_relation];
         for insert in [false, true] {
-            let directory = Directory::new()?;
+            let directory = TempDir::new("create")?;
             let row = [RowValue::Long(1), RowValue::Long(1), RowValue::Long(1)];
             let initial: &[&[RowValue<'_>]] = if insert { &[] } else { &[&row] };
-            create_database(
+            create_spec(
                 directory.target(),
                 &DatabaseSpec {
                     tables: &[
@@ -293,7 +236,6 @@ fn self_key_checks_follow_physical_order_for_generated_and_declared_parents() ->
                     relationships: &relations[usize::from(!generated_parent_first)..],
                     ..DatabaseSpec::default()
                 },
-                &mut budget(),
             )?;
             let d = definition(&directory.target(), b"Node")?;
             let foreign = d

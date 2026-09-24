@@ -3,7 +3,7 @@ use crate::{
     Error, PAGE_BYTES, PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 fn budget(maximum_work: u64) -> ResourceBudget {
     ResourceBudget::new(

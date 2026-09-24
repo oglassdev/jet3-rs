@@ -1,8 +1,10 @@
 use super::insert_indexed_tests::*;
+use crate::testkit::create;
+use crate::testkit::table;
 use crate::{
     ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind,
     IndexNullPolicy, IndexSpec, PAGE_BYTES, ResourceBudget, ResourceLimits, RowDelete, RowUpdate,
-    RowValue, TableSpec, WriteError, write::insert::*,
+    RowValue, WriteError, write::insert::*,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -49,21 +51,12 @@ fn fixture(
         },
     ];
     let rows: Vec<_> = values.iter().map(|v| v.as_slice()).collect();
-    crate::create_database(
+    create(
         f.path(),
-        &crate::DatabaseSpec {
-            tables: &[crate::TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Rows",
-                    columns: &columns,
-                    indexes: &indexes,
-                },
-                rows: &rows,
-            }],
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[crate::TableRows {
+            table: table(b"Rows", &columns, &indexes),
+            rows: &rows,
+        }],
     )?;
     Ok(f)
 }

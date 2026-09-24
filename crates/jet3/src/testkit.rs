@@ -6,11 +6,65 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::{PAGE_BYTES, ResourceBudget, ResourceLimits};
+use crate::{
+    ColumnSpec, DatabaseReader, DatabaseSpec, IndexColumnSpec, IndexKind, IndexSpec, PAGE_BYTES,
+    ResourceBudget, ResourceLimits, TableRows, TableSpec, TableValidation, TextCodePage,
+    ValidationReport, WriteError, create_database,
+};
+
+pub(crate) type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 /// A budget with the default resource limits.
 pub(crate) fn budget() -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::default())
+}
+
+/// A table without table-level validation.
+pub(crate) const fn table<'a>(
+    name: &'a [u8],
+    columns: &'a [ColumnSpec<'a>],
+    indexes: &'a [IndexSpec<'a>],
+) -> TableSpec<'a> {
+    TableSpec {
+        name,
+        columns,
+        indexes,
+        validation: TableValidation::NONE,
+    }
+}
+
+pub(crate) const fn index<'a>(
+    name: &'a [u8],
+    fields: &'a [IndexColumnSpec<'a>],
+    kind: IndexKind,
+) -> IndexSpec<'a> {
+    IndexSpec { name, fields, kind }
+}
+
+/// Creates `tables` without relationships under a default budget.
+pub(crate) fn create(path: impl AsRef<Path>, tables: &[TableRows<'_>]) -> Result<(), WriteError> {
+    create_spec(
+        path,
+        &DatabaseSpec {
+            tables,
+            ..DatabaseSpec::default()
+        },
+    )
+}
+
+/// Runs [`create_database`] under a default budget.
+pub(crate) fn create_spec(
+    path: impl AsRef<Path>,
+    spec: &DatabaseSpec<'_>,
+) -> Result<(), WriteError> {
+    create_database(path, spec, &mut budget())
+}
+
+/// Opens `path` and runs the full structural validation.
+pub(crate) fn validate_file(path: impl AsRef<Path>) -> TestResult<ValidationReport> {
+    let mut work = budget();
+    let mut db = DatabaseReader::open(path, &mut work)?;
+    Ok(db.validate(TextCodePage::Windows1252, &mut work)?)
 }
 
 /// A fresh directory under the system temporary directory, removed on drop.
@@ -27,6 +81,24 @@ impl TempDir {
         ));
         fs::create_dir(&path)?;
         Ok(Self(path))
+    }
+
+    /// The conventional database path inside this directory.
+    pub(crate) fn target(&self) -> PathBuf {
+        self.0.join("created.mdb")
+    }
+
+    pub(crate) fn is_empty(&self) -> io::Result<bool> {
+        Ok(fs::read_dir(&self.0)?.next().is_none())
+    }
+
+    /// Sorted file names in this directory.
+    pub(crate) fn entries(&self) -> io::Result<Vec<String>> {
+        let mut names = fs::read_dir(&self.0)?
+            .map(|entry| Ok(entry?.file_name().to_string_lossy().into_owned()))
+            .collect::<io::Result<Vec<_>>>()?;
+        names.sort();
+        Ok(names)
     }
 }
 

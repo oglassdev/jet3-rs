@@ -1,10 +1,11 @@
 //! EXP-0286 generated ascending parent trees and retained mutation counters.
 use super::api_relationship_graph_tests::*;
 use crate::WriteError;
+use crate::testkit::create_spec;
+use crate::testkit::{index, table};
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexDirection, IndexKind,
-    IndexNullPolicy, IndexSpec, RelationshipField, RelationshipSide, RelationshipSpec, RowValue,
-    TableSpec, TextCodePage,
+    IndexNullPolicy, RelationshipField, RelationshipSide, RelationshipSpec, RowValue, TextCodePage,
     create::{api::*, composer::ComposeError},
 };
 use std::fs;
@@ -59,34 +60,12 @@ fn descending_parents_generate_ascending_trees_with_the_same_null_policy() -> Te
     ] {
         for self_reference in [false, true] {
             let indexes = [
-                IndexSpec {
-                    name: b"ById",
-                    fields: ID,
-                    kind: IndexKind::Ordinary,
-                },
-                IndexSpec {
-                    name: b"Descending",
-                    fields: DESC,
-                    kind,
-                },
+                index(b"ById", ID, IndexKind::Ordinary),
+                index(b"Descending", DESC, kind),
             ];
-            let parent = TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Parent",
-                columns: &columns,
-                indexes: &indexes,
-            };
-            let child_indexes = [IndexSpec {
-                name: b"ById",
-                fields: ID,
-                kind: IndexKind::Primary,
-            }];
-            let child = TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Child",
-                columns: &columns,
-                indexes: &child_indexes,
-            };
+            let parent = table(b"Parent", &columns, &indexes);
+            let child_indexes = [index(b"ById", ID, IndexKind::Primary)];
+            let child = table(b"Child", &columns, &child_indexes);
             let nullable = kind.null_policy() == IndexNullPolicy::Include;
             let rows: &[&[RowValue<'_>]] = &[
                 &[RowValue::Long(1), RowValue::Long(1), RowValue::Long(1)],
@@ -119,7 +98,7 @@ fn descending_parents_generate_ascending_trees_with_the_same_null_policy() -> Te
                     rows: &rows[..1],
                 },
             ];
-            let directory = Directory::new()?;
+            let directory = TempDir::new("create")?;
             let mut relationship = edge(usize::from(!self_reference));
             if self_reference {
                 relationship.fields = &[RelationshipField {
@@ -127,14 +106,13 @@ fn descending_parents_generate_ascending_trees_with_the_same_null_policy() -> Te
                     child: ColumnRef::Ordinal(2),
                 }];
             }
-            create_database(
+            create_spec(
                 directory.target(),
                 &DatabaseSpec {
                     tables: &requests[..if self_reference { 1 } else { 2 }],
                     relationships: &[relationship],
                     ..DatabaseSpec::default()
                 },
-                &mut budget(),
             )?;
             let d = definition(&directory.target(), b"Parent")?;
             let expected = if self_reference { 3 } else { 2 };
@@ -175,49 +153,29 @@ fn descending_parents_generate_ascending_trees_with_the_same_null_policy() -> Te
 fn generated_parent_is_shared_and_declared_ascending_parent_is_preferred() -> TestResult {
     for with_ascending in [false, true] {
         let indexes = [
-            IndexSpec {
-                name: b"Descending",
-                fields: DESC,
-                kind: IndexKind::Unique,
-            },
-            IndexSpec {
-                name: b"Ascending",
-                fields: ASC,
-                kind: IndexKind::Unique,
-            },
+            index(b"Descending", DESC, IndexKind::Unique),
+            index(b"Ascending", ASC, IndexKind::Unique),
         ];
-        let parent = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Parent",
-            columns: PAIR_COLUMNS,
-            indexes: &indexes[..if with_ascending { 2 } else { 1 }],
-        };
+        let parent = table(
+            b"Parent",
+            PAIR_COLUMNS,
+            &indexes[..if with_ascending { 2 } else { 1 }],
+        );
         let tables = [
             parent,
-            TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"ChildA",
-                columns: PAIR_COLUMNS,
-                indexes: &[],
-            },
-            TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"ChildB",
-                columns: PAIR_COLUMNS,
-                indexes: &[],
-            },
+            table(b"ChildA", PAIR_COLUMNS, &[]),
+            table(b"ChildB", PAIR_COLUMNS, &[]),
         ];
         let mut second = edge(2);
         second.name = b"Second";
-        let directory = Directory::new()?;
-        create_database(
+        let directory = TempDir::new("create")?;
+        create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &tables.map(TableRows::empty),
                 relationships: &[edge(1), second],
                 ..DatabaseSpec::default()
             },
-            &mut budget(),
         )?;
         let d = definition(&directory.target(), b"Parent")?;
         assert_eq!(d.physical_indexes().len(), 2);
@@ -234,34 +192,19 @@ fn generated_parent_capacity_and_hidden_names_remain_bounded() -> TestResult {
         .collect::<Vec<_>>();
     let indexes = names
         .iter()
-        .map(|name| IndexSpec {
-            name,
-            fields: DESC,
-            kind: IndexKind::Unique,
-        })
+        .map(|name| index(name, DESC, IndexKind::Unique))
         .collect::<Vec<_>>();
-    let child = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Child",
-        columns: PAIR_COLUMNS,
-        indexes: &[],
-    };
+    let child = table(b"Child", PAIR_COLUMNS, &[]);
     for count in [31, 32] {
-        let parent = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Parent",
-            columns: PAIR_COLUMNS,
-            indexes: &indexes[..count],
-        };
-        let directory = Directory::new()?;
-        let result = create_database(
+        let parent = table(b"Parent", PAIR_COLUMNS, &indexes[..count]);
+        let directory = TempDir::new("create")?;
+        let result = create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &[TableRows::empty(parent), TableRows::empty(child)],
                 relationships: &[edge(1)],
                 ..DatabaseSpec::default()
             },
-            &mut budget(),
         );
         if count == 31 {
             result?;
@@ -278,27 +221,17 @@ fn generated_parent_capacity_and_hidden_names_remain_bounded() -> TestResult {
             assert!(!directory.target().exists());
         }
     }
-    let hidden = [IndexSpec {
-        name: b".rB",
-        fields: DESC,
-        kind: IndexKind::Unique,
-    }];
-    let parent = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Parent",
-        columns: PAIR_COLUMNS,
-        indexes: &hidden,
-    };
-    let directory = Directory::new()?;
+    let hidden = [index(b".rB", DESC, IndexKind::Unique)];
+    let parent = table(b"Parent", PAIR_COLUMNS, &hidden);
+    let directory = TempDir::new("create")?;
     assert!(
-        create_database(
+        create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &[TableRows::empty(parent), TableRows::empty(child)],
                 relationships: &[edge(1)],
                 ..DatabaseSpec::default()
-            },
-            &mut budget()
+            }
         )
         .is_err()
     );
@@ -309,38 +242,20 @@ fn generated_parent_capacity_and_hidden_names_remain_bounded() -> TestResult {
 #[test]
 fn generated_parent_assignments_and_deletes_clamp_only_its_retained_counters() -> TestResult {
     let indexes = [
-        IndexSpec {
-            name: b"ById",
-            fields: ID,
-            kind: IndexKind::Primary,
-        },
-        IndexSpec {
-            name: b"Descending",
-            fields: DESC,
-            kind: IndexKind::Unique,
-        },
+        index(b"ById", ID, IndexKind::Primary),
+        index(b"Descending", DESC, IndexKind::Unique),
     ];
     let tables = [
-        TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Parent",
-            columns: PAIR_COLUMNS,
-            indexes: &indexes,
-        },
-        TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Child",
-            columns: PAIR_COLUMNS,
-            indexes: &indexes[..1],
-        },
+        table(b"Parent", PAIR_COLUMNS, &indexes),
+        table(b"Child", PAIR_COLUMNS, &indexes[..1]),
     ];
     let rows: &[&[RowValue<'_>]] = &[
         &[RowValue::Long(1), RowValue::Long(1)],
         &[RowValue::Long(2), RowValue::Long(2)],
         &[RowValue::Long(3), RowValue::Long(3)],
     ];
-    let directory = Directory::new()?;
-    create_database(
+    let directory = TempDir::new("create")?;
+    create_spec(
         directory.target(),
         &DatabaseSpec {
             tables: &[
@@ -356,7 +271,6 @@ fn generated_parent_assignments_and_deletes_clamp_only_its_retained_counters() -
             relationships: &[edge(1)],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
     let d = definition(&directory.target(), b"Parent")?;
     let locators = {
@@ -433,40 +347,21 @@ fn generated_parent_assignments_and_deletes_clamp_only_its_retained_counters() -
 #[test]
 fn descending_parent_source_uses_logical_name_order_before_primary_or_physical_order() -> TestResult
 {
-    let nullable = IndexSpec {
-        name: b"ANullableDesc",
-        fields: DESC,
-        kind: IndexKind::Unique,
-    };
-    let required = IndexSpec {
-        name: b"ZRequiredPrimary",
-        fields: DESC,
-        kind: IndexKind::Primary,
-    };
+    let nullable = index(b"ANullableDesc", DESC, IndexKind::Unique);
+    let required = index(b"ZRequiredPrimary", DESC, IndexKind::Primary);
     for indexes in [[nullable, required], [required, nullable]] {
         let tables = [
-            TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Parent",
-                columns: PAIR_COLUMNS,
-                indexes: &indexes,
-            },
-            TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Child",
-                columns: PAIR_COLUMNS,
-                indexes: &[],
-            },
+            table(b"Parent", PAIR_COLUMNS, &indexes),
+            table(b"Child", PAIR_COLUMNS, &[]),
         ];
-        let directory = Directory::new()?;
-        create_database(
+        let directory = TempDir::new("create")?;
+        create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &tables.map(TableRows::empty),
                 relationships: &[edge(1)],
                 ..DatabaseSpec::default()
             },
-            &mut budget(),
         )?;
         let d = definition(&directory.target(), b"Parent")?;
         assert_eq!(d.physical_indexes().len(), 3);
@@ -485,30 +380,12 @@ fn null_parent_mutations_require_no_remaining_null_children() -> TestResult {
         for null_child in [false, true] {
             for delete in [false, true] {
                 let indexes = [
-                    IndexSpec {
-                        name: b"ById",
-                        fields: ID,
-                        kind: IndexKind::Primary,
-                    },
-                    IndexSpec {
-                        name: b"Key",
-                        fields: direction,
-                        kind: IndexKind::Unique,
-                    },
+                    index(b"ById", ID, IndexKind::Primary),
+                    index(b"Key", direction, IndexKind::Unique),
                 ];
                 let tables = [
-                    TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Parent",
-                        columns: PAIR_COLUMNS,
-                        indexes: &indexes,
-                    },
-                    TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Child",
-                        columns: PAIR_COLUMNS,
-                        indexes: &indexes[..1],
-                    },
+                    table(b"Parent", PAIR_COLUMNS, &indexes),
+                    table(b"Child", PAIR_COLUMNS, &indexes[..1]),
                 ];
                 let parents: &[&[RowValue<'_>]] = &[
                     &[RowValue::Long(1), RowValue::Long(1)],
@@ -519,8 +396,8 @@ fn null_parent_mutations_require_no_remaining_null_children() -> TestResult {
                     &[RowValue::Long(10), RowValue::Long(1)],
                     &[RowValue::Long(11), RowValue::Null],
                 ];
-                let directory = Directory::new()?;
-                create_database(
+                let directory = TempDir::new("create")?;
+                create_spec(
                     directory.target(),
                     &DatabaseSpec {
                         tables: &[
@@ -536,7 +413,6 @@ fn null_parent_mutations_require_no_remaining_null_children() -> TestResult {
                         relationships: &[edge(1)],
                         ..DatabaseSpec::default()
                     },
-                    &mut budget(),
                 )?;
                 let d = definition(&directory.target(), b"Parent")?;
                 let locator = {

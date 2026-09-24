@@ -1,4 +1,6 @@
 use super::{compose_database, compose_table_database, global_map_page, tests::*};
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
     CatalogObjectClass, ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader,
     IndexColumnSpec, IndexDirection, MapRowLocator, PageNumber, SliceSource, TableDefinitionKind,
@@ -16,37 +18,32 @@ const IDX_TRI_COLUMNS: [ColumnSpec<'static>; 3] = [
     ColumnSpec::new(b"Sequence", ColumnType::Long),
 ];
 const IDX_TRI_INDEXES: [IndexSpec<'static>; 3] = [
-    IndexSpec {
-        name: b"ZPrimary",
-        fields: &[IndexColumnSpec {
+    index(
+        b"ZPrimary",
+        &[IndexColumnSpec {
             column: ColumnRef::Ordinal(0),
             direction: IndexDirection::Ascending,
         }],
-        kind: IndexKind::Primary,
-    },
-    IndexSpec {
-        name: b"MUniqueX",
-        fields: &[IndexColumnSpec {
+        IndexKind::Primary,
+    ),
+    index(
+        b"MUniqueX",
+        &[IndexColumnSpec {
             column: ColumnRef::Ordinal(1),
             direction: IndexDirection::Descending,
         }],
-        kind: IndexKind::Unique,
-    },
-    IndexSpec {
-        name: b"ASecondx",
-        fields: &[IndexColumnSpec {
+        IndexKind::Unique,
+    ),
+    index(
+        b"ASecondx",
+        &[IndexColumnSpec {
             column: ColumnRef::Ordinal(2),
             direction: IndexDirection::Ascending,
         }],
-        kind: IndexKind::Ordinary,
-    },
+        IndexKind::Ordinary,
+    ),
 ];
-const IDX_TRI: TableSpec<'static> = TableSpec {
-    validation: crate::TableValidation::NONE,
-    name: b"IdxTri",
-    columns: &IDX_TRI_COLUMNS,
-    indexes: &IDX_TRI_INDEXES,
-};
+const IDX_TRI: TableSpec<'static> = table(b"IdxTri", &IDX_TRI_COLUMNS, &IDX_TRI_INDEXES);
 const WIDE_FIELD_COUNT: usize = 70;
 
 fn indexed_candidate_bytes() -> Result<Vec<u8>, ComposeError> {
@@ -67,12 +64,7 @@ fn wide_candidate_bytes() -> CandidateResult<Vec<u8>> {
         .iter()
         .map(|name| ColumnSpec::new(name, ColumnType::Long))
         .collect::<Vec<_>>();
-    let base = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"ContOneX",
-        columns: &columns[..40],
-        indexes: &[],
-    };
+    let base = table(b"ContOneX", &columns[..40], &[]);
     let mut budget = compose_budget();
     let plan = compose_table_database(&base, &mut budget)?;
     let mut pages = plan
@@ -164,19 +156,11 @@ fn the_composer_reproduces_the_accepted_cont_one_x_candidate() -> TestResult {
         .map(|name| ColumnSpec::new(name, ColumnType::Long))
         .collect::<Vec<_>>();
     let mut budget = compose_budget();
-    let composed = compose_table_database(
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"ContOneX",
-            columns: &columns,
-            indexes: &[],
-        },
-        &mut budget,
-    )?
-    .pages()
-    .iter()
-    .flat_map(|page| page.image().as_bytes().iter().copied())
-    .collect::<Vec<u8>>();
+    let composed = compose_table_database(&table(b"ContOneX", &columns, &[]), &mut budget)?
+        .pages()
+        .iter()
+        .flat_map(|page| page.image().as_bytes().iter().copied())
+        .collect::<Vec<u8>>();
     let candidate = wide_candidate_bytes()?;
     assert_eq!(composed.len(), 24 * crate::PAGE_BYTES);
     assert!(
@@ -311,47 +295,27 @@ const QUAD_DELTA_COLUMNS: [ColumnSpec<'static>; 1] = [ColumnSpec::new(
     b"Label",
     ColumnType::Text { max_len: nz(30) },
 )];
-const QUAD_GAMMA_INDEXES: [IndexSpec<'static>; 1] = [IndexSpec {
-    name: b"PrimaryKey",
-    fields: &[IndexColumnSpec {
+const QUAD_GAMMA_INDEXES: [IndexSpec<'static>; 1] = [index(
+    b"PrimaryKey",
+    &[IndexColumnSpec {
         column: ColumnRef::Ordinal(0),
         direction: IndexDirection::Ascending,
     }],
-    kind: IndexKind::Primary,
-}];
-const QUAD_DELTA_INDEXES: [IndexSpec<'static>; 1] = [IndexSpec {
-    name: b"ByLabel",
-    fields: &[IndexColumnSpec {
+    IndexKind::Primary,
+)];
+const QUAD_DELTA_INDEXES: [IndexSpec<'static>; 1] = [index(
+    b"ByLabel",
+    &[IndexColumnSpec {
         column: ColumnRef::Ordinal(0),
         direction: IndexDirection::Ascending,
     }],
-    kind: IndexKind::Ordinary,
-}];
+    IndexKind::Ordinary,
+)];
 const QUAD_TABLES: [TableSpec<'static>; 4] = [
-    TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Alpha",
-        columns: &QUAD_ALPHA_COLUMNS,
-        indexes: &[],
-    },
-    TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Beta",
-        columns: &QUAD_BETA_COLUMNS,
-        indexes: &[],
-    },
-    TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Gamma",
-        columns: &QUAD_ALPHA_COLUMNS,
-        indexes: &QUAD_GAMMA_INDEXES,
-    },
-    TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Delta",
-        columns: &QUAD_DELTA_COLUMNS,
-        indexes: &QUAD_DELTA_INDEXES,
-    },
+    table(b"Alpha", &QUAD_ALPHA_COLUMNS, &[]),
+    table(b"Beta", &QUAD_BETA_COLUMNS, &[]),
+    table(b"Gamma", &QUAD_ALPHA_COLUMNS, &QUAD_GAMMA_INDEXES),
+    table(b"Delta", &QUAD_DELTA_COLUMNS, &QUAD_DELTA_INDEXES),
 ];
 
 fn quad_candidate_bytes() -> Result<Vec<u8>, ComposeError> {

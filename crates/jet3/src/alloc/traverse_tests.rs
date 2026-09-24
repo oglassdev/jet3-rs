@@ -8,7 +8,7 @@ use crate::{
     ResourceLimitKind, ResourceLimits, SliceSource, UsageMapError,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 const EXTENDED_TAG: u8 = 0x05;
 const DATA_TAG: u8 = 0x01;

@@ -1,5 +1,7 @@
 use super::api_relationship_graph::*;
 use crate::WriteError;
+use crate::testkit::{create, create_spec};
+use crate::testkit::{index, table};
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexDirection, IndexKind,
     IndexSpec, RelationshipField, RelationshipSpec, ResourceBudget, ResourceLimits, RowValue,
@@ -11,19 +13,9 @@ use crate::{
     },
 };
 use std::fs;
-use std::io;
 
-pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
-pub(super) struct Directory(pub(super) crate::testkit::TempDir);
-impl Directory {
-    pub(super) fn new() -> Result<Self, io::Error> {
-        let path = crate::testkit::TempDir::new("create-graph")?;
-        Ok(Self(path))
-    }
-    pub(super) fn target(&self) -> std::path::PathBuf {
-        self.0.join("created.mdb")
-    }
-}
+pub(super) use crate::testkit::TempDir;
+pub(super) use crate::testkit::TestResult;
 pub(super) use crate::testkit::budget;
 pub(super) const COLUMNS: &[ColumnSpec<'static>] = &[
     ColumnSpec::new(b"Id", ColumnType::Long),
@@ -31,33 +23,18 @@ pub(super) const COLUMNS: &[ColumnSpec<'static>] = &[
     ColumnSpec::new(b"Two", ColumnType::Long),
     ColumnSpec::new(b"Body", ColumnType::Memo),
 ];
-pub(super) const INDEXES: &[IndexSpec<'static>] = &[IndexSpec {
-    name: b"ById",
-    fields: &[IndexColumnSpec {
+pub(super) const INDEXES: &[IndexSpec<'static>] = &[index(
+    b"ById",
+    &[IndexColumnSpec {
         column: ColumnRef::Ordinal(0),
         direction: IndexDirection::Ascending,
     }],
-    kind: IndexKind::Primary,
-}];
+    IndexKind::Primary,
+)];
 pub(super) const TABLES: [TableSpec<'static>; 3] = [
-    TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Alpha",
-        columns: COLUMNS,
-        indexes: INDEXES,
-    },
-    TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Bravo",
-        columns: COLUMNS,
-        indexes: INDEXES,
-    },
-    TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Charlie",
-        columns: COLUMNS,
-        indexes: INDEXES,
-    },
+    table(b"Alpha", COLUMNS, INDEXES),
+    table(b"Bravo", COLUMNS, INDEXES),
+    table(b"Charlie", COLUMNS, INDEXES),
 ];
 pub(super) fn relation(
     name: &'static [u8],
@@ -133,7 +110,7 @@ fn graph_creation_handles_multiple_shared_chain_and_self_endpoints() -> TestResu
             })
             .collect();
         for populated in [false, true] {
-            let directory = Directory::new()?;
+            let directory = TempDir::new("create")?;
             let requests: Vec<_> = TABLES
                 .iter()
                 .map(|&table| TableRows {
@@ -141,19 +118,18 @@ fn graph_creation_handles_multiple_shared_chain_and_self_endpoints() -> TestResu
                     rows: if populated { rows } else { &[] },
                 })
                 .collect();
-            create_database(
+            create_spec(
                 directory.target(),
                 &DatabaseSpec {
                     tables: &requests,
                     relationships: &relationships,
                     ..DatabaseSpec::default()
                 },
-                &mut budget(),
             )?;
             let mut database = DatabaseReader::open(directory.target(), &mut budget())?;
             let report = database.validate(TextCodePage::Windows1252, &mut budget())?;
             assert_eq!(report.user_tables, 3);
-            assert_eq!(fs::read_dir(&directory.0)?.count(), 1);
+            assert_eq!(fs::read_dir(&*directory)?.count(), 1);
         }
     }
     Ok(())
@@ -161,7 +137,7 @@ fn graph_creation_handles_multiple_shared_chain_and_self_endpoints() -> TestResu
 
 #[test]
 fn graph_creation_rejects_orphans_and_duplicate_names_before_publication() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let rows: &[&[RowValue<'_>]] = &[&[
         RowValue::Long(1),
         RowValue::Long(2),
@@ -173,28 +149,26 @@ fn graph_creation_rejects_orphans_and_duplicate_names_before_publication() -> Te
         rows,
     }];
     assert!(matches!(
-        create_database(
+        create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &requests,
                 relationships: &[relation(b"Self", 0, 0, 1)],
                 ..DatabaseSpec::default()
-            },
-            &mut budget()
+            }
         ),
         Err(WriteError::Compose(
             ComposeError::OrphanInitialRelationshipKey { row: 0, value: 2 }
         ))
     ));
     assert!(matches!(
-        create_database(
+        create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &TABLES.map(TableRows::empty),
                 relationships: &[relation(b"Same", 0, 1, 1), relation(b"same", 0, 1, 2)],
                 ..DatabaseSpec::default()
-            },
-            &mut budget()
+            }
         ),
         Err(WriteError::Compose(
             ComposeError::UnsupportedRelationship { .. }
@@ -213,42 +187,33 @@ fn graph_creation_rejects_orphans_and_duplicate_names_before_publication() -> Te
         )
         .is_err()
     );
-    assert!(fs::read_dir(&directory.0)?.next().is_none());
+    assert!(fs::read_dir(&*directory)?.next().is_none());
     Ok(())
 }
 
 #[test]
 fn graph_creation_preserves_destination_and_empty_graph_matches_normal_creation() -> TestResult {
-    let directory = Directory::new()?;
-    let other = directory.0.join("normal.mdb");
-    create_database(
+    let directory = TempDir::new("create")?;
+    let other = directory.join("normal.mdb");
+    create_spec(
         directory.target(),
         &DatabaseSpec {
             tables: &TABLES.map(TableRows::empty),
             relationships: &[],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
-    crate::create_database(
-        &other,
-        &crate::DatabaseSpec {
-            tables: &TABLES.map(crate::TableRows::empty),
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(&other, &TABLES.map(crate::TableRows::empty))?;
     let original = fs::read(directory.target())?;
     assert_eq!(original, fs::read(other)?);
     assert!(matches!(
-        create_database(
+        create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &TABLES.map(TableRows::empty),
                 relationships: &[relation(b"A", 0, 1, 1)],
                 ..DatabaseSpec::default()
-            },
-            &mut budget()
+            }
         ),
         Err(WriteError::CreatePublish(_))
     ));
@@ -258,20 +223,19 @@ fn graph_creation_preserves_destination_and_empty_graph_matches_normal_creation(
 
 #[test]
 fn graph_candidate_check_rejects_changed_index_names_flags_and_endpoint_columns() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let relationship = relation(b"A", 0, 1, 1);
     let requests = TABLES.map(|table| TableRows { table, rows: &[] });
     let GraphImage { image, tables } =
         compose_relationship_graph(&requests, &[relationship], &mut budget())?;
     let pages = image.into_pages();
-    create_database(
+    create_spec(
         directory.target(),
         &DatabaseSpec {
             tables: &TABLES.map(TableRows::empty),
             relationships: &[relationship],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
     for changed in [
         IndexSpec {
@@ -315,7 +279,7 @@ fn graph_candidate_check_rejects_changed_index_names_flags_and_endpoint_columns(
 
 #[test]
 fn graph_creation_resolves_generated_parent_keys_before_foreign_checks() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let mut columns = COLUMNS.to_vec();
     columns[0] = ColumnSpec::new(b"Id", ColumnType::AutoIncrement);
     let parent = TableSpec {
@@ -360,14 +324,13 @@ fn graph_creation_resolves_generated_parent_keys_before_foreign_checks() -> Test
             rows: child_rows,
         },
     ];
-    create_database(
+    create_spec(
         directory.target(),
         &DatabaseSpec {
             tables: &requests,
             relationships: &[relation(b"A", 0, 1, 1)],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
     let bad_rows: &[&[RowValue<'_>]] = &[&[
         RowValue::Long(12),
@@ -382,16 +345,15 @@ fn graph_creation_resolves_generated_parent_keys_before_foreign_checks() -> Test
             rows: bad_rows,
         },
     ];
-    let missing = directory.0.join("orphan.mdb");
+    let missing = directory.join("orphan.mdb");
     assert!(matches!(
-        create_database(
+        create_spec(
             &missing,
             &DatabaseSpec {
                 tables: &bad,
                 relationships: &[relation(b"A", 0, 1, 1)],
                 ..DatabaseSpec::default()
-            },
-            &mut budget()
+            }
         ),
         Err(WriteError::Compose(
             ComposeError::OrphanInitialRelationshipKey { row: 0, value: 3 }

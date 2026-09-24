@@ -1,14 +1,17 @@
 use super::insert::*;
+pub(super) use crate::testkit::TestResult;
+pub(super) use crate::testkit::budget;
+use crate::testkit::create;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
-    ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec, PAGE_BYTES,
-    PublishStage, ResourceBudget, ResourceLimits, RowDelete, RowLocator, RowValue, TableRows,
-    TableSpec, WriteError,
+    ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind, PAGE_BYTES, PublishStage,
+    ResourceBudget, ResourceLimits, RowDelete, RowLocator, RowValue, TableRows, TableSpec,
+    WriteError,
 };
 use std::error::Error as StdError;
 use std::fs;
 use std::path::PathBuf;
-pub(super) type TestResult = Result<(), Box<dyn StdError>>;
-pub(super) use crate::testkit::budget;
 pub(super) struct Fixture {
     directory: crate::testkit::TempDir,
 }
@@ -29,11 +32,7 @@ impl Fixture {
         } else {
             IndexColumnSpec::ascending(0)
         }];
-        let indexes = [IndexSpec {
-            name: b"ById",
-            kind,
-            fields: &fields,
-        }];
+        let indexes = [index(b"ById", &fields, kind)];
         let values: Vec<_> = (0..count)
             .map(|n| [RowValue::Long(n as i32), RowValue::Long(-(n as i32))])
             .collect();
@@ -41,32 +40,15 @@ impl Fixture {
         let extra = [RowValue::Long(99), RowValue::Long(88)];
         let tables = [
             TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Unrelated",
-                    columns: &columns,
-                    indexes: &[],
-                },
+                table: table(b"Unrelated", &columns, &[]),
                 rows: &[&extra],
             },
             TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Rows",
-                    columns: &columns,
-                    indexes: &indexes,
-                },
+                table: table(b"Rows", &columns, &indexes),
                 rows: &rows,
             },
         ];
-        crate::create_database(
-            f.path(),
-            &crate::DatabaseSpec {
-                tables: &tables,
-                ..crate::DatabaseSpec::default()
-            },
-            &mut budget(),
-        )?;
+        create(f.path(), &tables)?;
         let mut bytes = fs::read(f.path())?;
         bytes.extend_from_slice(&[0xb7; PAGE_BYTES]);
         fs::write(f.path(), bytes)?;
@@ -492,36 +474,24 @@ fn indexed_rows_no_available_page_appends_and_multiple_indexes_mutate() -> TestR
     ];
     let fields = [IndexColumnSpec::ascending(0)];
     let indexes = [
-        IndexSpec {
-            name: b"One",
-            kind: IndexKind::Primary,
-            fields: &fields,
-        },
-        IndexSpec {
-            name: b"Two",
-            kind: IndexKind::Unique,
-            fields: &fields,
-        },
+        index(b"One", &fields, IndexKind::Primary),
+        index(b"Two", &fields, IndexKind::Unique),
     ];
     let values = [
         [RowValue::Long(1), RowValue::Long(2)],
         [RowValue::Long(2), RowValue::Long(3)],
     ];
-    crate::create_database(
+    create(
         f.path(),
-        &crate::DatabaseSpec {
-            tables: &[crate::TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Rows",
-                    columns: &columns,
-                    indexes: &indexes,
-                },
-                rows: &[&values[0], &values[1]],
-            }],
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[crate::TableRows {
+            table: TableSpec {
+                validation: crate::TableValidation::NONE,
+                name: b"Rows",
+                columns: &columns,
+                indexes: &indexes,
+            },
+            rows: &[&values[0], &values[1]],
+        }],
     )?;
     let row = f.rows()?[0].1;
     insert_row(

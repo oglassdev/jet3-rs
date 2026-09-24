@@ -1,4 +1,7 @@
 use crate::WriteError;
+use crate::testkit::create;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
     ByteCount, ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, ComposeError, DatabaseReader,
     DatabaseSpec, IndexColumnSpec, IndexDirection, IndexKind, IndexSpec, InlineLongValue,
@@ -9,25 +12,25 @@ use crate::{
 use std::fs;
 
 const INDEXES: [IndexSpec<'static>; 3] = [
-    IndexSpec {
-        name: b"ById",
-        fields: &[IndexColumnSpec {
+    index(
+        b"ById",
+        &[IndexColumnSpec {
             column: ColumnRef::Name(b"Id"),
             direction: IndexDirection::Ascending,
         }],
-        kind: IndexKind::Primary,
-    },
-    IndexSpec {
-        name: b"ByTag",
-        fields: &[IndexColumnSpec {
+        IndexKind::Primary,
+    ),
+    index(
+        b"ByTag",
+        &[IndexColumnSpec {
             column: ColumnRef::Name(b"Tag"),
             direction: IndexDirection::Descending,
         }],
-        kind: IndexKind::Ordinary,
-    },
-    IndexSpec {
-        name: b"ByPair",
-        fields: &[
+        IndexKind::Ordinary,
+    ),
+    index(
+        b"ByPair",
+        &[
             IndexColumnSpec {
                 column: ColumnRef::Name(b"Id"),
                 direction: IndexDirection::Descending,
@@ -37,8 +40,8 @@ const INDEXES: [IndexSpec<'static>; 3] = [
                 direction: IndexDirection::Ascending,
             },
         ],
-        kind: IndexKind::Unique,
-    },
+        IndexKind::Unique,
+    ),
 ];
 
 #[test]
@@ -48,7 +51,7 @@ fn mixed_columns_indexes_and_generated_ids_keep_independent_payloads_and_maps() 
     let full_ole = [0xa5; 2036];
     let chained_ole = [0x5a; 2037];
     for generated in [false, true] {
-        let directory = TestDirectory::create()?;
+        let directory = TempDir::new("create")?;
         let columns = [
             ColumnSpec::new(b"FirstMemo", ColumnType::Memo),
             ColumnSpec::new(
@@ -64,12 +67,7 @@ fn mixed_columns_indexes_and_generated_ids_keep_independent_payloads_and_maps() 
             ColumnSpec::new(b"LastMemo", ColumnType::Memo),
         ];
         let indexes = INDEXES;
-        let table = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &columns,
-            indexes: &indexes,
-        };
+        let table = table(b"Items", &columns, &indexes);
         let values = (0..205)
             .map(|id| {
                 let (first, blob, last) = match id {
@@ -117,24 +115,12 @@ fn mixed_columns_indexes_and_generated_ids_keep_independent_payloads_and_maps() 
         let mut requests = Vec::new();
         if generated {
             requests.push(TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"First",
-                    columns: &[ID],
-                    indexes: &[],
-                },
+                table: crate::testkit::table(b"First", &[ID], &[]),
                 rows: &[],
             });
         }
         requests.push(TableRows { table, rows: &rows });
-        create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &requests,
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
-        )?;
+        create(directory.target(), &requests)?;
         let original = fs::read(directory.target())?;
         let mut operation = budget();
         let mut database = DatabaseReader::open(directory.target(), &mut operation)?;
@@ -271,27 +257,15 @@ fn long_value_maps_spill_after_the_last_index_map_slot() -> TestResult {
         .collect::<Vec<_>>();
     for index_count in 0..=3 {
         for long_count in [6, 7, 8] {
-            let directory = TestDirectory::create()?;
+            let directory = TempDir::new("create")?;
             let mut columns = vec![ID, ColumnSpec::new(b"Tag", ColumnType::Long)];
             columns.extend(
                 names[..long_count]
                     .iter()
                     .map(|name| ColumnSpec::new(name, ColumnType::Memo)),
             );
-            let table = TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Items",
-                columns: &columns,
-                indexes: &INDEXES[..index_count],
-            };
-            create_database(
-                directory.target(),
-                &DatabaseSpec {
-                    tables: &[TableRows::empty(table)],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget(),
-            )?;
+            let table = table(b"Items", &columns, &INDEXES[..index_count]);
+            create(directory.target(), &[TableRows::empty(table)])?;
             let bytes = fs::read(directory.target())?;
             let map_rows = 2 + index_count + 2 * long_count;
             assert_eq!(page_rows(&bytes, 21), map_rows.min(15) as u16);
@@ -300,16 +274,12 @@ fn long_value_maps_spill_after_the_last_index_map_slot() -> TestResult {
             }
             let mut row = vec![RowValue::Long(1), RowValue::Long(2)];
             row.extend((0..long_count).map(|_| RowValue::Memo(b"a")));
-            create_database(
-                directory.path.join("populated.mdb"),
-                &DatabaseSpec {
-                    tables: &[TableRows {
-                        table,
-                        rows: &[&row],
-                    }],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget(),
+            create(
+                directory.join("populated.mdb"),
+                &[TableRows {
+                    table,
+                    rows: &[&row],
+                }],
             )?;
         }
     }
@@ -318,32 +288,20 @@ fn long_value_maps_spill_after_the_last_index_map_slot() -> TestResult {
 
 #[test]
 fn every_external_column_is_checked_and_refusals_preserve_the_destination() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let columns = [
         NOTE,
         ColumnSpec::new(b"Blob", ColumnType::LongBinary),
         ColumnSpec::new(b"Last", ColumnType::Memo),
     ];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &columns,
-        indexes: &[],
-    };
+    let table = table(b"Items", &columns, &[]);
     let payloads = [[b'a'; 33], [b'b'; 33], [b'c'; 33]];
     let rows: &[&[RowValue<'_>]] = &[&[
         RowValue::Memo(&payloads[0]),
         RowValue::LongBinary(&payloads[1]),
         RowValue::Memo(&payloads[2]),
     ]];
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows { table, rows }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(directory.target(), &[TableRows { table, rows }])?;
     let original = fs::read(directory.target())?;
     for column in 0..3 {
         let mut changed = original.clone();
@@ -392,35 +350,27 @@ fn every_external_column_is_checked_and_refusals_preserve_the_destination() -> T
     ] {
         let row = [rows[0][0], rows[0][1], rejected];
         assert!(matches!(
-            create_database(
+            create(
                 directory.target(),
-                &DatabaseSpec {
-                    tables: &[TableRows {
-                        table,
-                        rows: &[&row]
-                    }],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget()
+                &[TableRows {
+                    table,
+                    rows: &[&row]
+                }]
             ),
             Err(WriteError::Compose(_))
         ));
     }
     let invalid_option = [NOTE, columns[1].with_allow_zero_length(), columns[2]];
     assert!(matches!(
-        create_database(
+        create(
             directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table: TableSpec {
-                        columns: &invalid_option,
-                        ..table
-                    },
-                    rows
-                }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget()
+            &[TableRows {
+                table: TableSpec {
+                    columns: &invalid_option,
+                    ..table
+                },
+                rows
+            }]
         ),
         Err(WriteError::Compose(ComposeError::UnsupportedMemoOption))
     ));
@@ -480,26 +430,17 @@ fn per_column_header_allocation_is_charged_before_row_encoding() -> TestResult {
 
 #[test]
 fn combined_external_columns_extend_independent_maps() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let columns = [NOTE, ColumnSpec::new(b"Blob", ColumnType::LongBinary)];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &columns,
-        indexes: &[],
-    };
+    let table = table(b"Items", &columns, &[]);
     let payload = vec![b'x'; 2032 * 501];
     let first = RowValue::Memo(&payload[..2032 * 500]);
-    create_database(
+    create(
         directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table,
-                rows: &[&[first, RowValue::LongBinary(&payload[..2032 * 500])]],
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table,
+            rows: &[&[first, RowValue::LongBinary(&payload[..2032 * 500])]],
+        }],
     )?;
     let original = fs::read(directory.target())?;
     assert_eq!(original.len(), 1024 * crate::PAGE_BYTES);
@@ -509,16 +450,12 @@ fn combined_external_columns_extend_independent_maps() -> TestResult {
     assert!(map_bit(&original, 21, 4, 1022)?);
     assert!(map_bit(&original, 21, 0, 1023)?);
     let grown = directory.target().with_file_name("grown.mdb");
-    create_database(
+    create(
         &grown,
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table,
-                rows: &[&[first, RowValue::LongBinary(&payload)]],
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table,
+            rows: &[&[first, RowValue::LongBinary(&payload)]],
+        }],
     )?;
     assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);
     assert_eq!(fs::read(directory.target())?, original);

@@ -1,7 +1,10 @@
 use super::update_tests::*;
+use crate::testkit::create;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
-    ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, PAGE_BYTES, PublishStage,
-    ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec, create_database,
+    ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PublishStage,
+    ResourceBudget, ResourceLimits, RowValue, TableRows,
     row::directory::RowDirectory,
     write::{error::WriteError, update::*},
 };
@@ -33,30 +36,17 @@ fn keyed_from(
     } else {
         crate::IndexColumnSpec::ascending(0)
     }];
-    let indexes = [crate::IndexSpec {
-        name: b"Key",
-        kind,
-        fields: &keys,
-    }];
+    let indexes = [index(b"Key", &keys, kind)];
     let values: Vec<_> = (0..count)
         .map(|i| [RowValue::Long(first + i as i32), RowValue::Long(77)])
         .collect();
     let rows: Vec<_> = values.iter().map(|v| v.as_slice()).collect();
-    create_database(
+    create(
         fixture.path(),
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Items",
-                    columns: &columns,
-                    indexes: &indexes,
-                },
-                rows: &rows,
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table: table(b"Items", &columns, &indexes),
+            rows: &rows,
+        }],
     )?;
     Ok(fixture)
 }

@@ -1,5 +1,6 @@
 //! Composition of arbitrary planned user tables, decoded back through the
 //! reader to check each `EXP-0093` structure lands where the plan says.
+use crate::testkit::table;
 
 use super::{
     ComposeError, catalog_row_number, compose_database, compose_table_database, creation_counter,
@@ -13,7 +14,7 @@ use crate::{
     format::page_kind::page_tag,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 fn create_bytes(spec: &TableSpec<'_>) -> Result<Vec<u8>, ComposeError> {
     let mut budget = compose_budget();
@@ -62,12 +63,7 @@ fn a_created_memo_table_carries_its_long_value_map_groups_on_its_map_page() -> T
     // EXP-0087's Beta shape as a first create: root, map page, empty LvProp
     // page, and one EXP-0077 map group for the Memo column.
     let columns = [ID, NAME, NOTE];
-    let bytes = create_bytes(&TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Beta",
-        columns: &columns,
-        indexes: &[],
-    })?;
+    let bytes = create_bytes(&table(b"Beta", &columns, &[]))?;
     assert_eq!(bytes.len(), 23 * PAGE_BYTES);
     assert_eq!(bytes[1538], 2);
     assert_eq!(&page(&bytes, 22)[4..8], b"LVAL");
@@ -131,12 +127,7 @@ fn a_three_index_first_create_follows_the_observed_page_and_record_order() -> Te
             kind: IndexKind::Ordinary,
         },
     ];
-    let bytes = create_bytes(&TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Three",
-        columns: &columns,
-        indexes: &indexes,
-    })?;
+    let bytes = create_bytes(&table(b"Three", &columns, &indexes))?;
     assert_eq!(bytes.len(), 26 * PAGE_BYTES);
     assert_eq!(page(&bytes, 20)[0], page_tag(PageKind::TableDefinition));
     assert_eq!(page(&bytes, 21)[0], page_tag(PageKind::Data));
@@ -209,12 +200,7 @@ fn a_definition_needing_a_continuation_appends_it_after_the_property_page() -> T
     // starts at offset 8. The reader must decode all 70 columns through it.
     let names = wide_names(70);
     let columns = wide_columns(&names);
-    let bytes = create_bytes(&TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Wide",
-        columns: &columns,
-        indexes: &[],
-    })?;
+    let bytes = create_bytes(&table(b"Wide", &columns, &[]))?;
     assert_eq!(bytes.len(), 24 * PAGE_BYTES);
     let root = page(&bytes, 20);
     let continuation = page(&bytes, 23);
@@ -239,12 +225,7 @@ fn a_definition_needing_two_continuations_reopens_with_the_complete_column_inven
 {
     let names = wide_names(140);
     let columns = wide_columns(&names);
-    let bytes = create_bytes(&TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Wide",
-        columns: &columns,
-        indexes: &[],
-    })?;
+    let bytes = create_bytes(&table(b"Wide", &columns, &[]))?;
     assert_eq!(bytes.len(), 25 * PAGE_BYTES);
     assert_eq!(&page(&bytes, 20)[4..8], &23_u32.to_le_bytes());
     assert_eq!(&page(&bytes, 23)[4..8], &24_u32.to_le_bytes());
@@ -268,12 +249,7 @@ fn a_long_value_map_pair_follows_the_index_map() -> TestResult {
         fields: &[field(0, IndexDirection::Ascending)],
         kind: IndexKind::Ordinary,
     }];
-    let bytes = create_bytes(&TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Mixed",
-        columns: &columns,
-        indexes: &indexes,
-    })?;
+    let bytes = create_bytes(&table(b"Mixed", &columns, &indexes))?;
     let mut budget = read_budget(bytes.len());
     let source = SliceSource::new(&bytes, budget.read_budget())?;
     let mut database = DatabaseReader::from_source(source, &mut budget)?;
@@ -294,15 +270,7 @@ fn a_create_that_cannot_be_planned_reports_the_schema_error() {
     let columns = [ID];
     let mut budget = compose_budget();
     assert!(matches!(
-        compose_table_database(
-            &TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"",
-                columns: &columns,
-                indexes: &[],
-            },
-            &mut budget,
-        ),
+        compose_table_database(&table(b"", &columns, &[]), &mut budget,),
         Err(ComposeError::Schema(_))
     ));
 }
@@ -310,12 +278,7 @@ fn a_create_that_cannot_be_planned_reports_the_schema_error() {
 #[test]
 fn multiple_long_value_map_pairs_follow_column_order() -> TestResult {
     let columns = [ID, NOTE, ColumnSpec::new(b"Blob", ColumnType::LongBinary)];
-    let bytes = create_bytes(&TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Wide",
-        columns: &columns,
-        indexes: &[],
-    })?;
+    let bytes = create_bytes(&table(b"Wide", &columns, &[]))?;
     let mut budget = read_budget(bytes.len());
     let source = SliceSource::new(&bytes, budget.read_budget())?;
     let mut database = DatabaseReader::from_source(source, &mut budget)?;
@@ -342,30 +305,10 @@ fn exp_0087_tables<'a>(
     label: &'a [ColumnSpec<'a>],
 ) -> [TableSpec<'a>; 4] {
     [
-        TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Alpha",
-            columns: &[ID],
-            indexes: &[],
-        },
-        TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Beta",
-            columns: &[ID, NAME, NOTE],
-            indexes: &[],
-        },
-        TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Gamma",
-            columns: &[ID],
-            indexes: gamma_indexes,
-        },
-        TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Delta",
-            columns: label,
-            indexes: delta_indexes,
-        },
+        table(b"Alpha", &[ID], &[]),
+        table(b"Beta", &[ID, NAME, NOTE], &[]),
+        table(b"Gamma", &[ID], gamma_indexes),
+        table(b"Delta", label, delta_indexes),
     ]
 }
 
@@ -457,24 +400,9 @@ fn later_creates_keep_catalog_rows_and_explicit_text_properties() -> TestResult 
 fn a_case_folded_duplicate_name_is_refused() {
     let mut budget = compose_budget();
     let duplicate = [
-        TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Alpha",
-            columns: &[ID],
-            indexes: &[],
-        },
-        TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Beta",
-            columns: &[ID],
-            indexes: &[],
-        },
-        TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"ALPHA",
-            columns: &[ID],
-            indexes: &[],
-        },
+        table(b"Alpha", &[ID], &[]),
+        table(b"Beta", &[ID], &[]),
+        table(b"ALPHA", &[ID], &[]),
     ];
     assert!(matches!(
         compose_database(&duplicate, &mut budget),

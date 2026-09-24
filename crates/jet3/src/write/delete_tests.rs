@@ -1,12 +1,14 @@
 use super::delete::*;
+pub(super) use crate::testkit::TestResult;
+use crate::testkit::create;
+use crate::testkit::table;
 use crate::{
     ByteCount, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PageNumber, PublishStage,
-    ResourceBudget, ResourceLimits, RowLocator, RowValue, TableSpec, WriteError,
+    ResourceBudget, ResourceLimits, RowLocator, RowValue, WriteError,
 };
 use std::error::Error as StdError;
 use std::fs;
 use std::path::PathBuf;
-pub(super) type ResultTest = Result<(), Box<dyn StdError>>;
 pub(super) struct Fixture {
     pub(super) directory: crate::testkit::TempDir,
     pub(super) row: RowLocator,
@@ -25,21 +27,12 @@ impl Fixture {
             .map(|n| [RowValue::Long(n as i32), RowValue::Long(-(n as i32))])
             .collect();
         let rows: Vec<_> = values.iter().map(|r| r.as_slice()).collect();
-        crate::create_database(
+        create(
             &path,
-            &crate::DatabaseSpec {
-                tables: &[crate::TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Rows",
-                        columns: &columns,
-                        indexes: &[],
-                    },
-                    rows: &rows,
-                }],
-                ..crate::DatabaseSpec::default()
-            },
-            &mut budget(),
+            &[crate::TableRows {
+                table: table(b"Rows", &columns, &[]),
+                rows: &rows,
+            }],
         )?;
         let mut b = budget();
         let mut db = DatabaseReader::open(&path, &mut b)?;
@@ -86,14 +79,14 @@ impl Fixture {
             row: self.row,
         }
     }
-    pub(super) fn clean(&self) -> ResultTest {
+    pub(super) fn clean(&self) -> TestResult {
         assert_eq!(fs::read_dir(&self.directory)?.count(), 1);
         Ok(())
     }
 }
 
 #[test]
-fn tail_tombstone_count_and_free_bytes_preserve_all_other_bytes() -> ResultTest {
+fn tail_tombstone_count_and_free_bytes_preserve_all_other_bytes() -> TestResult {
     let f = Fixture::new(4)?;
     let before = fs::read(f.path())?;
     delete_row(f.path(), f.request(), &mut budget())?;
@@ -131,7 +124,7 @@ fn tail_tombstone_count_and_free_bytes_preserve_all_other_bytes() -> ResultTest 
 }
 
 #[test]
-fn unsupported_locators_pages_and_metadata_preserve_original() -> ResultTest {
+fn unsupported_locators_pages_and_metadata_preserve_original() -> TestResult {
     let f = Fixture::new(4)?;
     let original = fs::read(f.path())?;
     for request in [
@@ -170,7 +163,7 @@ fn unsupported_locators_pages_and_metadata_preserve_original() -> ResultTest {
 }
 
 #[test]
-fn resource_and_publication_failures_preserve_original() -> ResultTest {
+fn resource_and_publication_failures_preserve_original() -> TestResult {
     let f = Fixture::new(4)?;
     let original = fs::read(f.path())?;
     for limits in [
@@ -207,7 +200,7 @@ fn resource_and_publication_failures_preserve_original() -> ResultTest {
 }
 
 #[test]
-fn private_corruption_and_shared_read_budget_are_detected() -> ResultTest {
+fn private_corruption_and_shared_read_budget_are_detected() -> TestResult {
     let f = Fixture::new(4)?;
     let original = fs::read(f.path())?;
     let result = delete_with_hook(
@@ -252,7 +245,7 @@ fn private_corruption_and_shared_read_budget_are_detected() -> ResultTest {
 }
 
 #[test]
-fn deletion_restores_available_membership() -> ResultTest {
+fn deletion_restores_available_membership() -> TestResult {
     let f = Fixture::new(4)?;
     let mut b = budget();
     let mut db = DatabaseReader::open(f.path(), &mut b)?;

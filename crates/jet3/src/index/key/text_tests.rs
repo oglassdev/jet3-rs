@@ -8,7 +8,7 @@ use crate::{
     },
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 #[test]
 fn native_text_vectors_preserve_accent_positions_expansions_and_spaces() -> TestResult {

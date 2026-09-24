@@ -1,6 +1,7 @@
 use super::tests::*;
+use crate::testkit::table;
 use crate::{
-    ColumnSpec, ColumnType, PAGE_BYTES, TableRows, TableSpec,
+    ColumnSpec, ColumnType, PAGE_BYTES, TableRows,
     create::composer::compose_database_with_table_rows, validate::*,
 };
 
@@ -50,12 +51,7 @@ fn catalog_property_payloads_are_traversed_and_owned() -> TestResult {
     let columns = [ColumnSpec::new(b"Body", ColumnType::Memo).with_allow_zero_length()];
     let plan = compose_database_with_table_rows(
         &[TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Items",
-                columns: &columns,
-                indexes: &[],
-            },
+            table: table(b"Items", &columns, &[]),
             rows: &[],
         }],
         &mut budget(),

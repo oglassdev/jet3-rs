@@ -1,43 +1,22 @@
 use crate::WriteError;
+use crate::testkit::create;
+use crate::testkit::{index, table};
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexColumnSpec,
     IndexDirection, IndexKind, IndexSpec, PageNumber, PublishStage, TableSpec,
     create::schema_plan::TableSchemaPlanError, definition::column_writer::nz,
 };
 use std::fs;
-use std::path::PathBuf;
 
 use super::{
-    api::{DatabaseSpec, TableRows, create_database},
+    api::TableRows,
     check::{ImageCheckError, check_image},
 };
 
-pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
+pub(super) use crate::testkit::TestResult;
 type Accepts = fn(&ComposeError) -> bool;
 
-pub(super) struct TestDirectory {
-    pub(super) path: crate::testkit::TempDir,
-}
-
-impl TestDirectory {
-    pub(super) fn create() -> Result<Self, std::io::Error> {
-        let path = crate::testkit::TempDir::new("create-test")?;
-        Ok(Self { path })
-    }
-
-    pub(super) fn target(&self) -> PathBuf {
-        self.path.join("created.mdb")
-    }
-
-    pub(super) fn entries(&self) -> Result<Vec<String>, std::io::Error> {
-        let mut names = Vec::new();
-        for entry in fs::read_dir(&self.path)? {
-            names.push(entry?.file_name().to_string_lossy().into_owned());
-        }
-        names.sort();
-        Ok(names)
-    }
-}
+pub(super) use crate::testkit::TempDir;
 
 pub(super) use crate::testkit::budget;
 
@@ -56,7 +35,7 @@ pub(super) const fn field(column: u16, direction: IndexDirection) -> IndexColumn
 
 #[test]
 fn a_mixed_table_with_three_indexes_is_created_and_reopens() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     let columns = [ID, CODE, SEQUENCE];
     let indexes = [
@@ -79,20 +58,8 @@ fn a_mixed_table_with_three_indexes_is_created_and_reopens() -> TestResult {
             kind: IndexKind::Ordinary,
         },
     ];
-    let spec = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &columns,
-        indexes: &indexes,
-    };
-    create_database(
-        &target,
-        &DatabaseSpec {
-            tables: &[TableRows::empty(spec)],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    let spec = table(b"Items", &columns, &indexes);
+    create(&target, &[TableRows::empty(spec)])?;
     assert_eq!(directory.entries()?, ["created.mdb"]);
     assert_eq!(fs::metadata(&target)?.len(), 26 * crate::PAGE_BYTES as u64);
 
@@ -123,43 +90,21 @@ fn a_mixed_table_with_three_indexes_is_created_and_reopens() -> TestResult {
 
 #[test]
 fn candidate_check_rejects_an_index_kind_mismatch() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     let columns = [ID];
     let fields = [field(0, IndexDirection::Ascending)];
-    let unique_indexes = [IndexSpec {
-        name: b"ById",
-        fields: &fields,
-        kind: IndexKind::Unique,
-    }];
-    create_database(
+    let unique_indexes = [index(b"ById", &fields, IndexKind::Unique)];
+    create(
         &target,
-        &DatabaseSpec {
-            tables: &[TableRows::empty(TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Items",
-                columns: &columns,
-                indexes: &unique_indexes,
-            })],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows::empty(table(b"Items", &columns, &unique_indexes))],
     )?;
 
-    let ordinary_indexes = [IndexSpec {
-        name: b"ById",
-        fields: &fields,
-        kind: IndexKind::Ordinary,
-    }];
+    let ordinary_indexes = [index(b"ById", &fields, IndexKind::Ordinary)];
     let page_count = fs::metadata(&target)?.len() / crate::PAGE_BYTES as u64;
     let error = check_image(
         &target,
-        &[TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &columns,
-            indexes: &ordinary_indexes,
-        }],
+        &[table(b"Items", &columns, &ordinary_indexes)],
         page_count,
         &mut budget(),
     )
@@ -176,23 +121,11 @@ fn candidate_check_rejects_an_index_kind_mismatch() -> TestResult {
 
 #[test]
 fn a_memo_table_is_created_and_reopens() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     let columns = [ID, NOTE];
-    let spec = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Notes",
-        columns: &columns,
-        indexes: &[],
-    };
-    create_database(
-        &target,
-        &DatabaseSpec {
-            tables: &[TableRows::empty(spec)],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    let spec = table(b"Notes", &columns, &[]);
+    create(&target, &[TableRows::empty(spec)])?;
     assert_eq!(fs::metadata(&target)?.len(), 23 * crate::PAGE_BYTES as u64);
     let mut budget = budget();
     let mut database = DatabaseReader::open(&target, &mut budget)?;
@@ -203,7 +136,7 @@ fn a_memo_table_is_created_and_reopens() -> TestResult {
 
 #[test]
 fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     let by_id = [IndexSpec {
         name: b"ById",
@@ -213,47 +146,24 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
     let indexed_memo = [NOTE];
     let undefined_byte = [ColumnSpec::new(b"Caf\x81", ColumnType::Long)];
     let cases: [(TableSpec<'_>, Accepts); 2] = [
-        (
-            TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Mixed",
-                columns: &indexed_memo,
-                indexes: &by_id,
-            },
-            |error| {
-                matches!(
-                    error,
-                    ComposeError::Schema(TableSchemaPlanError::Definition(_))
-                )
-            },
-        ),
-        (
-            TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Accent",
-                columns: &undefined_byte,
-                indexes: &[],
-            },
-            |error| {
-                matches!(
-                    error,
-                    ComposeError::Schema(TableSchemaPlanError::NameByteUnestablished {
-                        byte: 0x81,
-                        ..
-                    })
-                )
-            },
-        ),
+        (table(b"Mixed", &indexed_memo, &by_id), |error| {
+            matches!(
+                error,
+                ComposeError::Schema(TableSchemaPlanError::Definition(_))
+            )
+        }),
+        (table(b"Accent", &undefined_byte, &[]), |error| {
+            matches!(
+                error,
+                ComposeError::Schema(TableSchemaPlanError::NameByteUnestablished {
+                    byte: 0x81,
+                    ..
+                })
+            )
+        }),
     ];
     for (spec, accepts) in cases {
-        match create_database(
-            &target,
-            &DatabaseSpec {
-                tables: &[TableRows::empty(spec)],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
-        ) {
+        match create(&target, &[TableRows::empty(spec)]) {
             Err(WriteError::Compose(error)) if accepts(&error) => {}
             other => return Err(format!("unexpected result: {other:?}").into()),
         }
@@ -264,24 +174,12 @@ fn unsupported_layouts_are_refused_before_anything_is_written() -> TestResult {
 
 #[test]
 fn an_existing_destination_is_refused_and_left_unchanged() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     fs::write(&target, b"keep me")?;
     let columns = [ID];
-    let spec = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Alpha",
-        columns: &columns,
-        indexes: &[],
-    };
-    match create_database(
-        &target,
-        &DatabaseSpec {
-            tables: &[TableRows::empty(spec)],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    ) {
+    let spec = table(b"Alpha", &columns, &[]);
+    match create(&target, &[TableRows::empty(spec)]) {
         Err(WriteError::CreatePublish(error)) => {
             assert_eq!(error.stage(), PublishStage::PrivateCopyCreation);
         }
@@ -296,7 +194,7 @@ fn an_existing_destination_is_refused_and_left_unchanged() -> TestResult {
 fn a_definition_spanning_one_continuation_is_created_and_reopens() -> TestResult {
     // EXP-0107's compact construction: 70 ten-byte-named Long columns take a
     // root, map page, LvProp page, and one continuation at page 23.
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     let names = (0..70)
         .map(|ordinal| format!("Field{ordinal:05}").into_bytes())
@@ -305,20 +203,8 @@ fn a_definition_spanning_one_continuation_is_created_and_reopens() -> TestResult
         .iter()
         .map(|name| ColumnSpec::new(name, ColumnType::Long))
         .collect::<Vec<_>>();
-    let spec = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Wide",
-        columns: &columns,
-        indexes: &[],
-    };
-    create_database(
-        &target,
-        &DatabaseSpec {
-            tables: &[TableRows::empty(spec)],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    let spec = table(b"Wide", &columns, &[]);
+    create(&target, &[TableRows::empty(spec)])?;
     assert_eq!(fs::metadata(&target)?.len(), 24 * crate::PAGE_BYTES as u64);
     let mut budget = budget();
     let mut database = DatabaseReader::open(&target, &mut budget)?;
@@ -329,23 +215,11 @@ fn a_definition_spanning_one_continuation_is_created_and_reopens() -> TestResult
 
 #[test]
 fn case_folded_duplicates_are_refused_before_writing() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
-    let table = |name: &'static [u8]| TableSpec {
-        validation: crate::TableValidation::NONE,
-        name,
-        columns: &[ID],
-        indexes: &[],
-    };
+    let table = |name: &'static [u8]| table(name, &[ID], &[]);
     let duplicate = [table(b"Alpha"), table(b"ALPHA")];
-    match create_database(
-        &target,
-        &DatabaseSpec {
-            tables: &duplicate.map(TableRows::empty),
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    ) {
+    match create(&target, &duplicate.map(TableRows::empty)) {
         Err(WriteError::Compose(ComposeError::DuplicateTableName {
             first: 0,
             second: 1,
@@ -358,7 +232,7 @@ fn case_folded_duplicates_are_refused_before_writing() -> TestResult {
 
 #[test]
 fn two_tables_are_created_in_order_and_reopen() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     let indexes = [IndexSpec {
         name: b"PrimaryKey",
@@ -366,27 +240,10 @@ fn two_tables_are_created_in_order_and_reopen() -> TestResult {
         kind: IndexKind::Primary,
     }];
     let tables = [
-        TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Alpha",
-            columns: &[ID],
-            indexes: &[],
-        },
-        TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Gamma",
-            columns: &[ID, CODE],
-            indexes: &indexes,
-        },
+        table(b"Alpha", &[ID], &[]),
+        table(b"Gamma", &[ID, CODE], &indexes),
     ];
-    create_database(
-        &target,
-        &DatabaseSpec {
-            tables: &tables.map(TableRows::empty),
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(&target, &tables.map(TableRows::empty))?;
     assert_eq!(fs::metadata(&target)?.len(), 27 * crate::PAGE_BYTES as u64);
     let mut budget = budget();
     let mut database = DatabaseReader::open(&target, &mut budget)?;

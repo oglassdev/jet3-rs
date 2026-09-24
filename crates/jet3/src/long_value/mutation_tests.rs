@@ -1,7 +1,10 @@
+use crate::testkit::create;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{PAGE_BYTES, *};
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
-pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
+pub(super) use crate::testkit::TestResult;
 const COLUMNS: [ColumnSpec<'static>; 4] = [
     ColumnSpec::new(b"Id", ColumnType::Long),
     ColumnSpec::new(b"Tag", ColumnType::Long),
@@ -9,26 +12,25 @@ const COLUMNS: [ColumnSpec<'static>; 4] = [
     ColumnSpec::new(b"Ole", ColumnType::LongBinary),
 ];
 const INDEXES: [IndexSpec<'static>; 3] = [
-    IndexSpec {
-        name: b"ById",
-        kind: IndexKind::Primary,
-        fields: &[IndexColumnSpec {
+    index(
+        b"ById",
+        &[IndexColumnSpec {
             column: ColumnRef::Name(b"Id"),
             direction: IndexDirection::Ascending,
         }],
-    },
-    IndexSpec {
-        name: b"ByTag",
-        kind: IndexKind::Ordinary,
-        fields: &[IndexColumnSpec {
+        IndexKind::Primary,
+    ),
+    index(
+        b"ByTag",
+        &[IndexColumnSpec {
             column: ColumnRef::Name(b"Tag"),
             direction: IndexDirection::Descending,
         }],
-    },
-    IndexSpec {
-        name: b"ByPair",
-        kind: IndexKind::Unique,
-        fields: &[
+        IndexKind::Ordinary,
+    ),
+    index(
+        b"ByPair",
+        &[
             IndexColumnSpec {
                 column: ColumnRef::Name(b"Tag"),
                 direction: IndexDirection::Descending,
@@ -38,7 +40,8 @@ const INDEXES: [IndexSpec<'static>; 3] = [
                 direction: IndexDirection::Ascending,
             },
         ],
-    },
+        IndexKind::Unique,
+    ),
 ];
 
 pub(super) use crate::testkit::budget;
@@ -78,32 +81,18 @@ impl Fixture {
             RowValue::LongBinary(&[0x22; 4096]),
         ];
         let note = [RowValue::Long(9), RowValue::Memo(&[b'z'; 4096])];
-        create_database(
+        create(
             result.path(),
-            &DatabaseSpec {
-                tables: &[
-                    TableRows {
-                        table: TableSpec {
-                            validation: crate::TableValidation::NONE,
-                            name: b"Rows",
-                            columns: &columns,
-                            indexes: if indexes { &INDEXES } else { &[] },
-                        },
-                        rows: &[&first, &second],
-                    },
-                    TableRows {
-                        table: TableSpec {
-                            validation: crate::TableValidation::NONE,
-                            name: b"Notes",
-                            columns: &[COLUMNS[0], COLUMNS[2]],
-                            indexes: &[],
-                        },
-                        rows: &[&note],
-                    },
-                ],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
+            &[
+                TableRows {
+                    table: table(b"Rows", &columns, if indexes { &INDEXES } else { &[] }),
+                    rows: &[&first, &second],
+                },
+                TableRows {
+                    table: table(b"Notes", &[COLUMNS[0], COLUMNS[2]], &[]),
+                    rows: &[&note],
+                },
+            ],
         )?;
         Ok(result)
     }

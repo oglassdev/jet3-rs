@@ -1,4 +1,5 @@
 use super::relationship_graph_mutation_tests::*;
+use crate::testkit::validate_file;
 use crate::{
     ColumnOrdinal, DatabaseReader, PAGE_BYTES, RelationshipValidationError, ResourceLimits,
     TextCodePage, ValidationError, ValidationReport, WriteError, create::composer::*,
@@ -7,9 +8,7 @@ use std::fs;
 
 fn validate(fixture: &Fixture) -> Result<ValidationReport> {
     let before = fs::read(fixture.path())?;
-    let mut work = budget();
-    let mut db = DatabaseReader::open(fixture.path(), &mut work)?;
-    let report = db.validate(TextCodePage::Windows1252, &mut work)?;
+    let report = validate_file(fixture.path())?;
     assert_eq!(fs::read(fixture.path())?, before);
     Ok(report)
 }

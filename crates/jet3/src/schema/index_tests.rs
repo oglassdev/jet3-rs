@@ -1,29 +1,27 @@
+pub(super) use crate::testkit::TestResult;
+use crate::testkit::create;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{PAGE_BYTES, *};
 use std::{fs, path::PathBuf};
-pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
 pub(super) struct Fixture(pub(super) crate::testkit::TempDir);
 impl Fixture {
     pub(super) fn new(rows: &[&[RowValue<'_>]]) -> Result<Self, Box<dyn std::error::Error>> {
         let path = crate::testkit::TempDir::new("schema-index")?;
         let fixture = Self(path);
-        create_database(
+        create(
             fixture.path(),
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Items",
-                        columns: &[
-                            ColumnSpec::new(b"Id", ColumnType::Long),
-                            ColumnSpec::new(b"Payload", ColumnType::Memo),
-                        ],
-                        indexes: &[],
-                    },
-                    rows,
-                }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
+            &[TableRows {
+                table: table(
+                    b"Items",
+                    &[
+                        ColumnSpec::new(b"Id", ColumnType::Long),
+                        ColumnSpec::new(b"Payload", ColumnType::Memo),
+                    ],
+                    &[],
+                ),
+                rows,
+            }],
         )?;
         Ok(fixture)
     }
@@ -45,14 +43,14 @@ impl Fixture {
             self.path(),
             SchemaEdit::CreateIndex {
                 table: b"Items",
-                index: IndexSpec {
+                index: index(
                     name,
-                    kind,
-                    fields: &[IndexColumnSpec {
+                    &[IndexColumnSpec {
                         column: ColumnRef::Name(b"Id"),
                         direction,
                     }],
-                },
+                    kind,
+                ),
             },
             &mut budget(),
         )
@@ -328,12 +326,7 @@ fn create_table_keeps_existing_storage_and_accepts_later_rows() -> TestResult {
         kind: IndexKind::Primary,
         fields: &[IndexColumnSpec::ascending(0)],
     }];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Added",
-        columns: &columns,
-        indexes: &indexes,
-    };
+    let table = table(b"Added", &columns, &indexes);
     edit_schema(
         fixture.path(),
         SchemaEdit::CreateTable { table },
@@ -507,11 +500,11 @@ fn drop_columns_retains_rows_releases_payloads_and_allows_sparse_mutations() -> 
         fixture.path(),
         SchemaEdit::CreateIndex {
             table: b"Items",
-            index: IndexSpec {
-                name: b"ByNext",
-                fields: &[IndexColumnSpec::ascending(1)],
-                kind: IndexKind::Ordinary,
-            },
+            index: index(
+                b"ByNext",
+                &[IndexColumnSpec::ascending(1)],
+                IndexKind::Ordinary,
+            ),
         },
         &mut budget(),
     )?;

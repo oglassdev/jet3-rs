@@ -15,7 +15,7 @@ use super::database::{DatabaseOpenError, DatabasePageError, DatabaseReader};
 const SIGNATURE_START: usize = 4;
 const SIGNATURE_END: usize = 19;
 
-type TestResult = Result<(), Box<dyn StdError>>;
+use crate::testkit::TestResult;
 
 fn limits(max_input: u64, max_single_read: u64, max_total_read: u64) -> ResourceLimits {
     ResourceLimits::new(ReadLimits::new(

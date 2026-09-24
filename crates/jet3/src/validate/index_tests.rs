@@ -1,7 +1,9 @@
 use super::tests::*;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
     ByteCount, ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, PAGE_BYTES,
-    PageNumber, ResourceLimits, RowValue, TableRows, TableSpec,
+    PageNumber, ResourceLimits, RowValue, TableRows,
     create::composer::compose_database_with_table_rows, validate::*,
 };
 
@@ -84,19 +86,18 @@ fn retained_directory_slots_do_not_make_deleted_rows_valid_index_targets() -> Te
 fn unsupported_key_schemas_report_coverage_and_still_check_membership() -> TestResult {
     let plan = compose_database_with_table_rows(
         &[TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Items",
-                columns: &[
+            table: table(
+                b"Items",
+                &[
                     ColumnSpec::new(b"Id", ColumnType::Long),
                     ColumnSpec::new(b"Body", ColumnType::Memo),
                 ],
-                indexes: &[IndexSpec {
-                    name: b"ById",
-                    kind: IndexKind::Primary,
-                    fields: &[IndexColumnSpec::ascending(0)],
-                }],
-            },
+                &[index(
+                    b"ById",
+                    &[IndexColumnSpec::ascending(0)],
+                    IndexKind::Primary,
+                )],
+            ),
             rows: &[
                 &[RowValue::Long(2), RowValue::Memo(b"two")],
                 &[RowValue::Long(0), RowValue::Memo(b"zero")],
@@ -184,11 +185,7 @@ fn composite_text_binary_guid_null_policies_and_branch_bounds_are_checked() -> T
         IndexColumnSpec::descending(3),
     ];
     let indexes = [
-        IndexSpec {
-            name: b"Composite",
-            kind: IndexKind::Ordinary,
-            fields: &keys,
-        },
+        index(b"Composite", &keys, IndexKind::Ordinary),
         IndexSpec {
             name: b"Primary",
             kind: IndexKind::Primary,
@@ -221,12 +218,7 @@ fn composite_text_binary_guid_null_policies_and_branch_bounds_are_checked() -> T
     let rows: Vec<_> = values.iter().map(|row| row.as_slice()).collect();
     let plan = compose_database_with_table_rows(
         &[TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Items",
-                columns: &columns,
-                indexes: &indexes,
-            },
+            table: table(b"Items", &columns, &indexes),
             rows: &rows,
         }],
         &mut budget(),
@@ -267,19 +259,18 @@ fn all_null_omission_and_repeated_nullable_unique_keys_have_complete_coverage() 
     ] {
         let plan = compose_database_with_table_rows(
             &[TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Items",
-                    columns: &[
+                table: table(
+                    b"Items",
+                    &[
                         ColumnSpec::new(b"Id", ColumnType::Long),
                         ColumnSpec::new(b"Value", ColumnType::Long),
                     ],
-                    indexes: &[IndexSpec {
-                        name: b"Nullable",
-                        kind: IndexKind::Unique.with_null_policy(policy),
-                        fields: &[IndexColumnSpec::ascending(1)],
-                    }],
-                },
+                    &[index(
+                        b"Nullable",
+                        &[IndexColumnSpec::ascending(1)],
+                        IndexKind::Unique.with_null_policy(policy),
+                    )],
+                ),
                 rows: &[
                     &[RowValue::Long(0), RowValue::Null],
                     &[RowValue::Long(1), RowValue::Null],
@@ -380,16 +371,15 @@ fn numeric_and_text_index_decoding_keep_resource_errors_structured() -> TestResu
     ] {
         let plan = compose_database_with_table_rows(
             &[TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Items",
-                    columns: &[ColumnSpec::new(b"Value", kind)],
-                    indexes: &[IndexSpec {
-                        name: b"ByValue",
-                        kind: IndexKind::Ordinary,
-                        fields: &[IndexColumnSpec::ascending(0)],
-                    }],
-                },
+                table: table(
+                    b"Items",
+                    &[ColumnSpec::new(b"Value", kind)],
+                    &[index(
+                        b"ByValue",
+                        &[IndexColumnSpec::ascending(0)],
+                        IndexKind::Ordinary,
+                    )],
+                ),
                 rows: &[&[value]],
             }],
             &mut budget(),

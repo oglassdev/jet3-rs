@@ -1,7 +1,7 @@
 use std::error::Error as StdError;
 use std::fs;
 use std::io::{Seek, SeekFrom, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use super::atomic::{
     PrivateCopy, PublishStage, atomic_create, atomic_create_with_hook, atomic_update,
@@ -9,7 +9,7 @@ use super::atomic::{
 };
 use crate::{ReadLimits, ResourceBudget, ResourceLimits};
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 #[derive(Debug)]
 struct TestFailure(&'static str);
@@ -22,30 +22,17 @@ impl std::fmt::Display for TestFailure {
 
 impl std::error::Error for TestFailure {}
 
-struct TestDirectory {
-    path: crate::testkit::TempDir,
-}
+use crate::testkit::TempDir;
 
-impl TestDirectory {
-    fn create() -> Result<Self, std::io::Error> {
-        let path = crate::testkit::TempDir::new("atomic-test")?;
-        Ok(Self { path })
-    }
-
-    fn target(&self) -> PathBuf {
-        self.path.join("target.bin")
-    }
-
-    fn private_entries(&self) -> Result<usize, std::io::Error> {
-        let mut count = 0_usize;
-        for entry in fs::read_dir(&self.path)? {
-            let name = entry?.file_name();
-            if name.to_string_lossy().contains(".jet3-private-") {
-                count = count.saturating_add(1);
-            }
+fn private_entries(directory: &Path) -> Result<usize, std::io::Error> {
+    let mut count = 0_usize;
+    for entry in fs::read_dir(directory)? {
+        let name = entry?.file_name();
+        if name.to_string_lossy().contains(".jet3-private-") {
+            count = count.saturating_add(1);
         }
-        Ok(count)
     }
+    Ok(count)
 }
 
 fn limits(max_work: u64) -> ResourceLimits {
@@ -68,7 +55,7 @@ fn validate_replacement(path: &Path) -> Result<(), TestFailure> {
 
 #[test]
 fn successful_update_publishes_validated_replacement_and_preserves_permissions() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     fs::write(&target, b"original")?;
     #[cfg(unix)]
@@ -95,7 +82,7 @@ fn successful_update_publishes_validated_replacement_and_preserves_permissions()
         );
     }
     assert_eq!(budget.total_work_units(), 8);
-    assert_eq!(directory.private_entries()?, 0);
+    assert_eq!(private_entries(&directory)?, 0);
     Ok(())
 }
 
@@ -113,7 +100,7 @@ fn every_injected_prepublication_failure_preserves_original_and_cleans_private_c
         PublishStage::Publish,
     ];
     for fault in stages {
-        let directory = TestDirectory::create()?;
+        let directory = TempDir::new("create")?;
         let target = directory.target();
         fs::write(&target, b"original")?;
         let original = fs::read(&target)?;
@@ -135,14 +122,14 @@ fn every_injected_prepublication_failure_preserves_original_and_cleans_private_c
         .ok_or(TestFailure("fault injection unexpectedly succeeded"))?;
         assert_eq!(error.stage(), fault);
         assert_eq!(fs::read(&target)?, original);
-        assert_eq!(directory.private_entries()?, 0);
+        assert_eq!(private_entries(&directory)?, 0);
     }
     Ok(())
 }
 
 #[test]
 fn directory_sync_fault_reports_published_validated_replacement() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     fs::write(&target, b"original")?;
     let mut budget = ResourceBudget::new(limits(1024));
@@ -163,13 +150,13 @@ fn directory_sync_fault_reports_published_validated_replacement() -> TestResult 
     .ok_or(TestFailure("directory-sync fault unexpectedly succeeded"))?;
     assert_eq!(error.stage(), PublishStage::DirectorySync);
     assert_eq!(fs::read(&target)?, b"replacement");
-    assert_eq!(directory.private_entries()?, 0);
+    assert_eq!(private_entries(&directory)?, 0);
     Ok(())
 }
 
 #[test]
 fn cleanup_failure_is_reported_without_overwriting_primary_error() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     fs::write(&target, b"original")?;
     let mut budget = ResourceBudget::new(limits(1024));
@@ -195,14 +182,14 @@ fn cleanup_failure_is_reported_without_overwriting_primary_error() -> TestResult
     assert!(error.to_string().contains("primary validation fault"));
     assert!(error.to_string().contains("secondary cleanup fault"));
     assert_eq!(fs::read(&target)?, b"original");
-    assert_eq!(directory.private_entries()?, 0);
+    assert_eq!(private_entries(&directory)?, 0);
     Ok(())
 }
 
 #[test]
 fn mutation_and_validation_errors_preserve_original() -> TestResult {
     for fail_validation in [false, true] {
-        let directory = TestDirectory::create()?;
+        let directory = TempDir::new("create")?;
         let target = directory.target();
         fs::write(&target, b"original")?;
         let mut budget = ResourceBudget::new(limits(1024));
@@ -234,7 +221,7 @@ fn mutation_and_validation_errors_preserve_original() -> TestResult {
         };
         assert_eq!(error.stage(), expected);
         assert_eq!(fs::read(&target)?, b"original");
-        assert_eq!(directory.private_entries()?, 0);
+        assert_eq!(private_entries(&directory)?, 0);
     }
     Ok(())
 }
@@ -242,7 +229,7 @@ fn mutation_and_validation_errors_preserve_original() -> TestResult {
 #[test]
 fn copy_work_limit_covers_one_below_exact_and_one_above() -> TestResult {
     for (maximum, succeeds) in [(7, false), (8, true), (9, true)] {
-        let directory = TestDirectory::create()?;
+        let directory = TempDir::new("create")?;
         let target = directory.target();
         fs::write(&target, b"original")?;
         let mut budget = ResourceBudget::new(limits(maximum));
@@ -257,16 +244,16 @@ fn copy_work_limit_covers_one_below_exact_and_one_above() -> TestResult {
             assert_eq!(error.stage(), PublishStage::Copy);
             assert_eq!(fs::read(&target)?, b"original");
         }
-        assert_eq!(directory.private_entries()?, 0);
+        assert_eq!(private_entries(&directory)?, 0);
     }
     Ok(())
 }
 
 #[test]
 fn nonexistent_and_non_regular_targets_are_rejected() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let mut budget = ResourceBudget::new(limits(1024));
-    for target in [directory.path.join("missing"), directory.path.to_path_buf()] {
+    for target in [directory.join("missing"), directory.to_path_buf()] {
         let result = atomic_update(target, &mut budget, replace_contents, validate_replacement);
         let error = result
             .err()
@@ -278,11 +265,11 @@ fn nonexistent_and_non_regular_targets_are_rejected() -> TestResult {
 
 #[test]
 fn identity_capture_failure_removes_exclusively_created_private_file() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     fs::write(&target, b"original")?;
 
-    let error = PrivateCopy::create_with_identity(&target, &directory.path, |_| {
+    let error = PrivateCopy::create_with_identity(&target, &*directory, |_| {
         Err(std::io::Error::other("injected identity capture failure"))
     })
     .err()
@@ -290,16 +277,16 @@ fn identity_capture_failure_removes_exclusively_created_private_file() -> TestRe
 
     assert_eq!(error.kind(), std::io::ErrorKind::Other);
     assert_eq!(error.to_string(), "injected identity capture failure");
-    assert_eq!(directory.private_entries()?, 0);
+    assert_eq!(private_entries(&directory)?, 0);
     assert_eq!(fs::read(&target)?, b"original");
     Ok(())
 }
 
 #[test]
 fn substituted_private_path_is_rejected_and_left_untouched() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
-    let retained = directory.path.join("retained.bin");
+    let retained = directory.join("retained.bin");
     fs::write(&target, b"original")?;
     let error = atomic_update_with_hook(
         &target,
@@ -308,7 +295,7 @@ fn substituted_private_path_is_rejected_and_left_untouched() -> TestResult {
         validate_replacement,
         |stage| -> std::io::Result<()> {
             if stage == PublishStage::PrePublish {
-                for entry in fs::read_dir(&directory.path)? {
+                for entry in fs::read_dir(&*directory)? {
                     let entry = entry?;
                     if entry
                         .file_name()
@@ -329,14 +316,14 @@ fn substituted_private_path_is_rejected_and_left_untouched() -> TestResult {
     assert!(error.cleanup_error().is_some());
     assert_eq!(fs::read(target)?, b"original");
     assert_eq!(fs::read(retained)?, b"replacement");
-    assert_eq!(directory.private_entries()?, 1);
+    assert_eq!(private_entries(&directory)?, 1);
     Ok(())
 }
 
 #[cfg(windows)]
 #[test]
 fn readonly_private_copy_is_cleaned_after_a_prepublication_failure() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     fs::write(&target, b"original")?;
     let mut permissions = fs::metadata(&target)?.permissions();
@@ -362,7 +349,7 @@ fn readonly_private_copy_is_cleaned_after_a_prepublication_failure() -> TestResu
     assert!(error.cleanup_error().is_none());
     assert_eq!(fs::read(&target)?, b"original");
     assert!(fs::metadata(&target)?.permissions().readonly());
-    assert_eq!(directory.private_entries()?, 0);
+    assert_eq!(private_entries(&directory)?, 0);
     super::atomic::prepare_private_for_removal(&target)?;
     Ok(())
 }
@@ -381,17 +368,17 @@ fn validate_fresh(path: &Path) -> Result<(), TestFailure> {
 
 #[test]
 fn successful_create_publishes_the_validated_file() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     atomic_create(&target, write_fresh, validate_fresh)?;
     assert_eq!(fs::read(&target)?, b"fresh");
-    assert_eq!(directory.private_entries()?, 0);
+    assert_eq!(private_entries(&directory)?, 0);
     Ok(())
 }
 
 #[test]
 fn create_directory_sync_fault_reports_the_published_target() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     let error = atomic_create_with_hook(&target, write_fresh, validate_fresh, |stage| {
         if stage == PublishStage::DirectorySync {
@@ -404,13 +391,13 @@ fn create_directory_sync_fault_reports_the_published_target() -> TestResult {
     .ok_or(TestFailure("directory-sync fault unexpectedly succeeded"))?;
     assert_eq!(error.stage(), PublishStage::DirectorySync);
     assert_eq!(fs::read(&target)?, b"fresh");
-    assert_eq!(directory.private_entries()?, 1);
+    assert_eq!(private_entries(&directory)?, 1);
     Ok(())
 }
 
 #[test]
 fn create_refuses_an_existing_target_and_leaves_it_untouched() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     fs::write(&target, b"original")?;
     let error = atomic_create(&target, write_fresh, validate_fresh)
@@ -422,13 +409,13 @@ fn create_refuses_an_existing_target_and_leaves_it_untouched() -> TestResult {
         .ok_or(TestFailure("missing I/O source"))?;
     assert_eq!(io_error.kind(), std::io::ErrorKind::AlreadyExists);
     assert_eq!(fs::read(&target)?, b"original");
-    assert_eq!(directory.private_entries()?, 0);
+    assert_eq!(private_entries(&directory)?, 0);
     Ok(())
 }
 
 #[test]
 fn create_failures_before_publication_leave_the_target_absent() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     for stage in [
         PublishStage::Mutation,
@@ -449,7 +436,7 @@ fn create_failures_before_publication_leave_the_target_absent() -> TestResult {
         assert_eq!(error.stage(), stage);
         assert!(error.cleanup_error().is_none());
         assert!(!target.exists(), "target exists after {stage} failure");
-        assert_eq!(directory.private_entries()?, 0);
+        assert_eq!(private_entries(&directory)?, 0);
     }
     let error = atomic_create(&target, write_fresh, |_: &Path| {
         Err::<(), _>(TestFailure("rejected"))
@@ -458,13 +445,13 @@ fn create_failures_before_publication_leave_the_target_absent() -> TestResult {
     .ok_or(TestFailure("rejected validation did not fail the create"))?;
     assert_eq!(error.stage(), PublishStage::Validation);
     assert!(!target.exists());
-    assert_eq!(directory.private_entries()?, 0);
+    assert_eq!(private_entries(&directory)?, 0);
     Ok(())
 }
 
 #[test]
 fn create_does_not_replace_a_target_that_appears_before_publication() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let target = directory.target();
     let error = atomic_create_with_hook(&target, write_fresh, validate_fresh, |visited| {
         if visited == PublishStage::Publish {
@@ -476,6 +463,6 @@ fn create_does_not_replace_a_target_that_appears_before_publication() -> TestRes
     .ok_or(TestFailure("publication over a raced target succeeded"))?;
     assert_eq!(error.stage(), PublishStage::Publish);
     assert_eq!(fs::read(&target)?, b"raced");
-    assert_eq!(directory.private_entries()?, 0);
+    assert_eq!(private_entries(&directory)?, 0);
     Ok(())
 }

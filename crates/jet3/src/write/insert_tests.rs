@@ -1,13 +1,15 @@
 use super::insert::*;
+pub(super) use crate::testkit::TestResult;
+pub(super) use crate::testkit::budget;
+use crate::testkit::create;
+use crate::testkit::table;
 use crate::{
     ByteCount, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PageNumber, PublishStage,
-    ResourceBudget, ResourceLimits, RowLocator, RowValue, TableSpec, WriteError,
+    ResourceBudget, ResourceLimits, RowLocator, RowValue, WriteError,
 };
 use std::error::Error as StdError;
 use std::fs;
 use std::path::PathBuf;
-pub(super) type TestResult = Result<(), Box<dyn StdError>>;
-pub(super) use crate::testkit::budget;
 pub(super) struct Fixture {
     pub(super) directory: crate::testkit::TempDir,
     pub(super) root: PageNumber,
@@ -20,21 +22,12 @@ impl Fixture {
     ) -> Result<Self, Box<dyn StdError>> {
         let directory = crate::testkit::TempDir::new("insert")?;
         let path = directory.join("source.mdb");
-        crate::create_database(
+        create(
             &path,
-            &crate::DatabaseSpec {
-                tables: &[crate::TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Rows",
-                        columns,
-                        indexes: &[],
-                    },
-                    rows,
-                }],
-                ..crate::DatabaseSpec::default()
-            },
-            &mut budget(),
+            &[crate::TableRows {
+                table: table(b"Rows", columns, &[]),
+                rows,
+            }],
         )?;
         let mut b = budget();
         let mut db = DatabaseReader::open(&path, &mut b)?;

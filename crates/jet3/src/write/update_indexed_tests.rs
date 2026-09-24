@@ -1,7 +1,9 @@
 use super::update_tests::*;
+use crate::testkit::create;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
-    ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, PAGE_BYTES, RowValue,
-    TableRows, TableSpec, create_database,
+    ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, RowValue, TableRows,
     row::directory::RowDirectory,
     write::{error::WriteError, update::*},
 };
@@ -20,29 +22,16 @@ pub(super) fn indexed() -> Result<Fixture, Box<dyn StdError>> {
         crate::IndexColumnSpec::descending(1),
         crate::IndexColumnSpec::ascending(0),
     ];
-    let indexes = [crate::IndexSpec {
-        name: b"ByGroup",
-        kind: crate::IndexKind::Ordinary,
-        fields: &composite,
-    }];
-    create_database(
+    let indexes = [index(b"ByGroup", &composite, crate::IndexKind::Ordinary)];
+    create(
         fixture.path(),
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Items",
-                    columns: &columns,
-                    indexes: &indexes,
-                },
-                rows: &[
-                    &[RowValue::Long(1), RowValue::Long(3), RowValue::Long(77)],
-                    &[RowValue::Long(2), RowValue::Long(3), RowValue::Long(88)],
-                ],
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table: table(b"Items", &columns, &indexes),
+            rows: &[
+                &[RowValue::Long(1), RowValue::Long(3), RowValue::Long(77)],
+                &[RowValue::Long(2), RowValue::Long(3), RowValue::Long(88)],
+            ],
+        }],
     )?;
     Ok(fixture)
 }

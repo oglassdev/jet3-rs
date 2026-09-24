@@ -5,7 +5,7 @@ use crate::{
     RowLocator, TextCodePage, format::data_page_directory::MAX_STORED_ROW_LEN,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 fn budget() -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::new(ReadLimits::new(

@@ -1,15 +1,16 @@
+use crate::testkit::create;
+use crate::testkit::{index, table};
 use crate::{
-    ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, IndexDirection, IndexKind, IndexSpec,
-    PageNumber, RowValue, TableRows, TableSpec,
+    ColumnSpec, ColumnType, DatabaseReader, IndexDirection, IndexKind, PageNumber, RowValue,
+    TableRows,
     create::{api_tests::*, initial_rows_tests::*},
-    create_database,
 };
 use std::collections::BTreeSet;
 use std::fs;
 
 #[test]
 fn thirty_two_indexes_span_maps_and_validate_the_final_unique_index() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let column_names = (0..10)
         .map(|n| format!("C{n:02}").into_bytes())
         .collect::<Vec<_>>();
@@ -42,18 +43,9 @@ fn thirty_two_indexes_span_maps_and_validate_the_final_unique_index() -> TestRes
     let indexes = names
         .iter()
         .zip(&fields)
-        .map(|(name, fields)| IndexSpec {
-            name,
-            fields,
-            kind: IndexKind::Unique,
-        })
+        .map(|(name, fields)| index(name, fields, IndexKind::Unique))
         .collect::<Vec<_>>();
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &columns,
-        indexes: &indexes,
-    };
+    let table = table(b"Items", &columns, &indexes);
     let values = (0..64)
         .map(|n| {
             (0..10)
@@ -62,14 +54,7 @@ fn thirty_two_indexes_span_maps_and_validate_the_final_unique_index() -> TestRes
         })
         .collect::<Vec<_>>();
     let rows = values.iter().map(Vec::as_slice).collect::<Vec<_>>();
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows { table, rows: &rows }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(directory.target(), &[TableRows { table, rows: &rows }])?;
     let original = fs::read(directory.target())?;
     let mut b = budget();
     let mut db = DatabaseReader::open(directory.target(), &mut b)?;

@@ -1,10 +1,13 @@
 //! EXP-0288 scalar endpoint compatibility and relationship key normalization.
 use super::api_relationship_graph_tests::*;
+use crate::testkit::create_spec;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
     ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec,
     IndexDirection, IndexKind, IndexSpec, RelationshipField, RelationshipSpec, RowLocator,
-    RowValue, TableRef, TableSpec, TextCodePage, ValueKind, WriteError,
-    create::{DatabaseSpec, TableRows, composer::ComposeError, create_database},
+    RowValue, TableRef, TextCodePage, ValueKind, WriteError,
+    create::{DatabaseSpec, TableRows, composer::ComposeError},
 };
 use std::fs;
 use std::path::Path;
@@ -18,16 +21,8 @@ const VALUE_KEY: &[IndexColumnSpec<'_>] = &[IndexColumnSpec {
     direction: IndexDirection::Ascending,
 }];
 const PARENT_INDEXES: &[IndexSpec<'_>] = &[
-    IndexSpec {
-        name: b"ById",
-        fields: ID_KEY,
-        kind: IndexKind::Primary,
-    },
-    IndexSpec {
-        name: b"ByKey",
-        fields: VALUE_KEY,
-        kind: IndexKind::Unique,
-    },
+    index(b"ById", ID_KEY, IndexKind::Primary),
+    index(b"ByKey", VALUE_KEY, IndexKind::Unique),
 ];
 
 fn schema(
@@ -37,33 +32,31 @@ fn schema(
     child_rows: &[&[RowValue<'_>]],
     path: &Path,
 ) -> Result<(), WriteError> {
-    create_database(
+    create_spec(
         path,
         &DatabaseSpec {
             tables: &[
                 TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Parent",
-                        columns: &[
+                    table: table(
+                        b"Parent",
+                        &[
                             ColumnSpec::new(b"Id", ColumnType::Long),
                             ColumnSpec::new(b"Key", parent),
                         ],
-                        indexes: PARENT_INDEXES,
-                    },
+                        PARENT_INDEXES,
+                    ),
                     rows: parent_rows,
                 },
                 TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Child",
-                        columns: &[
+                    table: table(
+                        b"Child",
+                        &[
                             ColumnSpec::new(b"Id", ColumnType::Long),
                             ColumnSpec::new(b"Key", child),
                             ColumnSpec::new(b"Body", ColumnType::Memo),
                         ],
-                        indexes: &PARENT_INDEXES[..1],
-                    },
+                        &PARENT_INDEXES[..1],
+                    ),
                     rows: child_rows,
                 },
             ],
@@ -83,7 +76,6 @@ fn schema(
             }],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )
 }
 
@@ -177,7 +169,7 @@ fn scalar_relationship_lifecycles_enforce_keys_and_preserve_refused_inputs() -> 
             RowValue::Guid([2; 16]),
         ),
     ] {
-        let directory = Directory::new()?;
+        let directory = TempDir::new("create")?;
         let path = directory.target();
         schema(
             kind,
@@ -314,14 +306,14 @@ fn scalar_relationship_creation_rejects_incompatible_endpoint_types() -> TestRes
         (ColumnType::Guid, ColumnType::Binary { max_len: width }),
         (ColumnType::Boolean, ColumnType::Byte),
     ] {
-        let directory = Directory::new()?;
+        let directory = TempDir::new("create")?;
         assert!(matches!(
             schema(parent, child, &[], &[], &directory.target()),
             Err(WriteError::Compose(
                 ComposeError::UnsupportedRelationship { .. }
             ))
         ));
-        assert!(fs::read_dir(&directory.0)?.next().is_none());
+        assert!(fs::read_dir(&*directory)?.next().is_none());
     }
     Ok(())
 }
@@ -360,7 +352,7 @@ fn scalar_relationship_widths_and_text_storage_can_differ() -> TestResult {
             RowValue::Text(b"Zulu"),
         ),
     ] {
-        let directory = Directory::new()?;
+        let directory = TempDir::new("create")?;
         schema(
             parent,
             child,
@@ -369,7 +361,7 @@ fn scalar_relationship_widths_and_text_storage_can_differ() -> TestResult {
             &directory.target(),
         )?;
         verified(&directory.target())?;
-        let absent_path = directory.0.join("absent.mdb");
+        let absent_path = directory.join("absent.mdb");
         assert!(matches!(
             schema(
                 parent,
@@ -389,7 +381,7 @@ fn scalar_relationship_widths_and_text_storage_can_differ() -> TestResult {
 
 #[test]
 fn scalar_relationship_fixed_field_change_checks_parent_keys_before_publication() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
     let first = RowValue::Currency { scaled: -12345 };
     let second = RowValue::Currency { scaled: 23456 };
@@ -438,7 +430,7 @@ fn scalar_relationship_fixed_field_change_checks_parent_keys_before_publication(
 
 #[test]
 fn scalar_relationship_boolean_null_is_false_and_binary_empty_is_null() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     schema(
         ColumnType::Boolean,
         ColumnType::Boolean,
@@ -458,7 +450,7 @@ fn scalar_relationship_boolean_null_is_false_and_binary_empty_is_null() -> TestR
         Err(WriteError::Unsupported("duplicate unique key"))
     ));
     assert_eq!(fs::read(directory.target())?, original);
-    let absent = directory.0.join("no-false.mdb");
+    let absent = directory.join("no-false.mdb");
     assert!(matches!(
         schema(
             ColumnType::Boolean,
@@ -475,7 +467,7 @@ fn scalar_relationship_boolean_null_is_false_and_binary_empty_is_null() -> TestR
     let binary = ColumnType::Binary {
         max_len: std::num::NonZeroU8::new(8).ok_or("width")?,
     };
-    let empty = directory.0.join("empty-binary.mdb");
+    let empty = directory.join("empty-binary.mdb");
     schema(
         binary,
         binary,

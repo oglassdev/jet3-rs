@@ -1,5 +1,6 @@
 use super::api_relationship_tests::*;
 use crate::WriteError;
+use crate::testkit::create_spec;
 use crate::{
     ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, PageNumber, RelationshipLayout,
     ResourceBudget, ResourceLimits, RowLocator, RowValue, TableRows,
@@ -38,7 +39,7 @@ fn map_bit(
 
 #[test]
 fn duplicate_child_keys_keep_payload_locators_maps_and_distinct_counts() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let (mut tables, relation) = schema(false);
     let child_columns = [
         ColumnSpec::new(
@@ -74,14 +75,13 @@ fn duplicate_child_keys_keep_payload_locators_maps_and_distinct_counts() -> Test
             rows: &child_rows,
         },
     ];
-    create_database(
+    create_spec(
         directory.target(),
         &DatabaseSpec {
             tables: &requests,
             relationships: std::slice::from_ref(&relation),
             relationship_layout: RelationshipLayout::SingleLong,
         },
-        &mut budget(),
     )?;
     let bytes = fs::read(directory.target())?;
     assert_eq!(bytes.len(), 33 * crate::PAGE_BYTES);
@@ -147,7 +147,7 @@ fn duplicate_child_keys_keep_payload_locators_maps_and_distinct_counts() -> Test
 
 #[test]
 fn orphan_null_duplicate_and_unsupported_parent_shapes_are_refused() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let (tables, relation) = schema(false);
     type Rows<'a> = &'a [&'a [RowValue<'a>]];
     let cases: &[(Rows<'_>, Rows<'_>, &str)] = &[
@@ -178,14 +178,13 @@ fn orphan_null_duplicate_and_unsupported_parent_shapes_are_refused() -> TestResu
                 rows: child,
             },
         ];
-        let error = create_database(
+        let error = create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &requests,
                 relationships: std::slice::from_ref(&relation),
                 relationship_layout: RelationshipLayout::SingleLong,
             },
-            &mut budget(),
         )
         .err()
         .ok_or("unexpected success")?;
@@ -205,7 +204,7 @@ fn orphan_null_duplicate_and_unsupported_parent_shapes_are_refused() -> TestResu
     }
     let (two, relation) = schema(true);
     assert!(matches!(
-        create_database(
+        create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &[
@@ -220,20 +219,19 @@ fn orphan_null_duplicate_and_unsupported_parent_shapes_are_refused() -> TestResu
                 ],
                 relationships: std::slice::from_ref(&relation),
                 relationship_layout: RelationshipLayout::SingleLong
-            },
-            &mut budget()
+            }
         ),
         Err(WriteError::Compose(
             ComposeError::UnsupportedRelationship { .. }
         ))
     ));
-    assert!(directory.empty()?);
+    assert!(directory.is_empty()?);
     Ok(())
 }
 
 #[test]
 fn foreign_branch_growth_and_publication_budget_preserve_destination() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let (tables, relation) = schema(false);
     let value = [RowValue::Text(b"a"), RowValue::Long(1)];
     let child_rows = vec![value.as_slice(); 201];
@@ -264,15 +262,14 @@ fn foreign_branch_growth_and_publication_budget_preserve_destination() -> TestRe
         ),
         Err(WriteError::CreatePublish(_))
     ));
-    assert!(directory.empty()?);
-    create_database(
+    assert!(directory.is_empty()?);
+    create_spec(
         directory.target(),
         &DatabaseSpec {
             tables: &requests,
             relationships: std::slice::from_ref(&relation),
             relationship_layout: RelationshipLayout::SingleLong,
         },
-        &mut budget(),
     )?;
     let expanded = [
         requests[0],
@@ -281,15 +278,14 @@ fn foreign_branch_growth_and_publication_budget_preserve_destination() -> TestRe
             ..requests[1]
         },
     ];
-    let directory = Directory::new()?;
-    create_database(
+    let directory = TempDir::new("create")?;
+    create_spec(
         directory.target(),
         &DatabaseSpec {
             tables: &expanded,
             relationships: std::slice::from_ref(&relation),
             relationship_layout: RelationshipLayout::SingleLong,
         },
-        &mut budget(),
     )?;
     let original = fs::read(directory.target())?;
     let mut reader = DatabaseReader::open(directory.target(), &mut budget())?;
@@ -316,7 +312,7 @@ fn foreign_branch_growth_and_publication_budget_preserve_destination() -> TestRe
         .is_err()
     );
     assert_eq!(fs::read(directory.target())?, original);
-    assert_eq!(fs::read_dir(&directory.0)?.count(), 1);
+    assert_eq!(fs::read_dir(&*directory)?.count(), 1);
     Ok(())
 }
 
@@ -324,8 +320,8 @@ fn foreign_branch_growth_and_publication_budget_preserve_destination() -> TestRe
 fn empty_and_unreferenced_parent_rows_are_valid_inputs() -> TestResult {
     let (tables, relation) = schema(false);
     for parent in [&[], parent_rows()] {
-        let directory = Directory::new()?;
-        create_database(
+        let directory = TempDir::new("create")?;
+        create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &[
@@ -341,7 +337,6 @@ fn empty_and_unreferenced_parent_rows_are_valid_inputs() -> TestResult {
                 relationships: std::slice::from_ref(&relation),
                 relationship_layout: RelationshipLayout::SingleLong,
             },
-            &mut budget(),
         )?;
     }
     Ok(())

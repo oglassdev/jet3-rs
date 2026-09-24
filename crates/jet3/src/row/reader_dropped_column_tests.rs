@@ -6,7 +6,7 @@ use crate::{
     ValueKind, row::reader::RawField,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 fn schema(records: &[[u8; 18]], storage: u16, variables: u16) -> Vec<u8> {
     let mut bytes = definition()[..43].to_vec();

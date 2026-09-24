@@ -1,4 +1,6 @@
 use super::index_tests::*;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::*;
 use std::fs;
 
@@ -18,19 +20,18 @@ fn relationship_lifecycle_shares_indexes_preserves_rows_and_drops_with_child() -
         edit_schema(
             fixture.path(),
             SchemaEdit::CreateTable {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Children",
-                    columns: &[
+                table: table(
+                    b"Children",
+                    &[
                         ColumnSpec::new(b"Id", ColumnType::Long),
                         ColumnSpec::new(b"Parent", ColumnType::Long),
                     ],
-                    indexes: &[IndexSpec {
-                        name: b"ExistingForeign",
-                        fields: &[IndexColumnSpec::ascending(1)],
-                        kind: IndexKind::Ordinary,
-                    }],
-                },
+                    &[index(
+                        b"ExistingForeign",
+                        &[IndexColumnSpec::ascending(1)],
+                        IndexKind::Ordinary,
+                    )],
+                ),
             },
             &mut budget(),
         )?;
@@ -275,12 +276,11 @@ fn relationships_reuse_zero_logical_identity_after_index_drop() -> TestResult {
     edit_schema(
         fixture.path(),
         SchemaEdit::CreateTable {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Child",
-                columns: &[ColumnSpec::new(b"ParentId", ColumnType::Long)],
-                indexes: &[],
-            },
+            table: table(
+                b"Child",
+                &[ColumnSpec::new(b"ParentId", ColumnType::Long)],
+                &[],
+            ),
         },
         &mut budget(),
     )?;

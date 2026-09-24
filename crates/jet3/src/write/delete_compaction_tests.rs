@@ -1,7 +1,9 @@
 use super::delete_tests::*;
+use crate::testkit::create;
+use crate::testkit::table;
 use crate::{
     ByteCount, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget,
-    ResourceLimits, RowLocator, RowValue, TableSpec, WriteError, write::delete::*,
+    ResourceLimits, RowLocator, RowValue, WriteError, write::delete::*,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -58,7 +60,7 @@ fn observed(f: &Fixture) -> Result<ObservedRows, Box<dyn StdError>> {
 }
 
 #[test]
-fn first_middle_and_tail_unequal_rows_preserve_slots_and_vacated_slack() -> ResultTest {
+fn first_middle_and_tail_unequal_rows_preserve_slots_and_vacated_slack() -> TestResult {
     let f = Fixture::new(4)?;
     fs::remove_file(f.path())?;
     let columns = [
@@ -78,21 +80,12 @@ fn first_middle_and_tail_unequal_rows_preserve_slots_and_vacated_slack() -> Resu
         [RowValue::Long(4), RowValue::Text(&text)],
     ];
     let rows: Vec<_> = values.iter().map(|r| r.as_slice()).collect();
-    crate::create_database(
+    create(
         f.path(),
-        &crate::DatabaseSpec {
-            tables: &[crate::TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Rows",
-                    columns: &columns,
-                    indexes: &[],
-                },
-                rows: &rows,
-            }],
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[crate::TableRows {
+            table: table(b"Rows", &columns, &[]),
+            rows: &rows,
+        }],
     )?;
     let before = fs::read(f.path())?;
     for slot in [0, 1, 2, 3] {
@@ -119,7 +112,7 @@ fn first_middle_and_tail_unequal_rows_preserve_slots_and_vacated_slack() -> Resu
 }
 
 #[test]
-fn repeated_deletions_shift_empty_tombstones_until_one_live_row_remains() -> ResultTest {
+fn repeated_deletions_shift_empty_tombstones_until_one_live_row_remains() -> TestResult {
     let f = Fixture::new(5)?;
     let mut remaining = vec![0, 1, 2, 3, 4];
     for slot in [1, 3, 0, 4] {
@@ -177,7 +170,7 @@ fn repeated_deletions_shift_empty_tombstones_until_one_live_row_remains() -> Res
 }
 
 #[test]
-fn malformed_compaction_sources_and_nonempty_flags_preserve_original() -> ResultTest {
+fn malformed_compaction_sources_and_nonempty_flags_preserve_original() -> TestResult {
     let f = Fixture::new(4)?;
     let before = fs::read(f.path())?;
     let base = f.row.page().get() as usize * PAGE_BYTES;
@@ -211,7 +204,7 @@ fn malformed_compaction_sources_and_nonempty_flags_preserve_original() -> Result
 }
 
 #[test]
-fn compaction_budget_and_full_private_verification_preserve_original() -> ResultTest {
+fn compaction_budget_and_full_private_verification_preserve_original() -> TestResult {
     let f = Fixture::new(4)?;
     let request = RowDelete {
         row: RowLocator::new(f.row.page(), 0),

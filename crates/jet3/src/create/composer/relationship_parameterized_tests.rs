@@ -1,11 +1,12 @@
 use super::relationship::*;
+use crate::testkit::table;
 use crate::{
     ColumnRef, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec, PAGE_BYTES,
     RelationshipField, RelationshipSpec, ResourceLimits, SliceSource, TableRef,
     create::composer::*, definition::column_writer::nz,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 use crate::testkit::budget;
 
 const RENAMED_PARENT_COLUMNS: [ColumnSpec<'static>; 2] = [
@@ -40,18 +41,12 @@ fn renamed(two: bool) -> ([TableSpec<'static>; 2], RelationshipSpec<'static>) {
     ];
     (
         [
-            TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: parent_name,
-                columns: &RENAMED_PARENT_COLUMNS,
-                indexes: &indexes[..if two { 2 } else { 1 }],
-            },
-            TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: child_name,
-                columns: &RENAMED_CHILD_COLUMNS,
-                indexes: &[],
-            },
+            table(
+                parent_name,
+                &RENAMED_PARENT_COLUMNS,
+                &indexes[..if two { 2 } else { 1 }],
+            ),
+            table(child_name, &RENAMED_CHILD_COLUMNS, &[]),
         ],
         RelationshipSpec {
             unique: false,

@@ -1,7 +1,9 @@
 use super::insert_tests::*;
+use crate::testkit::create;
+use crate::testkit::table;
 use crate::{
     ByteCount, ColumnSpec, ColumnType, DatabaseReader, MapRowLocator, PAGE_BYTES, PageNumber,
-    PublishStage, ResourceBudget, ResourceLimits, RowLocator, RowValue, TableSpec, WriteError,
+    PublishStage, ResourceBudget, ResourceLimits, RowLocator, RowValue, WriteError,
     write::insert::*,
 };
 use std::error::Error as StdError;
@@ -287,32 +289,18 @@ fn later_table_ownership_and_minimum_row_availability() -> TestResult {
             },
         )
     });
-    crate::create_database(
+    create(
         f.path(),
-        &crate::DatabaseSpec {
-            tables: &[
-                crate::TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"First",
-                        columns: &first_columns,
-                        indexes: &[],
-                    },
-                    rows: &[&[RowValue::Long(42)]],
-                },
-                crate::TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Rows",
-                        columns: &columns,
-                        indexes: &[],
-                    },
-                    rows: &[],
-                },
-            ],
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[
+            crate::TableRows {
+                table: table(b"First", &first_columns, &[]),
+                rows: &[&[RowValue::Long(42)]],
+            },
+            crate::TableRows {
+                table: table(b"Rows", &columns, &[]),
+                rows: &[],
+            },
+        ],
     )?;
     let mut b = budget();
     let mut db = DatabaseReader::open(f.path(), &mut b)?;

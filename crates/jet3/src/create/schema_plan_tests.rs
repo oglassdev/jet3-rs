@@ -3,6 +3,7 @@ use super::schema_plan::*;
 use crate::ColumnSpec;
 #[cfg(test)]
 use crate::create::{IndexKind, IndexSpec};
+use crate::testkit::{index, table};
 use crate::{
     ColumnPhysicalType, ColumnRef, ColumnType, IndexColumnSpec, IndexDirection, IndexFieldSpec,
     LogicalIndexKindSpec, PageNumber, PhysicalIndexFlagsSpec, TableDefinitionWriteError,
@@ -30,12 +31,7 @@ fn spec<'a>(
     columns: &'a [ColumnSpec<'a>],
     indexes: &'a [IndexSpec<'a>],
 ) -> TableSpec<'a> {
-    TableSpec {
-        validation: crate::TableValidation::NONE,
-        name,
-        columns,
-        indexes,
-    }
+    table(name, columns, indexes)
 }
 
 /// Returns the definition error planning `spec` produced, if it produced one.
@@ -211,11 +207,8 @@ fn index_kinds_map_to_the_observed_flag_classes() {
 fn mixed_case_and_accented_index_names_are_accepted() -> PlanResult {
     let columns = [ID];
     let fields = [key(0)];
-    let indexes = [b"ById".as_slice(), b"Z", b"a", b"\xc1", b"\xe6", b"B"].map(|name| IndexSpec {
-        name,
-        fields: &fields,
-        kind: IndexKind::Ordinary,
-    });
+    let indexes = [b"ById".as_slice(), b"Z", b"a", b"\xc1", b"\xe6", b"B"]
+        .map(|name| index(name, &fields, IndexKind::Ordinary));
     plan_table_schema(
         &spec(b"T\xe2ble \xc6", &columns, &indexes),
         20,
@@ -452,14 +445,7 @@ fn an_empty_column_name_is_refused() {
 fn indexes_beyond_the_native_limit_are_refused() {
     let columns = [ID];
     let fields = [key(0)];
-    let indexes = vec![
-        IndexSpec {
-            name: b"ById",
-            fields: &fields,
-            kind: IndexKind::Ordinary
-        };
-        MAX_OBSERVED_INDEXES + 1
-    ];
+    let indexes = vec![index(b"ById", &fields, IndexKind::Ordinary); MAX_OBSERVED_INDEXES + 1];
     assert_eq!(
         plan_table_schema(&spec(b"Beta", &columns, &indexes), 20, true, &mut budget()),
         Err(TableSchemaPlanError::UnobservedIndexCount {
@@ -472,11 +458,7 @@ fn indexes_beyond_the_native_limit_are_refused() {
 #[test]
 fn an_index_naming_no_columns_is_refused() {
     let columns = [ID];
-    let indexes = [IndexSpec {
-        name: b"ById",
-        fields: &[],
-        kind: IndexKind::Ordinary,
-    }];
+    let indexes = [index(b"ById", &[], IndexKind::Ordinary)];
     assert!(matches!(
         definition_error(&spec(b"Beta", &columns, &indexes)),
         Some(TableDefinitionWriteError::EmptyPhysicalIndex { physical_index: 0 })
@@ -542,11 +524,7 @@ fn an_index_field_count_one_above_the_limit_is_refused() {
     // refused before any key is resolved or stored.
     let mut fields = (0..=KEY_SLOT_COUNT as u16).map(key).collect::<Vec<_>>();
     fields.push(IndexColumnSpec::ascending(b"Missing"));
-    let indexes = [IndexSpec {
-        name: b"Wide",
-        fields: &fields,
-        kind: IndexKind::Ordinary,
-    }];
+    let indexes = [index(b"Wide", &fields, IndexKind::Ordinary)];
     assert!(matches!(
         definition_error(&spec(b"Wide", &columns, &indexes)),
         Some(TableDefinitionWriteError::TooManyKeyFields { count, .. })

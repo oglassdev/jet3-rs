@@ -1,13 +1,11 @@
 use super::{ComposeError, compose_alpha_database, compose_empty_database};
+use crate::testkit::table;
 use crate::{
     ByteCount, CatalogObjectClass, ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader,
     JET3_PAGE_SIZE, MapRowLocator, PageKind, PageNumber, ReadLimits, ResourceBudget,
     ResourceLimitKind, ResourceLimits, SliceSource, TableDefinitionKind, TextCodePage, ValueKind,
     classify_page,
-    create::{
-        page_append_plan::EMPTY_DATABASE_PAGE_COUNT,
-        schema_plan::{TableSpec, plan_table_schema},
-    },
+    create::{page_append_plan::EMPTY_DATABASE_PAGE_COUNT, schema_plan::plan_table_schema},
     format::page_kind::page_tag,
     locate_usage_map,
 };
@@ -16,7 +14,7 @@ use crate::{
 const ALPHA_ROOT: u64 = 20;
 pub(super) const ALPHA_MAP_PAGE: u64 = 21;
 
-pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
+pub(super) use crate::testkit::TestResult;
 
 pub(super) fn compose_budget() -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::default())
@@ -586,12 +584,7 @@ fn the_planner_reproduces_the_accepted_alpha_page_assignment() -> TestResult {
     // EXP-0087 assignment has to agree with.
     let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
     let plan = plan_table_schema(
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Alpha",
-            columns: &columns,
-            indexes: &[],
-        },
+        &table(b"Alpha", &columns, &[]),
         EMPTY_DATABASE_PAGE_COUNT,
         true,
         &mut crate::ResourceBudget::new(crate::ResourceLimits::default()),

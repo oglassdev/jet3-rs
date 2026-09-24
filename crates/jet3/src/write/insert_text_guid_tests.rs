@@ -1,7 +1,9 @@
 use super::insert_indexed_tests::*;
+use crate::testkit::create;
+use crate::testkit::table;
 use crate::{
     ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec, RowDelete,
-    RowValue, TableSpec, WriteError, write::insert::*,
+    RowValue, WriteError, write::insert::*,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -31,21 +33,12 @@ fn fixture(kind: ColumnType, values: &[RowValue<'_>]) -> Result<Fixture, Box<dyn
         .map(|(id, value)| [RowValue::Long(id as i32), *value])
         .collect();
     let rows: Vec<_> = values.iter().map(|row| row.as_slice()).collect();
-    crate::create_database(
+    create(
         f.path(),
-        &crate::DatabaseSpec {
-            tables: &[crate::TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Rows",
-                    columns: &columns,
-                    indexes: &indexes,
-                },
-                rows: &rows,
-            }],
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[crate::TableRows {
+            table: table(b"Rows", &columns, &indexes),
+            rows: &rows,
+        }],
     )?;
     Ok(f)
 }

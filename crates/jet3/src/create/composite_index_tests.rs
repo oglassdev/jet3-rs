@@ -1,39 +1,28 @@
 use super::initial_index_tests::*;
 use crate::WriteError;
+use crate::testkit::create;
+use crate::testkit::table;
 use crate::{
-    ColumnSpec, ColumnType, ComposeError, DatabaseSpec, IndexDirection, IndexKind, IndexSpec,
-    PageNumber, RowValue, TableRows, TableSpec, create::api_tests::*, create_database,
-    definition::column_writer::nz,
+    ColumnSpec, ColumnType, ComposeError, IndexDirection, IndexKind, IndexSpec, PageNumber,
+    RowValue, TableRows, TableSpec, create::api_tests::*, definition::column_writer::nz,
 };
 use std::fs;
 
 #[test]
 fn descending_signed_boundaries_encode_and_sort_with_original_locators() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let indexes = [IndexSpec {
         fields: &[field(0, IndexDirection::Descending)],
         ..one_index(IndexKind::Unique)[0]
     }];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &[ID],
-        indexes: &indexes,
-    };
+    let table = table(b"Items", &[ID], &indexes);
     let rows: &[&[RowValue<'_>]] = &[
         &[RowValue::Long(i32::MIN)],
         &[RowValue::Long(-1)],
         &[RowValue::Long(0)],
         &[RowValue::Long(i32::MAX)],
     ];
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows { table, rows }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(directory.target(), &[TableRows { table, rows }])?;
     let index = tree(&directory.target())?;
     for (entry, (key, slot)) in index.entries().iter().zip([
         ([0x80, 0, 0, 0, 0], 3),
@@ -48,16 +37,12 @@ fn descending_signed_boundaries_encode_and_sort_with_original_locators() -> Test
         );
     }
     assert!(matches!(
-        create_database(
+        create(
             directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table,
-                    rows: &[rows[0], rows[0]]
-                }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget()
+            &[TableRows {
+                table,
+                rows: &[rows[0], rows[0]]
+            }]
         ),
         Err(WriteError::Compose(
             ComposeError::DuplicateInitialIndexKey { value: i32::MIN }
@@ -72,17 +57,12 @@ fn mixed_components_respect_declared_order_and_count_complete_duplicate_keys() -
         [IndexDirection::Ascending, IndexDirection::Descending],
         [IndexDirection::Descending, IndexDirection::Ascending],
     ] {
-        let directory = TestDirectory::create()?;
+        let directory = TempDir::new("create")?;
         let indexes = [IndexSpec {
             fields: &[field(1, directions[0]), field(0, directions[1])],
             ..one_index(IndexKind::Ordinary)[0]
         }];
-        let table = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &[ID, SEQUENCE],
-            indexes: &indexes,
-        };
+        let table = table(b"Items", &[ID, SEQUENCE], &indexes);
         let rows: &[&[RowValue<'_>]] = &[
             &[RowValue::Long(i32::MIN), RowValue::Long(i32::MAX)],
             &[RowValue::Long(i32::MAX), RowValue::Long(i32::MIN)],
@@ -90,14 +70,7 @@ fn mixed_components_respect_declared_order_and_count_complete_duplicate_keys() -
             &[RowValue::Long(1), RowValue::Long(-1)],
             &[RowValue::Long(0), RowValue::Long(-1)],
         ];
-        create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows { table, rows }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
-        )?;
+        create(directory.target(), &[TableRows { table, rows }])?;
         let index = tree(&directory.target())?;
         let (slots, first_key) = if directions[0] == IndexDirection::Ascending {
             ([1, 3, 2, 4, 0], [0x7f, 0, 0, 0, 0, 0x80, 0, 0, 0, 0])
@@ -125,14 +98,7 @@ fn mixed_components_respect_declared_order_and_count_complete_duplicate_keys() -
                 ..table
             };
             assert!(matches!(
-                create_database(
-                    directory.target(),
-                    &DatabaseSpec {
-                        tables: &[TableRows { table, rows }],
-                        ..DatabaseSpec::default()
-                    },
-                    &mut budget()
-                ),
+                create(directory.target(), &[TableRows { table, rows }]),
                 Err(WriteError::Compose(
                     ComposeError::DuplicateInitialCompositeIndexKey { values: [-1, 0] }
                 ))
@@ -145,7 +111,7 @@ fn mixed_components_respect_declared_order_and_count_complete_duplicate_keys() -
 
 #[test]
 fn composite_capacity_and_multiple_row_pages_preserve_locators_and_destination() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let indexes = [IndexSpec {
         fields: &[
             field(0, IndexDirection::Ascending),
@@ -174,16 +140,12 @@ fn composite_capacity_and_multiple_row_pages_preserve_locators_and_destination()
         })
         .collect::<Vec<_>>();
     let rows = values.iter().map(|row| row.as_slice()).collect::<Vec<_>>();
-    create_database(
+    create(
         directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table,
-                rows: &rows[..128],
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table,
+            rows: &rows[..128],
+        }],
     )?;
     let index = tree(&directory.target())?;
     assert_eq!(index.entries().len(), 128);
@@ -201,15 +163,8 @@ fn composite_capacity_and_multiple_row_pages_preserve_locators_and_destination()
         &original[23 * crate::PAGE_BYTES + 2..23 * crate::PAGE_BYTES + 4],
         &8_u16.to_le_bytes()
     );
-    let expanded = TestDirectory::create()?;
-    create_database(
-        expanded.target(),
-        &DatabaseSpec {
-            tables: &[TableRows { table, rows: &rows }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    let expanded = TempDir::new("create")?;
+    create(expanded.target(), &[TableRows { table, rows: &rows }])?;
     assert_eq!(tree(&expanded.target())?.nodes().len(), 3);
     assert_eq!(tree(&expanded.target())?.entries().len(), 129);
     let mut changed = original;
@@ -229,7 +184,7 @@ fn composite_capacity_and_multiple_row_pages_preserve_locators_and_destination()
 
 #[test]
 fn required_null_second_component_is_refused_without_publication() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let indexes = [IndexSpec {
         fields: &[
             field(0, IndexDirection::Ascending),
@@ -237,23 +192,14 @@ fn required_null_second_component_is_refused_without_publication() -> TestResult
         ],
         ..one_index(IndexKind::Ordinary.with_null_policy(crate::IndexNullPolicy::Required))[0]
     }];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &[ID, SEQUENCE],
-        indexes: &indexes,
-    };
+    let table = table(b"Items", &[ID, SEQUENCE], &indexes);
     assert!(matches!(
-        create_database(
+        create(
             directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table,
-                    rows: &[&[RowValue::Long(0), RowValue::Null]]
-                }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget()
+            &[TableRows {
+                table,
+                rows: &[&[RowValue::Long(0), RowValue::Null]]
+            }]
         ),
         Err(WriteError::Compose(ComposeError::NullInitialIndexKey {
             row: 0

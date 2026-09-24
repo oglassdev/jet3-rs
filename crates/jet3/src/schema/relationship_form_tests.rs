@@ -1,4 +1,6 @@
 use super::index_tests::*;
+use crate::testkit::create_spec;
+use crate::testkit::table;
 use crate::*;
 use std::fs;
 
@@ -43,12 +45,7 @@ fn create_table(fixture: &Fixture, name: &[u8], columns: &[ColumnSpec<'_>]) -> T
     edit_schema(
         fixture.path(),
         SchemaEdit::CreateTable {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name,
-                columns,
-                indexes: &indexes,
-            },
+            table: table(name, columns, &indexes),
         },
         &mut budget(),
     )?;
@@ -316,14 +313,13 @@ fn database_creation_stores_joins_and_refuses_unenforced_relationships() -> Test
         },
         rows: &[],
     }];
-    let result = create_database(
+    let result = create_spec(
         &target,
         &DatabaseSpec {
             tables: &tables,
             relationships: &[relation(b"Self", b"Items", b"Items", &fields)],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     );
     assert!(matches!(
         result,
@@ -350,7 +346,7 @@ fn database_creation_stores_joins_and_refuses_unenforced_relationships() -> Test
         },
         rows: &[],
     }];
-    create_database(
+    create_spec(
         &target,
         &DatabaseSpec {
             tables: &tables,
@@ -360,7 +356,6 @@ fn database_creation_stores_joins_and_refuses_unenforced_relationships() -> Test
             }],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
     let mut b = budget();
     let mut database = DatabaseReader::open(&target, &mut b)?;

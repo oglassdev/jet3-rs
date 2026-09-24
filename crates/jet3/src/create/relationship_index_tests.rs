@@ -1,5 +1,7 @@
 use super::api_relationship_graph_tests::*;
 use crate::WriteError;
+use crate::testkit::create_spec;
+use crate::testkit::{index, table};
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec,
     RelationshipField, RelationshipSpec, RowValue, TableSpec, TextCodePage,
@@ -18,49 +20,27 @@ fn graph_selects_later_unique_parent_and_preserves_declared_foreign_indexes() ->
     let descending = [IndexColumnSpec::descending(1)];
     for parent_kind in [IndexKind::Primary, IndexKind::Unique] {
         let parent_indexes = [
-            IndexSpec {
-                name: b"ById",
-                fields: &id_fields,
-                kind: IndexKind::Ordinary,
-            },
-            IndexSpec {
-                name: b"ParentKey",
-                fields: &key_fields,
-                kind: parent_kind,
-            },
+            index(b"ById", &id_fields, IndexKind::Ordinary),
+            index(b"ParentKey", &key_fields, parent_kind),
         ];
         for mode in 0..5 {
-            let primary = IndexSpec {
-                name: b"ById",
-                fields: &id_fields,
-                kind: IndexKind::Primary,
-            };
-            let foreign = IndexSpec {
-                name: b"ExistingForeign",
-                fields: if mode == 3 { &descending } else { &key_fields },
-                kind: match mode {
+            let primary = index(b"ById", &id_fields, IndexKind::Primary);
+            let foreign = index(
+                b"ExistingForeign",
+                if mode == 3 { &descending } else { &key_fields },
+                match mode {
                     2 => IndexKind::Unique,
                     4 => IndexKind::Ordinary.with_null_policy(crate::IndexNullPolicy::Required),
                     _ => IndexKind::Ordinary,
                 },
-            };
+            );
             let child_indexes = if mode == 0 {
                 [foreign, primary]
             } else {
                 [primary, foreign]
             };
-            let parent = TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Parent",
-                columns: &columns,
-                indexes: &parent_indexes,
-            };
-            let child = TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Child",
-                columns: &columns,
-                indexes: &child_indexes,
-            };
+            let parent = table(b"Parent", &columns, &parent_indexes);
+            let child = table(b"Child", &columns, &child_indexes);
             let parent_rows: &[&[RowValue<'_>]] = &[
                 &[RowValue::Long(100), RowValue::Long(1)],
                 &[RowValue::Long(200), RowValue::Long(2)],
@@ -81,15 +61,14 @@ fn graph_selects_later_unique_parent_and_preserves_declared_foreign_indexes() ->
                 parent: ColumnRef::Ordinal(1),
                 child: ColumnRef::Ordinal(1),
             }];
-            let directory = Directory::new()?;
-            create_database(
+            let directory = TempDir::new("create")?;
+            create_spec(
                 directory.target(),
                 &DatabaseSpec {
                     tables: &requests,
                     relationships: &[edge],
                     ..DatabaseSpec::default()
                 },
-                &mut budget(),
             )?;
             let parent_locator = {
                 let mut work = budget();
@@ -162,26 +141,27 @@ fn relationship_alias_consumes_a_logical_index_slot_when_reusing_a_tree() -> Tes
         let indexes = names
             .iter()
             .enumerate()
-            .map(|(n, name)| IndexSpec {
-                name,
-                fields: if reuse && n == 1 { &fk } else { &id },
-                kind: IndexKind::Ordinary,
+            .map(|(n, name)| {
+                index(
+                    name,
+                    if reuse && n == 1 { &fk } else { &id },
+                    IndexKind::Ordinary,
+                )
             })
             .collect::<Vec<_>>();
         for count in [31, 32] {
-            let directory = Directory::new()?;
+            let directory = TempDir::new("create")?;
             let child = TableSpec {
                 indexes: &indexes[..count],
                 ..TABLES[1]
             };
-            let result = create_database(
+            let result = create_spec(
                 directory.target(),
                 &DatabaseSpec {
                     tables: &[TableRows::empty(TABLES[0]), TableRows::empty(child)],
                     relationships: &[relation(b"Relation", 0, 1, 1)],
                     ..DatabaseSpec::default()
                 },
-                &mut budget(),
             );
             if count == 32 {
                 assert!(matches!(
@@ -232,15 +212,14 @@ fn graph_parent_selection_follows_logical_name_order_before_primary_status() -> 
             indexes: &indexes,
             ..TABLES[0]
         };
-        let directory = Directory::new()?;
-        create_database(
+        let directory = TempDir::new("create")?;
+        create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &[TableRows::empty(parent), TableRows::empty(TABLES[1])],
                 relationships: &[relation(b"Relation", 0, 1, 1)],
                 ..DatabaseSpec::default()
             },
-            &mut budget(),
         )?;
         let mut work = budget();
         let mut db = DatabaseReader::open(directory.target(), &mut work)?;
@@ -280,8 +259,8 @@ fn graph_nullable_unique_parent_allows_duplicate_nulls_and_null_foreign_keys() -
         RowValue::Null,
         RowValue::Null,
     ];
-    let directory = Directory::new()?;
-    create_database(
+    let directory = TempDir::new("create")?;
+    create_spec(
         directory.target(),
         &DatabaseSpec {
             tables: &[
@@ -297,7 +276,6 @@ fn graph_nullable_unique_parent_allows_duplicate_nulls_and_null_foreign_keys() -
             relationships: &[relation(b"Relation", 0, 1, 1)],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
     crate::insert_row(
         directory.target(),
@@ -343,11 +321,7 @@ fn graph_parent_hidden_names_cross_the_native_nibble_boundary() -> TestResult {
     let fields = [IndexColumnSpec::ascending(0)];
     let indexes = names
         .iter()
-        .map(|name| IndexSpec {
-            name,
-            fields: &fields,
-            kind: IndexKind::Unique,
-        })
+        .map(|name| index(name, &fields, IndexKind::Unique))
         .collect::<Vec<_>>();
     for (count, hidden) in [
         (15, ".rP"),
@@ -358,19 +332,18 @@ fn graph_parent_hidden_names_cross_the_native_nibble_boundary() -> TestResult {
         (31, ".rPB"),
         (32, ""),
     ] {
-        let directory = Directory::new()?;
+        let directory = TempDir::new("create")?;
         let parent = TableSpec {
             indexes: &indexes[..count],
             ..TABLES[0]
         };
-        let result = create_database(
+        let result = create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &[TableRows::empty(parent), TableRows::empty(TABLES[1])],
                 relationships: &[relation(b"Relation", 0, 1, 1)],
                 ..DatabaseSpec::default()
             },
-            &mut budget(),
         );
         if count == 32 {
             assert!(matches!(
@@ -419,17 +392,13 @@ fn one_to_one_graph_selects_only_unique_include_null_child_indexes() -> TestResu
             false,
         ),
     ] {
-        let directory = Directory::new()?;
+        let directory = TempDir::new("create")?;
         let fields = [if descending {
             IndexColumnSpec::descending(1)
         } else {
             IndexColumnSpec::ascending(1)
         }];
-        let indexes = [IndexSpec {
-            name: b"Existing",
-            fields: &fields,
-            kind,
-        }];
+        let indexes = [index(b"Existing", &fields, kind)];
         let child = TableSpec {
             indexes: &indexes,
             ..TABLES[1]
@@ -438,14 +407,13 @@ fn one_to_one_graph_selects_only_unique_include_null_child_indexes() -> TestResu
             unique: true,
             ..relation(b"One", 0, 1, 1)
         };
-        create_database(
+        create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &[TableRows::empty(TABLES[0]), TableRows::empty(child)],
                 relationships: &[edge],
                 ..DatabaseSpec::default()
             },
-            &mut budget(),
         )?;
         let mut b = budget();
         let mut db = DatabaseReader::open(directory.target(), &mut b)?;
@@ -469,7 +437,7 @@ fn one_to_one_graph_selects_only_unique_include_null_child_indexes() -> TestResu
 
 #[test]
 fn one_to_one_and_ordinary_graph_edges_keep_distinct_child_trees() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let edges = [
         relation(b"Many", 0, 2, 1),
         RelationshipSpec {
@@ -477,14 +445,13 @@ fn one_to_one_and_ordinary_graph_edges_keep_distinct_child_trees() -> TestResult
             ..relation(b"One", 1, 2, 1)
         },
     ];
-    create_database(
+    create_spec(
         directory.target(),
         &DatabaseSpec {
             tables: &TABLES.map(TableRows::empty),
             relationships: &edges,
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
     let mut b = budget();
     let mut db = DatabaseReader::open(directory.target(), &mut b)?;
@@ -507,7 +474,7 @@ fn one_to_one_and_ordinary_graph_edges_keep_distinct_child_trees() -> TestResult
 
 #[test]
 fn one_to_one_creation_refuses_duplicate_children_before_publication() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let requests = [
         TableRows {
             table: TABLES[0],
@@ -541,14 +508,13 @@ fn one_to_one_creation_refuses_duplicate_children_before_publication() -> TestRe
         ..relation(b"One", 0, 1, 1)
     };
     assert!(
-        create_database(
+        create_spec(
             directory.target(),
             &DatabaseSpec {
                 tables: &requests,
                 relationships: &[edge],
                 ..DatabaseSpec::default()
-            },
-            &mut budget()
+            }
         )
         .is_err()
     );
@@ -558,7 +524,7 @@ fn one_to_one_creation_refuses_duplicate_children_before_publication() -> TestRe
 
 #[test]
 fn generated_one_to_one_index_records_initial_child_row_count() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let parent_rows: &[&[RowValue<'_>]] = &[
         &[
             RowValue::Long(1),
@@ -597,7 +563,7 @@ fn generated_one_to_one_index_records_initial_child_row_count() -> TestResult {
         unique: true,
         ..relation(b"One", 0, 1, 1)
     };
-    create_database(
+    create_spec(
         directory.target(),
         &DatabaseSpec {
             tables: &[
@@ -613,7 +579,6 @@ fn generated_one_to_one_index_records_initial_child_row_count() -> TestResult {
             relationships: &[edge],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
     let mut work = budget();
     let mut db = DatabaseReader::open(directory.target(), &mut work)?;

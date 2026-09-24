@@ -1,13 +1,16 @@
 use super::row_update::*;
+use crate::testkit::create;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
     ByteCount, ColumnOrdinal, ColumnSpec, ColumnStorageClass, ColumnType, DatabaseReader,
     PAGE_BYTES, PublishStage, ResourceBudget, ResourceLimits, RowColumnLayout, RowLocator,
-    RowValue, TableSpec, WriteError, row::data_page::DataPageEditor,
+    RowValue, WriteError, row::data_page::DataPageEditor,
 };
 use std::error::Error as StdError;
 use std::{fs, num::NonZeroU8, path::PathBuf};
 type SnapshotRow = (RowLocator, Vec<Option<Vec<u8>>>);
-pub(super) type TestResult = Result<(), Box<dyn StdError>>;
+pub(super) use crate::testkit::TestResult;
 pub(super) use crate::testkit::budget;
 pub(super) struct Fixture {
     pub(super) dir: crate::testkit::TempDir,
@@ -52,26 +55,13 @@ impl Fixture {
         let rows: Vec<_> = values.iter().map(|r| r.as_slice()).collect();
         let path = dir.join("rows.mdb");
         let keys = [crate::IndexColumnSpec::descending(0)];
-        let indexes = [crate::IndexSpec {
-            name: b"ById",
-            kind: crate::IndexKind::Unique,
-            fields: &keys,
-        }];
-        crate::create_database(
+        let indexes = [index(b"ById", &keys, crate::IndexKind::Unique)];
+        create(
             &path,
-            &crate::DatabaseSpec {
-                tables: &[crate::TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Rows",
-                        columns: &columns,
-                        indexes: if indexed { &indexes } else { &[] },
-                    },
-                    rows: &rows,
-                }],
-                ..crate::DatabaseSpec::default()
-            },
-            &mut budget(),
+            &[crate::TableRows {
+                table: table(b"Rows", &columns, if indexed { &indexes } else { &[] }),
+                rows: &rows,
+            }],
         )?;
         let mut b = budget();
         let mut db = DatabaseReader::open(&path, &mut b)?;
@@ -498,21 +488,12 @@ fn boolean_zero_and_legacy_offsets_reach_public_row_replacement() -> TestResult 
         RowValue::Binary(&[0, 17]),
         RowValue::Boolean(true),
     ];
-    crate::create_database(
+    create(
         f.path(),
-        &crate::DatabaseSpec {
-            tables: &[crate::TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Rows",
-                    columns: &columns,
-                    indexes: &[],
-                },
-                rows: &[&original_values, &original_values],
-            }],
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[crate::TableRows {
+            table: table(b"Rows", &columns, &[]),
+            rows: &[&original_values, &original_values],
+        }],
     )?;
     let mut b = budget();
     let mut db = DatabaseReader::open(f.path(), &mut b)?;

@@ -1,9 +1,10 @@
 use super::api_tests::*;
+use crate::testkit::create;
+use crate::testkit::table;
 use crate::{
     ColumnOrdinal, ColumnPropertyError, ColumnSpec, ColumnType, ComposeError, DatabaseReader,
-    DatabaseSpec, RowUpdate, RowValue, RowWriteError, TableRows, TableSpec, TableValidationError,
-    TextCodePage, ValidationError, ValueKind, WriteError, create::api::create_database,
-    definition::column_writer::nz, insert_row, update_row,
+    RowUpdate, RowValue, RowWriteError, TableRows, TableValidationError, TextCodePage,
+    ValidationError, ValueKind, WriteError, definition::column_writer::nz, insert_row, update_row,
 };
 use std::fs;
 
@@ -17,7 +18,7 @@ fn first_row(path: &std::path::Path) -> Result<crate::RowLocator, Box<dyn std::e
 
 #[test]
 fn required_columns_enforce_nulls_without_indexes_and_keep_scalar_exceptions() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
     let columns = [
         ColumnSpec::new(b"Key", ColumnType::Long).with_required(),
@@ -26,28 +27,19 @@ fn required_columns_enforce_nulls_without_indexes_and_keep_scalar_exceptions() -
         ColumnSpec::new(b"Sequence", ColumnType::AutoIncrement).with_required(),
     ];
     assert!(!columns[3].required());
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Rows",
-        columns: &columns,
-        indexes: &[],
-    };
+    let table = table(b"Rows", &columns, &[]);
     let invalid = [
         RowValue::Null,
         RowValue::Null,
         RowValue::Null,
         RowValue::AutoIncrement,
     ];
-    let error = create_database(
+    let error = create(
         &path,
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table,
-                rows: &[&invalid],
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table,
+            rows: &[&invalid],
+        }],
     )
     .err()
     .ok_or("null creation accepted")?;
@@ -68,16 +60,12 @@ fn required_columns_enforce_nulls_without_indexes_and_keep_scalar_exceptions() -
         RowValue::Null,
         RowValue::AutoIncrement,
     ];
-    create_database(
+    create(
         &path,
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table,
-                rows: &[&values],
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table,
+            rows: &[&values],
+        }],
     )?;
     let original = fs::read(&path)?;
     let row = first_row(&path)?;
@@ -148,7 +136,7 @@ fn required_columns_enforce_nulls_without_indexes_and_keep_scalar_exceptions() -
 
 #[test]
 fn required_payloads_distinguish_empty_strings_from_storage_nulls() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
     let columns = [
         ColumnSpec::new(b"Text", ColumnType::Text { max_len: nz(8) })
@@ -166,21 +154,12 @@ fn required_payloads_distinguish_empty_strings_from_storage_nulls() -> TestResul
         RowValue::LongBinary(b"x"),
         RowValue::Text(b"    "),
     ];
-    create_database(
+    create(
         &path,
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Rows",
-                    columns: &columns,
-                    indexes: &[],
-                },
-                rows: &[&values],
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table: table(b"Rows", &columns, &[]),
+            rows: &[&values],
+        }],
     )?;
     let original = fs::read(&path)?;
     for (column, value, zero_length) in [
@@ -218,25 +197,16 @@ fn required_payloads_distinguish_empty_strings_from_storage_nulls() -> TestResul
 
 #[test]
 fn required_property_corruption_and_stored_nulls_are_reported() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
     let columns = [ColumnSpec::new(b"Key", ColumnType::Long).with_required()];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Rows",
-        columns: &columns,
-        indexes: &[],
-    };
-    create_database(
+    let table = table(b"Rows", &columns, &[]);
+    create(
         &path,
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table,
-                rows: &[&[RowValue::Long(1)]],
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table,
+            rows: &[&[RowValue::Long(1)]],
+        }],
     )?;
     let property = crate::properties::column::CreationProperties::new(
         &columns,
@@ -307,22 +277,10 @@ fn missing_zero_length_properties_do_not_disable_empty_strings() -> TestResult {
         ColumnType::FixedText { len: nz(4) },
         ColumnType::Memo,
     ] {
-        let directory = TestDirectory::create()?;
+        let directory = TempDir::new("create")?;
         let path = directory.target();
         let columns = [ID, ColumnSpec::new(b"Payload", kind)];
-        create_database(
-            &path,
-            &DatabaseSpec {
-                tables: &[TableRows::empty(TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Rows",
-                    columns: &columns,
-                    indexes: &[],
-                })],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
-        )?;
+        create(&path, &[TableRows::empty(table(b"Rows", &columns, &[]))])?;
         let mut db = DatabaseReader::open(&path, &mut budget())?;
         let definition =
             crate::write::update::indexed_writable_table(&mut db, b"Rows", &mut budget())?;

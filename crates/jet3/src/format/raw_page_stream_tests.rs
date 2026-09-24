@@ -6,7 +6,7 @@ use crate::{
 
 const SIGNATURE_BYTES: u64 = 15;
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 fn page_bytes(page_count: usize) -> Vec<u8> {
     let mut bytes = vec![0_u8; page_count * PAGE_BYTES];

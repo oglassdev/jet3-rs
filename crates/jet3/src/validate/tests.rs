@@ -5,7 +5,7 @@ use crate::{
     create::composer::compose_database_with_table_rows,
 };
 
-pub(super) type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
+pub(super) use crate::testkit::TestResult;
 
 pub(super) use crate::testkit::budget;
 

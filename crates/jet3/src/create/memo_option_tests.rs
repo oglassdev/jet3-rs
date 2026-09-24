@@ -1,8 +1,10 @@
-use super::{api::*, api_tests::TestDirectory, check::*};
+use super::{api::*, api_tests::TempDir, check::*};
 use crate::WriteError;
+use crate::testkit::create;
+use crate::testkit::table;
 use crate::{
     ByteCount, ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, PageNumber, ResourceBudget,
-    ResourceLimits, RowValue, TableSpec,
+    ResourceLimits, RowValue,
     create::composer::{ComposeError, compose_database_with_table_rows},
 };
 use std::error::Error as StdError;
@@ -63,29 +65,17 @@ fn memo_property_encoder_matches_observed_named_block() -> Result<(), Box<dyn St
 
 #[test]
 fn memo_option_publishes_distinct_empty_null_and_nonempty() -> Result<(), Box<dyn StdError>> {
-    let dir = TestDirectory::create()?;
+    let dir = TempDir::new("create")?;
     for name in [b"M".as_slice(), b"Memo42Long"] {
-        let path = dir.path.join(std::str::from_utf8(name)?);
+        let path = dir.join(std::str::from_utf8(name)?);
         let columns = columns(name);
-        let table = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Rows",
-            columns: &columns,
-            indexes: &[],
-        };
+        let table = table(b"Rows", &columns, &[]);
         let rows: [&[RowValue<'_>]; 3] = [
             &[RowValue::Long(1), RowValue::Null],
             &[RowValue::Long(2), RowValue::Memo(b"")],
             &[RowValue::Long(3), RowValue::Memo(b"A")],
         ];
-        create_database(
-            &path,
-            &DatabaseSpec {
-                tables: &[TableRows { table, rows: &rows }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
-        )?;
+        create(&path, &[TableRows { table, rows: &rows }])?;
         let mut b = budget();
         let mut db = DatabaseReader::open(&path, &mut b)?;
         {
@@ -139,17 +129,7 @@ fn memo_option_publishes_distinct_empty_null_and_nonempty() -> Result<(), Box<dy
         drop(cursor);
         drop(db);
         let original = fs::read(&path)?;
-        assert!(
-            create_database(
-                &path,
-                &DatabaseSpec {
-                    tables: &[TableRows { table, rows: &rows }],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget()
-            )
-            .is_err()
-        );
+        assert!(create(&path, &[TableRows { table, rows: &rows }]).is_err());
         assert_eq!(fs::read(&path)?, original);
         let pages =
             compose_database_with_table_rows(&[TableRows { table, rows: &rows }], &mut budget())?
@@ -167,7 +147,7 @@ fn memo_option_publishes_distinct_empty_null_and_nonempty() -> Result<(), Box<dy
 
 #[test]
 fn memo_option_refuses_nontext_types_and_default_empty() -> Result<(), Box<dyn StdError>> {
-    let dir = TestDirectory::create()?;
+    let dir = TempDir::new("create")?;
     let invalids = [
         [
             ColumnSpec::new(b"Id", ColumnType::Long).with_allow_zero_length(),
@@ -179,22 +159,10 @@ fn memo_option_refuses_nontext_types_and_default_empty() -> Result<(), Box<dyn S
         ],
     ];
     for (n, columns) in invalids.iter().enumerate() {
-        let path = dir.path.join(n.to_string());
-        let table = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Rows",
-            columns,
-            indexes: &[],
-        };
+        let path = dir.join(n.to_string());
+        let table = table(b"Rows", columns, &[]);
         assert!(matches!(
-            create_database(
-                &path,
-                &DatabaseSpec {
-                    tables: &[TableRows::empty(table)],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget()
-            ),
+            create(&path, &[TableRows::empty(table)]),
             Err(WriteError::Compose(ComposeError::UnsupportedMemoOption))
         ));
         assert!(!path.exists());
@@ -203,40 +171,22 @@ fn memo_option_refuses_nontext_types_and_default_empty() -> Result<(), Box<dyn S
         ColumnSpec::new(b"Id", ColumnType::Long),
         ColumnSpec::new(b"M", ColumnType::Memo),
     ];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Rows",
-        columns: &ordinary,
-        indexes: &[],
-    };
+    let table = table(b"Rows", &ordinary, &[]);
     assert!(
-        create_database(
-            dir.path.join("default"),
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table,
-                    rows: &[&[RowValue::Long(1), RowValue::Memo(b"")]]
-                }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget()
+        create(
+            dir.join("default"),
+            &[TableRows {
+                table,
+                rows: &[&[RowValue::Long(1), RowValue::Memo(b"")]]
+            }]
         )
         .is_err()
     );
     let opted = columns(b"M");
-    let later = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Later",
-        columns: &opted,
-        indexes: &[],
-    };
-    create_database(
-        dir.path.join("later"),
-        &DatabaseSpec {
-            tables: &[TableRows::empty(table), TableRows::empty(later)],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+    let later = crate::testkit::table(b"Later", &opted, &[]);
+    create(
+        dir.join("later"),
+        &[TableRows::empty(table), TableRows::empty(later)],
     )?;
     Ok(())
 }

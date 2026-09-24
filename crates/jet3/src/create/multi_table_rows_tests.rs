@@ -1,5 +1,7 @@
 use super::initial_rows_tests::*;
 use crate::WriteError;
+use crate::testkit::create;
+use crate::testkit::table;
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexDirection, IndexKind,
     IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue, RowWriteError, TableRows,
@@ -9,7 +11,7 @@ use std::fs;
 
 #[test]
 fn mixed_tables_assign_later_roots_maps_indexes_and_payloads() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let numbers = (-254..=254)
         .map(|id| [RowValue::Long(id)])
         .collect::<Vec<_>>();
@@ -22,21 +24,11 @@ fn mixed_tables_assign_later_roots_maps_indexes_and_payloads() -> TestResult {
     let payload = [b'M'; 512];
     let requests = [
         TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Numbers",
-                columns: &[ID],
-                indexes: &[],
-            },
+            table: table(b"Numbers", &[ID], &[]),
             rows: &first_rows,
         },
         TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Keys",
-                columns: &[ID],
-                indexes: &indexes,
-            },
+            table: table(b"Keys", &[ID], &indexes),
             rows: &[
                 &[RowValue::Long(3)],
                 &[RowValue::Long(-1)],
@@ -44,32 +36,15 @@ fn mixed_tables_assign_later_roots_maps_indexes_and_payloads() -> TestResult {
             ],
         },
         TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Notes",
-                columns: &[NOTE],
-                indexes: &[],
-            },
+            table: table(b"Notes", &[NOTE], &[]),
             rows: &[&[RowValue::Memo(&payload)], &[RowValue::Null]],
         },
         TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Empty",
-                columns: &[ID],
-                indexes: &[],
-            },
+            table: table(b"Empty", &[ID], &[]),
             rows: &[],
         },
     ];
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &requests,
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(directory.target(), &requests)?;
     let bytes = fs::read(directory.target())?;
     assert_eq!(bytes.len(), 37 * crate::PAGE_BYTES);
     for page in 23..26 {
@@ -122,29 +97,17 @@ fn mixed_tables_assign_later_roots_maps_indexes_and_payloads() -> TestResult {
 
 #[test]
 fn empty_requests_and_empty_first_table_keep_first_create_placement() -> TestResult {
-    let empty = TestDirectory::create()?;
-    create_database(
-        empty.target(),
-        &DatabaseSpec {
-            tables: &[],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    let empty = TempDir::new("create")?;
+    create(empty.target(), &[])?;
     assert_eq!(
         fs::metadata(empty.target())?.len(),
         20 * crate::PAGE_BYTES as u64
     );
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let payload = [7; 2048];
     let requests = [
         TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Empty",
-                columns: &[ID],
-                indexes: &[],
-            },
+            table: table(b"Empty", &[ID], &[]),
             rows: &[],
         },
         TableRows {
@@ -157,14 +120,7 @@ fn empty_requests_and_empty_first_table_keep_first_create_placement() -> TestRes
             rows: &[&[RowValue::LongBinary(&payload)]],
         },
     ];
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &requests,
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(directory.target(), &requests)?;
     let bytes = fs::read(directory.target())?;
     assert_eq!(bytes.len(), 28 * crate::PAGE_BYTES);
     assert!(map_bit(&bytes, 24, 2, 25)?);
@@ -175,14 +131,9 @@ fn empty_requests_and_empty_first_table_keep_first_create_placement() -> TestRes
 
 #[test]
 fn table_limit_duplicate_names_and_later_failure_preserve_destination() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let first = TableRows {
-        table: TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"First",
-            columns: &[ID],
-            indexes: &[],
-        },
+        table: table(b"First", &[ID], &[]),
         rows: &[&[RowValue::Long(1)]],
     };
     let second = TableRows {
@@ -192,24 +143,10 @@ fn table_limit_duplicate_names_and_later_failure_preserve_destination() -> TestR
         },
         ..first
     };
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[first, second],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(directory.target(), &[first, second])?;
     let original = fs::read(directory.target())?;
     assert!(matches!(
-        create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &vec![first; 32640],
-                ..DatabaseSpec::default()
-            },
-            &mut budget()
-        ),
+        create(directory.target(), &vec![first; 32640]),
         Err(WriteError::Compose(ComposeError::TableCountOverflow {
             count: 32640,
             ..
@@ -223,14 +160,7 @@ fn table_limit_duplicate_names_and_later_failure_preserve_destination() -> TestR
         ..first
     };
     assert!(matches!(
-        create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &[first, duplicate],
-                ..DatabaseSpec::default()
-            },
-            &mut budget()
-        ),
+        create(directory.target(), &[first, duplicate]),
         Err(WriteError::Compose(ComposeError::DuplicateTableName {
             first: 0,
             second: 1
@@ -241,14 +171,7 @@ fn table_limit_duplicate_names_and_later_failure_preserve_destination() -> TestR
         ..second
     };
     assert!(matches!(
-        create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &[first, wrong],
-                ..DatabaseSpec::default()
-            },
-            &mut budget()
-        ),
+        create(directory.target(), &[first, wrong]),
         Err(WriteError::Compose(ComposeError::Row(
             RowWriteError::TypeMismatch { .. }
         )))
@@ -274,7 +197,7 @@ fn table_limit_duplicate_names_and_later_failure_preserve_destination() -> TestR
 
 #[test]
 fn later_table_pages_share_the_same_inline_allocation_limit() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let names = (0..70)
         .map(|number| format!("F{number}"))
         .collect::<Vec<_>>();
@@ -285,48 +208,21 @@ fn later_table_pages_share_the_same_inline_allocation_limit() -> TestResult {
     let row = [RowValue::Double(1.0); 70];
     let rows = vec![row.as_slice(); 3000];
     let first = TableRows {
-        table: TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"WideRows",
-            columns: &columns,
-            indexes: &[],
-        },
+        table: table(b"WideRows", &columns, &[]),
         rows: &rows[..2997],
     };
     let later = TableRows {
-        table: TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Later",
-            columns: &[ID],
-            indexes: &[],
-        },
+        table: table(b"Later", &[ID], &[]),
         rows: &[],
     };
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[first, later],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(directory.target(), &[first, later])?;
     let original = fs::read(directory.target())?;
     assert_eq!(original.len(), 1024 * crate::PAGE_BYTES);
     let larger = TableRows {
         rows: &rows,
         ..first
     };
-    assert!(
-        create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &[larger, later],
-                ..DatabaseSpec::default()
-            },
-            &mut budget()
-        )
-        .is_err()
-    );
+    assert!(create(directory.target(), &[larger, later]).is_err());
     assert_eq!(fs::read(directory.target())?, original);
     Ok(())
 }

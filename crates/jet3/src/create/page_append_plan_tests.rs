@@ -5,7 +5,7 @@ use crate::{
     ByteCount, InlineUsageMapEncoder, PageImage, PageKind, PageNumber, UsageMapWriteError,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 use crate::testkit::budget;
 

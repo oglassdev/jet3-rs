@@ -1,6 +1,9 @@
 //! Internal graph fixtures composed from EXP-0059/0073/0268 primitives.
 //! These isolate constraint checks; they do not establish DAO compatibility.
 use super::*;
+use crate::testkit::create;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
     ColumnOrdinal, DatabaseReader, FieldUpdate, FileSource, IndexColumnSpec, IndexFieldSpec,
     IndexKind, IndexSpec, PAGE_BYTES, RowDelete, RowLocator, TableDefinition, TableRows,
@@ -15,30 +18,30 @@ const COLUMNS: [ColumnSpec<'static>; 3] = [
     ColumnSpec::new(b"Two", ColumnType::Long),
 ];
 const INDEXES: [IndexSpec<'static>; 3] = [
-    IndexSpec {
-        name: b"ById",
-        fields: &[IndexColumnSpec {
+    index(
+        b"ById",
+        &[IndexColumnSpec {
             column: crate::ColumnRef::Ordinal(0),
             direction: IndexDirection::Ascending,
         }],
-        kind: IndexKind::Primary,
-    },
-    IndexSpec {
-        name: b"ByOne",
-        fields: &[IndexColumnSpec {
+        IndexKind::Primary,
+    ),
+    index(
+        b"ByOne",
+        &[IndexColumnSpec {
             column: crate::ColumnRef::Ordinal(1),
             direction: IndexDirection::Ascending,
         }],
-        kind: IndexKind::Ordinary,
-    },
-    IndexSpec {
-        name: b"ByTwo",
-        fields: &[IndexColumnSpec {
+        IndexKind::Ordinary,
+    ),
+    index(
+        b"ByTwo",
+        &[IndexColumnSpec {
             column: crate::ColumnRef::Ordinal(2),
             direction: IndexDirection::Ascending,
         }],
-        kind: IndexKind::Ordinary,
-    },
+        IndexKind::Ordinary,
+    ),
 ];
 #[derive(Clone, Copy)]
 pub(super) struct Edge {
@@ -73,26 +76,14 @@ pub(super) fn fixture(edges: &[Edge]) -> Result<Fixture> {
     let directory = crate::testkit::TempDir::new("relationship-graph")?;
     let fixture = Fixture(directory);
     let requests = NAMES.map(|name| TableRows {
-        table: TableSpec {
-            validation: crate::TableValidation::NONE,
-            name,
-            columns: &COLUMNS,
-            indexes: &INDEXES,
-        },
+        table: table(name, &COLUMNS, &INDEXES),
         rows: &[
             &[RowValue::Long(1), RowValue::Null, RowValue::Null],
             &[RowValue::Long(2), RowValue::Long(1), RowValue::Long(1)],
             &[RowValue::Long(3), RowValue::Long(2), RowValue::Long(2)],
         ],
     });
-    crate::create_database(
-        fixture.path(),
-        &crate::DatabaseSpec {
-            tables: &requests,
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(fixture.path(), &requests)?;
     let mut work = budget();
     let mut db = DatabaseReader::open(fixture.path(), &mut work)?;
     let tables = NAMES

@@ -49,7 +49,7 @@ fn field<'a>(column: &'a [u8], text: [PropertyChange<'a>; 4]) -> PropertyEdit<'a
     }
 }
 
-fn table<'a>(rule: PropertyChange<'a>, text: PropertyChange<'a>) -> PropertyEdit<'a> {
+fn table_edit<'a>(rule: PropertyChange<'a>, text: PropertyChange<'a>) -> PropertyEdit<'a> {
     PropertyEdit {
         column: None,
         required: None,
@@ -167,7 +167,7 @@ fn existing_field_and_table_edits_reproduce_native_payloads() -> TestResult {
                 b"X",
                 [set(b"Is Not Null"), KEEP, set(b"\"longer default\""), KEEP],
             ),
-            table(set(b"[Y]<100"), KEEP),
+            table_edit(set(b"[Y]<100"), KEEP),
         ],
     )?;
     assert_eq!(
@@ -196,11 +196,14 @@ fn edits_after_a_table_block_reproduce_native_placement() -> TestResult {
     let seed = created(&seed_columns(), SEED_RULE)?;
     let cases: [(&[PropertyEdit<'_>], &str); 4] = [
         (
-            &[table(clear, KEEP)],
+            &[table_edit(clear, KEEP)],
             "4b4b4400410000008000080052657175697265640f00416c6c6f775a65726f4c656e6774680e0056616c69646174696f6e52756c650e0056616c69646174696f6e54657874160000000100070000000100410900010100000100001f0000000100070000000100420900010101000100000900010100000100001c00000000000600000000001000010a03000800706f736974697665",
         ),
         (
-            &[table(clear, KEEP), table(set(b"[A]>1"), set(b"bigger"))],
+            &[
+                table_edit(clear, KEEP),
+                table_edit(set(b"[A]>1"), set(b"bigger")),
+            ],
             "4b4b4400410000008000080052657175697265640f00416c6c6f775a65726f4c656e6774680e0056616c69646174696f6e52756c650e0056616c69646174696f6e54657874160000000100070000000100410900010100000100001f0000000100070000000100420900010101000100000900010100000100002700000000000600000000000e00010a030006006269676765720d00010c020005005b415d3e31",
         ),
         (

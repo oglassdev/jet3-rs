@@ -8,7 +8,7 @@ use crate::{
     },
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 use crate::testkit::budget;
 

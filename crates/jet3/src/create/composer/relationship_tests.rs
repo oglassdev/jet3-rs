@@ -3,7 +3,7 @@ use crate::{
     ColumnOrdinal, DatabaseReader, PAGE_BYTES, ResourceLimits, SliceSource, create::composer::*,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 use crate::testkit::budget;
 fn bytes() -> Result<Vec<u8>, ComposeError> {
     Ok(compose_parent_child(&mut budget())?

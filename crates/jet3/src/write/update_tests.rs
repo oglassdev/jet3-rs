@@ -1,14 +1,16 @@
 use super::{error::WriteError, update::*};
+use crate::testkit::create;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
-    ByteCount, ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, PAGE_BYTES,
-    PublishStage, ResourceBudget, ResourceLimits, RowLocator, RowValue, TableRows, TableSpec,
-    create_database, row::directory::RowDirectory,
+    ByteCount, ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PublishStage,
+    ResourceBudget, ResourceLimits, RowLocator, RowValue, TableRows, row::directory::RowDirectory,
 };
 use std::error::Error as StdError;
 use std::fs;
 use std::path::PathBuf;
 
-pub(super) type TestResult = Result<(), Box<dyn StdError>>;
+pub(super) use crate::testkit::TestResult;
 pub(super) struct Fixture(crate::testkit::TempDir);
 impl Fixture {
     pub(super) fn new(
@@ -17,21 +19,12 @@ impl Fixture {
     ) -> Result<Self, Box<dyn StdError>> {
         let directory = crate::testkit::TempDir::new("field-update")?;
         let fixture = Self(directory);
-        create_database(
+        create(
             fixture.path(),
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Items",
-                        columns,
-                        indexes: &[],
-                    },
-                    rows: values,
-                }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
+            &[TableRows {
+                table: table(b"Items", columns, &[]),
+                rows: values,
+            }],
         )?;
         Ok(fixture)
     }
@@ -273,26 +266,13 @@ fn nonunique_index_keys_are_updated() -> TestResult {
     fs::remove_file(fixture.path())?;
     let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
     let keys = [crate::IndexColumnSpec::ascending(0)];
-    let indexes = [crate::IndexSpec {
-        name: b"Pk",
-        kind: crate::IndexKind::Ordinary,
-        fields: &keys,
-    }];
-    create_database(
+    let indexes = [index(b"Pk", &keys, crate::IndexKind::Ordinary)];
+    create(
         fixture.path(),
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Items",
-                    columns: &columns,
-                    indexes: &indexes,
-                },
-                rows: &[&[RowValue::Long(1)]],
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table: table(b"Items", &columns, &indexes),
+            rows: &[&[RowValue::Long(1)]],
+        }],
     )?;
     update_field(
         fixture.path(),
@@ -385,32 +365,15 @@ fn a_valid_locator_from_another_table_is_rejected() -> TestResult {
     let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
     let tables = [
         crate::TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Items",
-                columns: &columns,
-                indexes: &[],
-            },
+            table: table(b"Items", &columns, &[]),
             rows: &[&[RowValue::Long(1)]],
         },
         crate::TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Other",
-                columns: &columns,
-                indexes: &[],
-            },
+            table: table(b"Other", &columns, &[]),
             rows: &[&[RowValue::Long(2)]],
         },
     ];
-    crate::create_database(
-        fixture.path(),
-        &crate::DatabaseSpec {
-            tables: &tables,
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(fixture.path(), &tables)?;
     let original = fs::read(fixture.path())?;
     let wrong = FieldUpdate {
         table: b"Other",

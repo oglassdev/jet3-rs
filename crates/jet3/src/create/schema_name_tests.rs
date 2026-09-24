@@ -1,51 +1,37 @@
 use super::api_tests::*;
 use crate::WriteError;
+use crate::testkit::validate_file;
+use crate::testkit::{create, create_spec};
+use crate::testkit::{index, table};
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexColumnSpec, IndexKind,
     IndexSpec, RowValue, TableRows, TableSpec, TextCodePage,
-    create::{
-        api::{DatabaseSpec, create_database},
-        schema_plan::TableSchemaPlanError,
-    },
-    definition::column_writer::nz,
+    create::schema_plan::TableSchemaPlanError, definition::column_writer::nz,
 };
 use std::fs;
 
 #[test]
 fn cp1252_schema_names_preserve_bytes_and_order_logical_indexes() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let names: &[&[u8]] = &[b"ById", b"Z", b"a", b"\xc1", b"\xe6", b"B"];
     let fields = [IndexColumnSpec::ascending(0)];
     let indexes = names
         .iter()
-        .map(|name| IndexSpec {
-            name,
-            fields: &fields,
-            kind: IndexKind::Ordinary,
-        })
+        .map(|name| index(name, &fields, IndexKind::Ordinary))
         .collect::<Vec<_>>();
     let columns = [
         ColumnSpec::new(b"Identit\xe9", ColumnType::Long),
         ColumnSpec::new(b"caf\xe9", ColumnType::Text { max_len: nz(8) }).with_allow_zero_length(),
         ColumnSpec::new(b"m\xe9m\xf8", ColumnType::Memo).with_allow_zero_length(),
     ];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"T\xe2ble \xc6",
-        columns: &columns,
-        indexes: &indexes,
-    };
+    let table = table(b"T\xe2ble \xc6", &columns, &indexes);
     let row = [RowValue::Long(1), RowValue::Text(b""), RowValue::Memo(b"")];
-    crate::create_database(
+    create(
         directory.target(),
-        &crate::DatabaseSpec {
-            tables: &[crate::TableRows {
-                table,
-                rows: &[&row],
-            }],
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[crate::TableRows {
+            table,
+            rows: &[&row],
+        }],
     )?;
     crate::insert_row(
         directory.target(),
@@ -88,7 +74,7 @@ fn cp1252_schema_names_preserve_bytes_and_order_logical_indexes() -> TestResult 
 
 #[test]
 fn collation_equal_names_are_refused_before_publication() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let pairs: &[(&[u8], &[u8])] = &[
         (b"Case", b"case"),
         (b"AE", b"\xc6"),
@@ -97,42 +83,18 @@ fn collation_equal_names_are_refused_before_publication() -> TestResult {
         (b"Q'", b"Q\x92"),
     ];
     for &(a, b) in pairs {
-        let tables = [a, b].map(|name| TableSpec {
-            validation: crate::TableValidation::NONE,
-            name,
-            columns: &[ID],
-            indexes: &[],
-        });
+        let tables = [a, b].map(|name| table(name, &[ID], &[]));
         assert!(matches!(
-            create_database(
-                directory.target(),
-                &DatabaseSpec {
-                    tables: &tables.map(TableRows::empty),
-                    ..DatabaseSpec::default()
-                },
-                &mut budget()
-            ),
+            create(directory.target(), &tables.map(TableRows::empty)),
             Err(WriteError::Compose(ComposeError::DuplicateTableName {
                 first: 0,
                 second: 1
             }))
         ));
         let columns = [a, b].map(|name| ColumnSpec::new(name, ColumnType::Long));
-        let table = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &columns,
-            indexes: &[],
-        };
+        let table = table(b"Items", &columns, &[]);
         assert!(matches!(
-            create_database(
-                directory.target(),
-                &DatabaseSpec {
-                    tables: &[TableRows::empty(table)],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget()
-            ),
+            create(directory.target(), &[TableRows::empty(table)]),
             Err(WriteError::Compose(ComposeError::Schema(
                 TableSchemaPlanError::Definition(crate::TableDefinitionWriteError::DuplicateName {
                     role: "column",
@@ -141,25 +103,14 @@ fn collation_equal_names_are_refused_before_publication() -> TestResult {
             )))
         ));
         let fields = [IndexColumnSpec::ascending(0)];
-        let indexes = [a, b].map(|name| IndexSpec {
-            name,
-            fields: &fields,
-            kind: IndexKind::Ordinary,
-        });
+        let indexes = [a, b].map(|name| index(name, &fields, IndexKind::Ordinary));
         let table = TableSpec {
             columns: &[ID],
             indexes: &indexes,
             ..table
         };
         assert!(matches!(
-            create_database(
-                directory.target(),
-                &DatabaseSpec {
-                    tables: &[TableRows::empty(table)],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget()
-            ),
+            create(directory.target(), &[TableRows::empty(table)]),
             Err(WriteError::Compose(ComposeError::Schema(
                 TableSchemaPlanError::Definition(crate::TableDefinitionWriteError::DuplicateName {
                     role: "logical index",
@@ -174,7 +125,7 @@ fn collation_equal_names_are_refused_before_publication() -> TestResult {
 
 #[test]
 fn accented_relationship_endpoints_validate_and_enforce_mutations() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let columns = [
         ColumnSpec::new(b"Identit\xe9", ColumnType::Long),
         ColumnSpec::new(b"Parent\xe9", ColumnType::Long),
@@ -184,12 +135,7 @@ fn accented_relationship_endpoints_validate_and_enforce_mutations() -> TestResul
         fields: &[IndexColumnSpec::ascending(0)],
         kind: IndexKind::Primary,
     }];
-    let tables = [b"P\xe4rent".as_slice(), b"Ch\xeeld"].map(|name| TableSpec {
-        validation: crate::TableValidation::NONE,
-        name,
-        columns: &columns,
-        indexes: &indexes,
-    });
+    let tables = [b"P\xe4rent".as_slice(), b"Ch\xeeld"].map(|name| table(name, &columns, &indexes));
     let relation = crate::RelationshipSpec {
         unique: false,
         enforce: true,
@@ -215,14 +161,13 @@ fn accented_relationship_endpoints_validate_and_enforce_mutations() -> TestResul
             rows: &[],
         },
     ];
-    crate::create_database(
+    create_spec(
         directory.target(),
         &crate::DatabaseSpec {
             tables: &requests,
             relationships: &[relation],
             ..crate::DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
     crate::insert_row(
         directory.target(),
@@ -241,9 +186,7 @@ fn accented_relationship_endpoints_validate_and_enforce_mutations() -> TestResul
         Err(crate::WriteError::RelationshipConstraint { value: 99, .. })
     ));
     assert_eq!(fs::read(directory.target())?, original);
-    let mut work = budget();
-    let mut db = DatabaseReader::open(directory.target(), &mut work)?;
-    let report = db.validate(TextCodePage::Windows1252, &mut work)?;
+    let report = validate_file(directory.target())?;
     assert_eq!(report.relationships_with_verified_keys, 1);
     assert_eq!(report.uninterpreted_relationship_rows, 0);
     assert!(report.relationship_inventory_checked);

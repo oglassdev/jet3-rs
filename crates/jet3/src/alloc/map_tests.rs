@@ -6,7 +6,7 @@ use crate::{
     ResourceLimitKind, ResourceLimits, classify_page,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 use crate::testkit::budget;
 

@@ -15,7 +15,7 @@ const MAP_PAGE: u64 = 2;
 const INDEX_ROOT: u64 = 3;
 const RELATED_ROOT: u64 = 5;
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 use crate::testkit::budget;
 

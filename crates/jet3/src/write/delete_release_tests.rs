@@ -1,7 +1,9 @@
 use super::delete_tests::*;
+use crate::testkit::create;
+use crate::testkit::table;
 use crate::{
     ByteCount, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PageNumber, PublishStage,
-    ResourceBudget, ResourceLimits, RowValue, TableSpec, WriteError, write::delete::*,
+    ResourceBudget, ResourceLimits, RowValue, WriteError, write::delete::*,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -26,7 +28,7 @@ fn maps(f: &Fixture) -> Result<Maps, Box<dyn StdError>> {
 }
 
 #[test]
-fn sole_release_preserves_all_except_observed_fields_and_three_map_bits() -> ResultTest {
+fn sole_release_preserves_all_except_observed_fields_and_three_map_bits() -> TestResult {
     let f = Fixture::new(1)?;
     let records = maps(&f)?;
     let before = fs::read(f.path())?;
@@ -72,7 +74,7 @@ fn sole_release_preserves_all_except_observed_fields_and_three_map_bits() -> Res
 }
 
 #[test]
-fn release_map_mismatch_alias_and_indirect_references_refuse_atomically() -> ResultTest {
+fn release_map_mismatch_alias_and_indirect_references_refuse_atomically() -> TestResult {
     let f = Fixture::new(1)?;
     let before = fs::read(f.path())?;
     let records = maps(&f)?;
@@ -112,7 +114,7 @@ fn release_map_mismatch_alias_and_indirect_references_refuse_atomically() -> Res
 }
 
 #[test]
-fn release_budget_and_private_verification_failures_preserve_original() -> ResultTest {
+fn release_budget_and_private_verification_failures_preserve_original() -> TestResult {
     let f = Fixture::new(1)?;
     let before = fs::read(f.path())?;
     let mut exact = budget();
@@ -156,7 +158,7 @@ fn release_budget_and_private_verification_failures_preserve_original() -> Resul
 }
 
 #[test]
-fn sole_row_on_later_page_releases_only_that_page_and_keeps_other_rows() -> ResultTest {
+fn sole_row_on_later_page_releases_only_that_page_and_keeps_other_rows() -> TestResult {
     let mut f = Fixture::new(1)?;
     fs::remove_file(f.path())?;
     let columns = [
@@ -167,21 +169,12 @@ fn sole_row_on_later_page_releases_only_that_page_and_keeps_other_rows() -> Resu
         .map(|i| [RowValue::Long(i), RowValue::Long(-i)])
         .collect();
     let rows: Vec<_> = values.iter().map(|r| r.as_slice()).collect();
-    crate::create_database(
+    create(
         f.path(),
-        &crate::DatabaseSpec {
-            tables: &[crate::TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Rows",
-                    columns: &columns,
-                    indexes: &[],
-                },
-                rows: &rows,
-            }],
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[crate::TableRows {
+            table: table(b"Rows", &columns, &[]),
+            rows: &rows,
+        }],
     )?;
     let mut b = budget();
     let mut db = DatabaseReader::open(f.path(), &mut b)?;
@@ -222,25 +215,16 @@ fn sole_row_on_later_page_releases_only_that_page_and_keeps_other_rows() -> Resu
 }
 
 #[test]
-fn null_long_value_row_releases_only_its_data_page() -> ResultTest {
+fn null_long_value_row_releases_only_its_data_page() -> TestResult {
     let f = Fixture::new(1)?;
     fs::remove_file(f.path())?;
     let columns = [ColumnSpec::new(b"Memo", ColumnType::Memo)];
-    crate::create_database(
+    create(
         f.path(),
-        &crate::DatabaseSpec {
-            tables: &[crate::TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Rows",
-                    columns: &columns,
-                    indexes: &[],
-                },
-                rows: &[&[RowValue::Null]],
-            }],
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[crate::TableRows {
+            table: table(b"Rows", &columns, &[]),
+            rows: &[&[RowValue::Null]],
+        }],
     )?;
     let before = fs::read(f.path())?;
     delete_row(f.path(), f.request(), &mut budget())?;

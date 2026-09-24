@@ -1,8 +1,11 @@
 use super::update_tests::*;
+use crate::testkit::create_spec;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
     ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, FileSource, IndexColumnSpec,
-    IndexKind, IndexSpec, PAGE_BYTES, RelationshipField, RelationshipSpec, ResourceBudget,
-    RowLocator, RowValue, TableRef, TableRows, TableSpec,
+    IndexKind, PAGE_BYTES, RelationshipField, RelationshipSpec, ResourceBudget, RowLocator,
+    RowValue, TableRef, TableRows,
     row::directory::RowDirectory,
     write::{error::WriteError, update::*},
 };
@@ -12,24 +15,23 @@ use std::fs;
 fn fixture() -> Result<Fixture, Box<dyn StdError>> {
     let fixture = simple()?;
     fs::remove_file(fixture.path())?;
-    crate::create_database(
+    create_spec(
         fixture.path(),
         &crate::DatabaseSpec {
             tables: &[
                 TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Parent",
-                        columns: &[
+                    table: table(
+                        b"Parent",
+                        &[
                             ColumnSpec::new(b"Id", ColumnType::Long),
                             ColumnSpec::new(b"Other", ColumnType::Long),
                         ],
-                        indexes: &[IndexSpec {
-                            name: b"ById",
-                            fields: &[IndexColumnSpec::ascending(0)],
-                            kind: IndexKind::Primary,
-                        }],
-                    },
+                        &[index(
+                            b"ById",
+                            &[IndexColumnSpec::ascending(0)],
+                            IndexKind::Primary,
+                        )],
+                    ),
                     rows: &[
                         &[RowValue::Long(1), RowValue::Long(11)],
                         &[RowValue::Long(2), RowValue::Long(22)],
@@ -37,16 +39,15 @@ fn fixture() -> Result<Fixture, Box<dyn StdError>> {
                     ],
                 },
                 TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Child",
-                        columns: &[
+                    table: table(
+                        b"Child",
+                        &[
                             ColumnSpec::new(b"Id", ColumnType::Long),
                             ColumnSpec::new(b"ParentId", ColumnType::Long),
                             ColumnSpec::new(b"Other", ColumnType::Long),
                         ],
-                        indexes: &[],
-                    },
+                        &[],
+                    ),
                     rows: &[
                         &[RowValue::Long(10), RowValue::Long(1), RowValue::Long(7)],
                         &[RowValue::Long(11), RowValue::Long(1), RowValue::Long(8)],
@@ -70,7 +71,6 @@ fn fixture() -> Result<Fixture, Box<dyn StdError>> {
             }),
             relationship_layout: crate::RelationshipLayout::SingleLong,
         },
-        &mut budget(),
     )?;
     Ok(fixture)
 }
