@@ -43,7 +43,7 @@ pub(super) struct PlannedCreate<'a> {
     initial_data: Vec<InitialDataPage>,
     initial_long_values: Option<InitialLongValues>,
     initial_row_count: u32,
-    initial_indexes: Vec<InitialLongIndex>,
+    initial_indexes: Vec<InitialScalarIndex>,
     initial_autoincrement: Option<InitialAutoIncrement>,
     relationships: Vec<LogicalIndexSpec<'a>>,
     declared_indexes: usize,
@@ -134,12 +134,13 @@ impl<'a> PlannedCreate<'a> {
                 names.push(index.name);
             }
         }
-        let plan = crate::create::schema_plan::plan_table_schema_with_generated_indexes(
+        let plan = crate::create::schema_plan::plan_table_schema_for_order(
             spec,
             first_page,
             first_create,
             &names,
             declared_indexes,
+            crate::SortOrder::General,
             budget,
         )?;
         if spec.columns.iter().any(|column| {
@@ -155,6 +156,7 @@ impl<'a> PlannedCreate<'a> {
         let properties = crate::properties::column::CreationProperties::new(
             spec.columns,
             spec.validation,
+            crate::SortOrder::General,
             budget,
         )
         .map_err(ComposeError::Properties)?;
@@ -225,7 +227,7 @@ impl<'a> PlannedCreate<'a> {
     ) -> Result<Self, ComposeError> {
         let mut generated = InitialAutoIncrement::new(self.spec, rows, budget)?;
         self.initial_autoincrement = generated;
-        self.initial_indexes = InitialLongIndex::for_table(self.spec, rows.len(), budget)?;
+        self.initial_indexes = InitialScalarIndex::for_table(self.spec, rows.len(), budget)?;
         if rows.is_empty() {
             return Ok(self);
         }
@@ -342,7 +344,7 @@ impl<'a> PlannedCreate<'a> {
             + self
                 .initial_indexes
                 .iter()
-                .map(InitialLongIndex::extra_page_count)
+                .map(InitialScalarIndex::extra_page_count)
                 .sum::<u64>()
     }
 
@@ -354,7 +356,7 @@ impl<'a> PlannedCreate<'a> {
                 .initial_indexes
                 .iter()
                 .take(ordinal)
-                .map(InitialLongIndex::extra_page_count)
+                .map(InitialScalarIndex::extra_page_count)
                 .sum::<u64>()
     }
 
@@ -371,7 +373,7 @@ impl<'a> PlannedCreate<'a> {
     pub(super) fn contains_initial_key(
         &self,
         physical: u16,
-        kinds: &[crate::index::key::scalar::NumericKeyType],
+        kinds: &[crate::index::key::scalar::ScalarKeyType],
         values: &[RowValue<'_>],
         budget: &mut ResourceBudget,
     ) -> Result<bool, ComposeError> {
@@ -511,7 +513,7 @@ impl<'a> PlannedCreate<'a> {
                     entry_count: self
                         .initial_indexes
                         .get(ordinal)
-                        .map_or(0, InitialLongIndex::distinct_count),
+                        .map_or(0, InitialScalarIndex::distinct_count),
                 },
             )
             .collect::<Vec<_>>();
@@ -601,6 +603,7 @@ impl<'a> PlannedCreate<'a> {
                 long_value_maps: &long_value_maps,
             },
             output,
+            crate::index::key::text::ENCODING_CONTEXT,
             budget,
         )
         .map_err(ComposeError::from)?;
@@ -649,7 +652,7 @@ impl<'a> PlannedCreate<'a> {
                 let extra = self
                     .initial_indexes
                     .get(index)
-                    .map_or(0, InitialLongIndex::extra_page_count);
+                    .map_or(0, InitialScalarIndex::extra_page_count);
                 maps.row(
                     std::iter::once(root.get()).chain(
                         self.index_extra_start(index)..self.index_extra_start(index) + extra,
@@ -702,10 +705,13 @@ pub(crate) fn compose_database_with_table_rows(
     for (position, request) in requests.iter().enumerate() {
         budget.charge_items(1)?;
         budget.charge_work_units((position as u64).saturating_mul(512))?;
-        if let Some(first) = requests[..position]
-            .iter()
-            .position(|earlier| catalog_names_equal(earlier.table.name, request.table.name))
-        {
+        if let Some(first) = requests[..position].iter().position(|earlier| {
+            catalog_names_equal(
+                earlier.table.name,
+                request.table.name,
+                crate::SortOrder::General,
+            )
+        }) {
             return Err(ComposeError::DuplicateTableName {
                 first,
                 second: position,
@@ -770,7 +776,7 @@ fn sort_logical_indexes(
     crate::format::resource::reserve(&mut keyed, indexes.len(), budget)?;
     budget.charge_work_units((indexes.len() as u64).saturating_mul(512))?;
     for &index in indexes.iter() {
-        keyed.push((NameKey::new(index.name)?, index));
+        keyed.push((NameKey::new(index.name, crate::SortOrder::General)?, index));
     }
     budget.charge_work_units(
         (indexes.len() as u64).saturating_mul(u64::from(indexes.len().max(1).ilog2()) + 1) * 194,

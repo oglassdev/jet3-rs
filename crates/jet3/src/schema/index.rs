@@ -5,10 +5,10 @@ use crate::{
     PhysicalIndexSpec, ResourceBudget, SchemaEdit, TableDefinition, UpdateError,
     definition::column_writer::{write_logical_record, write_physical_record},
     index::{
-        entry::{NumericIndexEntry, NumericIndexField, sort_cost},
-        key::scalar::NumericKeyType,
+        entry::{ScalarIndexEntry, ScalarIndexField, sort_cost},
+        key::scalar::ScalarKeyType,
         mutation::{entry_error, tree_error},
-        tree::builder::NumericIndexPages,
+        tree::builder::ScalarIndexPages,
     },
     schema::definition::{DefinitionEdit, NamedRecord, allocate},
     write::page_edits::{PageEdits, reserve},
@@ -99,7 +99,7 @@ pub(crate) fn sort_names(
     for index in &definition.indexes {
         budget.charge_work_units(1024)?;
         keys.push(
-            crate::catalog::name_key::NameKey::for_order(index.name, order)
+            crate::catalog::name_key::NameKey::new(index.name, order)
                 .map_err(|_| UpdateError::Unsupported("index name collation"))?,
         );
     }
@@ -172,13 +172,13 @@ pub(crate) fn create<'a>(
             return Err(UpdateError::Unsupported("repeated index column"));
         }
         *marked = true;
-        let kind = NumericKeyType::from_definition(column)
+        let kind = ScalarKeyType::from_definition(column)
             .ok_or(UpdateError::Unsupported("index column type"))?;
         fields.push(IndexFieldSpec {
             column: column.storage_ordinal(),
             direction: field.direction,
         });
-        numeric.push(NumericIndexField {
+        numeric.push(ScalarIndexField {
             column: usize::from(ordinal),
             direction: field.direction,
             kind,
@@ -195,7 +195,7 @@ pub(crate) fn create<'a>(
         alias
     } else {
         let entries = entries(database, table, index, &numeric, &selected, budget)?;
-        let layout = NumericIndexPages::new(&entries, usize::MAX, budget).map_err(tree_error)?;
+        let layout = ScalarIndexPages::new(&entries, usize::MAX, budget).map_err(tree_error)?;
         let mut pages = Vec::new();
         reserve(&mut pages, layout.len(), budget)?;
         for _ in 0..layout.len() {
@@ -283,17 +283,17 @@ fn entries(
     database: &mut DatabaseReader<FileSource>,
     table: &TableDefinition,
     index: IndexSpec<'_>,
-    numeric: &[NumericIndexField],
+    numeric: &[ScalarIndexField],
     selected: &[bool; 255],
     budget: &mut ResourceBudget,
-) -> Result<Vec<NumericIndexEntry>, UpdateError> {
+) -> Result<Vec<ScalarIndexEntry>, UpdateError> {
     let mut entries = Vec::new();
     let mut rows = database.rows(table, budget)?;
     let mut count = 0_u32;
     while let Some(mut row) = rows.next_row()? {
         let locator = row.locator();
         let values = crate::row::scalar_values::read(&mut row, selected)?;
-        if let Some(entry) = NumericIndexEntry::encode(
+        if let Some(entry) = ScalarIndexEntry::encode(
             numeric,
             &values,
             index.kind.null_policy(),

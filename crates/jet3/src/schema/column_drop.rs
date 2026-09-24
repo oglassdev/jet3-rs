@@ -37,7 +37,7 @@ pub(crate) fn drop_column(
             for relation in crate::relationship::catalog::catalog(database, budget)? {
                 budget.charge_work_units(2048)?;
                 let equal = |left: &[u8], right: &[u8]| {
-                    crate::catalog::name_key::catalog_names_equal_for(order, left, right)
+                    crate::catalog::name_key::catalog_names_equal(left, right, order)
                 };
                 if relation.fields().iter().any(|field| {
                     (equal(relation.parent_table(), table_name) && equal(field.parent(), name))

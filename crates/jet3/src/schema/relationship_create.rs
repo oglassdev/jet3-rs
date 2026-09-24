@@ -59,7 +59,7 @@ pub(crate) fn create(
             let a = column(&parent, pair.parent)?;
             let b = column(&child, pair.child)?;
             let kind = |field: &crate::ColumnDefinition| {
-                crate::index::key::scalar::NumericKeyType::from_definition(field)
+                crate::index::key::scalar::ScalarKeyType::from_definition(field)
                     .ok_or(UpdateError::Unsupported("relationship key type"))
             };
             if b.auto_increment() || !crate::relationship::key::compatible(kind(a)?, kind(b)?) {
@@ -270,7 +270,7 @@ fn select_parent(
             continue;
         }
         budget.charge_work_units(1024)?;
-        let key = crate::catalog::name_key::NameKey::for_order(index.name().raw_bytes(), order)
+        let key = crate::catalog::name_key::NameKey::new(index.name().raw_bytes(), order)
             .map_err(|_| UpdateError::Unsupported("relationship index name"))?;
         if selected
             .as_ref()

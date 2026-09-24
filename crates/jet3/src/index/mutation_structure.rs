@@ -3,7 +3,7 @@ use crate::{
     DatabaseReader, IndexNodeKind, IndexNullPolicy, IndexTree, PAGE_BYTES, PageNumber, ReadAt,
     ResourceBudget, TableDefinition, UpdateError,
     index::{
-        entry::{ENTRY_CAPACITY, NumericIndexField, valid_key_shape},
+        entry::{ENTRY_CAPACITY, ScalarIndexField, valid_key_shape},
         tree::page::{ENTRY_AREA_OFFSET, boundaries, parse_node, u32_at_be},
     },
 };
@@ -24,7 +24,7 @@ pub(crate) fn validate<S: ReadAt>(
     database: &mut DatabaseReader<S>,
     table: &TableDefinition,
     tree: &IndexTree,
-    fields: &[NumericIndexField],
+    fields: &[ScalarIndexField],
     null_policy: IndexNullPolicy,
     budget: &mut ResourceBudget,
 ) -> Result<(), UpdateError> {

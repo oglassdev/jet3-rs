@@ -3,8 +3,8 @@ use crate::{
     CatalogObjectClass, CatalogObjectKind, ColumnOrdinal, ColumnPhysicalType, ColumnStorageClass,
     DatabaseReader, IndexDirection, PageNumber, ReadAt, Relationship, RelationshipSide,
     ResourceBudget, TableDefinition, TableDefinitionKind, UpdateError,
-    catalog::name_key::{catalog_names_equal_for, validate_catalog_name_for},
-    index::key::scalar::NumericKeyType,
+    catalog::name_key::{catalog_names_equal, validate_catalog_name},
+    index::key::scalar::ScalarKeyType,
     write::page_edits::reserve,
 };
 
@@ -14,8 +14,8 @@ pub(crate) struct Constraint {
     pub child: TableDefinition,
     pub parent_columns: Vec<ColumnOrdinal>,
     pub child_columns: Vec<ColumnOrdinal>,
-    pub parent_kinds: Vec<NumericKeyType>,
-    pub child_kinds: Vec<NumericKeyType>,
+    pub parent_kinds: Vec<ScalarKeyType>,
+    pub child_kinds: Vec<ScalarKeyType>,
     pub self_reference_requires_existing_parent: bool,
     pub(super) parent_record: [u8; 20],
     pub(super) child_record: [u8; 20],
@@ -126,7 +126,7 @@ pub(super) fn resolve_tables(
         child_kinds.push(child_kind);
     }
     let mut foreign = child.relationships().filter(|relation| {
-        catalog_names_equal_for(record.order, relation.name().raw_bytes(), &record.name)
+        catalog_names_equal(relation.name().raw_bytes(), &record.name, record.order)
             && relation.side() == RelationshipSide::ForeignTable
             && relation.related_table() == parent.root()
     });
@@ -315,23 +315,23 @@ pub(super) fn key_column(
     order: crate::SortOrder,
     table: &TableDefinition,
     name: &[u8],
-) -> Result<(ColumnOrdinal, NumericKeyType), UpdateError> {
+) -> Result<(ColumnOrdinal, ScalarKeyType), UpdateError> {
     let mut columns = table
         .columns()
         .iter()
-        .filter(|column| catalog_names_equal_for(order, column.name().raw_bytes(), name));
+        .filter(|column| catalog_names_equal(column.name().raw_bytes(), name, order));
     let column = columns
         .next()
         .ok_or(UpdateError::Mismatch("relationship column absent"))?;
     if columns.next().is_some() {
         return Err(UpdateError::Mismatch("ambiguous relationship column"));
     }
-    let kind = NumericKeyType::from_definition(column).ok_or(UpdateError::Unsupported(
+    let kind = ScalarKeyType::from_definition(column).ok_or(UpdateError::Unsupported(
         "relationship scalar column schema",
     ))?;
     if !matches!(
         kind,
-        NumericKeyType::Text { .. } | NumericKeyType::Binary { .. }
+        ScalarKeyType::Text { .. } | ScalarKeyType::Binary { .. }
     ) && !matches!(column.storage(), ColumnStorageClass::Fixed { .. })
     {
         return Err(UpdateError::Unsupported(
@@ -354,7 +354,7 @@ pub(super) fn table<S: ReadAt>(
             catalog.budget_mut().charge_work_units(512)?;
             if record.class() == CatalogObjectClass::User
                 && record.kind() == CatalogObjectKind::Table
-                && catalog_names_equal_for(order, record.name().raw_bytes(), name)
+                && catalog_names_equal(record.name().raw_bytes(), name, order)
             {
                 if root.is_some() {
                     return Err(UpdateError::Mismatch("ambiguous relationship table"));
@@ -478,17 +478,17 @@ pub(super) fn read_records<S: ReadAt>(
         let child = field(4)?;
         let parent = field(6)?;
         if let Some(target) = target {
-            if validate_catalog_name_for(target, order).is_err()
+            if validate_catalog_name(target, order).is_err()
                 || [child, parent]
                     .iter()
-                    .any(|name| validate_catalog_name_for(name, order).is_err())
+                    .any(|name| validate_catalog_name(name, order).is_err())
             {
                 return Err(UpdateError::Unsupported(
                     "unresolved relationship endpoint name",
                 ));
             }
-            if !catalog_names_equal_for(order, child, target)
-                && !catalog_names_equal_for(order, parent, target)
+            if !catalog_names_equal(child, target, order)
+                && !catalog_names_equal(parent, target, order)
             {
                 continue;
             }
@@ -507,7 +507,7 @@ pub(super) fn read_records<S: ReadAt>(
         if target.is_some()
             && sources
                 .iter()
-                .any(|name| validate_catalog_name_for(name, order).is_err())
+                .any(|name| validate_catalog_name(name, order).is_err())
         {
             return Err(UpdateError::Unsupported("unresolved relationship name"));
         }

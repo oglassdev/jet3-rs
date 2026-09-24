@@ -2,7 +2,7 @@ use super::api_tests::*;
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, PageNumber, ResourceBudget,
     ResourceLimits, RowValue, RowWriteError, TableSpec,
-    create::api::{CandidateCheckError, CreateDatabaseError},
+    create::api::{CreateDatabaseError, ImageCheckError},
     create_database_with_rows,
     definition::column_writer::nz,
 };
@@ -115,7 +115,7 @@ fn initial_row_check_detects_wrong_values_and_counts() -> TestResult {
     ] {
         assert!(
             matches!(super::api::check_initial_rows(&directory.target(), &scalar_table(), rows, &mut budget()),
-            Err(CandidateCheckError::Mismatch { detail: actual }) if actual == detail)
+            Err(ImageCheckError::Mismatch { detail: actual }) if actual == detail)
         );
     }
     Ok(())
@@ -305,7 +305,7 @@ fn later_page_corruption_and_missing_owned_pages_are_detected() -> TestResult {
     fs::write(directory.target(), &changed)?;
     assert!(matches!(
         super::api::check_initial_rows(&directory.target(), &table, &rows, &mut budget()),
-        Err(CandidateCheckError::Rows(_))
+        Err(ImageCheckError::Rows(_))
     ));
     let mut changed = original;
     let entry = 21 * crate::PAGE_BYTES + 10;
@@ -314,7 +314,7 @@ fn later_page_corruption_and_missing_owned_pages_are_detected() -> TestResult {
     fs::write(directory.target(), &changed)?;
     assert!(matches!(
         super::api::check_initial_rows(&directory.target(), &table, &rows, &mut budget()),
-        Err(CandidateCheckError::Mismatch {
+        Err(ImageCheckError::Mismatch {
             detail: "initial row count"
         })
     ));

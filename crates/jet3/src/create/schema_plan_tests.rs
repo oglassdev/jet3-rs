@@ -719,6 +719,7 @@ fn property_payloads_above_the_native_single_page_limit_are_chained() -> PlanRes
         crate::properties::column::CreationProperties::new(
             &columns,
             crate::TableValidation::NONE,
+            crate::SortOrder::General,
             &mut budget(),
         )
         .ok()

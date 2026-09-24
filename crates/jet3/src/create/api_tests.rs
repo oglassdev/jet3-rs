@@ -7,7 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use super::api::{CandidateCheckError, CreateDatabaseError, check_candidate, create_database};
+use super::api::{CreateDatabaseError, ImageCheckError, check_image, create_database};
 
 static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -153,7 +153,7 @@ fn candidate_check_rejects_an_index_kind_mismatch() -> TestResult {
         kind: IndexKind::Ordinary,
     }];
     let page_count = fs::metadata(&target)?.len() / crate::PAGE_BYTES as u64;
-    let error = check_candidate(
+    let error = check_image(
         &target,
         &[TableSpec {
             validation: crate::TableValidation::NONE,
@@ -168,7 +168,7 @@ fn candidate_check_rejects_an_index_kind_mismatch() -> TestResult {
     .ok_or("candidate check accepted mismatched index flags")?;
     assert!(matches!(
         error,
-        CandidateCheckError::Mismatch {
+        ImageCheckError::Mismatch {
             detail: "index kind"
         }
     ));

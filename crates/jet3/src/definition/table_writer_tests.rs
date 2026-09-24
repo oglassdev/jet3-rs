@@ -197,7 +197,12 @@ fn round_trips_every_column_type_and_index_kind() -> Result<(), Box<dyn std::err
     let spec = spec(&columns, &physical_indexes, &indexes);
     let mut output = vec![0xa5_u8; PAGE_BYTES];
     let mut budget = ResourceBudget::new(ResourceLimits::default());
-    let length = encode_table_definition(&spec, &mut output, &mut budget)?;
+    let length = encode_table_definition(
+        &spec,
+        &mut output,
+        crate::index::key::text::ENCODING_CONTEXT,
+        &mut budget,
+    )?;
     assert_eq!(length.get() as usize, table_definition_len(&spec)?);
     let decoded = decode(&output[..length.get() as usize])?;
 
@@ -305,7 +310,12 @@ fn round_trips_typed_system_marker_columns_flags_counts_and_maps() -> TestResult
         long_value_maps: &maps,
     };
     let mut output = [0_u8; PAGE_BYTES];
-    let length = encode_table_definition(&system, &mut output, &mut budget())?;
+    let length = encode_table_definition(
+        &system,
+        &mut output,
+        crate::index::key::text::ENCODING_CONTEXT,
+        &mut budget(),
+    )?;
     assert_eq!(output[12..16], 9_u32.to_le_bytes());
     assert_eq!(output[20], 0x53);
     assert_eq!(output[47..51], 7_u32.to_le_bytes());
@@ -327,7 +337,12 @@ fn round_trips_typed_system_marker_columns_flags_counts_and_maps() -> TestResult
         ..system
     };
     assert!(matches!(
-        encode_table_definition(&missing, &mut [0; PAGE_BYTES], &mut budget()),
+        encode_table_definition(
+            &missing,
+            &mut [0; PAGE_BYTES],
+            crate::index::key::text::ENCODING_CONTEXT,
+            &mut budget()
+        ),
         Err(TableDefinitionWriteError::InvalidSystemColumnClassCount { .. })
     ));
     let invalid = TableDefinitionSpec {
@@ -335,7 +350,12 @@ fn round_trips_typed_system_marker_columns_flags_counts_and_maps() -> TestResult
         ..system
     };
     assert!(matches!(
-        encode_table_definition(&invalid, &mut [0; PAGE_BYTES], &mut budget()),
+        encode_table_definition(
+            &invalid,
+            &mut [0; PAGE_BYTES],
+            crate::index::key::text::ENCODING_CONTEXT,
+            &mut budget()
+        ),
         Err(TableDefinitionWriteError::InvalidSystemColumnClass { .. })
     ));
     Ok(())
@@ -348,7 +368,13 @@ fn rejects_cross_kind_flags_and_incomplete_typed_long_value_maps() {
     missing.long_value_maps = &[];
     assert_eq!(
         table_definition_len(&missing).and_then(|length| {
-            encode_table_definition(&missing, &mut vec![0; length], &mut budget()).map(|_| length)
+            encode_table_definition(
+                &missing,
+                &mut vec![0; length],
+                crate::index::key::text::ENCODING_CONTEXT,
+                &mut budget(),
+            )
+            .map(|_| length)
         }),
         Err(TableDefinitionWriteError::MissingLongValueMap { column: 0 })
     );
@@ -359,7 +385,12 @@ fn rejects_cross_kind_flags_and_incomplete_typed_long_value_maps() {
     }; 2];
     missing.long_value_maps = &duplicate_maps;
     assert!(matches!(
-        encode_table_definition(&missing, &mut [0; PAGE_BYTES], &mut budget()),
+        encode_table_definition(
+            &missing,
+            &mut [0; PAGE_BYTES],
+            crate::index::key::text::ENCODING_CONTEXT,
+            &mut budget()
+        ),
         Err(TableDefinitionWriteError::TooManyLongValueMaps {
             count: 2,
             maximum: 1,
@@ -396,7 +427,12 @@ fn rejects_cross_kind_flags_and_incomplete_typed_long_value_maps() {
         long_value_maps: &[],
     };
     assert!(matches!(
-        encode_table_definition(&user, &mut [0; PAGE_BYTES], &mut budget()),
+        encode_table_definition(
+            &user,
+            &mut [0; PAGE_BYTES],
+            crate::index::key::text::ENCODING_CONTEXT,
+            &mut budget()
+        ),
         Err(TableDefinitionWriteError::InvalidPhysicalFlags {
             physical_index: 0,
             kind: TableDefinitionKind::User,
@@ -446,7 +482,12 @@ fn rejects_structural_errors_before_writing() {
             );
         }
         assert_eq!(
-            encode_table_definition(&spec(&columns, &[], &[]), &mut output, &mut budget),
+            encode_table_definition(
+                &spec(&columns, &[], &[]),
+                &mut output,
+                crate::index::key::text::ENCODING_CONTEXT,
+                &mut budget
+            ),
             Err(expected)
         );
     }
@@ -460,6 +501,7 @@ fn rejects_structural_errors_before_writing() {
         encode_table_definition(
             &spec(&oversized_columns, &[], &[]),
             &mut output,
+            crate::index::key::text::ENCODING_CONTEXT,
             &mut budget
         ),
         Err(TableDefinitionWriteError::RowLayoutTooLarge {
@@ -478,6 +520,7 @@ fn rejects_structural_errors_before_writing() {
         encode_table_definition(
             &spec(&columns, &physical_indexes, &[]),
             &mut output,
+            crate::index::key::text::ENCODING_CONTEXT,
             &mut budget
         ),
         Err(TableDefinitionWriteError::UnsupportedKeyColumn {
@@ -491,7 +534,12 @@ fn rejects_structural_errors_before_writing() {
     let mut invalid_map = spec(&columns, &[], &[]);
     invalid_map.owned_map = MapRowLocator::new(PageNumber::new(0), 0);
     assert_eq!(
-        encode_table_definition(&invalid_map, &mut output, &mut budget),
+        encode_table_definition(
+            &invalid_map,
+            &mut output,
+            crate::index::key::text::ENCODING_CONTEXT,
+            &mut budget
+        ),
         Err(TableDefinitionWriteError::InvalidMapReference {
             role: "owned",
             page: PageNumber::new(0),
@@ -499,7 +547,12 @@ fn rejects_structural_errors_before_writing() {
     );
     invalid_map.owned_map = MapRowLocator::new(PageNumber::new(0x0100_0000), 0);
     assert_eq!(
-        encode_table_definition(&invalid_map, &mut output, &mut budget),
+        encode_table_definition(
+            &invalid_map,
+            &mut output,
+            crate::index::key::text::ENCODING_CONTEXT,
+            &mut budget
+        ),
         Err(TableDefinitionWriteError::InvalidMapReference {
             role: "owned",
             page: PageNumber::new(0x0100_0000),
@@ -515,7 +568,12 @@ fn rejects_structural_errors_before_writing() {
     let physical_indexes = [physical(&fields, false, false)];
     let unreferenced = spec(&columns, &physical_indexes, &[]);
     assert_eq!(
-        encode_table_definition(&unreferenced, &mut output, &mut budget),
+        encode_table_definition(
+            &unreferenced,
+            &mut output,
+            crate::index::key::text::ENCODING_CONTEXT,
+            &mut budget
+        ),
         Err(TableDefinitionWriteError::UnreferencedPhysicalIndex { physical_index: 0 })
     );
     let primary = [LogicalIndexSpec {
@@ -527,6 +585,7 @@ fn rejects_structural_errors_before_writing() {
         encode_table_definition(
             &spec(&columns, &physical_indexes, &primary),
             &mut output,
+            crate::index::key::text::ENCODING_CONTEXT,
             &mut budget
         ),
         Err(TableDefinitionWriteError::InvalidPrimaryFlags {
@@ -544,7 +603,12 @@ fn rejects_small_output_and_exhausted_budget() -> Result<(), Box<dyn std::error:
     let mut output = vec![0_u8; needed];
     let mut budget = ResourceBudget::new(ResourceLimits::default());
     assert_eq!(
-        encode_table_definition(&spec, &mut output[..needed - 1], &mut budget),
+        encode_table_definition(
+            &spec,
+            &mut output[..needed - 1],
+            crate::index::key::text::ENCODING_CONTEXT,
+            &mut budget
+        ),
         Err(TableDefinitionWriteError::OutputTooSmall {
             needed,
             available: needed - 1,
@@ -553,7 +617,12 @@ fn rejects_small_output_and_exhausted_budget() -> Result<(), Box<dyn std::error:
     let mut exhausted =
         ResourceBudget::new(ResourceLimits::default().with_max_encoded_bytes(ByteCount::new(3)));
     assert_eq!(
-        encode_table_definition(&spec, &mut output, &mut exhausted),
+        encode_table_definition(
+            &spec,
+            &mut output,
+            crate::index::key::text::ENCODING_CONTEXT,
+            &mut exhausted
+        ),
         Err(TableDefinitionWriteError::Resource(
             Error::ResourceLimitExceeded {
                 kind: ResourceLimitKind::EncodedBytes,
@@ -568,7 +637,15 @@ fn rejects_small_output_and_exhausted_budget() -> Result<(), Box<dyn std::error:
             .to_string()
             .contains("table definition encoding failed")
     );
-    assert!(encode_table_definition(&spec, &mut output, &mut budget).is_ok());
+    assert!(
+        encode_table_definition(
+            &spec,
+            &mut output,
+            crate::index::key::text::ENCODING_CONTEXT,
+            &mut budget
+        )
+        .is_ok()
+    );
     assert!(decode(&output).is_ok());
     Ok(())
 }

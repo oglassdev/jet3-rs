@@ -43,7 +43,7 @@ pub fn create_database_with_relationship(
     atomic_create(
         path,
         |file| write_pages(file, &pages),
-        |candidate| check_relationship_candidate(candidate, tables, relationship, &pages, budget),
+        |candidate| check_relationship_image(candidate, tables, relationship, &pages, budget),
     )
     .map_err(CreateDatabaseError::Publish)
 }
@@ -99,13 +99,13 @@ pub fn create_database_with_relationship_rows(
     .map_err(CreateDatabaseError::Publish)
 }
 
-pub(super) fn check_relationship_candidate(
+pub(super) fn check_relationship_image(
     candidate: &Path,
     tables: &[TableSpec<'_>],
     relationship: &RelationshipSpec<'_>,
     pages: &[PlannedPage],
     budget: &mut ResourceBudget,
-) -> Result<(), CandidateCheckError> {
+) -> Result<(), ImageCheckError> {
     check_relationship_contents(candidate, tables, relationship, pages, None, budget)
 }
 
@@ -116,10 +116,9 @@ pub(super) fn check_relationship_contents(
     pages: &[PlannedPage],
     requests: Option<&[TableRows<'_>]>,
     budget: &mut ResourceBudget,
-) -> Result<(), CandidateCheckError> {
-    let mismatch = |detail| CandidateCheckError::Mismatch { detail };
-    let mut database =
-        DatabaseReader::open(candidate, budget).map_err(CandidateCheckError::Open)?;
+) -> Result<(), ImageCheckError> {
+    let mismatch = |detail| ImageCheckError::Mismatch { detail };
+    let mut database = DatabaseReader::open(candidate, budget).map_err(ImageCheckError::Open)?;
     if tables.len() != 2
         || requests.is_some_and(|rows| rows.len() != 2)
         || database.geometry().page_count() != pages.len() as u64
@@ -130,23 +129,18 @@ pub(super) fn check_relationship_contents(
     for page in pages {
         database
             .read_raw_page(page.number(), &mut bytes, budget)
-            .map_err(CandidateCheckError::Read)?;
+            .map_err(ImageCheckError::Read)?;
         budget
             .charge_work_units(crate::PAGE_BYTES as u64)
-            .map_err(CandidateCheckError::Read)?;
+            .map_err(ImageCheckError::Read)?;
         if &bytes != page.image().as_bytes() {
             return Err(mismatch("relationship written page"));
         }
     }
     let mut roots = [None; 2];
     {
-        let mut catalog = database
-            .catalog(budget)
-            .map_err(CandidateCheckError::Catalog)?;
-        while let Some(record) = catalog
-            .next_record()
-            .map_err(CandidateCheckError::Catalog)?
-        {
+        let mut catalog = database.catalog(budget).map_err(ImageCheckError::Catalog)?;
+        while let Some(record) = catalog.next_record().map_err(ImageCheckError::Catalog)? {
             if record.class() != CatalogObjectClass::User
                 || record.kind() != CatalogObjectKind::Table
             {
@@ -167,7 +161,7 @@ pub(super) fn check_relationship_contents(
         let other = roots[1 - position].ok_or(mismatch("relationship catalog table"))?;
         let definition = database
             .table_definition(root, budget)
-            .map_err(CandidateCheckError::Definition)?;
+            .map_err(ImageCheckError::Definition)?;
         let mut relations = definition.relationships();
         let relation = relations.next().ok_or(mismatch("relationship record"))?;
         let [field] = relationship.fields else {
@@ -230,14 +224,18 @@ pub(super) fn check_relationship_contents(
                 rows: requests[1].rows,
             };
             let request = if position == 0 { &requests[0] } else { &child };
-            let plan = crate::create::schema_plan::plan_table_schema_with_logical_index(
+            let plan = crate::create::schema_plan::plan_table_schema_for_order(
                 &request.table,
                 root.get(),
                 position == 0,
-                (position == 0).then_some(relation.name().raw_bytes()),
+                (position == 0)
+                    .then_some(relation.name().raw_bytes())
+                    .as_slice(),
+                request.table.indexes.len(),
+                crate::SortOrder::General,
                 budget,
             )
-            .map_err(|error| CandidateCheckError::RowEncoding(ComposeError::Schema(error)))?;
+            .map_err(|error| ImageCheckError::RowEncoding(ComposeError::Schema(error)))?;
             check_initial_table_rows_from(
                 &mut database,
                 request,
@@ -251,7 +249,7 @@ pub(super) fn check_relationship_contents(
                     u16::try_from(ordinal).map_err(|_| mismatch("relationship index count"))?;
                 if !database
                     .index_tree(&definition, ordinal, budget)
-                    .map_err(CandidateCheckError::Index)?
+                    .map_err(ImageCheckError::Index)?
                     .entries()
                     .is_empty()
                 {
@@ -260,9 +258,9 @@ pub(super) fn check_relationship_contents(
             }
             if database
                 .rows(&definition, budget)
-                .map_err(CandidateCheckError::Rows)?
+                .map_err(ImageCheckError::Rows)?
                 .next_row()
-                .map_err(CandidateCheckError::Rows)?
+                .map_err(ImageCheckError::Rows)?
                 .is_some()
             {
                 return Err(mismatch("relationship rows not empty"));

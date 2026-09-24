@@ -6,7 +6,7 @@ use super::{
 use crate::{
     CatalogObjectClass, DatabaseReader, PageNumber, ReadAt, ResourceBudget, TableDefinition,
     UpdateError,
-    catalog::name_key::{catalog_names_equal_for, validate_catalog_name_for},
+    catalog::name_key::{catalog_names_equal, validate_catalog_name},
     relationship::groups::{groups, ordered},
     write::page_edits::reserve,
 };
@@ -51,7 +51,7 @@ pub(crate) fn validate<S: ReadAt>(
                     &record.child_column,
                 ]
                 .iter()
-                .all(|name| validate_catalog_name_for(name, record.order).is_ok())
+                .all(|name| validate_catalog_name(name, record.order).is_ok())
         });
         if !supported {
             report.uninterpreted += group.len() as u64;
@@ -118,7 +118,7 @@ fn endpoint_column(
     let mut columns = table
         .columns()
         .iter()
-        .filter(|column| catalog_names_equal_for(order, column.name().raw_bytes(), name));
+        .filter(|column| catalog_names_equal(column.name().raw_bytes(), name, order));
     if columns.next().is_none() || columns.next().is_some() {
         return Err(UpdateError::Mismatch("unresolved relationship column"));
     }

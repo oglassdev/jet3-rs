@@ -1,30 +1,30 @@
 use super::entry::*;
 use crate::{
     Error, IndexDirection, IndexNullPolicy, PageNumber, ResourceBudget, ResourceLimitKind,
-    ResourceLimits, RowLocator, RowValue, index::key::scalar::NumericKeyType,
+    ResourceLimits, RowLocator, RowValue, index::key::scalar::ScalarKeyType,
 };
 
 fn budget() -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::default())
 }
 
-const FIELDS: [NumericIndexField; 2] = [
-    NumericIndexField {
+const FIELDS: [ScalarIndexField; 2] = [
+    ScalarIndexField {
         column: 1,
         direction: IndexDirection::Ascending,
-        kind: NumericKeyType::Long,
+        kind: ScalarKeyType::Long,
     },
-    NumericIndexField {
+    ScalarIndexField {
         column: 0,
         direction: IndexDirection::Descending,
-        kind: NumericKeyType::Long,
+        kind: ScalarKeyType::Long,
     },
 ];
 const LOCATOR: RowLocator = RowLocator::new(PageNumber::new(0x12_3456), 255);
 
 #[test]
 fn composite_null_records_keep_direction_and_locator() -> Result<(), Box<dyn std::error::Error>> {
-    let entry = NumericIndexEntry::encode(
+    let entry = ScalarIndexEntry::encode(
         &FIELDS,
         &[RowValue::Long(1), RowValue::Null],
         IndexNullPolicy::Include,
@@ -41,7 +41,7 @@ fn composite_null_records_keep_direction_and_locator() -> Result<(), Box<dyn std
     assert!(entry.has_null());
     assert_eq!(entry.locator(), LOCATOR);
     assert_eq!(
-        NumericIndexEntry::encode(
+        ScalarIndexEntry::encode(
             &FIELDS,
             &[RowValue::Long(1), RowValue::Null],
             IndexNullPolicy::IgnoreAllNull,
@@ -51,7 +51,7 @@ fn composite_null_records_keep_direction_and_locator() -> Result<(), Box<dyn std
         Some(entry)
     );
     assert_eq!(
-        NumericIndexEntry::encode(
+        ScalarIndexEntry::encode(
             &FIELDS,
             &[RowValue::Null, RowValue::Null],
             IndexNullPolicy::IgnoreAllNull,
@@ -61,7 +61,7 @@ fn composite_null_records_keep_direction_and_locator() -> Result<(), Box<dyn std
         None
     );
     assert_eq!(
-        NumericIndexEntry::encode(
+        ScalarIndexEntry::encode(
             &FIELDS,
             &[RowValue::Long(1), RowValue::Null],
             IndexNullPolicy::Required,
@@ -77,7 +77,7 @@ fn composite_null_records_keep_direction_and_locator() -> Result<(), Box<dyn std
 fn schema_and_value_refusals_are_structured() {
     for fields in [&[][..], &[FIELDS[0]; MAX_FIELDS + 1][..]] {
         assert_eq!(
-            NumericIndexEntry::encode(
+            ScalarIndexEntry::encode(
                 fields,
                 &[],
                 IndexNullPolicy::Include,
@@ -90,7 +90,7 @@ fn schema_and_value_refusals_are_structured() {
         );
     }
     assert_eq!(
-        NumericIndexEntry::encode(
+        ScalarIndexEntry::encode(
             &FIELDS,
             &[],
             IndexNullPolicy::Include,
@@ -100,19 +100,19 @@ fn schema_and_value_refusals_are_structured() {
         Err(EntryError::MissingColumn { column: 1 })
     );
     for (kind, value) in [
-        (NumericKeyType::Long, RowValue::Byte(1)),
-        (NumericKeyType::Double, RowValue::Double(f64::NAN)),
+        (ScalarKeyType::Long, RowValue::Byte(1)),
+        (ScalarKeyType::Double, RowValue::Double(f64::NAN)),
         (
-            NumericKeyType::DateTime,
+            ScalarKeyType::DateTime,
             RowValue::DateTime {
                 days: f64::INFINITY,
             },
         ),
-        (NumericKeyType::Single, RowValue::Single(f32::INFINITY)),
+        (ScalarKeyType::Single, RowValue::Single(f32::INFINITY)),
     ] {
         assert_eq!(
-            NumericIndexEntry::encode(
-                &[NumericIndexField {
+            ScalarIndexEntry::encode(
+                &[ScalarIndexField {
                     column: 0,
                     kind,
                     ..FIELDS[0]
@@ -129,12 +129,12 @@ fn schema_and_value_refusals_are_structured() {
 
 #[test]
 fn locator_width_and_budget_are_checked() -> Result<(), Box<dyn std::error::Error>> {
-    let fields = [NumericIndexField {
+    let fields = [ScalarIndexField {
         column: 0,
         ..FIELDS[0]
     }];
     let locator = RowLocator::new(PageNumber::new(0xff_ffff), 255);
-    let entry = NumericIndexEntry::encode(
+    let entry = ScalarIndexEntry::encode(
         &fields,
         &[RowValue::Long(i32::MIN)],
         IndexNullPolicy::Include,
@@ -147,7 +147,7 @@ fn locator_width_and_budget_are_checked() -> Result<(), Box<dyn std::error::Erro
     assert!(!entry.has_null());
     for page in [0x100_0000, u64::MAX] {
         assert!(matches!(
-            NumericIndexEntry::encode(
+            ScalarIndexEntry::encode(
                 &fields,
                 &[RowValue::Long(1)],
                 IndexNullPolicy::Include,
@@ -162,7 +162,7 @@ fn locator_width_and_budget_are_checked() -> Result<(), Box<dyn std::error::Erro
     }
     let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_item_work(0));
     assert!(matches!(
-        NumericIndexEntry::encode(
+        ScalarIndexEntry::encode(
             &fields,
             &[RowValue::Long(1)],
             IndexNullPolicy::Include,
@@ -181,25 +181,25 @@ fn locator_width_and_budget_are_checked() -> Result<(), Box<dyn std::error::Erro
 fn key_shapes_check_each_component_null_policy_and_complete_width()
 -> Result<(), Box<dyn std::error::Error>> {
     for (kind, value) in [
-        (NumericKeyType::Boolean, RowValue::Boolean(false)),
-        (NumericKeyType::Byte, RowValue::Byte(7)),
-        (NumericKeyType::Integer, RowValue::Integer(-5)),
-        (NumericKeyType::Long, RowValue::Long(-500)),
+        (ScalarKeyType::Boolean, RowValue::Boolean(false)),
+        (ScalarKeyType::Byte, RowValue::Byte(7)),
+        (ScalarKeyType::Integer, RowValue::Integer(-5)),
+        (ScalarKeyType::Long, RowValue::Long(-500)),
         (
-            NumericKeyType::Currency,
+            ScalarKeyType::Currency,
             RowValue::Currency { scaled: 120001 },
         ),
-        (NumericKeyType::Single, RowValue::Single(-1.25)),
-        (NumericKeyType::Double, RowValue::Double(2.5)),
-        (NumericKeyType::DateTime, RowValue::DateTime { days: -1.25 }),
+        (ScalarKeyType::Single, RowValue::Single(-1.25)),
+        (ScalarKeyType::Double, RowValue::Double(2.5)),
+        (ScalarKeyType::DateTime, RowValue::DateTime { days: -1.25 }),
     ] {
         for direction in [IndexDirection::Ascending, IndexDirection::Descending] {
-            let fields = [NumericIndexField {
+            let fields = [ScalarIndexField {
                 column: 0,
                 kind,
                 direction,
             }];
-            let entry = NumericIndexEntry::encode(
+            let entry = ScalarIndexEntry::encode(
                 &fields,
                 &[value],
                 IndexNullPolicy::Required,
@@ -223,7 +223,7 @@ fn key_shapes_check_each_component_null_policy_and_complete_width()
             bad.pop();
             bad[0] = 0x7e;
             assert!(!valid_key_shape(&fields, IndexNullPolicy::Include, &bad));
-            if kind == NumericKeyType::Boolean {
+            if kind == ScalarKeyType::Boolean {
                 bad[0] = entry.key()[0];
                 bad[1] = 1;
                 assert!(!valid_key_shape(&fields, IndexNullPolicy::Required, &bad));
@@ -235,7 +235,7 @@ fn key_shapes_check_each_component_null_policy_and_complete_width()
             }];
             assert_eq!(
                 valid_key_shape(&fields, IndexNullPolicy::Include, &null),
-                kind != NumericKeyType::Boolean
+                kind != ScalarKeyType::Boolean
             );
             assert!(!valid_key_shape(
                 &fields,
@@ -251,7 +251,7 @@ fn key_shapes_check_each_component_null_policy_and_complete_width()
         [RowValue::Null, RowValue::Long(2)],
         [RowValue::Long(1), RowValue::Long(2)],
     ] {
-        let entry = NumericIndexEntry::encode(
+        let entry = ScalarIndexEntry::encode(
             &FIELDS,
             &values,
             IndexNullPolicy::Include,
@@ -279,10 +279,10 @@ fn key_shapes_check_each_component_null_policy_and_complete_width()
 #[test]
 fn binary_components_and_shortened_keys_keep_observed_framing()
 -> Result<(), Box<dyn std::error::Error>> {
-    let mut fields = [NumericIndexField {
+    let mut fields = [ScalarIndexField {
         column: 0,
         direction: IndexDirection::Ascending,
-        kind: NumericKeyType::Binary { max_len: 255 },
+        kind: ScalarKeyType::Binary { max_len: 255 },
     }];
     for (direction, suffix225, suffix255) in [
         (IndexDirection::Ascending, [1, 0], [0x44, 0xda]),
@@ -296,7 +296,7 @@ fn binary_components_and_shortened_keys_keep_observed_framing()
         };
         for size in [1_usize, 8, 9, 17, 224, 225, 255] {
             let payload = vec![0; size];
-            let entry = NumericIndexEntry::encode(
+            let entry = ScalarIndexEntry::encode(
                 &fields,
                 &[RowValue::Binary(&payload)],
                 IndexNullPolicy::Include,
@@ -337,7 +337,7 @@ fn binary_components_and_shortened_keys_keep_observed_framing()
         }
     }
     assert_eq!(
-        NumericIndexEntry::encode(
+        ScalarIndexEntry::encode(
             &fields,
             &[RowValue::Binary(&[])],
             IndexNullPolicy::IgnoreAllNull,
@@ -347,7 +347,7 @@ fn binary_components_and_shortened_keys_keep_observed_framing()
         None
     );
     assert_eq!(
-        NumericIndexEntry::encode(
+        ScalarIndexEntry::encode(
             &fields,
             &[RowValue::Binary(&[])],
             IndexNullPolicy::Required,
@@ -357,7 +357,7 @@ fn binary_components_and_shortened_keys_keep_observed_framing()
         Err(EntryError::NullRequired)
     );
     assert!(matches!(
-        NumericIndexEntry::encode(
+        ScalarIndexEntry::encode(
             &fields,
             &[RowValue::Binary(&[0; 256])],
             IndexNullPolicy::Include,
@@ -372,12 +372,12 @@ fn binary_components_and_shortened_keys_keep_observed_framing()
 #[test]
 fn shortened_key_prefixes_enforce_schema_capacity_and_padding()
 -> Result<(), Box<dyn std::error::Error>> {
-    let field = NumericIndexField {
+    let field = ScalarIndexField {
         column: 0,
         direction: IndexDirection::Ascending,
-        kind: NumericKeyType::Binary { max_len: 255 },
+        kind: ScalarKeyType::Binary { max_len: 255 },
     };
-    let entry = NumericIndexEntry::encode(
+    let entry = ScalarIndexEntry::encode(
         &[field],
         &[RowValue::Binary(&[0; 255])],
         IndexNullPolicy::Include,
@@ -386,8 +386,8 @@ fn shortened_key_prefixes_enforce_schema_capacity_and_padding()
     )?
     .ok_or("entry")?;
     assert!(!valid_key_shape(
-        &[NumericIndexField {
-            kind: NumericKeyType::Binary { max_len: 224 },
+        &[ScalarIndexField {
+            kind: ScalarKeyType::Binary { max_len: 224 },
             ..field
         }],
         IndexNullPolicy::Include,
@@ -400,7 +400,7 @@ fn shortened_key_prefixes_enforce_schema_capacity_and_padding()
             &entry.key()[..length]
         ));
     }
-    let mut padded = NumericIndexEntry::encode(
+    let mut padded = ScalarIndexEntry::encode(
         &[field],
         &[RowValue::Binary(&[1])],
         IndexNullPolicy::Include,
@@ -432,18 +432,18 @@ fn whole_composite_key_is_shortened_after_its_components() -> Result<(), Box<dyn
             IndexDirection::Ascending
         };
         let fields = [
-            NumericIndexField {
+            ScalarIndexField {
                 column: 0,
                 direction,
-                kind: NumericKeyType::Binary { max_len: 255 },
+                kind: ScalarKeyType::Binary { max_len: 255 },
             },
-            NumericIndexField {
+            ScalarIndexField {
                 column: 1,
                 direction: other,
-                kind: NumericKeyType::Long,
+                kind: ScalarKeyType::Long,
             },
         ];
-        let entry = NumericIndexEntry::encode(
+        let entry = ScalarIndexEntry::encode(
             &fields,
             &[RowValue::Binary(&[0; 224]), RowValue::Long(13)],
             IndexNullPolicy::Required,
@@ -466,17 +466,17 @@ fn whole_composite_key_is_shortened_after_its_components() -> Result<(), Box<dyn
 #[test]
 fn binary_record_storage_charges_before_heap_allocation() -> Result<(), Box<dyn std::error::Error>>
 {
-    let fields = [NumericIndexField {
+    let fields = [ScalarIndexField {
         column: 0,
         direction: IndexDirection::Ascending,
-        kind: NumericKeyType::Binary { max_len: 255 },
+        kind: ScalarKeyType::Binary { max_len: 255 },
     }];
     let limited = |bytes| {
         ResourceBudget::new(
             ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(bytes)),
         )
     };
-    NumericIndexEntry::encode(
+    ScalarIndexEntry::encode(
         &fields,
         &[RowValue::Binary(&[0; 8])],
         IndexNullPolicy::Include,
@@ -485,7 +485,7 @@ fn binary_record_storage_charges_before_heap_allocation() -> Result<(), Box<dyn 
     )?
     .ok_or("inline entry")?;
     assert!(matches!(
-        NumericIndexEntry::encode(
+        ScalarIndexEntry::encode(
             &fields,
             &[RowValue::Binary(&[0; 9])],
             IndexNullPolicy::Include,
@@ -497,7 +497,7 @@ fn binary_record_storage_charges_before_heap_allocation() -> Result<(), Box<dyn 
             ..
         }))
     ));
-    let entry = NumericIndexEntry::encode(
+    let entry = ScalarIndexEntry::encode(
         &fields,
         &[RowValue::Binary(&[0; 9])],
         IndexNullPolicy::Include,

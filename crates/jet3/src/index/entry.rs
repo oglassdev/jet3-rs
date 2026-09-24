@@ -6,7 +6,7 @@ use crate::{
     RowValue,
     index::key::{
         binary::MAX_KEY_BYTES,
-        scalar::{KeyPrefix, MAX_COMPONENT_BYTES, NumericKeyType},
+        scalar::{KeyPrefix, MAX_COMPONENT_BYTES, ScalarKeyType},
     },
 };
 
@@ -17,17 +17,17 @@ const INLINE_BYTES: usize = 22;
 pub(crate) const ENTRY_CAPACITY: usize = MAX_KEY_BYTES + LOCATOR_BYTES;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct NumericIndexField {
+pub(crate) struct ScalarIndexField {
     pub(crate) column: usize,
     pub(crate) direction: IndexDirection,
-    pub(crate) kind: NumericKeyType,
+    pub(crate) kind: ScalarKeyType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum EntryError {
     FieldCount { actual: usize },
     MissingColumn { column: usize },
-    UnsupportedValue { column: usize, kind: NumericKeyType },
+    UnsupportedValue { column: usize, kind: ScalarKeyType },
     NullRequired,
     Encoding(Error),
 }
@@ -77,7 +77,7 @@ impl RecordBytes {
     }
 }
 
-pub(crate) fn record_capacity(fields: &[NumericIndexField]) -> usize {
+pub(crate) fn record_capacity(fields: &[ScalarIndexField]) -> usize {
     fields
         .iter()
         .fold(0_usize, |total, field| {
@@ -87,12 +87,12 @@ pub(crate) fn record_capacity(fields: &[NumericIndexField]) -> usize {
         + LOCATOR_BYTES
 }
 
-pub(crate) fn sort_cost(fields: &[NumericIndexField]) -> u64 {
-    (4 * record_capacity(fields) + size_of::<NumericIndexEntry>()) as u64
+pub(crate) fn sort_cost(fields: &[ScalarIndexField]) -> u64 {
+    (4 * record_capacity(fields) + size_of::<ScalarIndexEntry>()) as u64
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct NumericIndexEntry {
+pub(crate) struct ScalarIndexEntry {
     bytes: RecordBytes,
     key_len: usize,
     has_null: bool,
@@ -100,7 +100,7 @@ pub(crate) struct NumericIndexEntry {
 
 /// Checks the schema shape independently of current rows, including old branch fences.
 pub(crate) fn valid_key_shape(
-    fields: &[NumericIndexField],
+    fields: &[ScalarIndexField],
     null_policy: IndexNullPolicy,
     key: &[u8],
 ) -> bool {
@@ -113,7 +113,7 @@ pub(crate) fn valid_key_shape(
 }
 
 fn key_shape(
-    fields: &[NumericIndexField],
+    fields: &[ScalarIndexField],
     null_policy: IndexNullPolicy,
     mut key: &[u8],
     shortened: bool,
@@ -147,11 +147,11 @@ fn key_shape(
     !shortened && key.is_empty() && !(all_null && null_policy == IndexNullPolicy::IgnoreAllNull)
 }
 
-impl NumericIndexEntry {
+impl ScalarIndexEntry {
     /// Encodes up to ten fields from a complete row. An all-null key is omitted
     /// only for IgnoreAllNull. Uniqueness and entry ordering belong to the caller.
     pub(crate) fn encode(
-        fields: &[NumericIndexField],
+        fields: &[ScalarIndexField],
         values: &[RowValue<'_>],
         null_policy: IndexNullPolicy,
         locator: RowLocator,

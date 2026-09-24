@@ -4,7 +4,7 @@
 use super::*;
 use crate::{
     PAGE_BYTES,
-    index::tree::builder::{IndexRecord, NumericIndexPages, TreeBuildError},
+    index::tree::builder::{IndexRecord, ScalarIndexPages, TreeBuildError},
 };
 
 const PAGE_LIMIT: u64 = allocation_maps::PAGE_LIMIT;
@@ -152,7 +152,7 @@ impl CatalogIndex {
                 })
                 .count();
         let tree =
-            NumericIndexPages::new(&entries, PAGE_LIMIT as usize, budget).map_err(tree_error)?;
+            ScalarIndexPages::new(&entries, PAGE_LIMIT as usize, budget).map_err(tree_error)?;
         let mut result = Self {
             images: Vec::new(),
             owned: Vec::new(),

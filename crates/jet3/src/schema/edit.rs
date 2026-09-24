@@ -296,8 +296,7 @@ pub(crate) fn name(
     name: &[u8],
     maximum: usize,
 ) -> Result<(), UpdateError> {
-    if name.len() > maximum
-        || crate::catalog::name_key::validate_catalog_name_for(name, order).is_err()
+    if name.len() > maximum || crate::catalog::name_key::validate_catalog_name(name, order).is_err()
     {
         return Err(UpdateError::Unsupported("schema name grammar or length"));
     }
@@ -312,7 +311,7 @@ pub(crate) fn distinct<'a>(
 ) -> Result<(), UpdateError> {
     for other in others {
         budget.charge_work_units(1024)?;
-        if crate::catalog::name_key::catalog_names_equal_for(order, name, other) {
+        if crate::catalog::name_key::catalog_names_equal(name, other, order) {
             return Err(UpdateError::Unsupported("duplicate schema name"));
         }
     }

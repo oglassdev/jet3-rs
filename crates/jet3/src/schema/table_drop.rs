@@ -20,16 +20,10 @@ pub(crate) fn drop_table(
         let mut names = Vec::new();
         for relation in crate::relationship::catalog::catalog(database, budget)? {
             budget.charge_work_units(1024)?;
-            let parent = crate::catalog::name_key::catalog_names_equal_for(
-                order,
-                relation.parent_table(),
-                name,
-            );
-            let child = crate::catalog::name_key::catalog_names_equal_for(
-                order,
-                relation.child_table(),
-                name,
-            );
+            let parent =
+                crate::catalog::name_key::catalog_names_equal(relation.parent_table(), name, order);
+            let child =
+                crate::catalog::name_key::catalog_names_equal(relation.child_table(), name, order);
             if !parent && !child {
                 continue;
             }

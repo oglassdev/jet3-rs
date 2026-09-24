@@ -84,7 +84,7 @@ pub(crate) fn rename_table(
                         .field(field)
                         .and_then(|field| field.raw_bytes())
                         .is_some_and(|name| {
-                            crate::catalog::name_key::catalog_names_equal_for(order, name, old)
+                            crate::catalog::name_key::catalog_names_equal(name, old, order)
                         })
                     {
                         let locator = row.locator();

@@ -6,18 +6,18 @@ use crate::{
     IndexNullPolicy, IndexTree, RowLocator,
     index::{
         entry::{
-            EntryError, MAX_FIELDS, NumericIndexEntry as Entry, NumericIndexField, record_capacity,
+            EntryError, MAX_FIELDS, ScalarIndexEntry as Entry, ScalarIndexField, record_capacity,
             sort_cost,
         },
-        key::scalar::NumericKeyType,
+        key::scalar::ScalarKeyType,
     },
 };
 
 const COMPONENT_BYTES: usize = 5;
 
 #[derive(Debug, Clone)]
-pub(crate) struct InitialLongIndex {
-    fields: [NumericIndexField; MAX_FIELDS],
+pub(crate) struct InitialScalarIndex {
+    fields: [ScalarIndexField; MAX_FIELDS],
     field_count: usize,
     unique: bool,
     entries: Vec<Entry>,
@@ -27,7 +27,7 @@ pub(crate) struct InitialLongIndex {
     pages: IndexPages,
 }
 
-impl InitialLongIndex {
+impl InitialScalarIndex {
     #[cfg(test)]
     pub(crate) fn new(
         spec: &TableSpec<'_>,
@@ -77,10 +77,10 @@ impl InitialLongIndex {
         if !(1..=MAX_FIELDS).contains(&index.fields.len()) {
             return Err(ComposeError::UnsupportedInitialIndexSchema);
         }
-        let mut fields = [NumericIndexField {
+        let mut fields = [ScalarIndexField {
             column: 0,
             direction: IndexDirection::Ascending,
-            kind: NumericKeyType::Long,
+            kind: ScalarKeyType::Long,
         }; MAX_FIELDS];
         for (slot, field) in fields.iter_mut().zip(index.fields) {
             let column = field
@@ -91,9 +91,9 @@ impl InitialLongIndex {
             let kind = spec
                 .columns
                 .get(column)
-                .and_then(|column| NumericKeyType::from_column(column.column_type()))
+                .and_then(|column| ScalarKeyType::from_column(column.column_type()))
                 .ok_or(ComposeError::UnsupportedInitialIndexSchema)?;
-            *slot = NumericIndexField {
+            *slot = ScalarIndexField {
                 column,
                 direction: field.direction,
                 kind,
@@ -147,7 +147,7 @@ impl InitialLongIndex {
         .map_err(|error| match error {
             EntryError::Encoding(error) => ComposeError::from(error),
             EntryError::NullRequired => ComposeError::NullInitialIndexKey { row },
-            EntryError::UnsupportedValue { column, kind } if kind != NumericKeyType::Long => {
+            EntryError::UnsupportedValue { column, kind } if kind != ScalarKeyType::Long => {
                 ComposeError::UnsupportedInitialIndexValue { row, column }
             }
             EntryError::FieldCount { .. }
@@ -177,7 +177,7 @@ impl InitialLongIndex {
                     if self.field_count > 2
                         || self.fields[..self.field_count]
                             .iter()
-                            .any(|field| field.kind != NumericKeyType::Long)
+                            .any(|field| field.kind != ScalarKeyType::Long)
                     {
                         return Err(ComposeError::DuplicateInitialScalarIndexKey);
                     }
@@ -234,7 +234,7 @@ impl InitialLongIndex {
 
     pub(super) fn contains_key(
         &self,
-        kinds: &[NumericKeyType],
+        kinds: &[ScalarKeyType],
         values: &[RowValue<'_>],
         budget: &mut ResourceBudget,
     ) -> Result<bool, ComposeError> {
@@ -277,7 +277,7 @@ impl InitialLongIndex {
 
     pub(super) fn contains_single_key(
         &self,
-        kind: NumericKeyType,
+        kind: ScalarKeyType,
         value: RowValue<'_>,
         budget: &mut ResourceBudget,
     ) -> Result<bool, ComposeError> {
@@ -340,7 +340,7 @@ mod lookup_tests {
             }],
         };
         let mut budget = ResourceBudget::new(crate::ResourceLimits::default());
-        let mut index = InitialLongIndex::new(&table, 3, &mut budget)?
+        let mut index = InitialScalarIndex::new(&table, 3, &mut budget)?
             .ok_or(ComposeError::UnsupportedInitialIndexSchema)?;
         for slot in 0..3 {
             index.push(
@@ -354,13 +354,13 @@ mod lookup_tests {
             ResourceBudget::new(crate::ResourceLimits::default().with_max_total_work_units(59));
         assert!(
             index
-                .contains_single_key(NumericKeyType::Long, RowValue::Long(1), &mut insufficient)
+                .contains_single_key(ScalarKeyType::Long, RowValue::Long(1), &mut insufficient)
                 .is_err()
         );
         let mut sufficient =
             ResourceBudget::new(crate::ResourceLimits::default().with_max_total_work_units(60));
         assert!(index.contains_single_key(
-            NumericKeyType::Long,
+            ScalarKeyType::Long,
             RowValue::Long(1),
             &mut sufficient
         )?);

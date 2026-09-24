@@ -209,6 +209,7 @@ fn required_property_corruption_and_stored_nulls_are_reported() -> TestResult {
     let property = crate::properties::column::CreationProperties::new(
         &columns,
         crate::TableValidation::NONE,
+        crate::SortOrder::General,
         &mut budget(),
     )?
     .ok_or("properties")?;
@@ -309,6 +310,7 @@ fn missing_zero_length_properties_do_not_disable_empty_strings() -> TestResult {
                 let properties = crate::properties::column::CreationProperties::new(
                     &property_columns,
                     crate::TableValidation::NONE,
+                    crate::SortOrder::General,
                     &mut budget(),
                 )?
                 .ok_or("property block")?;

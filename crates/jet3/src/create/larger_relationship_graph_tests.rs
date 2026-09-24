@@ -67,7 +67,7 @@ fn graph_candidate_rejects_uninterpreted_generated_relationship_metadata() -> Te
             &pages,
             &mut budget()
         ),
-        Err(CandidateCheckError::Mismatch {
+        Err(ImageCheckError::Mismatch {
             detail: "relationship graph complete validation"
         })
     ));

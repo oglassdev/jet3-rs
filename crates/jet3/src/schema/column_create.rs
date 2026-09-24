@@ -84,7 +84,7 @@ pub(crate) fn create(
                 &mut variables,
             )?;
             let mut record = [0; 18];
-            crate::definition::column_writer::write_column_record_with_context(
+            crate::definition::column_writer::write_column_record(
                 &mut BinaryWriter::new(&mut record, budget)?,
                 ordinal,
                 &column,
@@ -107,7 +107,7 @@ pub(crate) fn create(
                     &mut offset,
                     &mut counter,
                 )?;
-                crate::definition::column_writer::write_column_record_with_context(
+                crate::definition::column_writer::write_column_record(
                     &mut BinaryWriter::new(&mut record, budget)?,
                     ordinal,
                     &plain,

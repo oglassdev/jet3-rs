@@ -1,4 +1,4 @@
-use super::relationship_candidate::*;
+use super::relationship::*;
 use crate::{
     ColumnRef, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec, PAGE_BYTES,
     RelationshipField, RelationshipSpec, ResourceLimits, SliceSource, TableRef,

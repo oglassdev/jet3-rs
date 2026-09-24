@@ -7,9 +7,9 @@ pub(crate) mod mutation_graph;
 pub(crate) mod mutation_pages;
 pub(crate) mod mutation_place;
 pub(crate) mod reader;
-pub(crate) mod reader_layout;
 #[cfg(test)]
-mod reader_schema_gap_tests;
+mod reader_dropped_column_tests;
+pub(crate) mod reader_layout;
 #[cfg(test)]
 mod reader_tests;
 pub(crate) mod scalar_values;

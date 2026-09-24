@@ -205,7 +205,7 @@ pub(crate) fn resolve_column(
 }
 
 /// Writes one 18-byte column record.
-pub(crate) fn write_column_record_with_context(
+pub(crate) fn write_column_record(
     writer: &mut BinaryWriter<'_, '_>,
     ordinal: u16,
     column: &ColumnSpec<'_>,

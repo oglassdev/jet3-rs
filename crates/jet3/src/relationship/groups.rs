@@ -1,8 +1,7 @@
 //! EXP-0290 groups ordered component rows into one relationship.
 use super::catalog::*;
 use crate::{
-    ResourceBudget, UpdateError, catalog::name_key::catalog_names_equal_for,
-    write::page_edits::reserve,
+    ResourceBudget, UpdateError, catalog::name_key::catalog_names_equal, write::page_edits::reserve,
 };
 
 pub(super) fn groups<'a>(
@@ -13,9 +12,9 @@ pub(super) fn groups<'a>(
     for record in records {
         budget.charge_work_units((groups.len() as u64).saturating_mul(512))?;
         if let Some(group) = groups.iter_mut().find(|group| {
-            group.first().is_some_and(|first| {
-                catalog_names_equal_for(first.order, &first.name, &record.name)
-            })
+            group
+                .first()
+                .is_some_and(|first| catalog_names_equal(&first.name, &record.name, first.order))
         }) {
             reserve(group, 1, budget)?;
             group.push(record);
@@ -48,8 +47,8 @@ pub(super) fn ordered<'a>(
     for &record in group {
         budget.charge_work_units(1024)?;
         if record.metadata[..2] != first.metadata[..2]
-            || !catalog_names_equal_for(first.order, &record.parent, &first.parent)
-            || !catalog_names_equal_for(first.order, &record.child, &first.child)
+            || !catalog_names_equal(&record.parent, &first.parent, first.order)
+            || !catalog_names_equal(&record.child, &first.child, first.order)
         {
             return Err(UpdateError::Mismatch(
                 "relationship component metadata differs",

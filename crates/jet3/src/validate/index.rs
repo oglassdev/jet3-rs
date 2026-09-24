@@ -4,8 +4,8 @@ use crate::{
     DatabaseReader, IndexNullPolicy, IndexTree, ReadAt, ResourceBudget, RowLocator,
     TableDefinition, UpdateError,
     index::{
-        entry::{EntryError, NumericIndexEntry, NumericIndexField, sort_cost},
-        key::scalar::NumericKeyType,
+        entry::{EntryError, ScalarIndexEntry, ScalarIndexField, sort_cost},
+        key::scalar::ScalarKeyType,
     },
 };
 
@@ -103,7 +103,7 @@ pub(super) fn validate<S: ReadAt>(
         let values = crate::row::scalar_values::read(&mut row, &selected)
             .map_err(|error| source_error(index, error))?;
         let record =
-            NumericIndexEntry::encode(&fields, &values, null_policy, locator, row.budget_mut())
+            ScalarIndexEntry::encode(&fields, &values, null_policy, locator, row.budget_mut())
                 .map_err(|error| match error {
                     EntryError::Encoding(error) => TableValidationError::Resource(error),
                     EntryError::NullRequired => failure(index, "null field in a required index"),
@@ -160,7 +160,7 @@ fn fields(
     table: &TableDefinition,
     index: u16,
     budget: &mut ResourceBudget,
-) -> Result<Option<Vec<NumericIndexField>>, TableValidationError> {
+) -> Result<Option<Vec<ScalarIndexField>>, TableValidationError> {
     let physical = &table.physical_indexes()[usize::from(index)];
     if !(1..=crate::index::entry::MAX_FIELDS).contains(&physical.fields().len())
         || table.columns().len() > u8::MAX as usize
@@ -179,10 +179,10 @@ fn fields(
             .columns()
             .get(ordinal)
             .ok_or_else(|| failure(index, "missing index column"))?;
-        let Some(kind) = NumericKeyType::from_definition(column) else {
+        let Some(kind) = ScalarKeyType::from_definition(column) else {
             return Ok(None);
         };
-        fields.push(NumericIndexField {
+        fields.push(ScalarIndexField {
             column: ordinal,
             direction: field.direction(),
             kind,

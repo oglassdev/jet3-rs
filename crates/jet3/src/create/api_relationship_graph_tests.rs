@@ -277,7 +277,7 @@ fn graph_candidate_check_rejects_changed_index_names_flags_and_endpoint_columns(
                 &pages,
                 &mut budget()
             ),
-            Err(CandidateCheckError::Mismatch { .. })
+            Err(ImageCheckError::Mismatch { .. })
         ));
     }
     let wrong = relation(b"A", 0, 1, 2);
@@ -290,7 +290,7 @@ fn graph_candidate_check_rejects_changed_index_names_flags_and_endpoint_columns(
             &pages,
             &mut budget()
         ),
-        Err(CandidateCheckError::Mismatch { .. })
+        Err(ImageCheckError::Mismatch { .. })
     ));
     Ok(())
 }

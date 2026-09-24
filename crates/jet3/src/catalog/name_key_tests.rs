@@ -160,22 +160,22 @@ fn undefined_and_overlong_names_preserve_the_output_buffer() {
 #[test]
 fn native_locale_names_use_their_own_weights_and_code_page()
 -> Result<(), Box<dyn std::error::Error>> {
-    use super::name_key::{NameKey, catalog_names_equal_for, validate_catalog_name_for};
+    use super::name_key::{NameKey, catalog_names_equal, validate_catalog_name};
     use crate::SortOrder;
 
-    assert!(!catalog_names_equal_for(SortOrder::Nordic, b"V", b"W"));
-    assert!(catalog_names_equal_for(SortOrder::Nordic, b"V", b"v"));
-    assert!(!catalog_names_equal_for(SortOrder::General, b"V", b"W"));
-    assert!(catalog_names_equal_for(SortOrder::Dutch, b"IJ", b"\xff"));
+    assert!(!catalog_names_equal(b"V", b"W", SortOrder::Nordic));
+    assert!(catalog_names_equal(b"V", b"v", SortOrder::Nordic));
+    assert!(!catalog_names_equal(b"V", b"W", SortOrder::General));
+    assert!(catalog_names_equal(b"IJ", b"\xff", SortOrder::Dutch));
     for order in SortOrder::known() {
-        assert!(catalog_names_equal_for(order, b"Name", b"NAME "));
-        let ch = NameKey::for_order(b"ch", order)?;
-        let cz = NameKey::for_order(b"cz", order)?;
+        assert!(catalog_names_equal(b"Name", b"NAME ", order));
+        let ch = NameKey::new(b"ch", order)?;
+        let cz = NameKey::new(b"cz", order)?;
         assert_eq!(ch.bytes() > cz.bytes(), order == SortOrder::Spanish);
     }
-    assert!(validate_catalog_name_for(b"N\x81", SortOrder::Cyrillic).is_ok());
-    assert!(validate_catalog_name_for(b"N\x81", SortOrder::General).is_err());
-    assert!(validate_catalog_name_for(b"N\xd2", SortOrder::Greek).is_err());
-    assert!(validate_catalog_name_for(b"N\xd2", SortOrder::Cyrillic).is_ok());
+    assert!(validate_catalog_name(b"N\x81", SortOrder::Cyrillic).is_ok());
+    assert!(validate_catalog_name(b"N\x81", SortOrder::General).is_err());
+    assert!(validate_catalog_name(b"N\xd2", SortOrder::Greek).is_err());
+    assert!(validate_catalog_name(b"N\xd2", SortOrder::Cyrillic).is_ok());
     Ok(())
 }

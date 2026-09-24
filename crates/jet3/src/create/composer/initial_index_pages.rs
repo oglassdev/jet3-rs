@@ -4,14 +4,14 @@ use crate::{
     PAGE_BYTES,
     create::composer::*,
     index::{
-        entry::NumericIndexEntry as Entry,
-        tree::builder::{NumericIndexPages, TreeBuildError},
+        entry::ScalarIndexEntry as Entry,
+        tree::builder::{ScalarIndexPages, TreeBuildError},
     },
 };
 
 #[derive(Debug, Clone)]
 pub(super) struct IndexPages {
-    layout: NumericIndexPages,
+    layout: ScalarIndexPages,
 }
 
 impl IndexPages {
@@ -19,7 +19,7 @@ impl IndexPages {
         entries: &[Entry],
         budget: &mut ResourceBudget,
     ) -> Result<Self, ComposeError> {
-        NumericIndexPages::new(entries, allocation_maps::PAGE_LIMIT as usize, budget)
+        ScalarIndexPages::new(entries, allocation_maps::PAGE_LIMIT as usize, budget)
             .map(|layout| Self { layout })
             .map_err(creation_error)
     }

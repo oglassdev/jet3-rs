@@ -4,8 +4,8 @@ use crate::{
     ResourceBudget, TableDefinition, UpdateError,
     alloc::mutation_map::MapBits,
     index::{
-        entry::{NumericIndexField, record_capacity, sort_cost},
-        key::scalar::NumericKeyType,
+        entry::{ScalarIndexField, record_capacity, sort_cost},
+        key::scalar::ScalarKeyType,
     },
     write::page_edits::reserve,
 };
@@ -42,10 +42,10 @@ pub(crate) fn load(
                 .columns()
                 .get(ordinal)
                 .ok_or(UpdateError::NotFound("key column"))?;
-            let kind = NumericKeyType::from_definition(column)
+            let kind = ScalarKeyType::from_definition(column)
                 .ok_or(UpdateError::Unsupported("unsupported index key schema"))?;
             result.columns[ordinal] = true;
-            fields.push(NumericIndexField {
+            fields.push(ScalarIndexField {
                 column: ordinal,
                 kind,
                 direction: field.direction(),

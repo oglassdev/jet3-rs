@@ -362,19 +362,6 @@ pub(crate) fn set_initial_foreign_count(
 pub fn encode_table_definition(
     spec: &TableDefinitionSpec<'_>,
     output: &mut [u8],
-    budget: &mut ResourceBudget,
-) -> Result<ByteCount, TableDefinitionWriteError> {
-    encode_table_definition_with_context(
-        spec,
-        output,
-        crate::index::key::text::ENCODING_CONTEXT,
-        budget,
-    )
-}
-
-pub(crate) fn encode_table_definition_with_context(
-    spec: &TableDefinitionSpec<'_>,
-    output: &mut [u8],
     encoding_context: [u8; 4],
     budget: &mut ResourceBudget,
 ) -> Result<ByteCount, TableDefinitionWriteError> {
@@ -411,7 +398,7 @@ pub(crate) fn encode_table_definition_with_context(
             &mut next_fixed_offset,
             &mut variables_seen,
         )?;
-        crate::definition::column_writer::write_column_record_with_context(
+        crate::definition::column_writer::write_column_record(
             &mut writer,
             ordinal,
             column,

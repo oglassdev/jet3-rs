@@ -81,7 +81,7 @@ fn select_direction(
             continue;
         }
         budget.charge_work_units(512 + 194)?;
-        let key = NameKey::new(index.name)?;
+        let key = NameKey::new(index.name, crate::SortOrder::General)?;
         if selected
             .as_ref()
             .is_none_or(|(_, previous)| key.bytes() < previous.bytes())

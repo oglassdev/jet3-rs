@@ -2,7 +2,7 @@
 use crate::{
     ColumnOrdinal, DatabaseReader, FileSource, PageNumber, ResourceBudget, RowLocator, RowValue,
     UpdateError,
-    index::key::scalar::NumericKeyType,
+    index::key::scalar::ScalarKeyType,
     relationship::{catalog::Constraint, key::Key},
     write::page_edits::reserve,
 };
@@ -109,7 +109,7 @@ impl Row {
     pub fn key(
         &self,
         columns: &[ColumnOrdinal],
-        kinds: &[NumericKeyType],
+        kinds: &[ScalarKeyType],
         after: bool,
         budget: &mut ResourceBudget,
     ) -> Result<Option<Key>, UpdateError> {

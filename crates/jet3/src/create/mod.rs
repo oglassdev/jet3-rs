@@ -65,8 +65,6 @@ mod multiple_index_tests;
 mod multiple_long_values_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod nullable_index_tests;
-#[cfg(all(test, any(unix, windows)))]
-mod numeric_index_tests;
 pub(crate) mod page_append_plan;
 #[cfg(test)]
 mod page_append_plan_tests;
@@ -80,6 +78,8 @@ mod relationship_rows_tests;
 mod required_column_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod rich_relationship_tests;
+#[cfg(all(test, any(unix, windows)))]
+mod scalar_index_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod scalar_relationship_tests;
 mod schema;

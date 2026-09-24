@@ -377,7 +377,7 @@ fn text_only_properties_are_checked_before_publication() -> Result<(), Box<dyn S
     fs::write(&path, &changed)?;
     assert!(matches!(
         check_long_value_written_pages(&path, &[table], &pages, &mut budget()),
-        Err(CandidateCheckError::Mismatch { .. })
+        Err(ImageCheckError::Mismatch { .. })
     ));
 
     // A Text-only target must reject a property fragment also claimed as table data.

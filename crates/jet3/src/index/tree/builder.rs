@@ -4,7 +4,7 @@
 
 use crate::{
     ByteCount, Error, PAGE_BYTES, PageImage, PageNumber, ResourceBudget,
-    index::entry::NumericIndexEntry,
+    index::entry::ScalarIndexEntry,
 };
 use std::ops::Range;
 
@@ -18,9 +18,9 @@ pub(crate) trait IndexRecord {
     fn record(&self) -> &[u8];
 }
 
-impl IndexRecord for NumericIndexEntry {
+impl IndexRecord for ScalarIndexEntry {
     fn record(&self) -> &[u8] {
-        NumericIndexEntry::record(self)
+        ScalarIndexEntry::record(self)
     }
 }
 
@@ -53,11 +53,11 @@ struct Node {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct NumericIndexPages {
+pub(crate) struct ScalarIndexPages {
     nodes: Vec<Node>,
 }
 
-impl NumericIndexPages {
+impl ScalarIndexPages {
     /// Plans leaves first and the root last. The caller supplies sorted entries
     /// and an allocation-policy limit on the total number of nodes.
     pub(crate) fn new(

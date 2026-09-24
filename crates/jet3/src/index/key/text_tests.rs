@@ -3,8 +3,8 @@ use crate::{
     IndexDirection, IndexNullPolicy, PageNumber, ResourceBudget, ResourceLimits, RowLocator,
     RowValue,
     index::{
-        entry::{NumericIndexEntry, NumericIndexField, valid_key_shape},
-        key::scalar::{KeyPrefix, MAX_COMPONENT_BYTES, NumericKeyType},
+        entry::{ScalarIndexEntry, ScalarIndexField, valid_key_shape},
+        key::scalar::{KeyPrefix, MAX_COMPONENT_BYTES, ScalarKeyType},
     },
 };
 
@@ -122,22 +122,22 @@ fn text_shortening_composite_boundaries_and_empty_presence_are_checked() -> Test
             for byte in [b' ', b'a', 0xe9, 0xc6, 0xdf] {
                 let payload = vec![byte; length];
                 let fields = [
-                    NumericIndexField {
+                    ScalarIndexField {
                         column: 0,
                         direction,
-                        kind: NumericKeyType::Text {
+                        kind: ScalarKeyType::Text {
                             max_len: 255,
                             sort_order: crate::SortOrder::General,
                         },
                     },
-                    NumericIndexField {
+                    ScalarIndexField {
                         column: 1,
                         direction: IndexDirection::Descending,
-                        kind: NumericKeyType::Long,
+                        kind: ScalarKeyType::Long,
                     },
                 ];
                 for fields in [&fields[..1], &fields[..]] {
-                    let entry = NumericIndexEntry::encode(
+                    let entry = ScalarIndexEntry::encode(
                         fields,
                         &[RowValue::Text(&payload), RowValue::Long(13)],
                         IndexNullPolicy::Required,
@@ -172,7 +172,7 @@ fn guid_display_order_uses_two_full_binary_chunks() -> TestResult {
     for direction in [IndexDirection::Ascending, IndexDirection::Descending] {
         let mut output = [0; MAX_COMPONENT_BYTES];
         assert_eq!(
-            NumericKeyType::Guid.encode(RowValue::Guid(value), direction, &mut output),
+            ScalarKeyType::Guid.encode(RowValue::Guid(value), direction, &mut output),
             Some(19)
         );
         let mask = u8::from(direction == IndexDirection::Descending).wrapping_neg();
@@ -180,19 +180,19 @@ fn guid_display_order_uses_two_full_binary_chunks() -> TestResult {
             assert_eq!(output[i], if i == 9 { 9 } else { byte ^ mask });
         }
         assert!(matches!(
-            NumericKeyType::Guid.prefix(&output[..19], direction),
+            ScalarKeyType::Guid.prefix(&output[..19], direction),
             Some(KeyPrefix::Complete(19))
         ));
         for length in 0..19 {
             assert!(matches!(
-                NumericKeyType::Guid.prefix(&output[..length], direction),
+                ScalarKeyType::Guid.prefix(&output[..length], direction),
                 Some(KeyPrefix::Partial { maximum: 19 })
             ));
         }
         for position in [9, 18] {
             output[position] ^= 1;
             assert!(
-                NumericKeyType::Guid
+                ScalarKeyType::Guid
                     .prefix(&output[..19], direction)
                     .is_none()
             );

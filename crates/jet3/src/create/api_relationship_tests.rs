@@ -115,7 +115,7 @@ fn public_relationship_creation_publishes_both_index_shapes() -> TestResult {
             &mut budget(),
         )?;
         let pages = compose_relationship(&tables, &spec, &mut budget())?.into_pages();
-        check_relationship_candidate(&directory.target(), &tables, &spec, &pages, &mut budget())?;
+        check_relationship_image(&directory.target(), &tables, &spec, &pages, &mut budget())?;
         assert_eq!(fs::read_dir(&directory.0)?.count(), 1);
     }
     Ok(())
@@ -202,8 +202,8 @@ fn corrupted_written_page_and_wrong_endpoint_fail_publication_check() -> TestRes
         child: ColumnRef::Ordinal(0),
     }];
     assert!(matches!(
-        check_relationship_candidate(&directory.target(), &tables, &spec, &pages, &mut budget()),
-        Err(CandidateCheckError::Mismatch {
+        check_relationship_image(&directory.target(), &tables, &spec, &pages, &mut budget()),
+        Err(ImageCheckError::Mismatch {
             detail: "relationship endpoint"
         })
     ));
@@ -212,8 +212,8 @@ fn corrupted_written_page_and_wrong_endpoint_fail_publication_check() -> TestRes
     *last ^= 1;
     fs::write(directory.target(), bytes)?;
     assert!(matches!(
-        check_relationship_candidate(&directory.target(), &tables, &spec, &pages, &mut budget()),
-        Err(CandidateCheckError::Mismatch {
+        check_relationship_image(&directory.target(), &tables, &spec, &pages, &mut budget()),
+        Err(ImageCheckError::Mismatch {
             detail: "relationship written page"
         })
     ));

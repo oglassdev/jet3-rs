@@ -77,7 +77,7 @@ pub(crate) fn create(
             let mut bytes = Vec::new();
             reserve(&mut bytes, length, budget)?;
             bytes.resize(length, 0);
-            crate::definition::table_writer::encode_table_definition_with_context(
+            crate::definition::table_writer::encode_table_definition(
                 &definition,
                 &mut bytes,
                 order
@@ -89,7 +89,7 @@ pub(crate) fn create(
             Ok((edits, (root, parent, order)))
         })?;
     let mut properties = Vec::new();
-    if let Some(description) = crate::properties::column::CreationProperties::for_order(
+    if let Some(description) = crate::properties::column::CreationProperties::new(
         spec.columns,
         spec.validation,
         order,

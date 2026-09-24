@@ -74,11 +74,7 @@ pub(crate) fn supported_name_byte_for(byte: u8, order: SortOrder) -> bool {
             .is_some_and(|page| crate::format::text::mapped_character(page, byte).is_some())
 }
 
-pub(crate) fn validate_catalog_name(name: &[u8]) -> Result<(), CatalogNameKeyError> {
-    validate_catalog_name_for(name, SortOrder::General)
-}
-
-pub(crate) fn validate_catalog_name_for(
+pub(crate) fn validate_catalog_name(
     name: &[u8],
     order: SortOrder,
 ) -> Result<(), CatalogNameKeyError> {
@@ -106,11 +102,7 @@ pub(crate) fn validate_catalog_name_for(
 }
 
 /// Names collide when the unique ParentId/Name catalog key is identical.
-pub(crate) fn catalog_names_equal(left: &[u8], right: &[u8]) -> bool {
-    catalog_names_equal_for(SortOrder::General, left, right)
-}
-
-pub(crate) fn catalog_names_equal_for(order: SortOrder, left: &[u8], right: &[u8]) -> bool {
+pub(crate) fn catalog_names_equal(left: &[u8], right: &[u8], order: SortOrder) -> bool {
     if left.len() > 64 || right.len() > 64 {
         return false;
     }
@@ -122,10 +114,7 @@ pub(crate) fn catalog_names_equal_for(order: SortOrder, left: &[u8], right: &[u8
     {
         return left.eq_ignore_ascii_case(right);
     }
-    match (
-        NameKey::for_order(left, order),
-        NameKey::for_order(right, order),
-    ) {
+    match (NameKey::new(left, order), NameKey::new(right, order)) {
         (Ok(a), Ok(b)) => a.bytes() == b.bytes(),
         _ => false,
     }
@@ -139,11 +128,7 @@ pub(crate) struct NameKey {
 }
 
 impl NameKey {
-    pub(crate) fn new(name: &[u8]) -> Result<Self, CatalogNameKeyError> {
-        Self::for_order(name, SortOrder::General)
-    }
-
-    pub(crate) fn for_order(name: &[u8], order: SortOrder) -> Result<Self, CatalogNameKeyError> {
+    pub(crate) fn new(name: &[u8], order: SortOrder) -> Result<Self, CatalogNameKeyError> {
         if name.len() > 64 {
             return Err(CatalogNameKeyError::NameTooLong {
                 length: name.len(),
@@ -188,8 +173,8 @@ pub(crate) fn encode_catalog_name_key(
     name: &[u8],
     output: &mut [u8],
 ) -> Result<usize, CatalogNameKeyError> {
-    validate_catalog_name(name)?;
-    let component = NameKey::new(name)?;
+    validate_catalog_name(name, crate::SortOrder::General)?;
+    let component = NameKey::new(name, crate::SortOrder::General)?;
     let needed = LONG_COMPONENT_LEN + component.len;
     if output.len() < needed {
         return Err(CatalogNameKeyError::KeyTooLong {

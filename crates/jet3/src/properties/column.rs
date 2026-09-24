@@ -93,14 +93,6 @@ impl CreationProperties {
     pub(crate) fn new(
         columns: &[ColumnSpec<'_>],
         validation: TableValidation<'_>,
-        budget: &mut ResourceBudget,
-    ) -> Result<Option<Self>, ColumnPropertyError> {
-        Self::for_order(columns, validation, crate::SortOrder::General, budget)
-    }
-
-    pub(crate) fn for_order(
-        columns: &[ColumnSpec<'_>],
-        validation: TableValidation<'_>,
         order: crate::SortOrder,
         budget: &mut ResourceBudget,
     ) -> Result<Option<Self>, ColumnPropertyError> {
@@ -112,7 +104,7 @@ impl CreationProperties {
                     has_zero_length_property(column.physical_type()) || column.required()
                 })
             || columns.iter().any(|column| {
-                crate::catalog::name_key::validate_catalog_name_for(column.name(), order).is_err()
+                crate::catalog::name_key::validate_catalog_name(column.name(), order).is_err()
             })
         {
             return Ok(None);
@@ -295,8 +287,13 @@ mod tests {
 
     fn encoded(columns: &[ColumnSpec<'_>]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut budget = ResourceBudget::new(crate::ResourceLimits::default());
-        let properties = CreationProperties::new(columns, TableValidation::NONE, &mut budget)?
-            .ok_or("properties")?;
+        let properties = CreationProperties::new(
+            columns,
+            TableValidation::NONE,
+            crate::SortOrder::General,
+            &mut budget,
+        )?
+        .ok_or("properties")?;
         let mut bytes = vec![0; properties.len()];
         properties.encode(&mut bytes, &mut budget)?;
         Ok(bytes)
@@ -341,10 +338,11 @@ mod tests {
             text: Some(b"message"),
         };
         let mut budget = ResourceBudget::new(crate::ResourceLimits::default());
-        let bytes = CreationProperties::new(&columns, validation, &mut budget)?
-            .ok_or("properties")?
-            .blob
-            .encode(&mut budget)?;
+        let bytes =
+            CreationProperties::new(&columns, validation, crate::SortOrder::General, &mut budget)?
+                .ok_or("properties")?
+                .blob
+                .encode(&mut budget)?;
         let blob = PropertyBlob::parse(&bytes, &mut budget)?;
         let order: Vec<_> = blob.blocks().iter().map(|block| block.name()).collect();
         assert_eq!(order, [b"Qty".as_slice(), b"", b"Id"]);

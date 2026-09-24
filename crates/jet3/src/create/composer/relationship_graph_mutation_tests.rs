@@ -197,6 +197,7 @@ pub(super) fn fixture(edges: &[Edge]) -> Result<Fixture> {
                 long_value_maps: &[],
             },
             &mut image,
+            crate::index::key::text::ENCODING_CONTEXT,
             &mut work,
         )?;
         edits.set_image(

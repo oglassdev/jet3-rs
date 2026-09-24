@@ -42,9 +42,7 @@ mod error;
 mod initial_index;
 mod initial_index_pages;
 mod initial_long_values;
-mod relationship_candidate;
-#[cfg(test)]
-mod relationship_candidate_tests;
+mod relationship;
 mod relationship_graph;
 #[cfg(all(test, any(unix, windows)))]
 mod relationship_graph_mutation_tests;
@@ -56,6 +54,8 @@ mod relationship_pages;
 mod relationship_parameterized_tests;
 mod relationship_plan;
 mod relationship_rows;
+#[cfg(test)]
+mod relationship_tests;
 #[cfg(test)]
 mod schema_candidates_tests;
 mod system_definitions;
@@ -173,10 +173,9 @@ pub(crate) fn compose_database(
     for (position, spec) in specs.iter().enumerate() {
         budget.charge_items(1)?;
         budget.charge_work_units((position as u64).saturating_mul(512))?;
-        if let Some(first) = specs[..position]
-            .iter()
-            .position(|earlier| catalog_names_equal(earlier.name, spec.name))
-        {
+        if let Some(first) = specs[..position].iter().position(|earlier| {
+            catalog_names_equal(earlier.name, spec.name, crate::SortOrder::General)
+        }) {
             return Err(ComposeError::DuplicateTableName {
                 first,
                 second: position,
@@ -445,7 +444,12 @@ fn definition_page(
     budget: &mut ResourceBudget,
 ) -> Result<PageImage, ComposeError> {
     let mut bytes = [0_u8; PAGE_BYTES];
-    encode_table_definition(spec, &mut bytes, budget)?;
+    encode_table_definition(
+        spec,
+        &mut bytes,
+        crate::index::key::text::ENCODING_CONTEXT,
+        budget,
+    )?;
     Ok(PageImage::from_bytes(bytes))
 }
 
@@ -457,7 +461,7 @@ use system_definitions::{
 use initial_long_values::InitialLongValues;
 pub(crate) use initial_long_values::{encode_initial_row, initial_payload_start};
 
-pub(crate) use initial_index::InitialLongIndex;
+pub(crate) use initial_index::InitialScalarIndex;
 
 pub(crate) use table_create::compose_database_with_table_rows;
 use table_create::{PlannedCreate, creation_counter, reserve_creates};
@@ -611,7 +615,7 @@ fn index_page(
 pub(crate) use relationship_graph::{GraphImage, compose_relationship_graph};
 use relationship_pages::{RelationshipMaps, RelationshipPages};
 
-pub(crate) use relationship_candidate::{compose_relationship, compose_relationship_with_rows};
+pub(crate) use relationship::{compose_relationship, compose_relationship_with_rows};
 
 pub(crate) use autoincrement::InitialAutoIncrement;
 

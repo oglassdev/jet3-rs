@@ -96,6 +96,7 @@ fn wide_candidate_bytes() -> CandidateResult<Vec<u8>> {
             long_value_maps: &[],
         },
         &mut logical,
+        crate::index::key::text::ENCODING_CONTEXT,
         &mut budget,
     )?
     .get() as usize;

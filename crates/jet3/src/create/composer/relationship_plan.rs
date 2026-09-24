@@ -59,7 +59,7 @@ impl<'a> RelationshipPlan<'a> {
         let parent = plan_table_schema(&tables[0], EMPTY_DATABASE_PAGE_COUNT, true, budget)?;
         let child_root = parent.definition_root().get() + parent.appended_page_count();
         let child = plan_table_schema(&tables[1], child_root, false, budget)?;
-        if catalog_names_equal(tables[0].name, tables[1].name) {
+        if catalog_names_equal(tables[0].name, tables[1].name, crate::SortOrder::General) {
             return Err(ComposeError::DuplicateTableName {
                 first: 0,
                 second: 1,

@@ -1,7 +1,7 @@
 //! Referential integrity over the catalog's checked scalar relationships.
 use crate::{
     ColumnOrdinal, DatabaseReader, FileSource, ResourceBudget, RowLocator, RowValue,
-    TableDefinition, UpdateError, index::key::scalar::NumericKeyType, write::page_edits::reserve,
+    TableDefinition, UpdateError, index::key::scalar::ScalarKeyType, write::page_edits::reserve,
 };
 
 use super::key::{self, Key, key_values};
@@ -32,7 +32,7 @@ impl Change<'_> {
         row: RowLocator,
         columns: &[ColumnOrdinal],
         before: &[RowValue<'_>],
-        kinds: &[NumericKeyType],
+        kinds: &[ScalarKeyType],
         budget: &mut ResourceBudget,
     ) -> Result<Option<Option<Key>>, UpdateError> {
         if matches!(self, Self::Delete(selected) if selected == row) {
@@ -78,7 +78,7 @@ fn keys(
     database: &mut DatabaseReader<FileSource>,
     table: &TableDefinition,
     columns: &[ColumnOrdinal],
-    kinds: &[NumericKeyType],
+    kinds: &[ScalarKeyType],
     change: Option<Change<'_>>,
     exclude_replacement: bool,
     budget: &mut ResourceBudget,

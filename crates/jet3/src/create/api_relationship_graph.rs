@@ -88,10 +88,9 @@ pub(super) fn check_graph(
     tables: &[(PageNumber, u64)],
     pages: &[PlannedPage],
     budget: &mut ResourceBudget,
-) -> Result<(), CandidateCheckError> {
-    let mismatch = |detail| CandidateCheckError::Mismatch { detail };
-    let mut database =
-        DatabaseReader::open(candidate, budget).map_err(CandidateCheckError::Open)?;
+) -> Result<(), ImageCheckError> {
+    let mismatch = |detail| ImageCheckError::Mismatch { detail };
+    let mut database = DatabaseReader::open(candidate, budget).map_err(ImageCheckError::Open)?;
     if database.geometry().page_count() != pages.len() as u64 || requests.len() != tables.len() {
         return Err(mismatch("relationship graph geometry"));
     }
@@ -99,32 +98,27 @@ pub(super) fn check_graph(
     for page in pages {
         database
             .read_raw_page(page.number(), &mut bytes, budget)
-            .map_err(CandidateCheckError::Read)?;
+            .map_err(ImageCheckError::Read)?;
         budget
             .charge_work_units(crate::PAGE_BYTES as u64)
-            .map_err(CandidateCheckError::Read)?;
+            .map_err(ImageCheckError::Read)?;
         if &bytes != page.image().as_bytes() {
             return Err(mismatch("relationship graph written page"));
         }
     }
     let mut seen = Vec::new();
     crate::format::resource::reserve(&mut seen, requests.len(), budget)
-        .map_err(CandidateCheckError::Read)?;
+        .map_err(ImageCheckError::Read)?;
     seen.resize(requests.len(), false);
-    let mut catalog = database
-        .catalog(budget)
-        .map_err(CandidateCheckError::Catalog)?;
-    while let Some(record) = catalog
-        .next_record()
-        .map_err(CandidateCheckError::Catalog)?
-    {
+    let mut catalog = database.catalog(budget).map_err(ImageCheckError::Catalog)?;
+    while let Some(record) = catalog.next_record().map_err(ImageCheckError::Catalog)? {
         if record.class() != CatalogObjectClass::User || record.kind() != CatalogObjectKind::Table {
             continue;
         }
         catalog
             .budget_mut()
             .charge_work_units((requests.len() as u64).saturating_mul(64))
-            .map_err(CandidateCheckError::Read)?;
+            .map_err(ImageCheckError::Read)?;
         let position = requests
             .iter()
             .position(|r| r.table.name == record.name().raw_bytes())
@@ -146,7 +140,7 @@ pub(super) fn check_graph(
         check_initial_table_rows_from(&mut database, request, root, payload, budget)?;
         let definition = database
             .table_definition(root, budget)
-            .map_err(CandidateCheckError::Definition)?;
+            .map_err(ImageCheckError::Definition)?;
         check_columns(&definition, &request.table)?;
         super::graph_schema_check::check(
             &definition,
@@ -162,7 +156,7 @@ pub(super) fn check_graph(
                     .saturating_mul(requests.len() as u64)
                     .saturating_mul(2 * 64),
             )
-            .map_err(CandidateCheckError::Read)?;
+            .map_err(ImageCheckError::Read)?;
         let expected = relationships
             .iter()
             .map(|r| {
@@ -176,7 +170,7 @@ pub(super) fn check_graph(
     }
     let report = database
         .validate(TextCodePage::Windows1252, budget)
-        .map_err(|error| CandidateCheckError::Validation(Box::new(error)))?;
+        .map_err(|error| ImageCheckError::Validation(Box::new(error)))?;
     let expected_rows = relationships
         .iter()
         .try_fold(0_u64, |count, relationship| {

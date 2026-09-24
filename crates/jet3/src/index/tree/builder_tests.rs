@@ -3,8 +3,8 @@ use crate::{
     ByteCount, Error, IndexDirection, IndexNullPolicy, PAGE_BYTES, PageNumber, ResourceBudget,
     ResourceLimitKind, ResourceLimits, RowLocator, RowValue,
     index::{
-        entry::{NumericIndexEntry, NumericIndexField},
-        key::scalar::NumericKeyType,
+        entry::{ScalarIndexEntry, ScalarIndexField},
+        key::scalar::ScalarKeyType,
     },
 };
 
@@ -17,17 +17,17 @@ fn budget() -> ResourceBudget {
 fn entry(
     values: [RowValue<'_>; 2],
     slot: u8,
-) -> Result<NumericIndexEntry, Box<dyn std::error::Error>> {
-    NumericIndexEntry::encode(
+) -> Result<ScalarIndexEntry, Box<dyn std::error::Error>> {
+    ScalarIndexEntry::encode(
         &[
-            NumericIndexField {
+            ScalarIndexField {
                 column: 0,
-                kind: NumericKeyType::Currency,
+                kind: ScalarKeyType::Currency,
                 direction: IndexDirection::Ascending,
             },
-            NumericIndexField {
+            ScalarIndexField {
                 column: 1,
-                kind: NumericKeyType::Double,
+                kind: ScalarKeyType::Double,
                 direction: IndexDirection::Descending,
             },
         ],
@@ -58,10 +58,10 @@ fn variable_width_boundary_uses_explicit_pages_and_preserves_payload_slack() -> 
     }
     // Three six-byte records plus 81 twenty-two-byte records fill one leaf.
     assert_eq!(
-        NumericIndexPages::new(&entries[..84], 3, &mut budget())?.len(),
+        ScalarIndexPages::new(&entries[..84], 3, &mut budget())?.len(),
         1
     );
-    let layout = NumericIndexPages::new(&entries, 3, &mut budget())?;
+    let layout = ScalarIndexPages::new(&entries, 3, &mut budget())?;
     assert_eq!(layout.len(), 3);
     let ids = [
         PageNumber::new(700),
@@ -125,12 +125,12 @@ fn variable_width_boundary_uses_explicit_pages_and_preserves_payload_slack() -> 
 
 #[test]
 fn empty_tree_resets_header_and_keeps_all_payload_slack() -> TestResult {
-    let layout = NumericIndexPages::new(&[] as &[NumericIndexEntry], 1, &mut budget())?;
+    let layout = ScalarIndexPages::new(&[] as &[ScalarIndexEntry], 1, &mut budget())?;
     assert_eq!(layout.len(), 1);
     let mut expected = [0x5a; PAGE_BYTES];
     let result = layout.image(
         0,
-        &[] as &[NumericIndexEntry],
+        &[] as &[ScalarIndexEntry],
         |_| Some(PageNumber::new(91)),
         PageNumber::new(20),
         &expected,
@@ -149,8 +149,8 @@ fn invalid_inventory_assignment_widths_and_node_limits_are_checked() -> TestResu
     let narrow = entry([RowValue::Null; 2], 0)?;
     let wide = entry([RowValue::Currency { scaled: 1 }, RowValue::Double(1.0)], 0)?;
     let entries = vec![narrow; 84];
-    let layout = NumericIndexPages::new(&entries, 1, &mut budget())?;
-    let image = |ordinal, entries: &[NumericIndexEntry], page, owner| {
+    let layout = ScalarIndexPages::new(&entries, 1, &mut budget())?;
+    let image = |ordinal, entries: &[ScalarIndexEntry], page, owner| {
         layout.image(
             ordinal,
             entries,
@@ -180,11 +180,11 @@ fn invalid_inventory_assignment_widths_and_node_limits_are_checked() -> TestResu
         ));
     }
     assert!(matches!(
-        NumericIndexPages::new(&[] as &[NumericIndexEntry], 0, &mut budget()),
+        ScalarIndexPages::new(&[] as &[ScalarIndexEntry], 0, &mut budget()),
         Err(TreeBuildError::NodeLimit { maximum: 0 })
     ));
     assert!(matches!(
-        NumericIndexPages::new(&vec![wide; 82], 2, &mut budget()),
+        ScalarIndexPages::new(&vec![wide; 82], 2, &mut budget()),
         Err(TreeBuildError::NodeLimit { maximum: 2 })
     ));
     Ok(())
@@ -195,7 +195,7 @@ fn node_allocation_work_and_output_share_the_caller_budget() -> TestResult {
     let mut allocation =
         ResourceBudget::new(ResourceLimits::default().with_max_allocation_bytes(ByteCount::new(0)));
     assert!(matches!(
-        NumericIndexPages::new(&[] as &[NumericIndexEntry], 1, &mut allocation),
+        ScalarIndexPages::new(&[] as &[ScalarIndexEntry], 1, &mut allocation),
         Err(TreeBuildError::Encoding(Error::ResourceLimitExceeded {
             kind: ResourceLimitKind::AllocationBytes,
             ..
@@ -203,19 +203,19 @@ fn node_allocation_work_and_output_share_the_caller_budget() -> TestResult {
     ));
     let mut work = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(0));
     assert!(matches!(
-        NumericIndexPages::new(&[] as &[NumericIndexEntry], 1, &mut work),
+        ScalarIndexPages::new(&[] as &[ScalarIndexEntry], 1, &mut work),
         Err(TreeBuildError::Encoding(Error::ResourceLimitExceeded {
             kind: ResourceLimitKind::TotalWorkUnits,
             ..
         }))
     ));
-    let layout = NumericIndexPages::new(&[] as &[NumericIndexEntry], 1, &mut budget())?;
+    let layout = ScalarIndexPages::new(&[] as &[ScalarIndexEntry], 1, &mut budget())?;
     let mut encoded =
         ResourceBudget::new(ResourceLimits::default().with_max_encoded_bytes(ByteCount::new(2047)));
     assert!(matches!(
         layout.image(
             0,
-            &[] as &[NumericIndexEntry],
+            &[] as &[ScalarIndexEntry],
             |_| Some(PageNumber::new(10)),
             PageNumber::new(20),
             &[0; PAGE_BYTES],
@@ -245,7 +245,7 @@ fn checked_records_with_larger_keys_reuse_the_same_tree_encoder() -> TestResult 
             Wide(bytes)
         })
         .collect::<Vec<_>>();
-    let layout = NumericIndexPages::new(&entries, 3, &mut budget())?;
+    let layout = ScalarIndexPages::new(&entries, 3, &mut budget())?;
     assert_eq!(layout.len(), 3);
     let root = layout.image(
         2,
@@ -274,7 +274,7 @@ fn record_widths_that_cannot_form_nonempty_branches_are_refused() {
     }
     for bytes in [&[0; 4][..], &[0; 897][..], &[0; PAGE_BYTES][..]] {
         assert!(matches!(
-            NumericIndexPages::new(&[Raw(bytes)], 3, &mut budget()),
+            ScalarIndexPages::new(&[Raw(bytes)], 3, &mut budget()),
             Err(TreeBuildError::Layout("record width"))
         ));
     }

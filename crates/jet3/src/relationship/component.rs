@@ -2,7 +2,7 @@
 use super::catalog::*;
 use crate::{
     DatabaseReader, ReadAt, ResourceBudget, TableDefinition, UpdateError,
-    catalog::name_key::{catalog_names_equal_for, validate_catalog_name_for},
+    catalog::name_key::{catalog_names_equal, validate_catalog_name},
     relationship::groups::{groups, ordered},
     write::page_edits::reserve,
 };
@@ -33,8 +33,8 @@ pub(crate) fn component<S: ReadAt>(
                 .ok_or(UpdateError::Mismatch("empty relationship"))?;
             budget.charge_work_units((names.len() as u64).saturating_mul(1024))?;
             if !names.iter().any(|name| {
-                catalog_names_equal_for(first.order, name, &first.parent)
-                    || catalog_names_equal_for(first.order, name, &first.child)
+                catalog_names_equal(name, &first.parent, first.order)
+                    || catalog_names_equal(name, &first.child, first.order)
             }) {
                 continue;
             }
@@ -52,7 +52,7 @@ pub(crate) fn component<S: ReadAt>(
                         &record.child_column,
                     ]
                     .iter()
-                    .any(|name| validate_catalog_name_for(name, record.order).is_err())
+                    .any(|name| validate_catalog_name(name, record.order).is_err())
                 {
                     return Err(UpdateError::Unsupported("unresolved relationship name"));
                 }

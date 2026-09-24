@@ -293,64 +293,24 @@ pub(crate) fn plan_table_schema(
     first_create: bool,
     budget: &mut crate::ResourceBudget,
 ) -> Result<TableSchemaPlan, TableSchemaPlanError> {
-    plan_table_schema_with_logical_index(spec, first_page, first_create, None, budget)
-}
-
-/// Adds the EXP-0059/0268 parent relationship record before assigning pages.
-pub(crate) fn plan_table_schema_with_logical_index(
-    spec: &TableSpec<'_>,
-    first_page: u64,
-    first_create: bool,
-    extra_name: Option<&[u8]>,
-    budget: &mut crate::ResourceBudget,
-) -> Result<TableSchemaPlan, TableSchemaPlanError> {
-    plan_table_schema_with_logical_names(
-        spec,
-        first_page,
-        first_create,
-        extra_name.as_slice(),
-        budget,
-    )
-}
-
-/// EXP-0273: distinct relationship records can share a physical index.
-pub(crate) fn plan_table_schema_with_logical_names(
-    spec: &TableSpec<'_>,
-    first_page: u64,
-    first_create: bool,
-    extra_names: &[&[u8]],
-    budget: &mut crate::ResourceBudget,
-) -> Result<TableSchemaPlan, TableSchemaPlanError> {
-    plan_table_schema_with_generated_indexes(
-        spec,
-        first_page,
-        first_create,
-        extra_names,
-        spec.indexes.len(),
-        budget,
-    )
-}
-
-/// EXP-0286 permits internal hidden names only on generated physical indexes.
-pub(crate) fn plan_table_schema_with_generated_indexes(
-    spec: &TableSpec<'_>,
-    first_page: u64,
-    first_create: bool,
-    extra_names: &[&[u8]],
-    declared_indexes: usize,
-    budget: &mut crate::ResourceBudget,
-) -> Result<TableSchemaPlan, TableSchemaPlanError> {
     plan_table_schema_for_order(
         spec,
         first_page,
         first_create,
-        extra_names,
-        declared_indexes,
+        &[],
+        spec.indexes.len(),
         crate::SortOrder::General,
         budget,
     )
 }
 
+/// Plans `spec` like [`plan_table_schema`] with explicit extra logical names and
+/// sort order.
+///
+/// `extra_names` adds EXP-0059/0268 parent relationship records; EXP-0273
+/// lets distinct relationship records share a physical index. Indexes past
+/// `declared_indexes` are generated, and EXP-0286 permits internal hidden
+/// names only on those.
 pub(crate) fn plan_table_schema_for_order(
     spec: &TableSpec<'_>,
     first_page: u64,
@@ -475,7 +435,7 @@ fn resolve_index_fields(
 /// Checks the table name against both encodings that will carry it.
 fn validate_table_name(name: &[u8], order: crate::SortOrder) -> Result<(), TableSchemaPlanError> {
     validate_name_length("table", name, 64)?;
-    crate::catalog::name_key::validate_catalog_name_for(name, order)
+    crate::catalog::name_key::validate_catalog_name(name, order)
         .map_err(TableSchemaPlanError::TableNameKey)?;
     catalog_record_len(name.len()).map_err(TableSchemaPlanError::TableNameRow)?;
     Ok(())
@@ -544,7 +504,7 @@ fn validate_distinct_name<'a>(
             budget
                 .charge_work_units(512)
                 .map_err(TableSchemaPlanError::Resource)?;
-            crate::catalog::name_key::catalog_names_equal_for(order, other, name)
+            crate::catalog::name_key::catalog_names_equal(other, name, order)
         };
         if equal {
             return Err(TableSchemaPlanError::Definition(
@@ -612,19 +572,21 @@ fn assign_pages(
             .count();
     let map_pages = map_rows.div_ceil(MAP_ROWS_PER_PAGE);
     // EXP-0266: column properties also occur on later tables and can be chained.
-    let property_len =
-        crate::properties::column::CreationProperties::new(spec.columns, spec.validation, budget)
-            .map_err(|error| match error {
-                crate::ColumnPropertyError::Resource(error) => {
-                    TableSchemaPlanError::Resource(error)
-                }
-                _ => TableSchemaPlanError::InvalidTextProperty {
-                    column: None,
-                    property: b"",
-                    detail: "property payload",
-                },
-            })?
-            .map(|properties| properties.len());
+    let property_len = crate::properties::column::CreationProperties::new(
+        spec.columns,
+        spec.validation,
+        crate::SortOrder::General,
+        budget,
+    )
+    .map_err(|error| match error {
+        crate::ColumnPropertyError::Resource(error) => TableSchemaPlanError::Resource(error),
+        _ => TableSchemaPlanError::InvalidTextProperty {
+            column: None,
+            property: b"",
+            detail: "property payload",
+        },
+    })?
+    .map(|properties| properties.len());
     let property_chained = property_len
         .is_some_and(|len| len > crate::long_value::writer::MAX_SINGLE_PAGE_PROPERTY_PAYLOAD);
     let property_pages = match property_len {

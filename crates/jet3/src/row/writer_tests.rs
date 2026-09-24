@@ -85,6 +85,7 @@ pub(super) fn database_bytes(
     encode_table_definition(
         &spec,
         &mut bytes[ROOT * PAGE_BYTES..(ROOT + 1) * PAGE_BYTES],
+        crate::index::key::text::ENCODING_CONTEXT,
         &mut budget,
     )?;
     let owned = [0, 0, 0, 0, 0, 1 << DATA_PAGE];

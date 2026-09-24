@@ -250,12 +250,12 @@ fn later_index_corruption_and_publication_failures_are_detected() -> TestResult 
         ..table
     };
     let mut charged = budget();
-    crate::create::composer::InitialLongIndex::for_table(&one, 20, &mut charged)?;
+    crate::create::composer::InitialScalarIndex::for_table(&one, 20, &mut charged)?;
     let mut limited = ResourceBudget::new(
         ResourceLimits::default().with_max_allocation_bytes(charged.allocation_bytes()),
     );
     assert!(
-        crate::create::composer::InitialLongIndex::for_table(&table, 20, &mut limited).is_err()
+        crate::create::composer::InitialScalarIndex::for_table(&table, 20, &mut limited).is_err()
     );
     Ok(())
 }

@@ -16,8 +16,8 @@ pub(super) fn check(
     tables: &[(PageNumber, u64)],
     position: usize,
     budget: &mut ResourceBudget,
-) -> Result<(), CandidateCheckError> {
-    let mismatch = |detail| CandidateCheckError::Mismatch { detail };
+) -> Result<(), ImageCheckError> {
+    let mismatch = |detail| ImageCheckError::Mismatch { detail };
     let request = &requests[position].table;
     let resolve = |reference| match reference {
         TableRef::Ordinal(ordinal) => (ordinal < requests.len()).then_some(ordinal),
@@ -27,7 +27,7 @@ pub(super) fn check(
         .charge_work_units((definition.indexes().len() as u64).saturating_mul(
             (request.indexes.len() as u64 + relationships.len() as u64 * 2 + 1) * 255,
         ))
-        .map_err(CandidateCheckError::Read)?;
+        .map_err(ImageCheckError::Read)?;
     let named_fields = request
         .indexes
         .iter()
@@ -36,7 +36,7 @@ pub(super) fn check(
         .count();
     budget
         .charge_work_units((named_fields as u64) * (request.columns.len() as u64) * 64)
-        .map_err(CandidateCheckError::Read)?;
+        .map_err(ImageCheckError::Read)?;
     for (ordinal, expected) in request.indexes.iter().enumerate() {
         let actual = definition
             .physical_indexes()
@@ -83,13 +83,13 @@ pub(super) fn check(
         }
         budget
             .charge_work_units((requests.len() as u64) * 128)
-            .map_err(CandidateCheckError::Read)?;
+            .map_err(ImageCheckError::Read)?;
         let parent = resolve(spec.parent).ok_or(mismatch("graph schema parent reference"))?;
         let child = resolve(spec.child).ok_or(mismatch("graph schema child reference"))?;
         if child == position || parent == position {
             budget
                 .charge_work_units((request.columns.len() as u64) * 128 * spec.fields.len() as u64)
-                .map_err(CandidateCheckError::Read)?;
+                .map_err(ImageCheckError::Read)?;
         }
         if child == position {
             let mut resolved = [u16::MAX; crate::index::entry::MAX_FIELDS];
@@ -107,7 +107,7 @@ pub(super) fn check(
                 spec.unique,
                 budget,
             )
-            .map_err(CandidateCheckError::RowEncoding)?;
+            .map_err(ImageCheckError::RowEncoding)?;
             let physical = if let Some(physical) = existing {
                 usize::from(physical)
             } else if let Some(slot) = generated[..generated_count]
@@ -168,12 +168,12 @@ pub(super) fn check(
                 false,
                 budget,
             )
-            .map_err(CandidateCheckError::RowEncoding)?;
+            .map_err(ImageCheckError::RowEncoding)?;
             let physical = if let Some(physical) = existing {
                 usize::from(physical)
             } else {
                 let source = select_descending_parent(request, columns, budget)
-                    .map_err(CandidateCheckError::RowEncoding)?
+                    .map_err(ImageCheckError::RowEncoding)?
                     .ok_or(mismatch("graph descending parent source"))?;
                 let slot = if let Some(slot) =
                     generated[..generated_count].iter().position(|&entry| {
@@ -235,8 +235,8 @@ fn check_relation(
     side: RelationshipSide,
     selector: usize,
     flags: crate::relationship::flags::RelationshipFlags,
-) -> Result<(), CandidateCheckError> {
-    let mismatch = |detail| CandidateCheckError::Mismatch { detail };
+) -> Result<(), ImageCheckError> {
+    let mismatch = |detail| ImageCheckError::Mismatch { detail };
     let mut matching = definition
         .relationships()
         .filter(|r| r.name().raw_bytes() == name);

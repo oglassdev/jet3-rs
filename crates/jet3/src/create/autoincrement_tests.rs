@@ -3,7 +3,7 @@ use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexDirection, IndexKind, IndexSpec,
     ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec,
     create::{
-        api::{CandidateCheckError, CreateDatabaseError},
+        api::{CreateDatabaseError, ImageCheckError},
         api_tests::*,
     },
     create_database_with_rows, create_database_with_table_rows,
@@ -42,7 +42,7 @@ fn autoincrement_generates_rows_and_detects_state_or_row_corruption() -> TestRes
     fs::write(directory.target(), changed)?;
     assert!(matches!(
         crate::create::api::check_initial_rows(&directory.target(), &table, &rows, &mut budget()),
-        Err(CandidateCheckError::Mismatch {
+        Err(ImageCheckError::Mismatch {
             detail: "initial AutoIncrement state"
         })
     ));
@@ -60,7 +60,7 @@ fn autoincrement_generates_rows_and_detects_state_or_row_corruption() -> TestRes
             &changed_rows,
             &mut budget()
         ),
-        Err(CandidateCheckError::Mismatch {
+        Err(ImageCheckError::Mismatch {
             detail: "initial row value"
         })
     ));
@@ -146,7 +146,7 @@ fn autoincrement_multi_table_indexed_and_empty_counters_are_independent() -> Tes
     let mut operation = budget();
     let mut database = DatabaseReader::open(directory.target(), &mut operation)?;
     let tables = requests.map(|r| r.table);
-    let roots = crate::create::api::candidate_table_roots(&mut database, &tables, &mut operation)?;
+    let roots = crate::create::api::image_table_roots(&mut database, &tables, &mut operation)?;
     for (root, count) in roots.into_iter().zip([2_i32, 1, 0]) {
         let mut bytes = [0_u8; crate::PAGE_BYTES];
         database.read_raw_page(root.ok_or("missing root")?, &mut bytes, &mut operation)?;
@@ -254,7 +254,7 @@ fn autoincrement_explicit_ids_wrap_with_independent_indexed_tables() -> TestResu
     create_database_with_table_rows(directory.target(), &requests, &mut budget())?;
     let mut operation = budget();
     let mut database = DatabaseReader::open(directory.target(), &mut operation)?;
-    let roots = crate::create::api::candidate_table_roots(
+    let roots = crate::create::api::image_table_roots(
         &mut database,
         &requests.map(|request| request.table),
         &mut operation,

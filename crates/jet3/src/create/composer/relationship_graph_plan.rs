@@ -8,7 +8,7 @@ use crate::{
         relationship_indexes::{select_descending_parent, select_existing},
         relationship_name::HiddenName,
     },
-    index::key::scalar::NumericKeyType,
+    index::key::scalar::ScalarKeyType,
 };
 
 pub(super) struct GraphRelation<'a> {
@@ -18,7 +18,7 @@ pub(super) struct GraphRelation<'a> {
     pub child: usize,
     pub parent_columns: Vec<u16>,
     pub child_columns: Vec<u16>,
-    pub child_kinds: Vec<NumericKeyType>,
+    pub child_kinds: Vec<ScalarKeyType>,
     pub physical: u16,
     pub parent_physical: u16,
     pub parent_kind: IndexKind,
@@ -67,10 +67,13 @@ pub(super) fn resolve<'a>(
             return Err(invalid("graph table or column name exceeds 64 bytes"));
         }
         budget.charge_work_units((position as u64).saturating_mul(512))?;
-        if let Some(first) = requests[..position]
-            .iter()
-            .position(|earlier| catalog_names_equal(earlier.table.name, request.table.name))
-        {
+        if let Some(first) = requests[..position].iter().position(|earlier| {
+            catalog_names_equal(
+                earlier.table.name,
+                request.table.name,
+                crate::SortOrder::General,
+            )
+        }) {
             return Err(ComposeError::DuplicateTableName {
                 first,
                 second: position,
@@ -99,9 +102,9 @@ pub(super) fn resolve<'a>(
         let mut key = [0; CATALOG_KEY_CAPACITY];
         encode_catalog_name_key(RELATIONSHIPS_ID, relationship.name, &mut key)?;
         if relationship.name.len() > 63
-            || relationships[..position]
-                .iter()
-                .any(|prior| catalog_names_equal(prior.name, relationship.name))
+            || relationships[..position].iter().any(|prior| {
+                catalog_names_equal(prior.name, relationship.name, crate::SortOrder::General)
+            })
         {
             return Err(invalid(
                 "relationship names must be distinct and at most 63 bytes",
@@ -136,9 +139,9 @@ pub(super) fn resolve<'a>(
             }
             let parent_type = parent_table.columns[usize::from(parent_column)].column_type();
             let child_type = child_table.columns[usize::from(child_column)].column_type();
-            let parent_kind = NumericKeyType::from_column(parent_type)
+            let parent_kind = ScalarKeyType::from_column(parent_type)
                 .ok_or(invalid("relationship parent key type"))?;
-            let child_kind = NumericKeyType::from_column(child_type)
+            let child_kind = ScalarKeyType::from_column(child_type)
                 .ok_or(invalid("relationship child key type"))?;
             if child_type == ColumnType::AutoIncrement
                 || !crate::relationship::key::compatible(parent_kind, child_kind)
@@ -173,11 +176,9 @@ pub(super) fn resolve<'a>(
                 .kind
                 .null_policy(),
         );
-        if child_table
-            .indexes
-            .iter()
-            .any(|index| catalog_names_equal(index.name, relationship.name))
-        {
+        if child_table.indexes.iter().any(|index| {
+            catalog_names_equal(index.name, relationship.name, crate::SortOrder::General)
+        }) {
             return Err(invalid(
                 "relationship name collides with a declared child index",
             ));

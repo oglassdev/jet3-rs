@@ -20,8 +20,13 @@ fn created(
     columns: &[ColumnSpec<'_>],
     validation: TableValidation<'_>,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let properties =
-        CreationProperties::new(columns, validation, &mut budget())?.ok_or("properties")?;
+    let properties = CreationProperties::new(
+        columns,
+        validation,
+        crate::SortOrder::General,
+        &mut budget(),
+    )?
+    .ok_or("properties")?;
     let mut bytes = vec![0; properties.len()];
     properties.encode(&mut bytes, &mut budget())?;
     Ok(bytes)

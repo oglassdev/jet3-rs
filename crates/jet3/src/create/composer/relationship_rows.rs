@@ -1,6 +1,6 @@
 //! Initial relationships combine EXP-0134 rows, EXP-0268 nullable foreign keys,
 //! and the normal scalar-index, property and long-value planners.
-use super::relationship_candidate::*;
+use super::relationship::*;
 use crate::{
     ColumnRef, IndexColumnSpec, IndexKind, IndexSpec, RelationshipSpec, TableRows,
     create::composer::{relationship_plan::RelationshipPlan, *},
@@ -84,7 +84,7 @@ pub(super) fn compose_with_rows(
             Some(RowValue::Long(value))
                 if parent.contains_initial_key(
                     0,
-                    &[crate::index::key::scalar::NumericKeyType::Long],
+                    &[crate::index::key::scalar::ScalarKeyType::Long],
                     &[RowValue::Long(*value)],
                     budget,
                 )? => {}

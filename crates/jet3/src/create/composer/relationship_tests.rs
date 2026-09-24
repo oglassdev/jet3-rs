@@ -1,4 +1,4 @@
-use super::{relationship_candidate::*, tests::inline_map_bit};
+use super::{relationship::*, tests::inline_map_bit};
 use crate::{
     ColumnOrdinal, DatabaseReader, PAGE_BYTES, ResourceLimits, SliceSource, create::composer::*,
 };

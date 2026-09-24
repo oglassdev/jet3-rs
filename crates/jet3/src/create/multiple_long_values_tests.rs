@@ -4,7 +4,7 @@ use crate::{
     LongValueChunkValue, MapRowLocator, PageNumber, ResourceBudget, ResourceLimits, RowValue,
     TableRows, TableSpec, TextCodePage, ValueKind,
     create::{
-        api::{CandidateCheckError, CreateDatabaseError, create_database},
+        api::{CreateDatabaseError, ImageCheckError, create_database},
         api_tests::*,
         initial_rows_tests::*,
     },
@@ -139,8 +139,7 @@ fn mixed_columns_indexes_and_generated_ids_keep_independent_payloads_and_maps() 
             .iter()
             .map(|request| request.table)
             .collect::<Vec<_>>();
-        let roots =
-            crate::create::api::candidate_table_roots(&mut database, &tables, &mut operation)?;
+        let roots = crate::create::api::image_table_roots(&mut database, &tables, &mut operation)?;
         let root = roots.last().copied().flatten().ok_or("missing table")?;
         let definition = database.table_definition(root, &mut operation)?;
         assert_eq!(definition.row_count(), 205);
@@ -334,7 +333,7 @@ fn every_external_column_is_checked_and_refusals_preserve_the_destination() -> T
                 rows,
                 &mut budget()
             ),
-            Err(CandidateCheckError::Mismatch {
+            Err(ImageCheckError::Mismatch {
                 detail: "initial long-value payload"
             })
         ));
@@ -357,7 +356,7 @@ fn every_external_column_is_checked_and_refusals_preserve_the_destination() -> T
                 &pages,
                 &mut budget()
             ),
-            Err(CandidateCheckError::Mismatch {
+            Err(ImageCheckError::Mismatch {
                 detail: "long-value written page"
             })
         ));

@@ -17,7 +17,7 @@ use crate::{
     ResourceBudget, RowError, RowValue, TableDefinitionError, TableSpec,
     create::{
         composer::{
-            ComposeError, InitialAutoIncrement, InitialLongIndex, compose_database,
+            ComposeError, InitialAutoIncrement, InitialScalarIndex, compose_database,
             compose_database_with_table_rows, encode_initial_row, initial_payload_start,
             initial_row_layout,
         },
@@ -72,7 +72,7 @@ impl StdError for CreateDatabaseError {
 /// A structural difference between the written candidate and the request,
 /// found when the candidate was reopened before publication.
 #[derive(Debug)]
-pub enum CandidateCheckError {
+pub enum ImageCheckError {
     /// Reading a candidate page or charging comparison work failed.
     Read(crate::Error),
     /// The candidate index tree could not be read.
@@ -102,7 +102,7 @@ pub enum CandidateCheckError {
     },
 }
 
-impl fmt::Display for CandidateCheckError {
+impl fmt::Display for ImageCheckError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Read(source) => write!(formatter, "candidate page comparison failed: {source}"),
@@ -129,7 +129,7 @@ impl fmt::Display for CandidateCheckError {
     }
 }
 
-impl StdError for CandidateCheckError {
+impl StdError for ImageCheckError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             Self::Read(source) => Some(source),
@@ -182,7 +182,7 @@ pub fn create_database(
         |file| write_pages(file, &pages),
         |candidate| {
             check_long_value_written_pages(candidate, tables, &pages, budget)?;
-            check_candidate(candidate, tables, page_count, budget)
+            check_image(candidate, tables, page_count, budget)
         },
     )
     .map_err(CreateDatabaseError::Publish)
@@ -294,7 +294,7 @@ pub fn create_database_with_table_rows(
         |file| write_pages(file, &pages),
         |candidate| {
             check_long_value_written_pages(candidate, &tables, &pages, budget)?;
-            check_candidate(candidate, &tables, page_count, budget)?;
+            check_image(candidate, &tables, page_count, budget)?;
             check_initial_tables(candidate, &tables, requests, budget)
         },
     )
@@ -307,7 +307,7 @@ pub(super) fn check_initial_rows(
     table: &TableSpec<'_>,
     rows: &[&[RowValue<'_>]],
     budget: &mut ResourceBudget,
-) -> Result<(), CandidateCheckError> {
+) -> Result<(), ImageCheckError> {
     check_initial_tables(
         candidate,
         std::slice::from_ref(table),
@@ -324,12 +324,11 @@ pub(super) fn check_initial_tables(
     tables: &[TableSpec<'_>],
     requests: &[TableRows<'_>],
     budget: &mut ResourceBudget,
-) -> Result<(), CandidateCheckError> {
-    let mut database =
-        DatabaseReader::open(candidate, budget).map_err(CandidateCheckError::Open)?;
-    let roots = candidate_table_roots(&mut database, tables, budget)?;
+) -> Result<(), ImageCheckError> {
+    let mut database = DatabaseReader::open(candidate, budget).map_err(ImageCheckError::Open)?;
+    let roots = image_table_roots(&mut database, tables, budget)?;
     for (position, (request, root)) in requests.iter().zip(roots).enumerate() {
-        let root = root.ok_or(CandidateCheckError::Mismatch {
+        let root = root.ok_or(ImageCheckError::Mismatch {
             detail: "catalog row",
         })?;
         check_initial_table_rows(&mut database, request, root, position == 0, budget)?;
@@ -343,9 +342,9 @@ fn check_initial_table_rows(
     root: PageNumber,
     first_create: bool,
     budget: &mut ResourceBudget,
-) -> Result<(), CandidateCheckError> {
+) -> Result<(), ImageCheckError> {
     let next_payload = initial_payload_start(&request.table, root, first_create, budget)
-        .map_err(CandidateCheckError::RowEncoding)?;
+        .map_err(ImageCheckError::RowEncoding)?;
     check_initial_table_rows_from(database, request, root, next_payload, budget)
 }
 
@@ -355,28 +354,28 @@ pub(super) fn check_initial_table_rows_from(
     root: PageNumber,
     mut next_payload: u64,
     budget: &mut ResourceBudget,
-) -> Result<(), CandidateCheckError> {
+) -> Result<(), ImageCheckError> {
     let table = &request.table;
     let rows = request.rows;
-    let layout = initial_row_layout(table, budget).map_err(CandidateCheckError::RowEncoding)?;
+    let layout = initial_row_layout(table, budget).map_err(ImageCheckError::RowEncoding)?;
     let definition = database
         .table_definition(root, budget)
-        .map_err(CandidateCheckError::Definition)?;
+        .map_err(ImageCheckError::Definition)?;
     let mut generated =
-        InitialAutoIncrement::new(table, rows, budget).map_err(CandidateCheckError::RowEncoding)?;
+        InitialAutoIncrement::new(table, rows, budget).map_err(ImageCheckError::RowEncoding)?;
     if let Some(generated) = generated {
         let mut raw = [0_u8; crate::PAGE_BYTES];
         database
             .read_raw_page(root, &mut raw, budget)
-            .map_err(|error| CandidateCheckError::RowEncoding(ComposeError::Encoding(error)))?;
+            .map_err(|error| ImageCheckError::RowEncoding(ComposeError::Encoding(error)))?;
         if !generated.matches(&raw) {
-            return Err(CandidateCheckError::Mismatch {
+            return Err(ImageCheckError::Mismatch {
                 detail: "initial AutoIncrement state",
             });
         }
     }
-    let mut expected_indexes = InitialLongIndex::for_table(table, rows.len(), budget)
-        .map_err(CandidateCheckError::RowEncoding)?;
+    let mut expected_indexes = InitialScalarIndex::for_table(table, rows.len(), budget)
+        .map_err(ImageCheckError::RowEncoding)?;
     let long_columns = table
         .columns
         .iter()
@@ -386,10 +385,10 @@ pub(super) fn check_initial_table_rows_from(
         .charge_allocation(crate::ByteCount::new(
             (long_columns * size_of::<(crate::LongValueReference, &[u8])>()) as u64,
         ))
-        .map_err(CandidateCheckError::Read)?;
+        .map_err(ImageCheckError::Read)?;
     let mut external = Vec::new();
     external.try_reserve_exact(long_columns).map_err(|_| {
-        CandidateCheckError::Read(crate::Error::Io {
+        ImageCheckError::Read(crate::Error::Io {
             operation: "reserve initial long-value verification",
             kind: io::ErrorKind::OutOfMemory,
         })
@@ -397,13 +396,13 @@ pub(super) fn check_initial_table_rows_from(
     let mut encoded = [0_u8; crate::PAGE_BYTES];
     let mut cursor = database
         .rows(&definition, budget)
-        .map_err(CandidateCheckError::Rows)?;
+        .map_err(ImageCheckError::Rows)?;
     for (ordinal, row) in rows.iter().enumerate() {
         let mut lowered = [RowValue::Null; u8::MAX as usize];
         let row = if let Some(generated) = generated.as_mut() {
             generated
                 .lower(row, ordinal, &mut lowered, cursor.owned.budget_mut())
-                .map_err(CandidateCheckError::RowEncoding)?;
+                .map_err(ImageCheckError::RowEncoding)?;
             &lowered[..row.len()]
         } else {
             *row
@@ -417,16 +416,17 @@ pub(super) fn check_initial_table_rows_from(
             &mut encoded,
             cursor.owned.budget_mut(),
         )
-        .map_err(CandidateCheckError::RowEncoding)?
+        .map_err(ImageCheckError::RowEncoding)?
         .get() as usize;
-        let mut actual = cursor
-            .next_row()
-            .map_err(CandidateCheckError::Rows)?
-            .ok_or(CandidateCheckError::Mismatch {
-                detail: "initial row count",
-            })?;
+        let mut actual =
+            cursor
+                .next_row()
+                .map_err(ImageCheckError::Rows)?
+                .ok_or(ImageCheckError::Mismatch {
+                    detail: "initial row count",
+                })?;
         if actual.raw_bytes() != &encoded[..length] {
-            return Err(CandidateCheckError::Mismatch {
+            return Err(ImageCheckError::Mismatch {
                 detail: "initial row value",
             });
         }
@@ -442,7 +442,7 @@ pub(super) fn check_initial_table_rows_from(
                     crate::ColumnOrdinal::new(column as u16),
                     crate::TextCodePage::Windows1252,
                 )
-                .map_err(CandidateCheckError::Value)?;
+                .map_err(ImageCheckError::Value)?;
             if let Some(decoded) = decoded
                 && let crate::ValueKind::LongValue(crate::LongValue::External(reference)) =
                     decoded.kind()
@@ -455,27 +455,24 @@ pub(super) fn check_initial_table_rows_from(
                 .owned
                 .budget_mut()
                 .charge_work_units(expected.len() as u64)
-                .map_err(|error| CandidateCheckError::RowEncoding(ComposeError::Encoding(error)))?;
+                .map_err(|error| ImageCheckError::RowEncoding(ComposeError::Encoding(error)))?;
             let mut stream = cursor
                 .long_value(*reference)
-                .map_err(CandidateCheckError::LongValue)?;
+                .map_err(ImageCheckError::LongValue)?;
             let mut remaining = *expected;
-            while let Some(chunk) = stream
-                .next_chunk()
-                .map_err(CandidateCheckError::LongValue)?
-            {
+            while let Some(chunk) = stream.next_chunk().map_err(ImageCheckError::LongValue)? {
                 let bytes = match chunk.value() {
                     crate::LongValueChunkValue::Text(text) => text.raw_bytes(),
                     crate::LongValueChunkValue::Binary(bytes) => bytes,
                 };
                 remaining = remaining
                     .strip_prefix(bytes)
-                    .ok_or(CandidateCheckError::Mismatch {
+                    .ok_or(ImageCheckError::Mismatch {
                         detail: "initial long-value payload",
                     })?;
             }
             if !remaining.is_empty() {
-                return Err(CandidateCheckError::Mismatch {
+                return Err(ImageCheckError::Mismatch {
                     detail: "initial long-value length",
                 });
             }
@@ -483,15 +480,11 @@ pub(super) fn check_initial_table_rows_from(
         for index in &mut expected_indexes {
             index
                 .push(row, locator, cursor.owned.budget_mut())
-                .map_err(CandidateCheckError::RowEncoding)?;
+                .map_err(ImageCheckError::RowEncoding)?;
         }
     }
-    if cursor
-        .next_row()
-        .map_err(CandidateCheckError::Rows)?
-        .is_some()
-    {
-        return Err(CandidateCheckError::Mismatch {
+    if cursor.next_row().map_err(ImageCheckError::Rows)?.is_some() {
+        return Err(ImageCheckError::Mismatch {
             detail: "initial row count",
         });
     }
@@ -499,28 +492,28 @@ pub(super) fn check_initial_table_rows_from(
     for (ordinal, mut expected) in expected_indexes.into_iter().enumerate() {
         expected
             .sort(budget)
-            .map_err(CandidateCheckError::RowEncoding)?;
+            .map_err(ImageCheckError::RowEncoding)?;
         let physical =
             definition
                 .physical_indexes()
                 .get(ordinal)
-                .ok_or(CandidateCheckError::Mismatch {
+                .ok_or(ImageCheckError::Mismatch {
                     detail: "initial index count",
                 })?;
         if physical.distinct_key_count() != expected.distinct_count() {
-            return Err(CandidateCheckError::Mismatch {
+            return Err(ImageCheckError::Mismatch {
                 detail: "initial index distinct count",
             });
         }
         let actual = database
             .index_tree(&definition, ordinal as u16, budget)
-            .map_err(CandidateCheckError::Index)?;
+            .map_err(ImageCheckError::Index)?;
         check_initial_index_map(database, physical.usage_map(), &actual, budget)?;
         if !expected
             .matches(&actual, budget)
-            .map_err(CandidateCheckError::RowEncoding)?
+            .map_err(ImageCheckError::RowEncoding)?
         {
-            return Err(CandidateCheckError::Mismatch {
+            return Err(ImageCheckError::Mismatch {
                 detail: "initial index entries",
             });
         }
@@ -533,29 +526,29 @@ fn check_initial_index_map(
     location: crate::IndexUsageMapReference,
     tree: &crate::IndexTree,
     budget: &mut ResourceBudget,
-) -> Result<(), CandidateCheckError> {
+) -> Result<(), ImageCheckError> {
     let map = crate::alloc::mutation_map::MapBits::load(
         database,
         crate::MapRowLocator::new(location.page(), location.row()),
         budget,
     )
-    .map_err(CandidateCheckError::AllocationState)?;
+    .map_err(ImageCheckError::AllocationState)?;
     let pages = map
         .existing_pages(database.geometry().page_count(), false, budget)
-        .map_err(CandidateCheckError::AllocationState)?;
+        .map_err(ImageCheckError::AllocationState)?;
     let count = pages.len();
     for page in pages {
         budget
             .charge_work_units(tree.nodes().len() as u64)
-            .map_err(CandidateCheckError::Read)?;
+            .map_err(ImageCheckError::Read)?;
         if !tree.nodes().iter().any(|node| node.page() == page) {
-            return Err(CandidateCheckError::Mismatch {
+            return Err(ImageCheckError::Mismatch {
                 detail: "initial index map pages",
             });
         }
     }
     if count != tree.nodes().len() {
-        return Err(CandidateCheckError::Mismatch {
+        return Err(ImageCheckError::Mismatch {
             detail: "initial index map pages",
         });
     }
@@ -585,7 +578,7 @@ pub(super) fn check_long_value_written_pages(
     tables: &[TableSpec<'_>],
     pages: &[PlannedPage],
     budget: &mut ResourceBudget,
-) -> Result<(), CandidateCheckError> {
+) -> Result<(), ImageCheckError> {
     if !tables.iter().any(|table| {
         table.columns.iter().any(|column| {
             column.column_type().is_long_value()
@@ -595,18 +588,17 @@ pub(super) fn check_long_value_written_pages(
     }) {
         return Ok(());
     }
-    let mut database =
-        DatabaseReader::open(candidate, budget).map_err(CandidateCheckError::Open)?;
+    let mut database = DatabaseReader::open(candidate, budget).map_err(ImageCheckError::Open)?;
     let mut bytes = [0_u8; crate::PAGE_BYTES];
     for page in pages {
         database
             .read_raw_page(page.number(), &mut bytes, budget)
-            .map_err(CandidateCheckError::Read)?;
+            .map_err(ImageCheckError::Read)?;
         budget
             .charge_work_units(crate::PAGE_BYTES as u64)
-            .map_err(CandidateCheckError::Read)?;
+            .map_err(ImageCheckError::Read)?;
         if &bytes != page.image().as_bytes() {
-            return Err(CandidateCheckError::Mismatch {
+            return Err(ImageCheckError::Mismatch {
                 detail: "long-value written page",
             });
         }
@@ -614,19 +606,18 @@ pub(super) fn check_long_value_written_pages(
     Ok(())
 }
 
-pub(super) fn check_candidate(
+pub(super) fn check_image(
     candidate: &Path,
     tables: &[TableSpec<'_>],
     page_count: u64,
     budget: &mut ResourceBudget,
-) -> Result<(), CandidateCheckError> {
-    let mismatch = |detail: &'static str| CandidateCheckError::Mismatch { detail };
-    let mut database =
-        DatabaseReader::open(candidate, budget).map_err(CandidateCheckError::Open)?;
+) -> Result<(), ImageCheckError> {
+    let mismatch = |detail: &'static str| ImageCheckError::Mismatch { detail };
+    let mut database = DatabaseReader::open(candidate, budget).map_err(ImageCheckError::Open)?;
     if database.geometry().page_count() != page_count {
         return Err(mismatch("page count"));
     }
-    let roots = candidate_table_roots(&mut database, tables, budget)?;
+    let roots = image_table_roots(&mut database, tables, budget)?;
     for (spec, root) in tables.iter().zip(roots) {
         let root = root.ok_or(mismatch("catalog row"))?;
         check_table(&mut database, spec, root, budget)?;
@@ -634,22 +625,17 @@ pub(super) fn check_candidate(
     Ok(())
 }
 
-pub(super) fn candidate_table_roots(
+pub(super) fn image_table_roots(
     database: &mut DatabaseReader<crate::FileSource>,
     tables: &[TableSpec<'_>],
     budget: &mut ResourceBudget,
-) -> Result<Vec<Option<PageNumber>>, CandidateCheckError> {
-    let mismatch = |detail: &'static str| CandidateCheckError::Mismatch { detail };
+) -> Result<Vec<Option<PageNumber>>, ImageCheckError> {
+    let mismatch = |detail: &'static str| ImageCheckError::Mismatch { detail };
     let mut roots: Vec<Option<PageNumber>> = vec![None; tables.len()];
     let mut user_rows = 0_usize;
     {
-        let mut catalog = database
-            .catalog(budget)
-            .map_err(CandidateCheckError::Catalog)?;
-        while let Some(record) = catalog
-            .next_record()
-            .map_err(CandidateCheckError::Catalog)?
-        {
+        let mut catalog = database.catalog(budget).map_err(ImageCheckError::Catalog)?;
+        while let Some(record) = catalog.next_record().map_err(ImageCheckError::Catalog)? {
             if record.class() != CatalogObjectClass::User {
                 continue;
             }
@@ -676,11 +662,11 @@ fn check_table(
     spec: &TableSpec<'_>,
     root: PageNumber,
     budget: &mut ResourceBudget,
-) -> Result<(), CandidateCheckError> {
-    let mismatch = |detail: &'static str| CandidateCheckError::Mismatch { detail };
+) -> Result<(), ImageCheckError> {
+    let mismatch = |detail: &'static str| ImageCheckError::Mismatch { detail };
     let definition = database
         .table_definition(root, budget)
-        .map_err(CandidateCheckError::Definition)?;
+        .map_err(ImageCheckError::Definition)?;
     check_columns(&definition, spec)?;
     if definition.physical_indexes().len() != spec.indexes.len()
         || definition.indexes().len() != spec.indexes.len()
@@ -722,8 +708,8 @@ fn check_table(
 pub(super) fn check_columns(
     definition: &crate::TableDefinition,
     spec: &TableSpec<'_>,
-) -> Result<(), CandidateCheckError> {
-    let mismatch = |detail| CandidateCheckError::Mismatch { detail };
+) -> Result<(), ImageCheckError> {
+    let mismatch = |detail| ImageCheckError::Mismatch { detail };
     if definition.columns().len() != spec.columns.len() {
         return Err(mismatch("column count"));
     }

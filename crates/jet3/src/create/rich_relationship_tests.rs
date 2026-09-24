@@ -220,7 +220,7 @@ fn rich_relationship_rows_keep_primary_null_keys_payloads_and_generated_ids() ->
 
 #[test]
 fn parent_relationship_record_at_definition_boundary_keeps_external_payload_start() -> TestResult {
-    use crate::create::schema_plan::{plan_table_schema, plan_table_schema_with_logical_index};
+    use crate::create::schema_plan::{plan_table_schema, plan_table_schema_for_order};
     let names = (0..32)
         .map(|n| format!("Extra{n:02}{}", "p".repeat(40)).into_bytes())
         .collect::<Vec<_>>();
@@ -246,11 +246,13 @@ fn parent_relationship_record_at_definition_boundary_keeps_external_payload_star
                 columns: &columns,
                 indexes: PRIMARY,
             };
-            let plan = plan_table_schema_with_logical_index(
+            let plan = plan_table_schema_for_order(
                 &parent,
                 20,
                 true,
-                Some(b".rB"),
+                &[b".rB".as_slice()],
+                parent.indexes.len(),
+                crate::SortOrder::General,
                 &mut crate::ResourceBudget::new(crate::ResourceLimits::default()),
             )?;
             if plan.definition_len() != 2048 {

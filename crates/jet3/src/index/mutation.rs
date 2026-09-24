@@ -3,8 +3,8 @@ use crate::{
     DatabaseReader, FieldUpdate, FileSource, IndexNullPolicy, MapRowLocator, PAGE_BYTES, PageImage,
     PageNumber, PageOffset, ResourceBudget, RowLocator, RowValue, TableDefinition, UpdateError,
     index::{
-        entry::{EntryError, NumericIndexEntry, NumericIndexField, record_capacity},
-        tree::builder::{NumericIndexPages, TreeBuildError},
+        entry::{EntryError, ScalarIndexEntry, ScalarIndexField, record_capacity},
+        tree::builder::{ScalarIndexPages, TreeBuildError},
     },
     write::page_edits::{PageEdits, reserve},
 };
@@ -18,10 +18,10 @@ pub(crate) struct Indexes {
 
 pub(super) struct MutableIndex {
     pub(super) ordinal: u16,
-    pub(super) fields: Vec<NumericIndexField>,
+    pub(super) fields: Vec<ScalarIndexField>,
     pub(super) null_policy: IndexNullPolicy,
     pub(super) unique: bool,
-    pub(super) entries: Vec<NumericIndexEntry>,
+    pub(super) entries: Vec<ScalarIndexEntry>,
     pub(super) mapped: Vec<PageNumber>,
     pub(super) changed: bool,
     pub(super) relationship_counter: bool,
@@ -52,20 +52,20 @@ impl MutableIndex {
         values: &[RowValue<'_>],
         row: RowLocator,
         budget: &mut ResourceBudget,
-    ) -> Result<Option<NumericIndexEntry>, UpdateError> {
-        NumericIndexEntry::encode(&self.fields, values, self.null_policy, row, budget)
+    ) -> Result<Option<ScalarIndexEntry>, UpdateError> {
+        ScalarIndexEntry::encode(&self.fields, values, self.null_policy, row, budget)
             .map_err(entry_error)
     }
 
     fn insert(
         &mut self,
-        entry: NumericIndexEntry,
+        entry: ScalarIndexEntry,
         update_counter: bool,
         budget: &mut ResourceBudget,
     ) -> Result<(), UpdateError> {
         budget.charge_work_units(
             self.entries.len() as u64
-                * (2 * record_capacity(&self.fields) + size_of::<NumericIndexEntry>()) as u64,
+                * (2 * record_capacity(&self.fields) + size_of::<ScalarIndexEntry>()) as u64,
         )?;
         let first = self.entries.partition_point(|r| r.key() < entry.key());
         let present = self
@@ -90,7 +90,7 @@ impl MutableIndex {
     fn remove(&mut self, row: RowLocator, budget: &mut ResourceBudget) -> Result<(), UpdateError> {
         budget.charge_work_units(
             self.entries.len() as u64
-                * (2 * record_capacity(&self.fields) + size_of::<NumericIndexEntry>()) as u64,
+                * (2 * record_capacity(&self.fields) + size_of::<ScalarIndexEntry>()) as u64,
         )?;
         if let Some(position) = self.entries.iter().position(|r| r.locator() == row) {
             self.entries.remove(position);
@@ -131,7 +131,7 @@ impl MutableIndex {
         let physical = &table.physical_indexes()[usize::from(self.ordinal)];
         let root = physical.root();
         let layout =
-            NumericIndexPages::new(&self.entries, usize::MAX, budget).map_err(tree_error)?;
+            ScalarIndexPages::new(&self.entries, usize::MAX, budget).map_err(tree_error)?;
         let mut pages = Vec::new();
         reserve(&mut pages, layout.len(), budget)?;
         pages.extend(
@@ -233,7 +233,7 @@ impl Indexes {
             let new = index.encode(values, row, budget)?;
             budget.charge_work_units(
                 index.entries.len() as u64
-                    * (2 * record_capacity(&index.fields) + size_of::<NumericIndexEntry>()) as u64,
+                    * (2 * record_capacity(&index.fields) + size_of::<ScalarIndexEntry>()) as u64,
             )?;
             let old = index.entries.iter().find(|r| r.locator() == row);
             // EXP-0268/0286: equal relationship-key assignments also update retained state.

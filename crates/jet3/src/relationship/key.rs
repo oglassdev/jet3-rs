@@ -2,30 +2,29 @@
 use crate::{
     IndexDirection, IndexNullPolicy, PageNumber, ResourceBudget, RowLocator, RowValue, UpdateError,
     index::{
-        entry::{EntryError, NumericIndexEntry, NumericIndexField},
-        key::scalar::NumericKeyType,
+        entry::{EntryError, ScalarIndexEntry, ScalarIndexField},
+        key::scalar::ScalarKeyType,
     },
 };
 
-pub(crate) fn compatible(parent: NumericKeyType, child: NumericKeyType) -> bool {
+pub(crate) fn compatible(parent: ScalarKeyType, child: ScalarKeyType) -> bool {
     match (parent, child) {
-        (
-            NumericKeyType::Text { sort_order: a, .. },
-            NumericKeyType::Text { sort_order: b, .. },
-        ) => a == b,
-        (NumericKeyType::Binary { .. }, NumericKeyType::Binary { .. }) => true,
+        (ScalarKeyType::Text { sort_order: a, .. }, ScalarKeyType::Text { sort_order: b, .. }) => {
+            a == b
+        }
+        (ScalarKeyType::Binary { .. }, ScalarKeyType::Binary { .. }) => true,
         _ => parent == child,
     }
 }
 
 pub(crate) struct Key {
-    entry: NumericIndexEntry,
+    entry: ScalarIndexEntry,
     long: Option<i32>,
 }
 
 impl Key {
     pub(crate) fn encode(
-        kinds: &[NumericKeyType],
+        kinds: &[ScalarKeyType],
         values: &[RowValue<'_>],
         budget: &mut ResourceBudget,
     ) -> Result<Option<Self>, UpdateError> {
@@ -34,16 +33,16 @@ impl Key {
         {
             return Err(UpdateError::Mismatch("relationship key field count"));
         }
-        let mut fields = [NumericIndexField {
+        let mut fields = [ScalarIndexField {
             column: 0,
             direction: IndexDirection::Ascending,
-            kind: NumericKeyType::Long,
+            kind: ScalarKeyType::Long,
         }; crate::index::entry::MAX_FIELDS];
         for (ordinal, (field, &kind)) in fields.iter_mut().zip(kinds).enumerate() {
             field.column = ordinal;
             field.kind = kind;
         }
-        let entry = NumericIndexEntry::encode(
+        let entry = ScalarIndexEntry::encode(
             &fields[..kinds.len()],
             values,
             IndexNullPolicy::Include,

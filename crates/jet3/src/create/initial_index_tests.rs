@@ -3,7 +3,7 @@ use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexColumnSpec, IndexDirection,
     IndexKind, IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue, TableSpec,
     create::{
-        api::{CandidateCheckError, CreateDatabaseError},
+        api::{CreateDatabaseError, ImageCheckError},
         api_tests::*,
     },
     create_database_with_rows,
@@ -233,14 +233,14 @@ fn candidate_check_rejects_index_owner_and_key_corruption() -> TestResult {
     fs::write(directory.target(), &changed)?;
     assert!(matches!(
         super::api::check_initial_rows(&directory.target(), &table, rows, &mut budget()),
-        Err(CandidateCheckError::Index(_))
+        Err(ImageCheckError::Index(_))
     ));
     let mut changed = original;
     changed[23 * crate::PAGE_BYTES + 248 + 4] = 0;
     fs::write(directory.target(), &changed)?;
     assert!(matches!(
         super::api::check_initial_rows(&directory.target(), &table, rows, &mut budget()),
-        Err(CandidateCheckError::Mismatch {
+        Err(ImageCheckError::Mismatch {
             detail: "initial index entries"
         })
     ));

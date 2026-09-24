@@ -12,7 +12,7 @@ pub(crate) enum KeyPrefix {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum NumericKeyType {
+pub(crate) enum ScalarKeyType {
     Boolean,
     Byte,
     Integer,
@@ -31,7 +31,7 @@ pub(crate) enum NumericKeyType {
     Guid,
 }
 
-impl NumericKeyType {
+impl ScalarKeyType {
     pub(crate) fn is_null(self, value: RowValue<'_>) -> bool {
         (matches!(value, RowValue::Null) && self != Self::Boolean)
             || (matches!(self, Self::Binary { .. }) && matches!(value, RowValue::Binary([])))
@@ -272,7 +272,7 @@ mod tests {
             (f32::MAX, [0x7f, 0xff, 0x7f, 0xff, 0xff]),
         ] {
             assert_eq!(
-                NumericKeyType::Single.encode(
+                ScalarKeyType::Single.encode(
                     RowValue::Single(value),
                     IndexDirection::Ascending,
                     &mut output
@@ -296,7 +296,7 @@ mod tests {
             ),
         ] {
             assert_eq!(
-                NumericKeyType::Double.encode(
+                ScalarKeyType::Double.encode(
                     RowValue::Double(value),
                     IndexDirection::Ascending,
                     &mut output
@@ -306,7 +306,7 @@ mod tests {
             assert_eq!(output[..9], expected);
         }
         assert_eq!(
-            NumericKeyType::Integer.encode(
+            ScalarKeyType::Integer.encode(
                 RowValue::Long(1),
                 IndexDirection::Ascending,
                 &mut output

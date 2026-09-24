@@ -23,6 +23,7 @@ fn memo_property_encoder_matches_observed_named_block() -> Result<(), Box<dyn St
     let property = crate::properties::column::CreationProperties::new(
         &fields,
         crate::TableValidation::NONE,
+        crate::SortOrder::General,
         &mut budget(),
     )?
     .ok_or("name")?;
@@ -52,6 +53,7 @@ fn memo_property_encoder_matches_observed_named_block() -> Result<(), Box<dyn St
             crate::properties::column::CreationProperties::new(
                 &fields,
                 crate::TableValidation::NONE,
+                crate::SortOrder::General,
                 &mut budget()
             )?
             .is_none()
@@ -141,7 +143,7 @@ fn memo_option_publishes_distinct_empty_null_and_nonempty() -> Result<(), Box<dy
         fs::write(&path, changed)?;
         assert!(matches!(
             check_long_value_written_pages(&path, &[table], &pages, &mut budget()),
-            Err(CandidateCheckError::Mismatch { .. })
+            Err(ImageCheckError::Mismatch { .. })
         ));
     }
     Ok(())
