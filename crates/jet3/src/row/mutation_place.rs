@@ -104,14 +104,10 @@ fn allocate(
         }
         crate::row::directory::overflow_pointer(RowLocator::new(page, 0))?;
         database.read_raw_page(page, &mut source, budget)?;
-        if let Some((after, slot)) = crate::row::insert_page::append_physical(
-            page,
-            definition.root(),
-            &source,
-            encoded,
-            RowSlot::Storage,
-            budget,
-        )? {
+        if let Some((after, slot)) =
+            crate::row::data_page::DataPageEditor::open(page, definition.root(), &source, budget)?
+                .append(encoded, Some(RowSlot::Storage), budget)?
+        {
             pages.appended(page, source, after, budget)?;
             return Ok(RowLocator::new(page, slot));
         }

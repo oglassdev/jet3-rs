@@ -148,7 +148,8 @@ pub(crate) fn plan(
     .get() as usize;
     let mut count_page = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut count_page, budget)?;
-    crate::row::update_page::check_count(&count_page, observed, budget)?;
+    budget.charge_work_units(4)?;
+    crate::row::data_page::check_table_rows(&count_page, observed)?;
     let mut edits = crate::write::page_edits::PageEdits::new(database.geometry().page_count());
     long_values.stage(database, &mut edits, budget)?;
     crate::row::mutation_place::replace(

@@ -160,13 +160,13 @@ fn complete_inventory_rejects_an_endpoint_hidden_from_the_central_catalog() -> R
     indexes.remove(locator, &mut work)?;
     let mut page = [0; PAGE_BYTES];
     db.read_raw_page(locator.page(), &mut page, &mut work)?;
-    let removed = crate::row::delete_page::remove(
+    let removed = crate::row::data_page::DataPageEditor::open(
         locator.page(),
         central.root(),
         &page,
-        locator.slot(),
         &mut work,
-    )?;
+    )?
+    .remove(locator.slot(), false, &mut work)?;
     let mut edits = crate::write::page_edits::PageEdits::new(db.geometry().page_count());
     edits.set_image(&mut db, locator.page(), removed.image().clone(), &mut work)?;
     for map in [central.maps().owned(), central.maps().available()] {

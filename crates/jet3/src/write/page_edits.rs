@@ -1,7 +1,8 @@
 //! One private publication for data, index and allocation changes.
 use crate::{
     ByteCount, DatabaseReader, FileSource, MapRowLocator, PAGE_BYTES, PageImage, PageNumber,
-    PageOffset, PublishStage, ResourceBudget, UpdateError, write::update_pages::PageChange,
+    PageOffset, PublishStage, ResourceBudget, UpdateError, row::data_page::DataPageEditor,
+    write::update_pages::PageChange,
 };
 use std::{error::Error as StdError, mem::size_of, path::Path};
 
@@ -215,14 +216,11 @@ impl PageEdits {
             let owner = PageNumber::new(u64::from(u32::from_le_bytes([
                 bytes[4], bytes[5], bytes[6], bytes[7],
             ])));
-            current = crate::row::update_page::replace(
-                locator.page(),
-                owner,
-                bytes,
-                locator.row(),
-                desired,
-                budget,
-            )?;
+            current = DataPageEditor::open(locator.page(), owner, bytes, budget)?
+                .replace(locator.row(), desired, None, budget)?
+                .ok_or(UpdateError::Unsupported(
+                    "replacement exceeds contiguous page space",
+                ))?;
         }
         if let Some(change) = self
             .changes

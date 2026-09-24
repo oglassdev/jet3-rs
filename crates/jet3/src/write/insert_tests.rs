@@ -235,7 +235,9 @@ fn later_page_selection_and_capacity_boundary() -> TestResult {
         bytes[8..10].copy_from_slice(&1_u16.to_le_bytes());
         bytes[2..4].copy_from_slice(&free.to_le_bytes());
         bytes[10..12].copy_from_slice(&(12 + free).to_le_bytes());
-        let value = crate::row::insert_page::append(page, owner, &bytes, &[0; 10], &mut budget())?;
+        let value =
+            crate::row::data_page::DataPageEditor::open(page, owner, &bytes, &mut budget())?
+                .append(&[0; 10], None, &mut budget())?;
         assert_eq!(value.is_some(), free == 12);
     }
     f.clean()
@@ -357,24 +359,21 @@ fn physical_slot_limit_and_table_count_overflow_are_structured() -> TestResult {
         }
         bytes[2..4].copy_from_slice(&(2038 - 4 * count).to_le_bytes());
         assert_eq!(
-            crate::row::insert_page::append(
+            crate::row::data_page::DataPageEditor::open(
                 PageNumber::new(23),
                 PageNumber::new(20),
                 &bytes,
-                &[1, 1],
                 &mut budget()
             )?
+            .append(&[1, 1], None, &mut budget())?
             .is_some(),
             count == 254
         );
-        assert_eq!(
-            crate::row::insert_page::has_capacity(&bytes, 2),
-            count == 254
-        );
+        assert_eq!(crate::row::data_page::has_capacity(&bytes, 2), count == 254);
     }
     bytes[12..16].copy_from_slice(&u32::MAX.to_le_bytes());
     assert!(matches!(
-        crate::row::insert_page::increment_count(&bytes, u32::MAX, &mut budget()),
+        crate::row::data_page::count_table_row(&bytes, u32::MAX, true, &mut budget()),
         Err(UpdateError::Mismatch("table row count overflow"))
     ));
     Ok(())

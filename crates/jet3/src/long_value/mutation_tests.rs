@@ -416,13 +416,13 @@ fn aliases_unreferenced_fragments_and_broken_chains_are_refused() -> TestResult 
                 let target = headers[0].1.target();
                 let start = target.page().get() as usize * PAGE_BYTES;
                 let source: [u8; PAGE_BYTES] = original[start..start + PAGE_BYTES].try_into()?;
-                let (after, _) = crate::row::insert_page::append(
+                let (after, _) = crate::row::data_page::DataPageEditor::open(
                     target.page(),
                     super::mutation::OWNER,
                     &source,
-                    b"unreferenced",
                     &mut budget(),
                 )?
+                .append(b"unreferenced", None, &mut budget())?
                 .ok_or("append")?;
                 damaged[start..start + PAGE_BYTES].copy_from_slice(after.as_bytes());
             }

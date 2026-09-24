@@ -57,13 +57,13 @@ fn retained_directory_slots_do_not_make_deleted_rows_valid_index_targets() -> Te
     let (first, _) = first_row(&bytes, &table)?;
     let start = page_start(first.page());
     let source = bytes[start..start + PAGE_BYTES].try_into()?;
-    let deletion = crate::row::delete_page::remove(
+    let deletion = crate::row::data_page::DataPageEditor::open(
         first.page(),
         table.root(),
         &source,
-        first.slot(),
         &mut budget(),
-    )?;
+    )?
+    .remove(first.slot(), false, &mut budget())?;
     bytes[start..start + PAGE_BYTES].copy_from_slice(deletion.image().as_bytes());
     let count = page_start(table.root()) + 12;
     bytes[count..count + 4].copy_from_slice(&2_u32.to_le_bytes());

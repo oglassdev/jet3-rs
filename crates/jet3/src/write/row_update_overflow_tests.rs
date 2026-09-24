@@ -251,23 +251,29 @@ fn logical_and_hidden_slots_on_the_same_page_compose_without_losing_neighbors() 
         let raw = slot(&bytes, logical).1.to_vec();
         let base = logical.page().get() as usize * PAGE_BYTES;
         let source = bytes[base..base + PAGE_BYTES].try_into()?;
-        let (appended, hidden_slot) = crate::row::insert_page::append_physical(
+        let (appended, hidden_slot) = crate::row::data_page::DataPageEditor::open(
             logical.page(),
             f.root,
             &source,
+            &mut budget(),
+        )?
+        .append(
             &raw,
-            crate::row::directory::RowSlot::Storage,
+            Some(crate::row::directory::RowSlot::Storage),
             &mut budget(),
         )?
         .ok_or("hidden append capacity")?;
         let hidden = RowLocator::new(logical.page(), hidden_slot);
-        let linked = crate::row::update_page::replace_physical(
+        let linked = crate::row::data_page::DataPageEditor::open(
             logical.page(),
             f.root,
             appended.as_bytes(),
+            &mut budget(),
+        )?
+        .replace(
             logical.slot(),
             &crate::row::directory::overflow_pointer(hidden)?,
-            crate::row::directory::RowSlot::Link,
+            Some(crate::row::directory::RowSlot::Link),
             &mut budget(),
         )?
         .ok_or("logical link capacity")?;
@@ -363,23 +369,25 @@ fn valid_multi_hop_chains_are_refused_without_changing_the_image() -> TestResult
             crate::row::directory::RowSlot::Link,
         ),
     ] {
-        page = crate::row::update_page::replace_physical(
+        page = crate::row::data_page::DataPageEditor::open(
             logical.page(),
             f.root,
             page.as_bytes(),
-            locator.slot(),
-            &raw,
-            kind,
             &mut budget(),
         )?
+        .replace(locator.slot(), &raw, Some(kind), &mut budget())?
         .ok_or("multi-hop fixture capacity")?;
     }
     bytes[base..base + PAGE_BYTES].copy_from_slice(page.as_bytes());
     let root = f.root.get() as usize * PAGE_BYTES;
     let mut definition = crate::PageImage::from_bytes(bytes[root..root + PAGE_BYTES].try_into()?);
     for count in [3, 2] {
-        definition =
-            crate::row::delete_page::decrement_count(definition.as_bytes(), count, &mut budget())?;
+        definition = crate::row::data_page::count_table_row(
+            definition.as_bytes(),
+            count,
+            false,
+            &mut budget(),
+        )?;
     }
     bytes[root..root + PAGE_BYTES].copy_from_slice(definition.as_bytes());
     fs::write(f.path(), &bytes)?;

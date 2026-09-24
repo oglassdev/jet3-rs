@@ -2,6 +2,7 @@
 use crate::{
     ColumnPhysicalType, ColumnStorageClass, DatabaseReader, PAGE_BYTES, PublishStage,
     ResourceBudget, RowColumnLayout, RowLocator, RowValue, UpdateError,
+    row::data_page::DataPageEditor,
 };
 use std::convert::Infallible;
 use std::error::Error as StdError;
@@ -120,7 +121,7 @@ pub(crate) fn plan(
     let mut source_definition = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut source_definition, budget)?;
     let mut patched_definition =
-        crate::row::insert_page::increment_count(&source_definition, observed_rows, budget)?;
+        crate::row::data_page::count_table_row(&source_definition, observed_rows, true, budget)?;
     if let Some(auto) = auto {
         auto.write(&mut patched_definition, budget)?;
     }
@@ -145,14 +146,13 @@ pub(crate) fn plan(
             return Err(UpdateError::Mismatch("available page not owned"));
         }
         database.read_raw_page(page, &mut source_page, budget)?;
-        if let Some((patched, slot)) = crate::row::insert_page::append_physical(
-            page,
-            definition.root(),
-            &source_page,
-            &encoded[..length],
-            crate::row::directory::RowSlot::Ordinary,
-            budget,
-        )? {
+        if let Some((patched, slot)) =
+            DataPageEditor::open(page, definition.root(), &source_page, budget)?.append(
+                &encoded[..length],
+                Some(crate::row::directory::RowSlot::Ordinary),
+                budget,
+            )?
+        {
             break Some((page, patched, slot));
         }
     };
@@ -172,7 +172,7 @@ pub(crate) fn plan(
             page,
             crate::alloc::patch::AllocationChange::Retain {
                 before: true,
-                available: crate::row::insert_page::has_capacity(patched.as_bytes(), minimum),
+                available: crate::row::data_page::has_capacity(patched.as_bytes(), minimum),
             },
             budget,
         )?;

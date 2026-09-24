@@ -2,7 +2,7 @@ use super::row_update::*;
 use crate::{
     ByteCount, ColumnOrdinal, ColumnSpec, ColumnStorageClass, ColumnType, DatabaseReader,
     PAGE_BYTES, PublishStage, ResourceBudget, ResourceLimits, RowColumnLayout, RowLocator,
-    RowValue, TableSpec, UpdateError,
+    RowValue, TableSpec, UpdateError, row::data_page::DataPageEditor,
 };
 use std::error::Error as StdError;
 use std::{fs, num::NonZeroU8, path::PathBuf};
@@ -299,28 +299,15 @@ fn schema_locators_corruption_and_capacity_refuse_without_publication() -> TestR
     let source: [u8; PAGE_BYTES] = original[base..base + PAGE_BYTES].try_into()?;
     let old = word(&source, 10);
     let max = word(&source, 2) + (PAGE_BYTES - old);
-    assert!(
-        crate::row::update_page::replace(
-            f.locators[0].page(),
-            f.root,
-            &source,
-            0,
-            &vec![0; max],
-            &mut budget()
-        )
-        .is_ok()
-    );
-    assert!(
-        crate::row::update_page::replace(
-            f.locators[0].page(),
-            f.root,
-            &source,
-            0,
-            &vec![0; max + 1],
-            &mut budget()
-        )
-        .is_err()
-    );
+    let editor = DataPageEditor::open(f.locators[0].page(), f.root, &source, &mut budget())?;
+    assert!(matches!(
+        editor.replace(0, &vec![0; max], None, &mut budget()),
+        Ok(Some(_))
+    ));
+    assert!(matches!(
+        editor.replace(0, &vec![0; max + 1], None, &mut budget()),
+        Ok(None)
+    ));
     Ok(())
 }
 #[test]
@@ -450,29 +437,25 @@ fn full_slot_directory_allows_replacement_but_hidden_payload_is_refused() -> Tes
             .copy_from_slice(&((start as u16) | 0xc000).to_le_bytes());
     }
     page[2..4].copy_from_slice(&((start - 522) as u16).to_le_bytes());
-    assert!(
-        crate::row::update_page::replace(
-            f.locators[0].page(),
-            f.root,
-            &page,
+    assert!(matches!(
+        DataPageEditor::open(f.locators[0].page(), f.root, &page, &mut budget())?.replace(
             0,
             &raw,
-            &mut budget(),
-        )
-        .is_ok()
-    );
+            None,
+            &mut budget()
+        ),
+        Ok(Some(_))
+    ));
     let f = Fixture::new(3)?;
     let original = fs::read(f.path())?;
     let base = f.locators[0].page().get() as usize * PAGE_BYTES;
     let mut page: [u8; PAGE_BYTES] = original[base..base + PAGE_BYTES].try_into()?;
     page[13] |= 0xc0;
     assert!(matches!(
-        crate::row::update_page::replace(
-            f.locators[0].page(),
-            f.root,
-            &page,
+        DataPageEditor::open(f.locators[0].page(), f.root, &page, &mut budget())?.replace(
             0,
             &raw,
+            None,
             &mut budget()
         ),
         Err(UpdateError::Unsupported(

@@ -105,7 +105,7 @@ pub(crate) fn plan(
     let mut source_definition = [0; PAGE_BYTES];
     database.read_raw_page(definition.root(), &mut source_definition, budget)?;
     let patched_definition =
-        crate::row::delete_page::decrement_count(&source_definition, observed_rows, budget)?;
+        crate::row::data_page::count_table_row(&source_definition, observed_rows, false, budget)?;
     let mut long_values = crate::long_value::mutation::LongValues::load(
         database,
         definition,

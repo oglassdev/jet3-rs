@@ -2,7 +2,7 @@
 use crate::{
     DatabaseReader, FileSource, PAGE_BYTES, PageImage, PageNumber, ResourceBudget, RowLocator,
     TableDefinition, UpdateError,
-    row::directory::RowSlot,
+    row::{data_page::DataPageEditor, directory::RowSlot},
     write::page_edits::{PageEdits, reserve},
 };
 
@@ -54,15 +54,8 @@ impl RowPages {
     ) -> Result<bool, UpdateError> {
         let index = self.position(database, row.page(), budget)?;
         let entry = &mut self.pages[index];
-        let Some(after) = crate::row::update_page::replace_physical(
-            row.page(),
-            owner,
-            entry.after.as_bytes(),
-            row.slot(),
-            encoded,
-            state,
-            budget,
-        )?
+        let Some(after) = DataPageEditor::open(row.page(), owner, entry.after.as_bytes(), budget)?
+            .replace(row.slot(), encoded, Some(state), budget)?
         else {
             return Ok(false);
         };
@@ -79,16 +72,9 @@ impl RowPages {
     ) -> Result<(), UpdateError> {
         let index = self.position(database, row.page(), budget)?;
         let entry = &mut self.pages[index];
-        entry.after = match crate::row::delete_page::remove_physical(
-            row.page(),
-            owner,
-            entry.after.as_bytes(),
-            row.slot(),
-            budget,
-        )? {
-            crate::row::delete_page::Deletion::Retained(image)
-            | crate::row::delete_page::Deletion::Released(image) => image,
-        };
+        entry.after = DataPageEditor::open(row.page(), owner, entry.after.as_bytes(), budget)?
+            .remove(row.slot(), true, budget)?
+            .into_image();
         Ok(())
     }
 
@@ -130,10 +116,7 @@ impl RowPages {
             } else {
                 crate::alloc::patch::AllocationChange::Retain {
                     before: available,
-                    available: crate::row::insert_page::has_capacity(
-                        entry.after.as_bytes(),
-                        minimum,
-                    ),
+                    available: crate::row::data_page::has_capacity(entry.after.as_bytes(), minimum),
                 }
             };
             let maps = crate::alloc::patch::plan(database, definition, entry.page, change, budget)?;
