@@ -66,10 +66,6 @@ Commands:
   mutate    insert, update, replace or delete one row
   schema    edit tables, columns, indexes and relationships
 
-  jet3-cli probe <file> [--max-input-bytes <bytes>]
-  jet3-cli probe <file> [--max-input-bytes <bytes>] --scan-pages \
-    --max-scan-bytes <bytes> --max-pages <count>
-
 probe accepts only the supported Jet 3, unencrypted, no-password header state
 and reports 2 KiB geometry. --scan-pages rereads every complete page with a
 fixed 2 KiB buffer after checking both explicit scan limits.
