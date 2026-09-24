@@ -20688,3 +20688,30 @@ GPT-6 Sol high; the fixed findings were the ten-column cap on unenforced
 creation and the inspect join spelling. This accepts the finite inventory
 above; one-to-one and unknown-attribute writes, the Inherited attribute
 (refused by DAO on local tables) and linked tables remain outside it.
+
+## EXP-0303 — Native saved-query catalog flags
+
+The native storage/preservation acquisition `20260923T180002Z-storage-native-r2`
+uses x86 DAO 3.6 (DLL 03.60.9765.0, SHA-256
+`4cc28a5be8dc7425a4c4c1ef275ca392f18be35d70232e777dce6d9f3b4d79ac`),
+Windows 10.0.20348, en-US/ANSI 1252. The original `wide-r1` image contains
+eleven saved QueryDefs, all read completely through DAO including SQL,
+parameters, properties and dates; none is executed. Its MSysObjects rows
+have Type 5. Flags match the DAO QueryDef.Type getter: select, parameter,
+aggregate and join 0; crosstab 16; delete 32; update 48; append 64;
+make-table 80; DDL 96; union 128. These exact kind/flag pairs are admitted
+as user catalog objects while retaining their raw kind and flags. This
+observation does not establish arbitrary flag combinations, query execution,
+other object kinds, or query mutation support.
+
+The original native image is 106,496 bytes with SHA-256
+`13312efadbb13c4413aba0b99e2b96c6db2135cd1cf0575966ebc470e2ae2546`;
+its complete DAO snapshot has SHA-256
+`d3699fe98de0161745290d6499c0dbcd131b34f8f3589b3f4f18723743b11ba1`.
+Both remain in the named outbox below the private VM share. The producer
+and deterministic input generator are `storage_preservation.ps1` and
+`storage_preservation_plan.py` in `oracle/windows-dao/scripts`.
+The earlier native r1 custom-property setup failure and the original Rust
+refusal (`catalog object flags 0x00000080 are unsupported`) are retained
+under `shared/checks/20260923-storage-preservation`. No MDB implementation
+source was consulted. Differential mutation results are recorded separately.

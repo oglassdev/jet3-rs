@@ -257,7 +257,7 @@ def observe(path, allowed_count_deltas=None):
             expected = []
             for row in rr:
                 if i['flags'] & 2 and any(row['values'][c['name']] is None for c in cc): continue
-                key = b''.join(index_key(row['values'][c['name']], c, k['direction'] == 0) for c, k in zip(cc, i['keys']))
+                key = numeric.shorten_key(b''.join(index_key(row['values'][c['name']], c, k['direction'] == 0) for c, k in zip(cc, i['keys'])))
                 expected.append(key + row['locator']['page'].to_bytes(3, 'big') + bytes([row['locator']['row']]))
             require(entries == sorted(expected), f'{path.name}/{name}/{i["index"]} complete physical keys')
             members = set(maps[f'{name}/index/{i["index"]}/owned']['members'])

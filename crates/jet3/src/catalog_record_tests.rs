@@ -137,6 +137,37 @@ fn unknown_kinds_and_ascii_views_remain_lossless() -> Result<(), Box<dyn std::er
 }
 
 #[test]
+fn saved_query_flags_remain_lossless_and_require_the_query_kind()
+-> Result<(), Box<dyn std::error::Error>> {
+    // EXP-0303: each native QueryDef form has an exact catalog kind/flag pair.
+    for flags in [0, 16, 32, 48, 64, 80, 96, 128] {
+        let bytes = record(0x8000_0001, 5, flags, b"SavedQuery");
+        let mut resources = budget();
+        let owned =
+            decode_catalog_record(&bytes, &mut resources)?.into_owned(None, &mut resources)?;
+        assert_eq!(owned.kind(), CatalogObjectKind::Unknown(5));
+        assert_eq!(owned.class(), CatalogObjectClass::User);
+        assert_eq!(owned.raw_flags(), flags);
+        assert_eq!(owned.table_definition(), None);
+        if flags != 0 {
+            for kind in [1, 2, 3] {
+                assert_eq!(
+                    decode_catalog_record(&record(23, kind, flags, b"Other"), &mut budget()),
+                    Err(CatalogRecordError::UnsupportedObjectFlags { raw: flags })
+                );
+            }
+        }
+    }
+    for flags in [1, 17, 112, 144, 0x8000_0010] {
+        assert_eq!(
+            decode_catalog_record(&record(23, 5, flags, b"UnknownQuery"), &mut budget()),
+            Err(CatalogRecordError::UnsupportedObjectFlags { raw: flags })
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn bad_lengths_trailers_columns_and_flags_are_structured() {
     let mut resources = budget();
     assert_eq!(
