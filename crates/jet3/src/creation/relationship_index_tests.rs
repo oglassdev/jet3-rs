@@ -516,3 +516,70 @@ fn one_to_one_creation_refuses_duplicate_children_before_publication() -> TestRe
     assert!(!directory.target().exists());
     Ok(())
 }
+
+#[test]
+fn generated_one_to_one_index_records_initial_child_row_count() -> TestResult {
+    let directory = Directory::new()?;
+    let parent_rows: &[&[RowValue<'_>]] = &[
+        &[
+            RowValue::Long(1),
+            RowValue::Null,
+            RowValue::Null,
+            RowValue::Null,
+        ],
+        &[
+            RowValue::Long(2),
+            RowValue::Null,
+            RowValue::Null,
+            RowValue::Null,
+        ],
+    ];
+    let child_rows: &[&[RowValue<'_>]] = &[
+        &[
+            RowValue::Long(1),
+            RowValue::Long(1),
+            RowValue::Null,
+            RowValue::Null,
+        ],
+        &[
+            RowValue::Long(2),
+            RowValue::Long(2),
+            RowValue::Null,
+            RowValue::Null,
+        ],
+        &[
+            RowValue::Long(3),
+            RowValue::Null,
+            RowValue::Null,
+            RowValue::Null,
+        ],
+    ];
+    let edge = RelationshipSpec {
+        unique: true,
+        ..relation(b"One", 0, 1, 1)
+    };
+    create_database_with_relationships_and_rows(
+        directory.target(),
+        &[
+            TableRows {
+                table: TABLES[0],
+                rows: parent_rows,
+            },
+            TableRows {
+                table: TABLES[1],
+                rows: child_rows,
+            },
+        ],
+        &[edge],
+        &mut budget(),
+    )?;
+    let mut work = budget();
+    let mut db = DatabaseReader::open(directory.target(), &mut work)?;
+    let child = crate::update::indexed_writable_table(&mut db, TABLES[1].name, &mut work)?;
+    let foreign = child.relationships().next().ok_or("foreign relationship")?;
+    assert_eq!(
+        child.physical_indexes()[usize::from(foreign.physical_index())].sourced_prefix(),
+        &[3, 0, 0, 0, 3, 0, 0, 0]
+    );
+    Ok(())
+}

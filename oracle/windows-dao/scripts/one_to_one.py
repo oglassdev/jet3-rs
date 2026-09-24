@@ -102,6 +102,8 @@ def plan(args):
                          'replace-many': 1, 'replace-enforced': 1, 'mixed': 2}
             if item['name'] in placement:
                 item['placement_roles'] = [f"C/index/{placement[item['name']]}/owned", f.AVAILABLE, f.OWNED]
+            if item['name'] == 'replace-loose':
+                item['placement_roles'] = [f.AVAILABLE, f.OWNED]
             item['name'] += suffix
             item['input_name'] += suffix
             template.append(item)
