@@ -1,5 +1,6 @@
 use super::api_tests::*;
 use crate::WriteError;
+use crate::testkit::table;
 use crate::{
     ColumnRef, ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexDirection, IndexKind,
     IndexSpec, RelationshipField, RelationshipLayout, RelationshipSpec, ResourceBudget,
@@ -10,8 +11,8 @@ use std::fs;
 use std::path::Path;
 
 fn repeats(create: impl Fn(&Path, &mut ResourceBudget) -> Result<(), WriteError>) -> TestResult {
-    let first = TestDirectory::create()?;
-    let second = TestDirectory::create()?;
+    let first = TempDir::new("create")?;
+    let second = TempDir::new("create")?;
     let mut measured = budget();
     create(&first.target(), &mut measured)?;
     let mut tight = ResourceBudget::new(
@@ -20,7 +21,7 @@ fn repeats(create: impl Fn(&Path, &mut ResourceBudget) -> Result<(), WriteError>
             .with_max_allocation_bytes(measured.allocation_bytes())
             .with_max_encoded_bytes(measured.encoded_bytes()),
     );
-    let other_path = second.path.join("another-name.mdb");
+    let other_path = second.join("another-name.mdb");
     create(&other_path, &mut tight)?;
     assert_eq!(fs::read(first.target())?, fs::read(other_path)?);
     assert_eq!(first.entries()?, ["created.mdb"]);
@@ -40,22 +41,7 @@ fn empty_creation_is_independent_of_destination_and_successful_budget() -> TestR
             operation,
         )
     })?;
-    repeats(|path, operation| {
-        create_database(
-            path,
-            &DatabaseSpec {
-                tables: &[],
-                ..DatabaseSpec::default()
-            },
-            operation,
-        )
-    })?;
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Empty",
-        columns: &[ID, NOTE],
-        indexes: &[],
-    };
+    let table = table(b"Empty", &[ID, NOTE], &[]);
     repeats(|path, operation| {
         create_database(
             path,
@@ -151,31 +137,16 @@ fn populated_catalog_definitions_indexes_payloads_and_generated_ids_repeat() -> 
     let mut requests = names
         .iter()
         .map(|name| TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name,
-                columns: &[ID],
-                indexes: &[],
-            },
+            table: table(name, &[ID], &[]),
             rows: &[],
         })
         .collect::<Vec<_>>();
     requests.push(TableRows {
-        table: TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Wide",
-            columns: &wide_columns,
-            indexes: &[],
-        },
+        table: table(b"Wide", &wide_columns, &[]),
         rows: &wide_rows,
     });
     requests.push(TableRows {
-        table: TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &columns,
-            indexes: &indexes,
-        },
+        table: table(b"Items", &columns, &indexes),
         rows: &rows,
     });
     repeats(|path, operation| {
@@ -198,12 +169,7 @@ fn empty_and_populated_relationship_metadata_repeat() -> TestResult {
         kind: IndexKind::Primary,
     }];
     let tables = [
-        TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Parents",
-            columns: &[ID],
-            indexes: &indexes,
-        },
+        table(b"Parents", &[ID], &indexes),
         TableSpec {
             validation: crate::TableValidation::NONE,
             name: b"Children",

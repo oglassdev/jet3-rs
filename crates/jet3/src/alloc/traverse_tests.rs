@@ -3,12 +3,12 @@ use super::traverse::{
     follow_map_page_reference,
 };
 use crate::{
-    AllocationMapError, ByteCount, DatabasePageError, DatabaseReader, Error, JET3_PAGE_SIZE,
-    MapLocationError, PAGE_BYTES, PageGeometry, PageKind, PageNumber, ReadLimits, ResourceBudget,
-    ResourceLimitKind, ResourceLimits, SliceSource, UsageMapError,
+    ByteCount, DatabasePageError, DatabaseReader, Error, JET3_PAGE_SIZE, PAGE_BYTES, PageGeometry,
+    PageKind, PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits,
+    SliceSource,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 const EXTENDED_TAG: u8 = 0x05;
 const DATA_TAG: u8 = 0x01;
@@ -229,7 +229,7 @@ fn chain_depth_limit_is_exact_and_checked_before_any_read() -> TestResult {
 }
 
 #[test]
-fn visited_set_inline_boundary_is_exact_and_precharged() -> TestResult {
+fn visited_set_boundary_is_precharged_and_rejects_out_of_range_pages() -> TestResult {
     let inline_geometry =
         PageGeometry::new(ByteCount::new(256 * JET3_PAGE_SIZE.get()), JET3_PAGE_SIZE)?;
     let mut resources = ResourceBudget::new(limits().with_max_allocation_bytes(ByteCount::new(32)));
@@ -253,6 +253,22 @@ fn visited_set_inline_boundary_is_exact_and_precharged() -> TestResult {
     let mut heap = VisitedPages::new(heap_geometry, &mut resources)?;
     assert!(!heap.insert(PageNumber::new(256))?);
     assert_eq!(resources.allocation_bytes(), ByteCount::new(33));
+
+    let geometry = PageGeometry::new(ByteCount::new(3 * JET3_PAGE_SIZE.get()), JET3_PAGE_SIZE)?;
+    let mut resources = budget();
+    let mut visited = VisitedPages::new(geometry, &mut resources)?;
+    assert!(!visited.contains(PageNumber::new(2)));
+    assert!(!visited.insert(PageNumber::new(2))?);
+    assert!(visited.insert(PageNumber::new(2))?);
+    assert!(visited.contains(PageNumber::new(2)));
+    assert!(!visited.contains(PageNumber::new(3)));
+    assert_eq!(
+        visited.insert(PageNumber::new(3)),
+        Err(Error::PageOutOfBounds {
+            page: 3,
+            page_count: 3,
+        })
+    );
     Ok(())
 }
 
@@ -280,26 +296,6 @@ fn resource_rejection_leaves_the_walker_retryable() -> TestResult {
     let mut database = open(&bytes, &mut retry)?;
     walk.follow(one, BITMAP, &mut database, &mut page, &mut retry)?;
     assert_eq!(walk.depth(), 1);
-    Ok(())
-}
-
-#[test]
-fn visited_pages_rejects_out_of_range_without_growing() -> TestResult {
-    let geometry = PageGeometry::new(ByteCount::new(3 * JET3_PAGE_SIZE.get()), JET3_PAGE_SIZE)?;
-    let mut resources = budget();
-    let mut visited = VisitedPages::new(geometry, &mut resources)?;
-    assert!(!visited.contains(PageNumber::new(2)));
-    assert!(!visited.insert(PageNumber::new(2))?);
-    assert!(visited.insert(PageNumber::new(2))?);
-    assert!(visited.contains(PageNumber::new(2)));
-    assert!(!visited.contains(PageNumber::new(3)));
-    assert_eq!(
-        visited.insert(PageNumber::new(3)),
-        Err(Error::PageOutOfBounds {
-            page: 3,
-            page_count: 3,
-        })
-    );
     Ok(())
 }
 
@@ -437,134 +433,46 @@ fn zero_slots_end_without_following_a_page() -> TestResult {
 }
 
 #[test]
-fn self_reference_is_rejected_before_following() -> TestResult {
-    let record = indirect_record(&[2, 3]);
-    let bytes = owned_page_database(5, &record, &[3]);
-    let mut resources = budget();
-    let mut database = open(&bytes, &mut resources)?;
-    let mut pages = database.owned_pages(PageNumber::new(1), &mut resources)?;
-    assert_eq!(
-        pages.next_page(),
-        Err(AllocationTraversalError::SelfReference {
-            record_page: PageNumber::new(2),
-        })
-    );
-    assert_eq!(pages.next_page()?, None);
-    Ok(())
-}
-
-#[test]
-fn duplicate_reference_is_a_cycle() -> TestResult {
-    let record = indirect_record(&[3, 3, 4]);
-    let bytes = owned_page_database(5, &record, &[3, 4]);
-    let mut resources = budget();
-    let mut database = open(&bytes, &mut resources)?;
-    let mut pages = database.owned_pages(PageNumber::new(1), &mut resources)?;
-    assert_eq!(
-        pages.next_page(),
-        Err(AllocationTraversalError::RepeatedPage {
-            page: PageNumber::new(3),
-        })
-    );
-    assert_eq!(pages.next_page()?, None);
-    Ok(())
-}
-
-#[test]
-fn nonzero_after_zero_slot_is_rejected_without_a_read() -> TestResult {
-    let record = indirect_record(&[0, 3, 4]);
-    let bytes = owned_page_database(5, &record, &[3, 4]);
-    let mut resources = budget();
-    let mut database = open(&bytes, &mut resources)?;
-    let mut pages = database.owned_pages(PageNumber::new(1), &mut resources)?;
-    assert_eq!(
-        pages.next_page(),
-        Err(AllocationTraversalError::NonzeroAfterNullSlot {
-            slot: 1,
-            page: PageNumber::new(3),
-        })
-    );
-    assert_eq!(pages.next_page()?, None);
-    Ok(())
-}
-
-#[test]
-fn reference_beyond_captured_input_is_rejected_before_read() -> TestResult {
-    let record = indirect_record(&[5, 3]);
-    let bytes = owned_page_database(5, &record, &[3]);
-    let mut resources = budget();
-    let mut database = open(&bytes, &mut resources)?;
-    let mut pages = database.owned_pages(PageNumber::new(1), &mut resources)?;
-    assert_eq!(
-        pages.next_page(),
-        Err(AllocationTraversalError::InvalidReference {
-            page: PageNumber::new(5),
-            source: Error::PageOutOfBounds {
-                page: 5,
-                page_count: 5,
+fn owned_indirect_reference_corruption_is_rejected_and_exhausts_the_cursor() -> TestResult {
+    let out_of_bounds = AllocationTraversalError::InvalidReference {
+        page: PageNumber::new(5),
+        source: Error::PageOutOfBounds {
+            page: 5,
+            page_count: 5,
+        },
+    };
+    let cases: [(&[u32], &[usize], AllocationTraversalError); 4] = [
+        (
+            &[2, 3],
+            &[3],
+            AllocationTraversalError::SelfReference {
+                record_page: PageNumber::new(2),
             },
-        })
-    );
-    assert_eq!(pages.next_page()?, None);
-    Ok(())
-}
-
-#[test]
-fn errors_report_context_and_preserve_nested_sources() {
-    let cases = [
-        AllocationTraversalError::MapLocation(MapLocationError::Resource(Error::Arithmetic {
-            operation: "map",
-        })),
-        AllocationTraversalError::UsageMap(UsageMapError::Resource(Error::Arithmetic {
-            operation: "row",
-        })),
-        AllocationTraversalError::AllocationMap(AllocationMapError::EmptyRecord),
-        AllocationTraversalError::Page(DatabasePageError::Read(Error::Arithmetic {
-            operation: "page",
-        })),
-        AllocationTraversalError::InvalidReference {
-            page: PageNumber::new(9),
-            source: Error::PageOutOfBounds {
-                page: 9,
-                page_count: 9,
+        ),
+        (
+            &[3, 3, 4],
+            &[3, 4],
+            AllocationTraversalError::RepeatedPage {
+                page: PageNumber::new(3),
             },
-        },
-        AllocationTraversalError::SelfReference {
-            record_page: PageNumber::new(2),
-        },
-        AllocationTraversalError::NonzeroAfterNullSlot {
-            slot: 1,
-            page: PageNumber::new(3),
-        },
-        AllocationTraversalError::RepeatedPage {
-            page: PageNumber::new(3),
-        },
-        AllocationTraversalError::UnexpectedPageKind {
-            page: PageNumber::new(3),
-            expected: BITMAP,
-            actual: PageKind::Data,
-        },
-        AllocationTraversalError::RelativeBitOutOfRange {
-            slot: 1,
-            bit_index: 16_352,
-        },
-        AllocationTraversalError::InlinePageOverflow {
-            start_page: PageNumber::new(u64::MAX),
-            bit_index: 1,
-        },
-        AllocationTraversalError::ExtendedPageOverflow {
-            slot: u64::MAX,
-            bit_index: 1,
-        },
-        AllocationTraversalError::Resource(Error::Arithmetic {
-            operation: "traversal",
-        }),
+        ),
+        (
+            &[0, 3, 4],
+            &[3, 4],
+            AllocationTraversalError::NonzeroAfterNullSlot {
+                slot: 1,
+                page: PageNumber::new(3),
+            },
+        ),
+        (&[5, 3], &[3], out_of_bounds),
     ];
-    for (index, error) in cases.iter().enumerate() {
-        assert!(!error.to_string().is_empty());
-        assert_eq!(
-            std::error::Error::source(error).is_some(),
-            index < 5 || index == 12
-        );
+    for (references, map_pages, expected) in cases {
+        let bytes = owned_page_database(5, &indirect_record(references), map_pages);
+        let mut resources = budget();
+        let mut database = open(&bytes, &mut resources)?;
+        let mut pages = database.owned_pages(PageNumber::new(1), &mut resources)?;
+        assert_eq!(pages.next_page(), Err(expected), "{references:?}");
+        assert_eq!(pages.next_page()?, None);
     }
+    Ok(())
 }

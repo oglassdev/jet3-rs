@@ -1,15 +1,16 @@
 use super::initial_index_tests::*;
+use crate::testkit::create;
+use crate::testkit::{index, table};
 use crate::{
-    ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, IndexColumnSpec, IndexKind, IndexSpec,
-    PageNumber, RowValue, TableRows, TableSpec, create::api_tests::*, create_database,
-    definition::column_writer::nz,
+    ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec, PageNumber,
+    RowValue, TableRows, create::api_tests::*, definition::column_writer::nz,
 };
 use std::fs;
 
 #[test]
 fn fixed_text_indexes_enforce_collisions_and_follow_public_mutations() -> TestResult {
     for width in [1, 8, 255] {
-        let directory = TestDirectory::create()?;
+        let directory = TempDir::new("create")?;
         let padded = |first: u8| {
             let mut bytes = vec![b' '; usize::from(width)];
             bytes[0] = first;
@@ -30,11 +31,7 @@ fn fixed_text_indexes_enforce_collisions_and_follow_public_mutations() -> TestRe
             ColumnSpec::new(b"Body", ColumnType::Memo),
         ];
         let indexes = [
-            IndexSpec {
-                name: b"ById",
-                fields: &ID_FIELD,
-                kind: IndexKind::Primary,
-            },
+            index(b"ById", &ID_FIELD, IndexKind::Primary),
             IndexSpec {
                 name: b"ByCode",
                 fields: &[IndexColumnSpec::descending(1)],
@@ -49,34 +46,25 @@ fn fixed_text_indexes_enforce_collisions_and_follow_public_mutations() -> TestRe
                 kind: IndexKind::Ordinary,
             },
         ];
-        let table = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &columns,
-            indexes: &indexes,
-        };
-        create_database(
+        let table = table(b"Items", &columns, &indexes);
+        create(
             directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table,
-                    rows: &[
-                        &[
-                            RowValue::Long(1),
-                            RowValue::Text(&a),
-                            RowValue::Memo(&payload),
-                        ],
-                        &[
-                            RowValue::Long(2),
-                            RowValue::Text(&b),
-                            RowValue::Memo(&payload),
-                        ],
-                        &[RowValue::Long(3), RowValue::Null, RowValue::Memo(&payload)],
+            &[TableRows {
+                table,
+                rows: &[
+                    &[
+                        RowValue::Long(1),
+                        RowValue::Text(&a),
+                        RowValue::Memo(&payload),
                     ],
-                }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
+                    &[
+                        RowValue::Long(2),
+                        RowValue::Text(&b),
+                        RowValue::Memo(&payload),
+                    ],
+                    &[RowValue::Long(3), RowValue::Null, RowValue::Memo(&payload)],
+                ],
+            }],
         )?;
         let locators = {
             let mut work = budget();

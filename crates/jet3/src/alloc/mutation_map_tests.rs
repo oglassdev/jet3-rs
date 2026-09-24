@@ -7,7 +7,7 @@ use crate::{
     write::page_edits::PageEdits,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 use crate::testkit::budget;
 fn inline(first: u64, bytes: &[u8]) -> MapBits {
     let mut row = vec![0; 5 + bytes.len()];

@@ -1,10 +1,12 @@
 use super::writer_tests::*;
 use crate::{
-    ColumnOrdinal, ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnType, DatabaseReader,
-    PAGE_BYTES, PageNumber, ResourceBudget, ResourceLimits, SliceSource, TableDefinitionKind,
+    ColumnPhysicalType, ColumnSpec, ColumnStorageClass, ColumnType, PAGE_BYTES, RowError,
+    TableDefinitionKind,
     definition::column_writer::nz,
     row::writer::{RowColumnLayout, RowValue, RowWriteError, encode_row},
 };
+
+use crate::testkit::{TestResult, budget};
 
 fn variable_columns(count: usize) -> Vec<ColumnSpec<'static>> {
     let mut columns = vec![ColumnSpec::new(b"Id", ColumnType::Long)];
@@ -17,9 +19,15 @@ fn variable_columns(count: usize) -> Vec<ColumnSpec<'static>> {
     columns
 }
 
+fn binary_columns() -> [ColumnSpec<'static>; 2] {
+    [
+        ColumnSpec::new(b"Value", ColumnType::Binary { max_len: nz(255) }),
+        ColumnSpec::new(b"Tag", ColumnType::Long),
+    ]
+}
+
 #[test]
-fn multiple_variable_trailers_match_native_boundary_vectors()
--> Result<(), Box<dyn std::error::Error>> {
+fn multiple_variable_trailers_match_native_boundary_vectors() -> TestResult {
     for (sizes, length, trailer) in [
         (vec![245, 1], 256, vec![251, 250, 5, 2, 7]),
         (vec![246, 1], 258, vec![252, 251, 5, 255, 2, 7]),
@@ -37,25 +45,45 @@ fn multiple_variable_trailers_match_native_boundary_vectors()
         let raw = encode(&layouts(&columns)?, &values)?;
         assert_eq!(raw.len(), length);
         assert!(raw.ends_with(&trailer));
-        let bytes = database_bytes(&columns, &[&raw])?;
-        let mut budget = budget_for(&bytes);
-        let source = SliceSource::new(&bytes, budget.read_budget())?;
-        let mut db = DatabaseReader::from_source(source, &mut budget)?;
-        let table = db.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
-        let mut rows = db.rows(&table, &mut budget)?;
-        let row = rows.next_row()?.ok_or("missing wide row")?;
-        for (i, payload) in payloads.iter().enumerate() {
-            assert_eq!(
-                row.field(ColumnOrdinal::new(i as u16 + 1)),
-                Some(crate::RawField::Bytes(payload))
-            );
+        let fields = read_fields(&columns, &raw)?;
+        for (field, payload) in fields[1..].iter().zip(&payloads) {
+            assert_eq!(field.as_ref(), Some(payload));
         }
     }
     Ok(())
 }
 
 #[test]
-fn jump_order_and_threshold_corruption_are_rejected() -> Result<(), Box<dyn std::error::Error>> {
+fn binary_row_boundaries_match_native_trailers() -> TestResult {
+    let columns = binary_columns();
+    let layout = layouts(&columns)?;
+    for (size, trailer) in [
+        (247, &[0xfc, 5, 1, 3][..]),
+        (248, &[0xfd, 5, 0xff, 1, 3]),
+        (249, &[0xfe, 5, 0xff, 1, 3]),
+        (253, &[2, 5, 1, 1, 3]),
+        (255, &[4, 5, 1, 1, 3]),
+    ] {
+        let payload = vec![0x5a; size];
+        // EXP-0245: independently transcribed physical header and trailer.
+        let mut native = vec![2, 1, 0, 0, 0];
+        native.extend_from_slice(&payload);
+        native.extend_from_slice(trailer);
+        assert_eq!(
+            encode(&layout, &[RowValue::Binary(&payload), RowValue::Long(1)])?,
+            native
+        );
+        assert_eq!(read_fields(&columns, &native)?[0], Some(payload));
+    }
+    assert_eq!(
+        encode(&layout, &[RowValue::Binary(&[]), RowValue::Long(1)])?,
+        encode(&layout, &[RowValue::Null, RowValue::Long(1)])?
+    );
+    Ok(())
+}
+
+#[test]
+fn jump_order_ordinal_and_threshold_corruption_are_rejected() -> TestResult {
     let columns = variable_columns(3);
     let raw = encode(
         &layouts(&columns)?,
@@ -70,19 +98,20 @@ fn jump_order_and_threshold_corruption_are_rejected() -> Result<(), Box<dyn std:
         let mut damaged = raw.clone();
         let start = damaged.len() - 5;
         damaged[start..start + 3].copy_from_slice(&jumps);
-        let bytes = database_bytes(&columns, &[&damaged])?;
-        let mut budget = budget_for(&bytes);
-        let source = SliceSource::new(&bytes, budget.read_budget())?;
-        let mut db = DatabaseReader::from_source(source, &mut budget)?;
-        let table = db.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
-        assert!(db.rows(&table, &mut budget)?.next_row().is_err());
+        read_error(&columns, &damaged)?;
+    }
+    let columns = binary_columns();
+    for (size, jump) in [(248, 2), (248, 0xfe), (248, 1), (253, 0xff), (247, 0xff)] {
+        let mut raw = vec![2, 1, 0, 0, 0];
+        raw.extend_from_slice(&vec![0x5a; size]);
+        raw.extend_from_slice(&[(size + 5) as u8, 5, jump, 1, 3]);
+        assert!(is_trailer_error(&read_error(&columns, &raw)?));
     }
     Ok(())
 }
 
 #[test]
-fn appended_variable_columns_are_null_in_unchanged_old_rows()
--> Result<(), Box<dyn std::error::Error>> {
+fn appended_variable_columns_are_null_in_unchanged_old_rows() -> TestResult {
     let columns = variable_columns(8);
     let mut raw = encode(
         &layouts(&columns[..3])?,
@@ -93,30 +122,14 @@ fn appended_variable_columns_are_null_in_unchanged_old_rows()
         ],
     )?;
     *raw.last_mut().ok_or("missing presence byte")? = 0xff;
-    let bytes = database_bytes(&columns, &[&raw])?;
-    let mut budget = budget_for(&bytes);
-    let source = SliceSource::new(&bytes, budget.read_budget())?;
-    let mut db = DatabaseReader::from_source(source, &mut budget)?;
-    let table = db.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
-    let mut rows = db.rows(&table, &mut budget)?;
-    let row = rows.next_row()?.ok_or("missing old row")?;
-    assert_eq!(row.raw_bytes(), raw);
-    assert_eq!(
-        row.field(ColumnOrdinal::new(1)),
-        Some(crate::RawField::Bytes(&[b'A'; 255]))
-    );
-    for ordinal in 3..9 {
-        assert_eq!(
-            row.field(ColumnOrdinal::new(ordinal)),
-            Some(crate::RawField::Null)
-        );
-    }
+    let fields = read_fields(&columns, &raw)?;
+    assert_eq!(fields[1].as_deref(), Some(&[b'A'; 255][..]));
+    assert!(fields[3..].iter().all(Option::is_none));
     Ok(())
 }
 
 #[test]
-fn trailer_growth_keeps_ordinal_254_distinct_from_the_unused_marker()
--> Result<(), Box<dyn std::error::Error>> {
+fn trailer_growth_keeps_ordinal_254_distinct_from_the_unused_marker() -> TestResult {
     let mut columns = vec![RowColumnLayout::new(
         ColumnPhysicalType::Long,
         ColumnStorageClass::Fixed { offset: 0 },
@@ -142,7 +155,7 @@ fn trailer_growth_keeps_ordinal_254_distinct_from_the_unused_marker()
 }
 
 #[test]
-fn variable_row_capacity_includes_all_trailer_bytes() -> Result<(), Box<dyn std::error::Error>> {
+fn variable_row_capacity_includes_all_trailer_bytes() -> TestResult {
     // EXP-0260: each layout accepts physical length 2012 and rejects 2013.
     for (variables, fixed, data_bytes) in [
         (1, 1748, 251),
@@ -196,12 +209,7 @@ fn variable_row_capacity_includes_all_trailer_bytes() -> Result<(), Box<dyn std:
                 values[0] = RowValue::Long(1);
             }
             let mut output = [0xa5; PAGE_BYTES];
-            let result = encode_row(
-                &columns,
-                &values,
-                &mut output,
-                &mut ResourceBudget::new(ResourceLimits::default()),
-            );
+            let result = encode_row(&columns, &values, &mut output, &mut budget());
             if extra == 0 {
                 assert_eq!(result?.get(), 2012);
             } else {
@@ -220,7 +228,7 @@ fn variable_row_capacity_includes_all_trailer_bytes() -> Result<(), Box<dyn std:
 }
 
 #[test]
-fn schema_minimum_accounts_for_every_jump_byte() -> Result<(), Box<dyn std::error::Error>> {
+fn schema_minimum_accounts_for_every_jump_byte() -> TestResult {
     let names: Vec<_> = (0..40).map(|i| format!("C{i:02}")).collect();
     for last_fixed in [180, 181] {
         let columns: Vec<_> = names
@@ -260,8 +268,7 @@ fn schema_minimum_accounts_for_every_jump_byte() -> Result<(), Box<dyn std::erro
 }
 
 #[test]
-fn reader_rejects_a_variable_row_beyond_native_capacity() -> Result<(), Box<dyn std::error::Error>>
-{
+fn reader_rejects_a_variable_row_beyond_native_capacity() -> TestResult {
     let columns = variable_columns(8);
     let mut values = vec![RowValue::Long(1)];
     values.extend([RowValue::Text(&[b'X'; 255]); 7]);
@@ -270,19 +277,9 @@ fn reader_rejects_a_variable_row_beyond_native_capacity() -> Result<(), Box<dyn 
     assert_eq!(raw.len(), 2012);
     raw.insert(1993, b'Z');
     raw[1994] = (1994 % 256) as u8;
-    let bytes = database_bytes(&columns, &[&raw])?;
-    let mut budget = budget_for(&bytes);
-    let mut db =
-        DatabaseReader::from_source(SliceSource::new(&bytes, budget.read_budget())?, &mut budget)?;
-    let table = db.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
-    let error = db
-        .rows(&table, &mut budget)?
-        .next_row()
-        .err()
-        .ok_or("oversized row accepted")?;
     assert_eq!(
-        error,
-        crate::RowError::RowTooLong {
+        read_error(&columns, &raw)?,
+        RowError::RowTooLong {
             length: 2013,
             maximum: 2012
         }

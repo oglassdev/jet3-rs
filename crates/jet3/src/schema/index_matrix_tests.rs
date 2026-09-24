@@ -1,20 +1,11 @@
 //! Index class x null policy through creation and `ReplaceIndex`, over a
 //! Required column and an AllowZeroLength column (EXP-0093/0148/0283/0297).
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::*;
-use std::{fs, num::NonZeroU8, path::PathBuf};
+use std::{fs, num::NonZeroU8};
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
-
-struct Dir(crate::testkit::TempDir);
-impl Dir {
-    fn new() -> Result<Self, std::io::Error> {
-        let path = crate::testkit::TempDir::new("index-matrix")?;
-        Ok(Self(path))
-    }
-    fn file(&self) -> PathBuf {
-        self.0.join("db.mdb")
-    }
-}
+use crate::testkit::{TempDir, TestResult};
 
 use crate::testkit::budget;
 
@@ -37,7 +28,7 @@ const COLUMNS: [ColumnSpec<'static>; 3] = [
     ColumnSpec::new(b"Note", TEXT).with_allow_zero_length(),
 ];
 
-fn create(
+fn create_indexed(
     path: &std::path::Path,
     kind: IndexKind,
     column: u16,
@@ -48,21 +39,12 @@ fn create(
         kind,
         fields: &[IndexColumnSpec::ascending(column)],
     }];
-    create_database(
+    crate::testkit::create(
         path,
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table: TableSpec {
-                    validation: TableValidation::NONE,
-                    name: b"T",
-                    columns: &COLUMNS,
-                    indexes: &indexes,
-                },
-                rows,
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table: table(b"T", &COLUMNS, &indexes),
+            rows,
+        }],
     )
 }
 
@@ -72,11 +54,7 @@ fn replace(path: &std::path::Path, kind: IndexKind, column: u16) -> Result<(), W
         SchemaEdit::ReplaceIndex {
             table: b"T",
             index: b"Key",
-            replacement: IndexSpec {
-                name: b"Key",
-                kind,
-                fields: &[IndexColumnSpec::ascending(column)],
-            },
+            replacement: index(b"Key", &[IndexColumnSpec::ascending(column)], kind),
         },
         &mut budget(),
     )
@@ -146,26 +124,29 @@ fn creation_and_replacement_agree_across_the_option_matrix() -> TestResult {
             let kind = class.with_null_policy(policy);
             for column in INDEXED {
                 let label = format!("{kind:?} on column {column}");
-                let created = Dir::new()?;
-                let replaced = Dir::new()?;
-                create(&replaced.file(), IndexKind::Ordinary, column, &[])?;
-                let before = fs::read(replaced.file())?;
+                let created = TempDir::new("index-matrix")?;
+                let replaced = TempDir::new("index-matrix")?;
+                create_indexed(&replaced.target(), IndexKind::Ordinary, column, &[])?;
+                let before = fs::read(replaced.target())?;
                 if kind.is_primary() && policy != IndexNullPolicy::Required {
                     assert!(
-                        create(&created.file(), kind, column, &[]).is_err(),
+                        create_indexed(&created.target(), kind, column, &[]).is_err(),
                         "{label}"
                     );
-                    assert!(replace(&replaced.file(), kind, column).is_err(), "{label}");
-                    assert_eq!(fs::read(replaced.file())?, before, "{label}");
+                    assert!(
+                        replace(&replaced.target(), kind, column).is_err(),
+                        "{label}"
+                    );
+                    assert_eq!(fs::read(replaced.target())?, before, "{label}");
                     continue;
                 }
-                create(&created.file(), kind, column, &[])?;
-                replace(&replaced.file(), kind, column)?;
+                create_indexed(&created.target(), kind, column, &[])?;
+                replace(&replaced.target(), kind, column)?;
                 let (accepted, null_keys) = expected(kind, column);
                 let nulls = accepted[1..3].iter().filter(|ok| **ok).count();
                 let pair = [
-                    probe(&created.file(), column)?,
-                    probe(&replaced.file(), column)?,
+                    probe(&created.target(), column)?,
+                    probe(&replaced.target(), column)?,
                 ];
                 assert_eq!(pair[0].flags, pair[1].flags, "{label}");
                 for observed in pair {
@@ -194,25 +175,25 @@ fn replacement_over_existing_rows_checks_every_option() -> TestResult {
     for class in KINDS {
         for policy in POLICIES {
             let kind = class.with_null_policy(policy);
-            let dir = Dir::new()?;
-            create(&dir.file(), IndexKind::Ordinary, 2, &rows)?;
-            let before = fs::read(dir.file())?;
+            let dir = TempDir::new("index-matrix")?;
+            create_indexed(&dir.target(), IndexKind::Ordinary, 2, &rows)?;
+            let before = fs::read(dir.target())?;
             let fits = !kind.is_unique() && policy != IndexNullPolicy::Required;
-            assert_eq!(replace(&dir.file(), kind, 2).is_ok(), fits, "{kind:?}");
+            assert_eq!(replace(&dir.target(), kind, 2).is_ok(), fits, "{kind:?}");
             if !fits {
-                assert_eq!(fs::read(dir.file())?, before, "{kind:?}");
+                assert_eq!(fs::read(dir.target())?, before, "{kind:?}");
             }
         }
         // The Required column has no nulls or empties, so every valid option fits.
-        let dir = Dir::new()?;
+        let dir = TempDir::new("index-matrix")?;
         let code: Vec<[RowValue<'_>; 3]> = [b"x", b"y"]
             .into_iter()
             .zip(1..)
             .map(|(code, id)| row(id, 1, Some(code.as_slice())))
             .collect();
         let code: Vec<&[RowValue<'_>]> = code.iter().map(|row| row.as_slice()).collect();
-        create(&dir.file(), IndexKind::Ordinary, 1, &code)?;
-        replace(&dir.file(), class, 1)?;
+        create_indexed(&dir.target(), IndexKind::Ordinary, 1, &code)?;
+        replace(&dir.target(), class, 1)?;
     }
     Ok(())
 }

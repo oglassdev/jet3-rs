@@ -5,7 +5,7 @@ use crate::{
     RowLocator, TextCodePage, format::data_page_directory::MAX_STORED_ROW_LEN,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 fn budget() -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::new(ReadLimits::new(
@@ -38,11 +38,7 @@ fn an_inline_value_round_trips_through_the_reader() -> TestResult {
             ..
         }
     ));
-    Ok(())
-}
 
-#[test]
-fn an_empty_inline_value_is_a_bare_header() -> TestResult {
     let mut output = [0xff_u8; HEADER_LEN];
     assert_eq!(encode_inline_long_value(b"", &mut output)?, HEADER_LEN);
     assert_eq!(output, [0, 0, 0, 0x80, 0, 0, 0, 0, 0, 0, 0, 0]);
@@ -75,12 +71,12 @@ fn external_headers_round_trip_through_the_reader() -> TestResult {
 }
 
 #[test]
-fn the_null_target_is_refused_because_the_reader_rejects_it() {
+fn external_headers_refuse_null_empty_and_unrepresentable_targets() {
     assert_eq!(
         external_long_value_header(8, ExternalLongValueStorage::SinglePage, null_locator()),
         Err(LongValueWriteError::NullTarget)
     );
-    // Pin the reader's side of that contract.
+    // The reader rejects the null target too.
     let mut header = [0_u8; HEADER_LEN];
     header[..4].copy_from_slice(&(SINGLE_PAGE_FLAG | 8).to_le_bytes());
     assert_eq!(
@@ -93,10 +89,7 @@ fn the_null_target_is_refused_because_the_reader_rejects_it() {
         ),
         Err(LongValueError::MissingExternalTarget)
     );
-}
 
-#[test]
-fn a_zero_length_external_header_is_refused() {
     // No external row can be empty, so nothing could back such a header.
     for storage in [
         ExternalLongValueStorage::SinglePage,
@@ -107,22 +100,7 @@ fn a_zero_length_external_header_is_refused() {
             Err(LongValueWriteError::EmptyRow)
         );
     }
-}
 
-#[test]
-fn a_chained_row_refuses_the_null_locator_as_its_next_row() {
-    // The null locator is the end-of-chain marker; naming it as a following
-    // row would encode a terminal row while claiming the chain continues.
-    let mut output = [0xaa_u8; 8];
-    assert_eq!(
-        encode_chained_row(b"abc", Some(null_locator()), &mut output),
-        Err(LongValueWriteError::NullTarget)
-    );
-    assert!(output.iter().all(|byte| *byte == 0xaa));
-}
-
-#[test]
-fn a_locator_page_above_the_three_byte_range_is_refused() {
     let too_high = locator(MAX_LOCATOR_PAGE + 1, 0);
     assert_eq!(
         external_long_value_header(8, ExternalLongValueStorage::Chained, too_high),
@@ -199,18 +177,21 @@ fn chained_fragments_match_the_observed_controls() {
 }
 
 #[test]
-fn a_chained_row_carries_its_pointer_then_its_fragment() -> TestResult {
-    let mut output = [0_u8; 16];
+fn a_chained_row_carries_its_pointer_then_a_bounded_fragment() -> TestResult {
+    let mut output = vec![0xaa_u8; MAX_STORED_ROW_LEN + 8];
     let written = encode_chained_row(b"abc", Some(locator(0x2a, 3)), &mut output)?;
     assert_eq!(&output[..written], &[3, 0x2a, 0, 0, b'a', b'b', b'c']);
     let written = encode_chained_row(b"abc", None, &mut output)?;
     assert_eq!(&output[..written], &[0, 0, 0, 0, b'a', b'b', b'c']);
-    Ok(())
-}
 
-#[test]
-fn a_chained_row_refuses_an_empty_or_oversized_fragment() {
-    let mut output = vec![0_u8; MAX_STORED_ROW_LEN + 8];
+    // The null locator marks the chain end, so it cannot name a following row.
+    let mut untouched = [0xaa_u8; 8];
+    assert_eq!(
+        encode_chained_row(b"abc", Some(null_locator()), &mut untouched),
+        Err(LongValueWriteError::NullTarget)
+    );
+    assert!(untouched.iter().all(|byte| *byte == 0xaa));
+
     assert_eq!(
         encode_chained_row(b"", None, &mut output),
         Err(LongValueWriteError::EmptyRow)
@@ -229,6 +210,7 @@ fn a_chained_row_refuses_an_empty_or_oversized_fragment() {
         encode_chained_row(&largest, None, &mut output),
         Ok(MAX_STORED_ROW_LEN)
     );
+    Ok(())
 }
 
 #[test]

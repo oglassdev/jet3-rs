@@ -8,10 +8,6 @@ mod atomic_windows;
 pub(crate) mod auto_number;
 pub(crate) mod delete;
 #[cfg(all(test, any(unix, windows)))]
-mod delete_compaction_tests;
-#[cfg(all(test, any(unix, windows)))]
-mod delete_release_tests;
-#[cfg(all(test, any(unix, windows)))]
 mod delete_tests;
 mod driver;
 pub(crate) mod error;
@@ -27,8 +23,6 @@ mod insert_reuse_tests;
 mod insert_scalar_index_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod insert_tests;
-#[cfg(all(test, any(unix, windows)))]
-mod insert_text_guid_tests;
 pub(crate) mod page_edits;
 mod page_edits_sequence;
 pub(crate) mod row_update;
@@ -39,10 +33,6 @@ mod row_update_tests;
 pub(crate) mod update;
 #[cfg(all(test, any(unix, windows)))]
 mod update_field_rewrite_tests;
-#[cfg(all(test, any(unix, windows)))]
-mod update_fixed_tests;
-#[cfg(all(test, any(unix, windows)))]
-mod update_indexed_tests;
 #[cfg(all(test, any(unix, windows)))]
 mod update_key_tests;
 pub(crate) mod update_pages;

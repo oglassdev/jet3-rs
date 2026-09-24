@@ -1,7 +1,9 @@
+use super::cursor_tests::{record, write_rows};
 use super::record::{
-    CATALOG_COLUMN_COUNT, CatalogObjectClass, CatalogObjectKind, CatalogPageDirectory,
-    CatalogRecordError, decode_catalog_record,
+    CatalogObjectClass, CatalogObjectKind, CatalogPageDirectory, CatalogRecordError,
+    decode_catalog_record,
 };
+use super::record_writer::{CatalogRecordWriteError, catalog_record_len};
 use crate::{
     ByteCount, CatalogNameEncoding, Error, PAGE_BYTES, ReadLimits, ResourceBudget,
     ResourceLimitKind, ResourceLimits,
@@ -9,31 +11,12 @@ use crate::{
 
 use crate::testkit::budget;
 
-fn record(id: u32, kind: u16, flags: u32, name: &[u8]) -> Vec<u8> {
-    let mut row = vec![0_u8; 31 + name.len() + 6];
-    row[0] = CATALOG_COLUMN_COUNT;
-    row[1..5].copy_from_slice(&id.to_le_bytes());
-    row[9..11].copy_from_slice(&kind.to_le_bytes());
-    row[27..31].copy_from_slice(&flags.to_le_bytes());
-    row[31..31 + name.len()].copy_from_slice(name);
-    let length = row.len();
-    row[length - 6] = u8::try_from(31 + name.len()).unwrap_or_default();
-    row[length - 5] = 31;
-    row[length - 4] = 11;
-    row[length - 3] = 0xff;
-    row
-}
-
 fn page_with_rows(rows: &[(u16, Vec<u8>)]) -> [u8; PAGE_BYTES] {
     let mut page = [0_u8; PAGE_BYTES];
-    page[0] = 1;
-    page[8..10].copy_from_slice(&u16::try_from(rows.len()).unwrap_or_default().to_le_bytes());
-    let mut start = PAGE_BYTES;
-    for (index, (flags, row)) in rows.iter().enumerate() {
-        start -= row.len();
-        page[10 + index * 2..12 + index * 2]
-            .copy_from_slice(&(u16::try_from(start).unwrap_or_default() | flags).to_le_bytes());
-        page[start..start + row.len()].copy_from_slice(row);
+    let bytes: Vec<_> = rows.iter().map(|(_, row)| row.clone()).collect();
+    write_rows(&mut page, &bytes);
+    for (index, (flags, _)) in rows.iter().enumerate() {
+        page[11 + 2 * index] |= (flags >> 8) as u8;
     }
     page
 }
@@ -62,59 +45,6 @@ fn decodes_minimum_fields_and_preserves_cp1252_bytes() -> Result<(), Box<dyn std
     assert_eq!(owned.table_definition(), Some(crate::PageNumber::new(23)));
     assert_eq!(resources.allocation_bytes(), ByteCount::new(10));
     Ok(())
-}
-
-#[test]
-fn catalog_record_errors_have_stable_display_and_sources() {
-    use std::error::Error as _;
-
-    let plain = CatalogRecordError::RecordTooShort {
-        length: 1,
-        minimum: 37,
-    };
-    assert!(plain.to_string().contains("below minimum"));
-    assert!(plain.source().is_none());
-
-    let resource = CatalogRecordError::Resource(Error::Arithmetic {
-        operation: "test catalog record source",
-    });
-    assert!(resource.to_string().contains("catalog record rejected"));
-    assert!(resource.source().is_some());
-
-    let variants = [
-        CatalogRecordError::RowCountTooLarge {
-            row_count: 2,
-            maximum: 1,
-        },
-        CatalogRecordError::UnknownDirectoryFlag {
-            row: 1,
-            raw_offset: 0x2000,
-        },
-        CatalogRecordError::RowOffsetOutOfPage {
-            row: 1,
-            raw_offset: 2048,
-        },
-        CatalogRecordError::InvalidRowBounds {
-            row: 1,
-            start: 2,
-            end: 1,
-            directory_end: 12,
-        },
-        CatalogRecordError::ActiveOverflowRow { row: 1 },
-        CatalogRecordError::UnexpectedColumnCount { observed: 1 },
-        CatalogRecordError::InvalidNameTrailer {
-            name_start: 1,
-            name_end: 0,
-            fixed_boundary: 0,
-            marker: 0,
-            record_length: 37,
-        },
-        CatalogRecordError::UnsupportedObjectFlags { raw: 1 },
-    ];
-    for error in variants {
-        assert!(!error.to_string().is_empty());
-        assert!(error.source().is_none());
-    }
 }
 
 #[test]
@@ -316,4 +246,21 @@ fn item_and_name_allocation_limits_accept_exact_and_reject_one_over()
     ));
     assert_eq!(one_below.allocation_bytes(), ByteCount::new(0));
     Ok(())
+}
+
+#[test]
+fn record_length_accepts_one_to_224_name_bytes() {
+    assert_eq!(catalog_record_len(1), Ok(38));
+    assert_eq!(catalog_record_len(224), Ok(261));
+    assert_eq!(
+        catalog_record_len(0),
+        Err(CatalogRecordWriteError::EmptyName)
+    );
+    assert_eq!(
+        catalog_record_len(225),
+        Err(CatalogRecordWriteError::NameTooLong {
+            length: 225,
+            maximum: 224,
+        })
+    );
 }

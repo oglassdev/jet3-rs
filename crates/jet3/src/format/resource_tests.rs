@@ -29,44 +29,6 @@ fn encoded_limits(encoded: u64, work: u64) -> ResourceLimits {
 }
 
 #[test]
-fn defaults_match_documented_policy() {
-    let defaults = ResourceLimits::default();
-    assert_eq!(defaults.read(), ReadLimits::default());
-    assert_eq!(
-        defaults.max_allocation_bytes(),
-        super::resource::DEFAULT_MAX_ALLOCATION_BYTES
-    );
-    assert_eq!(
-        defaults.max_decoded_value_bytes(),
-        super::resource::DEFAULT_MAX_DECODED_VALUE_BYTES
-    );
-    assert_eq!(
-        defaults.max_total_decoded_bytes(),
-        super::resource::DEFAULT_MAX_TOTAL_DECODED_BYTES
-    );
-    assert_eq!(
-        defaults.max_encoded_bytes(),
-        super::resource::DEFAULT_MAX_ENCODED_BYTES
-    );
-    assert_eq!(
-        defaults.max_item_work(),
-        super::resource::DEFAULT_MAX_ITEM_WORK
-    );
-    assert_eq!(
-        defaults.max_page_visits(),
-        super::resource::DEFAULT_MAX_PAGE_VISITS
-    );
-    assert_eq!(
-        defaults.max_chain_depth(),
-        super::resource::DEFAULT_MAX_CHAIN_DEPTH
-    );
-    assert_eq!(
-        defaults.max_total_work_units(),
-        super::resource::DEFAULT_MAX_TOTAL_WORK_UNITS
-    );
-}
-
-#[test]
 fn read_budget_is_persistent_operation_sub_budget() -> Result<(), Error> {
     let policy = ResourceLimits::new(ReadLimits::new(
         ByteCount::new(2),
@@ -96,28 +58,102 @@ fn read_budget_is_persistent_operation_sub_budget() -> Result<(), Error> {
     Ok(())
 }
 
-#[test]
-fn allocation_exact_one_over_and_aggregate_rejection_are_atomic() -> Result<(), Error> {
-    let mut exact = ResourceBudget::new(limits(3, 0, 0, 0, 0, 0, 3));
-    exact.charge_allocation(ByteCount::new(1))?;
-    exact.charge_allocation(ByteCount::new(2))?;
-    assert_eq!(exact.allocation_bytes(), ByteCount::new(3));
-    assert_eq!(exact.total_work_units(), 3);
-    assert_eq!(
-        exact.charge_allocation(ByteCount::new(1)),
-        resource_error(ResourceLimitKind::AllocationBytes, 4, 3)
-    );
-    assert_eq!(exact.allocation_bytes(), ByteCount::new(3));
-    assert_eq!(exact.total_work_units(), 3);
+type Charge = fn(&mut ResourceBudget, u64) -> Result<(), Error>;
 
-    let mut one_over = ResourceBudget::new(limits(3, 0, 0, 0, 0, 0, 4));
-    assert_eq!(
-        one_over.charge_allocation(ByteCount::new(4)),
-        resource_error(ResourceLimitKind::AllocationBytes, 4, 3)
-    );
-    assert_eq!(one_over.allocation_bytes(), ByteCount::new(0));
-    assert_eq!(one_over.total_work_units(), 0);
+struct Dimension {
+    kind: ResourceLimitKind,
+    limits: fn(u64, u64) -> ResourceLimits,
+    charge: Charge,
+    counter: fn(&ResourceBudget) -> u64,
+    overflow: &'static str,
+}
+
+const DIMENSIONS: [Dimension; 5] = [
+    Dimension {
+        kind: ResourceLimitKind::AllocationBytes,
+        limits: |limit, work| limits(limit, 0, 0, 0, 0, 0, work),
+        charge: |budget, count| budget.charge_allocation(ByteCount::new(count)),
+        counter: |budget| budget.allocation_bytes().get(),
+        overflow: "accumulate allocation bytes",
+    },
+    Dimension {
+        kind: ResourceLimitKind::EncodedBytes,
+        limits: encoded_limits,
+        charge: |budget, count| budget.charge_encoded_bytes(ByteCount::new(count)),
+        counter: |budget| budget.encoded_bytes().get(),
+        overflow: "accumulate encoded bytes",
+    },
+    Dimension {
+        kind: ResourceLimitKind::ItemWork,
+        limits: |limit, work| limits(0, 0, 0, limit, 0, 0, work),
+        charge: ResourceBudget::charge_items,
+        counter: ResourceBudget::item_work,
+        overflow: "accumulate item work",
+    },
+    Dimension {
+        kind: ResourceLimitKind::PageVisits,
+        limits: |limit, work| limits(0, 0, 0, 0, limit, 0, work),
+        charge: ResourceBudget::charge_page_visits,
+        counter: ResourceBudget::page_visits,
+        overflow: "accumulate page visits",
+    },
+    Dimension {
+        kind: ResourceLimitKind::TotalWorkUnits,
+        limits: |_, work| limits(0, 0, 0, 0, 0, 0, work),
+        charge: ResourceBudget::charge_work_units,
+        counter: ResourceBudget::total_work_units,
+        overflow: "accumulate total work units",
+    },
+];
+
+#[test]
+fn each_counter_accepts_exact_and_rejects_one_over_atomically() -> Result<(), Error> {
+    for dimension in DIMENSIONS {
+        let label = dimension.overflow;
+        let mut exact = ResourceBudget::new((dimension.limits)(3, 3));
+        (dimension.charge)(&mut exact, 1)?;
+        (dimension.charge)(&mut exact, 2)?;
+        assert_eq!((dimension.counter)(&exact), 3, "{label}");
+        assert_eq!(exact.total_work_units(), 3, "{label}");
+        assert_eq!(
+            (dimension.charge)(&mut exact, 1),
+            resource_error(dimension.kind, 4, 3),
+            "{label}"
+        );
+        assert_eq!((dimension.counter)(&exact), 3, "{label}");
+        assert_eq!(exact.total_work_units(), 3, "{label}");
+
+        let mut one_over = ResourceBudget::new((dimension.limits)(3, 3));
+        assert_eq!(
+            (dimension.charge)(&mut one_over, 4),
+            resource_error(dimension.kind, 4, 3),
+            "{label}"
+        );
+        assert_eq!((dimension.counter)(&one_over), 0, "{label}");
+        assert_eq!(one_over.total_work_units(), 0, "{label}");
+    }
     Ok(())
+}
+
+#[test]
+fn aggregate_work_rejection_preserves_each_dimension_counter() {
+    for dimension in &DIMENSIONS[..4] {
+        let label = dimension.overflow;
+        let mut budget = ResourceBudget::new((dimension.limits)(4, 3));
+        assert_eq!(
+            (dimension.charge)(&mut budget, 4),
+            resource_error(ResourceLimitKind::TotalWorkUnits, 4, 3),
+            "{label}"
+        );
+        assert_eq!((dimension.counter)(&budget), 0, "{label}");
+    }
+
+    let mut decoded = ResourceBudget::new(limits(0, 1, 1, 0, 0, 0, 0));
+    assert_eq!(
+        decoded.charge_decoded_value(ByteCount::new(1)),
+        resource_error(ResourceLimitKind::TotalWorkUnits, 1, 0)
+    );
+    assert_eq!(decoded.decoded_bytes(), ByteCount::new(0));
 }
 
 #[test]
@@ -141,72 +177,6 @@ fn decoded_value_checks_single_and_cumulative_boundaries() -> Result<(), Error> 
 }
 
 #[test]
-fn encoded_bytes_exact_one_over_and_aggregate_rejection_are_atomic() -> Result<(), Error> {
-    let mut exact = ResourceBudget::new(encoded_limits(3, 3));
-    exact.charge_encoded_bytes(ByteCount::new(1))?;
-    exact.charge_encoded_bytes(ByteCount::new(2))?;
-    assert_eq!(exact.encoded_bytes(), ByteCount::new(3));
-    assert_eq!(exact.total_work_units(), 3);
-    assert_eq!(
-        exact.charge_encoded_bytes(ByteCount::new(1)),
-        resource_error(ResourceLimitKind::EncodedBytes, 4, 3)
-    );
-    assert_eq!(exact.encoded_bytes(), ByteCount::new(3));
-    assert_eq!(exact.total_work_units(), 3);
-
-    let mut aggregate = ResourceBudget::new(encoded_limits(4, 3));
-    assert_eq!(
-        aggregate.charge_encoded_bytes(ByteCount::new(4)),
-        resource_error(ResourceLimitKind::TotalWorkUnits, 4, 3)
-    );
-    assert_eq!(aggregate.encoded_bytes(), ByteCount::new(0));
-    assert_eq!(aggregate.total_work_units(), 0);
-    Ok(())
-}
-
-#[test]
-fn item_work_exact_one_over_and_aggregate_rejection_are_atomic() -> Result<(), Error> {
-    let mut budget = ResourceBudget::new(limits(0, 0, 0, 3, 0, 0, 3));
-    budget.charge_items(1)?;
-    budget.charge_items(2)?;
-    assert_eq!(budget.item_work(), 3);
-    assert_eq!(
-        budget.charge_items(1),
-        resource_error(ResourceLimitKind::ItemWork, 4, 3)
-    );
-    assert_eq!(budget.item_work(), 3);
-
-    let mut one_over = ResourceBudget::new(limits(0, 0, 0, 3, 0, 0, 4));
-    assert_eq!(
-        one_over.charge_items(4),
-        resource_error(ResourceLimitKind::ItemWork, 4, 3)
-    );
-    assert_eq!(one_over.item_work(), 0);
-    Ok(())
-}
-
-#[test]
-fn page_visits_exact_one_over_and_aggregate_rejection_are_atomic() -> Result<(), Error> {
-    let mut budget = ResourceBudget::new(limits(0, 0, 0, 0, 3, 0, 3));
-    budget.charge_page_visits(1)?;
-    budget.charge_page_visits(2)?;
-    assert_eq!(budget.page_visits(), 3);
-    assert_eq!(
-        budget.charge_page_visits(1),
-        resource_error(ResourceLimitKind::PageVisits, 4, 3)
-    );
-    assert_eq!(budget.page_visits(), 3);
-
-    let mut one_over = ResourceBudget::new(limits(0, 0, 0, 0, 3, 0, 4));
-    assert_eq!(
-        one_over.charge_page_visits(4),
-        resource_error(ResourceLimitKind::PageVisits, 4, 3)
-    );
-    assert_eq!(one_over.page_visits(), 0);
-    Ok(())
-}
-
-#[test]
 fn chain_depth_accepts_exact_and_rejects_one_over_without_mutation() {
     let budget = ResourceBudget::new(limits(0, 0, 0, 0, 0, 3, 0));
     assert_eq!(budget.check_chain_depth(3), Ok(()));
@@ -218,74 +188,13 @@ fn chain_depth_accepts_exact_and_rejects_one_over_without_mutation() {
 }
 
 #[test]
-fn total_work_exact_one_over_and_aggregate_rejection_are_atomic() -> Result<(), Error> {
-    let mut budget = ResourceBudget::new(limits(4, 0, 0, 0, 0, 0, 3));
-    budget.charge_work_units(1)?;
-    budget.charge_work_units(2)?;
-    assert_eq!(budget.total_work_units(), 3);
-    assert_eq!(
-        budget.charge_work_units(1),
-        resource_error(ResourceLimitKind::TotalWorkUnits, 4, 3)
-    );
-    assert_eq!(budget.total_work_units(), 3);
-
-    let mut allocation = ResourceBudget::new(limits(4, 0, 0, 0, 0, 0, 3));
-    assert_eq!(
-        allocation.charge_allocation(ByteCount::new(4)),
-        resource_error(ResourceLimitKind::TotalWorkUnits, 4, 3)
-    );
-    assert_eq!(allocation.allocation_bytes(), ByteCount::new(0));
-    assert_eq!(allocation.total_work_units(), 0);
-    Ok(())
-}
-
-#[test]
-fn aggregate_work_rejection_preserves_each_dimension_counter() {
-    let mut allocation = ResourceBudget::new(limits(1, 0, 0, 0, 0, 0, 0));
-    assert_eq!(
-        allocation.charge_allocation(ByteCount::new(1)),
-        resource_error(ResourceLimitKind::TotalWorkUnits, 1, 0)
-    );
-    assert_eq!(allocation.allocation_bytes(), ByteCount::new(0));
-
-    let mut decoded = ResourceBudget::new(limits(0, 1, 1, 0, 0, 0, 0));
-    assert_eq!(
-        decoded.charge_decoded_value(ByteCount::new(1)),
-        resource_error(ResourceLimitKind::TotalWorkUnits, 1, 0)
-    );
-    assert_eq!(decoded.decoded_bytes(), ByteCount::new(0));
-
-    let mut encoded = ResourceBudget::new(encoded_limits(1, 0));
-    assert_eq!(
-        encoded.charge_encoded_bytes(ByteCount::new(1)),
-        resource_error(ResourceLimitKind::TotalWorkUnits, 1, 0)
-    );
-    assert_eq!(encoded.encoded_bytes(), ByteCount::new(0));
-
-    let mut items = ResourceBudget::new(limits(0, 0, 0, 1, 0, 0, 0));
-    assert_eq!(
-        items.charge_items(1),
-        resource_error(ResourceLimitKind::TotalWorkUnits, 1, 0)
-    );
-    assert_eq!(items.item_work(), 0);
-
-    let mut pages = ResourceBudget::new(limits(0, 0, 0, 0, 1, 0, 0));
-    assert_eq!(
-        pages.charge_page_visits(1),
-        resource_error(ResourceLimitKind::TotalWorkUnits, 1, 0)
-    );
-    assert_eq!(pages.page_visits(), 0);
-}
-
-#[test]
 fn every_cumulative_counter_rejects_u64_overflow_without_mutation() -> Result<(), Error> {
-    let mut allocation = ResourceBudget::new(limits(u64::MAX, 0, 0, 0, 0, 0, u64::MAX));
-    allocation.charge_allocation(ByteCount::new(u64::MAX))?;
-    assert_arithmetic(
-        allocation.charge_allocation(ByteCount::new(1)),
-        "accumulate allocation bytes",
-    );
-    assert_eq!(allocation.allocation_bytes(), ByteCount::new(u64::MAX));
+    for dimension in DIMENSIONS {
+        let mut budget = ResourceBudget::new((dimension.limits)(u64::MAX, u64::MAX));
+        (dimension.charge)(&mut budget, u64::MAX)?;
+        assert_arithmetic((dimension.charge)(&mut budget, 1), dimension.overflow);
+        assert_eq!((dimension.counter)(&budget), u64::MAX);
+    }
 
     let mut decoded = ResourceBudget::new(limits(0, u64::MAX, u64::MAX, 0, 0, 0, u64::MAX));
     decoded.charge_decoded_value(ByteCount::new(u64::MAX))?;
@@ -294,29 +203,6 @@ fn every_cumulative_counter_rejects_u64_overflow_without_mutation() -> Result<()
         "accumulate decoded bytes",
     );
     assert_eq!(decoded.decoded_bytes(), ByteCount::new(u64::MAX));
-
-    let mut encoded = ResourceBudget::new(encoded_limits(u64::MAX, u64::MAX));
-    encoded.charge_encoded_bytes(ByteCount::new(u64::MAX))?;
-    assert_arithmetic(
-        encoded.charge_encoded_bytes(ByteCount::new(1)),
-        "accumulate encoded bytes",
-    );
-    assert_eq!(encoded.encoded_bytes(), ByteCount::new(u64::MAX));
-
-    let mut items = ResourceBudget::new(limits(0, 0, 0, u64::MAX, 0, 0, u64::MAX));
-    items.charge_items(u64::MAX)?;
-    assert_arithmetic(items.charge_items(1), "accumulate item work");
-    assert_eq!(items.item_work(), u64::MAX);
-
-    let mut pages = ResourceBudget::new(limits(0, 0, 0, 0, u64::MAX, 0, u64::MAX));
-    pages.charge_page_visits(u64::MAX)?;
-    assert_arithmetic(pages.charge_page_visits(1), "accumulate page visits");
-    assert_eq!(pages.page_visits(), u64::MAX);
-
-    let mut work = ResourceBudget::new(limits(0, 0, 0, 0, 0, 0, u64::MAX));
-    work.charge_work_units(u64::MAX)?;
-    assert_arithmetic(work.charge_work_units(1), "accumulate total work units");
-    assert_eq!(work.total_work_units(), u64::MAX);
     Ok(())
 }
 

@@ -1,9 +1,11 @@
 //! EXP-0290 ordered composite fields and partial-null key matching.
 use super::api_relationship_graph_tests::*;
 use crate::WriteError;
+use crate::testkit::{create_spec, validate_file};
+use crate::testkit::{index, table};
 use crate::{
-    ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexDirection, IndexKind,
-    IndexSpec, RelationshipField, RelationshipSpec, RowValue, TableRef, TableSpec, TextCodePage,
+    ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind,
+    IndexSpec, RelationshipField, RelationshipSpec, RowValue, TableRef, TableSpec,
     create::{api::*, composer::ComposeError},
 };
 use std::fs;
@@ -29,130 +31,83 @@ const FIELDS: &[RelationshipField<'static>] = &[
         child: ColumnRef::Ordinal(2),
     },
 ];
-const PARENT_INDEXES: &[IndexSpec<'static>] = &[
-    INDEXES[0],
-    IndexSpec {
-        name: b"Pair",
-        fields: PAIR,
-        kind: IndexKind::Unique,
+const PARENT_INDEXES: &[IndexSpec<'static>] =
+    &[INDEXES[0], index(b"Pair", PAIR, IndexKind::Unique)];
+const SCHEMA: [TableSpec<'static>; 2] = [
+    TableSpec {
+        indexes: PARENT_INDEXES,
+        ..TABLES[0]
     },
+    TABLES[1],
 ];
-fn schema() -> [TableSpec<'static>; 2] {
-    [
-        TableSpec {
-            indexes: PARENT_INDEXES,
-            ..TABLES[0]
-        },
-        TABLES[1],
-    ]
-}
 fn edge() -> RelationshipSpec<'static> {
     RelationshipSpec {
-        unique: false,
-        enforce: true,
-        join: crate::RelationshipJoin::Inner,
-        cascade_updates: false,
-        cascade_deletes: false,
         name: b"Pair",
-        parent: TableRef::Ordinal(0),
-        child: TableRef::Ordinal(1),
         fields: FIELDS,
+        ..relation(b"", 0, 1, 0)
     }
+}
+fn composite(
+    path: &Path,
+    parents: &[&[RowValue<'_>]],
+    children: &[&[RowValue<'_>]],
+) -> Result<(), WriteError> {
+    let requests = [
+        TableRows {
+            table: SCHEMA[0],
+            rows: parents,
+        },
+        TableRows {
+            table: SCHEMA[1],
+            rows: children,
+        },
+    ];
+    create_spec(path, &spec(&requests, &[edge()]))
+}
+fn relationship_error(result: Result<(), WriteError>) -> bool {
+    matches!(
+        result,
+        Err(WriteError::RelationshipConstraint { .. }
+            | WriteError::ScalarRelationshipConstraint { .. }
+            | WriteError::NullRelationshipConstraint { .. })
+    )
 }
 
 #[test]
 fn composite_relationship_creation_checks_full_tuple_and_catalog_inventory() -> TestResult {
-    let directory = Directory::new()?;
-    let tables = schema();
-    let parent = [
-        &[
-            RowValue::Long(1),
-            RowValue::Long(11),
-            RowValue::Long(111),
-            RowValue::Null,
-        ][..],
-        &[
-            RowValue::Long(2),
-            RowValue::Long(11),
-            RowValue::Null,
-            RowValue::Null,
-        ][..],
-    ];
-    let child = [
-        &[
-            RowValue::Long(10),
-            RowValue::Long(11),
-            RowValue::Long(111),
-            RowValue::Memo(b"first"),
-        ][..],
-        &[
-            RowValue::Long(11),
-            RowValue::Long(11),
-            RowValue::Null,
-            RowValue::Null,
-        ][..],
-    ];
-    let requests = [
-        TableRows {
-            table: tables[0],
-            rows: &parent,
-        },
-        TableRows {
-            table: tables[1],
-            rows: &child,
-        },
-    ];
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &requests,
-            relationships: &[edge()],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+    let directory = TempDir::new("create")?;
+    let parents = [values(1, Some(11), Some(111)), values(2, Some(11), None)];
+    let mut child = values(10, Some(11), Some(111));
+    child[3] = RowValue::Memo(b"first");
+    let partial = values(11, Some(11), None);
+    composite(
+        &directory.target(),
+        &[&parents[0], &parents[1]],
+        &[&child, &partial],
     )?;
-    let mut database = DatabaseReader::open(directory.target(), &mut budget())?;
-    let report = database.validate(TextCodePage::Windows1252, &mut budget())?;
+    let report = validate_file(directory.target())?;
     assert_eq!(report.relationship_catalog_rows, 2);
     assert_eq!(report.relationships_with_verified_keys, 1);
     assert!(report.relationship_inventory_checked);
-    for key in [RowValue::Long(999), RowValue::Null] {
-        let orphan = [&[RowValue::Long(12), key, RowValue::Long(111), RowValue::Null][..]];
-        let missing = directory.0.join(if matches!(key, RowValue::Null) {
-            "partial.mdb"
-        } else {
-            "orphan.mdb"
-        });
-        let requests = [
-            requests[0],
-            TableRows {
-                table: tables[1],
-                rows: &orphan,
-            },
-        ];
+    for (name, first) in [("orphan.mdb", Some(999)), ("partial.mdb", None)] {
+        let refused = directory.join(name);
+        let orphan = values(12, first, Some(111));
+        let result = composite(&refused, &[&parents[0], &parents[1]], &[&orphan]);
         assert!(matches!(
-            create_database(
-                &missing,
-                &DatabaseSpec {
-                    tables: &requests,
-                    relationships: &[edge()],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget()
-            ),
+            result,
             Err(WriteError::Compose(
                 ComposeError::OrphanInitialScalarRelationshipKey { row: 0 }
             ))
         ));
-        assert!(!missing.exists());
+        assert!(!refused.exists());
     }
     Ok(())
 }
 
 #[test]
-fn composite_relationship_requires_aligned_unique_fields_and_distinct_components() -> TestResult {
-    let directory = Directory::new()?;
-    let tables = schema();
+fn composite_relationship_refuses_misaligned_duplicate_or_identical_self_fields() -> TestResult {
+    let directory = TempDir::new("create")?;
+    let empty = SCHEMA.map(TableRows::empty);
     for fields in [
         &[FIELDS[1], FIELDS[0]][..],
         &[FIELDS[0], FIELDS[0]][..],
@@ -161,64 +116,35 @@ fn composite_relationship_requires_aligned_unique_fields_and_distinct_components
     ] {
         let invalid = RelationshipSpec { fields, ..edge() };
         assert!(matches!(
-            create_database(
-                directory.target(),
-                &DatabaseSpec {
-                    tables: &tables.map(TableRows::empty),
-                    relationships: &[invalid],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget()
-            ),
+            create_spec(directory.target(), &spec(&empty, &[invalid])),
             Err(WriteError::Compose(
                 ComposeError::UnsupportedRelationship { .. }
             ))
         ));
-        assert!(!directory.target().exists());
     }
-    Ok(())
-}
-
-#[test]
-fn self_relationship_creation_refuses_identical_keys_but_admits_partial_overlap() -> TestResult {
-    let directory = Directory::new()?;
-    let tables = schema();
     let scalar = [RelationshipField {
         parent: ColumnRef::Name(b"Id"),
         child: ColumnRef::Ordinal(0),
     }];
+    let self_edge = RelationshipSpec {
+        name: b"SelfRelation",
+        parent: TableRef::Name(b"Alpha"),
+        child: TableRef::Ordinal(0),
+        ..edge()
+    };
     for fields in [&scalar[..], FIELDS] {
         let relation = RelationshipSpec {
-            unique: false,
-            enforce: true,
-            join: crate::RelationshipJoin::Inner,
-            cascade_updates: false,
-            cascade_deletes: false,
-            name: b"SelfRelation",
-            parent: TableRef::Name(b"Alpha"),
-            child: TableRef::Ordinal(0),
             fields,
+            ..self_edge
         };
         assert!(matches!(
-            create_database(
-                directory.target(),
-                &DatabaseSpec {
-                    tables: &tables[..1]
-                        .iter()
-                        .copied()
-                        .map(TableRows::empty)
-                        .collect::<Vec<_>>(),
-                    relationships: &[relation],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget()
-            ),
+            create_spec(directory.target(), &spec(&empty[..1], &[relation])),
             Err(WriteError::Compose(
                 ComposeError::UnsupportedRelationship { .. }
             ))
         ));
-        assert!(!directory.target().exists());
     }
+    assert!(directory.is_empty()?);
     let partial = [
         FIELDS[0],
         RelationshipField {
@@ -237,58 +163,22 @@ fn self_relationship_creation_refuses_identical_keys_but_admits_partial_overlap(
         },
     ];
     for fields in [&partial[..], &swapped[..]] {
-        let directory = Directory::new()?;
-        create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &tables[..1]
-                    .iter()
-                    .copied()
-                    .map(TableRows::empty)
-                    .collect::<Vec<_>>(),
-                relationships: &[RelationshipSpec {
-                    unique: false,
-                    enforce: true,
-                    join: crate::RelationshipJoin::Inner,
-                    cascade_updates: false,
-                    cascade_deletes: false,
-                    name: b"PartialSelf",
-                    parent: TableRef::Ordinal(0),
-                    child: TableRef::Name(b"Alpha"),
-                    fields,
-                }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
-        )?;
-        let mut database = DatabaseReader::open(directory.target(), &mut budget())?;
-        let report = database.validate(TextCodePage::Windows1252, &mut budget())?;
-        assert_eq!(report.relationships_with_verified_keys, 1);
+        let directory = TempDir::new("create")?;
+        let relation = RelationshipSpec {
+            parent: TableRef::Ordinal(0),
+            child: TableRef::Name(b"Alpha"),
+            fields,
+            ..self_edge
+        };
+        create_spec(directory.target(), &spec(&empty[..1], &[relation]))?;
+        assert_eq!(verified(&directory.target())?, 1);
     }
     Ok(())
 }
 
-fn locate(
-    path: &Path,
-    table: &[u8],
-    id: i32,
-) -> Result<crate::RowLocator, Box<dyn std::error::Error>> {
-    let mut work = budget();
-    let mut db = DatabaseReader::open(path, &mut work)?;
-    let definition = crate::write::update::indexed_writable_table(&mut db, table, &mut work)?;
-    let mut rows = db.rows(&definition, &mut work)?;
-    while let Some(mut row) = rows.next_row()? {
-        if matches!(row.value(crate::ColumnOrdinal::new(0), TextCodePage::Windows1252)?.ok_or("missing Id")?.kind(), crate::ValueKind::Long(value) if *value == id)
-        {
-            return Ok(row.locator());
-        }
-    }
-    Err("missing row".into())
-}
-
 #[test]
 fn referenced_parent_payload_field_edit_does_not_assign_its_composite_key() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
     let mut columns = COLUMNS.to_vec();
     columns[3] = ColumnSpec::new(
@@ -297,53 +187,36 @@ fn referenced_parent_payload_field_edit_does_not_assign_its_composite_key() -> T
             max_len: std::num::NonZeroU8::new(255).ok_or("width")?,
         },
     );
-    let mut tables = schema();
-    tables[0].columns = &columns;
-    let parent = [
-        RowValue::Long(1),
-        RowValue::Long(11),
-        RowValue::Long(111),
-        RowValue::Text(b"before"),
-    ];
-    let child = [
-        RowValue::Long(10),
-        RowValue::Long(11),
-        RowValue::Long(111),
-        RowValue::Null,
-    ];
-    create_database(
-        &path,
-        &DatabaseSpec {
-            tables: &[
-                TableRows {
-                    table: tables[0],
-                    rows: &[&parent],
-                },
-                TableRows {
-                    table: tables[1],
-                    rows: &[&child],
-                },
-            ],
-            relationships: &[edge()],
-            ..DatabaseSpec::default()
+    let parent_table = TableSpec {
+        columns: &columns,
+        ..SCHEMA[0]
+    };
+    let mut parent = values(1, Some(11), Some(111));
+    parent[3] = RowValue::Text(b"before");
+    let child = values(10, Some(11), Some(111));
+    let requests = [
+        TableRows {
+            table: parent_table,
+            rows: &[&parent],
         },
-        &mut budget(),
-    )?;
+        TableRows {
+            table: SCHEMA[1],
+            rows: &[&child],
+        },
+    ];
+    create_spec(&path, &spec(&requests, &[edge()]))?;
     let row = locate(&path, b"Alpha", 1)?;
     let original = fs::read(&path)?;
     let mut replacement = parent;
     replacement[3] = RowValue::Text(&[b'x'; 255]);
+    let request = crate::RowUpdate {
+        table: b"Alpha",
+        row,
+        values: &replacement,
+    };
     assert!(matches!(
-        crate::update_row(
-            &path,
-            crate::RowUpdate {
-                table: b"Alpha",
-                row,
-                values: &replacement,
-            },
-            &mut budget()
-        ),
-        Err(crate::WriteError::ScalarRelationshipConstraint { .. })
+        crate::update_row(&path, request, &mut budget()),
+        Err(WriteError::ScalarRelationshipConstraint { .. })
     ));
     assert_eq!(fs::read(&path)?, original);
     crate::update_field(
@@ -351,168 +224,79 @@ fn referenced_parent_payload_field_edit_does_not_assign_its_composite_key() -> T
         crate::FieldUpdate {
             table: b"Alpha",
             row,
-            column: crate::ColumnOrdinal::new(3),
+            column: ColumnOrdinal::new(3),
             value: replacement[3],
         },
         &mut budget(),
     )?;
     let mut work = budget();
-    let mut db = DatabaseReader::open(&path, &mut work)?;
-    let table = crate::write::update::indexed_writable_table(&mut db, b"Alpha", &mut work)?;
+    let mut db = crate::DatabaseReader::open(&path, &mut work)?;
+    let table = definition(&path, b"Alpha")?;
     {
         let mut rows = db.rows(&table, &mut work)?;
         let mut actual = rows.next_row()?.ok_or("row")?;
         for (ordinal, expected) in replacement.iter().enumerate() {
-            assert_eq!(
-                crate::row::scalar_values::read_column(
-                    &mut actual,
-                    crate::ColumnOrdinal::new(ordinal as u16)
-                )?,
-                *expected
-            );
+            let column = ColumnOrdinal::new(ordinal as u16);
+            let value = crate::row::scalar_values::read_column(&mut actual, column)?;
+            assert_eq!(value, *expected);
         }
     }
-    db.validate(TextCodePage::Windows1252, &mut work)?;
+    validate_file(&path)?;
     Ok(())
 }
 
 #[test]
 fn composite_mutations_protect_assigned_parent_rows_and_admit_all_null_children() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
-    let tables = schema();
-    let parent = [
-        &[
-            RowValue::Long(1),
-            RowValue::Long(11),
-            RowValue::Long(111),
-            RowValue::Null,
-        ][..],
-        &[
-            RowValue::Long(2),
-            RowValue::Long(11),
-            RowValue::Null,
-            RowValue::Null,
-        ][..],
-        &[
-            RowValue::Long(3),
-            RowValue::Long(11),
-            RowValue::Null,
-            RowValue::Null,
-        ][..],
-        &[
-            RowValue::Long(4),
-            RowValue::Null,
-            RowValue::Null,
-            RowValue::Null,
-        ][..],
+    let parents = [
+        values(1, Some(11), Some(111)),
+        values(2, Some(11), None),
+        values(3, Some(11), None),
+        values(4, None, None),
     ];
-    let child = [
-        &[
-            RowValue::Long(10),
-            RowValue::Long(11),
-            RowValue::Long(111),
-            RowValue::Null,
-        ][..],
-        &[
-            RowValue::Long(11),
-            RowValue::Long(11),
-            RowValue::Null,
-            RowValue::Null,
-        ][..],
-        &[
-            RowValue::Long(12),
-            RowValue::Null,
-            RowValue::Null,
-            RowValue::Null,
-        ][..],
+    let children = [
+        values(10, Some(11), Some(111)),
+        values(11, Some(11), None),
+        values(12, None, None),
     ];
-    create_database(
+    composite(
         &path,
-        &DatabaseSpec {
-            tables: &[
-                TableRows {
-                    table: tables[0],
-                    rows: &parent,
-                },
-                TableRows {
-                    table: tables[1],
-                    rows: &child,
-                },
-            ],
-            relationships: &[edge()],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[&parents[0], &parents[1], &parents[2], &parents[3]],
+        &[&children[0], &children[1], &children[2]],
     )?;
     let original = fs::read(&path)?;
     let delete = |table: &[u8], id| -> TestResult {
-        crate::delete_row(
-            &path,
-            crate::RowDelete {
-                table,
-                row: locate(&path, table, id)?,
-            },
-            &mut budget(),
-        )?;
+        let row = locate(&path, table, id)?;
+        crate::delete_row(&path, crate::RowDelete { table, row }, &mut budget())?;
         Ok(())
     };
     assert!(delete(b"Alpha", 2).is_err());
     assert_eq!(fs::read(&path)?, original);
-    for (id, value) in [(1, RowValue::Long(11)), (2, RowValue::Long(999))] {
-        let error = crate::update_field(
-            &path,
-            crate::FieldUpdate {
-                table: b"Alpha",
-                row: locate(&path, b"Alpha", id)?,
-                column: crate::ColumnOrdinal::new(1),
-                value,
-            },
-            &mut budget(),
-        )
-        .err()
-        .ok_or("referenced parent assignment accepted")?;
+    for (id, value) in [(1, 11), (2, 999)] {
+        let request = crate::FieldUpdate {
+            table: b"Alpha",
+            row: locate(&path, b"Alpha", id)?,
+            column: ColumnOrdinal::new(1),
+            value: RowValue::Long(value),
+        };
         assert!(matches!(
-            error,
-            crate::WriteError::ScalarRelationshipConstraint { .. }
+            crate::update_field(&path, request, &mut budget()),
+            Err(WriteError::ScalarRelationshipConstraint { .. })
         ));
         assert_eq!(fs::read(&path)?, original);
     }
-    let error = crate::insert_row(
-        &path,
-        b"Bravo",
-        &[
-            RowValue::Long(13),
-            RowValue::Long(999),
-            RowValue::Null,
-            RowValue::Null,
-        ],
-        &mut budget(),
-    )
-    .err()
-    .ok_or("partial orphan accepted")?;
     assert!(matches!(
-        error,
-        crate::WriteError::ScalarRelationshipConstraint { .. }
+        crate::insert_row(&path, b"Bravo", &values(13, Some(999), None), &mut budget()),
+        Err(WriteError::ScalarRelationshipConstraint { .. })
     ));
     assert_eq!(fs::read(&path)?, original);
     assert!(delete(b"Alpha", 4).is_err());
     assert_eq!(fs::read(&path)?, original);
     delete(b"Bravo", 12)?;
     delete(b"Alpha", 4)?;
-    crate::insert_row(
-        &path,
-        b"Bravo",
-        &[
-            RowValue::Long(13),
-            RowValue::Null,
-            RowValue::Null,
-            RowValue::Null,
-        ],
-        &mut budget(),
-    )?;
-    let mut db = DatabaseReader::open(&path, &mut budget())?;
-    db.validate(TextCodePage::Windows1252, &mut budget())?;
+    crate::insert_row(&path, b"Bravo", &values(13, None, None), &mut budget())?;
+    validate_file(&path)?;
     Ok(())
 }
 
@@ -538,29 +322,23 @@ fn full_self_replacement_excludes_only_its_own_child_from_parent_guards() -> Tes
     for arity in [1, 2] {
         let indexes = [
             INDEXES[0],
-            IndexSpec {
-                name: b"ParentKey",
-                fields: &PAIR[..arity],
-                kind: IndexKind::Unique,
-            },
+            index(b"ParentKey", &PAIR[..arity], IndexKind::Unique),
         ];
-        let table = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Alpha",
-            columns: &columns,
-            indexes: &indexes,
+        let table = table(b"Alpha", &columns, &indexes);
+        let relation = RelationshipSpec {
+            name: b"SelfRelation",
+            fields: &fields[..arity],
+            ..relation(b"", 0, 0, 0)
         };
         for null_key in [false, true] {
-            let first = if null_key {
-                RowValue::Null
-            } else {
-                RowValue::Long(11)
+            let key = |value| {
+                if null_key {
+                    RowValue::Null
+                } else {
+                    RowValue::Long(value)
+                }
             };
-            let second = if null_key {
-                RowValue::Null
-            } else {
-                RowValue::Long(111)
-            };
+            let (first, second) = (key(11), key(111));
             let selected = [RowValue::Long(1), first, second, first, second];
             let external = [
                 RowValue::Long(2),
@@ -571,92 +349,48 @@ fn full_self_replacement_excludes_only_its_own_child_from_parent_guards() -> Tes
             ];
             let rows = [&selected[..], &external[..]];
             for external_child in [false, true] {
-                let directory = Directory::new()?;
+                let directory = TempDir::new("create")?;
                 let path = directory.target();
-                create_database(
-                    &path,
-                    &DatabaseSpec {
-                        tables: &[TableRows {
-                            table,
-                            rows: &rows[..if external_child { 2 } else { 1 }],
-                        }],
-                        relationships: &[RelationshipSpec {
-                            unique: false,
-                            enforce: true,
-                            join: crate::RelationshipJoin::Inner,
-                            cascade_updates: false,
-                            cascade_deletes: false,
-                            name: b"SelfRelation",
-                            parent: TableRef::Ordinal(0),
-                            child: TableRef::Ordinal(0),
-                            fields: &fields[..arity],
-                        }],
-                        ..DatabaseSpec::default()
-                    },
-                    &mut budget(),
-                )?;
+                let requests = [TableRows {
+                    table,
+                    rows: &rows[..if external_child { 2 } else { 1 }],
+                }];
+                create_spec(&path, &spec(&requests, &[relation]))?;
                 let row = locate(&path, b"Alpha", 1)?;
                 let before = fs::read(&path)?;
-                let error = crate::update_field(
+                let assign = crate::FieldUpdate {
+                    table: b"Alpha",
+                    row,
+                    column: ColumnOrdinal::new(1),
+                    value: first,
+                };
+                assert!(relationship_error(crate::update_field(
                     &path,
-                    crate::FieldUpdate {
-                        table: b"Alpha",
-                        row,
-                        column: crate::ColumnOrdinal::new(1),
-                        value: first,
-                    },
-                    &mut budget(),
-                )
-                .err()
-                .ok_or("equal parent field assignment accepted")?;
-                assert!(matches!(
-                    error,
-                    crate::WriteError::RelationshipConstraint { .. }
-                        | crate::WriteError::ScalarRelationshipConstraint { .. }
-                        | crate::WriteError::NullRelationshipConstraint { .. }
-                ));
+                    assign,
+                    &mut budget()
+                )));
                 assert_eq!(fs::read(&path)?, before);
-                let result = crate::update_row(
-                    &path,
-                    crate::RowUpdate {
+                let replace = |values: &[RowValue<'_>]| {
+                    let request = crate::RowUpdate {
                         table: b"Alpha",
                         row,
-                        values: &selected,
-                    },
-                    &mut budget(),
-                );
+                        values,
+                    };
+                    crate::update_row(&path, request, &mut budget())
+                };
                 if external_child {
-                    assert!(matches!(
-                        result,
-                        Err(crate::WriteError::RelationshipConstraint { .. }
-                            | crate::WriteError::ScalarRelationshipConstraint { .. }
-                            | crate::WriteError::NullRelationshipConstraint { .. })
-                    ));
+                    assert!(relationship_error(replace(&selected)));
                     assert_eq!(fs::read(&path)?, before);
                 } else {
-                    result?;
-                    let mut db = DatabaseReader::open(&path, &mut budget())?;
-                    assert_eq!(
-                        db.validate(TextCodePage::Windows1252, &mut budget())?
-                            .relationships_with_verified_keys,
-                        1
-                    );
-                    drop(db);
+                    replace(&selected)?;
+                    assert_eq!(verified(&path)?, 1);
                     let before = fs::read(&path)?;
                     let mut orphan = selected;
                     orphan[3] = RowValue::Long(999);
                     assert!(matches!(
-                        crate::update_row(
-                            &path,
-                            crate::RowUpdate {
-                                table: b"Alpha",
-                                row,
-                                values: &orphan
-                            },
-                            &mut budget(),
-                        ),
-                        Err(crate::WriteError::RelationshipConstraint { .. }
-                            | crate::WriteError::ScalarRelationshipConstraint { .. })
+                        replace(&orphan),
+                        Err(WriteError::RelationshipConstraint { .. }
+                            | WriteError::ScalarRelationshipConstraint { .. })
                     ));
                     assert_eq!(fs::read(&path)?, before);
                 }

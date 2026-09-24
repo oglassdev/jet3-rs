@@ -1,352 +1,184 @@
 //! EXP-0286 self-reference boundaries and physical index update order.
 use super::descending_parent_tests::*;
+use crate::testkit::create_spec;
+use crate::testkit::{index, table};
 use crate::{
-    ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec,
-    RelationshipField, RelationshipSide, RowValue, TableSpec, TextCodePage,
-    create::{DatabaseSpec, TableRows, api_relationship_graph_tests::*, create_database},
+    ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, RelationshipField,
+    RelationshipSide, RelationshipSpec, RowValue, WriteError,
+    create::{TableRows, api_relationship_graph_tests::*},
 };
 use std::fs;
+use std::path::Path;
+
+const NODE_COLUMNS: &[ColumnSpec<'static>] = &[
+    ColumnSpec::new(b"Id", ColumnType::Long),
+    ColumnSpec::new(b"ParentKey", ColumnType::Long),
+    ColumnSpec::new(b"ParentId", ColumnType::Long),
+];
+fn self_link(name: &'static [u8]) -> RelationshipSpec<'static> {
+    RelationshipSpec {
+        name,
+        fields: &[RelationshipField {
+            parent: ColumnRef::Ordinal(1),
+            child: ColumnRef::Ordinal(2),
+        }],
+        ..edge(0)
+    }
+}
+/// A self-related `Node` table keyed by a descending unique `ParentKey`.
+fn node(path: &Path, rows: &[&[RowValue<'_>]]) -> TestResult {
+    let indexes = [
+        index(b"ById", ID, IndexKind::Primary),
+        index(b"Key", DESC, IndexKind::Unique),
+    ];
+    let requests = [TableRows {
+        table: table(b"Node", NODE_COLUMNS, &indexes),
+        rows,
+    }];
+    create_spec(path, &spec(&requests, &[self_link(b"Relation")]))?;
+    Ok(())
+}
+fn replace(path: &Path, values: &[RowValue<'_>]) -> Result<(), WriteError> {
+    let row = locate(path, b"Node", 1).map_err(|_| WriteError::NotFound("test row"))?;
+    let request = crate::RowUpdate {
+        table: b"Node",
+        row,
+        values,
+    };
+    crate::update_row(path, request, &mut budget())
+}
 
 #[test]
-fn deleting_the_only_null_self_reference_removes_its_child_reference() -> TestResult {
-    let columns = [
-        ColumnSpec::new(b"Id", ColumnType::Long),
-        ColumnSpec::new(b"ParentKey", ColumnType::Long),
-        ColumnSpec::new(b"ParentId", ColumnType::Long),
-    ];
-    let indexes = [
-        IndexSpec {
-            name: b"ById",
-            fields: ID,
-            kind: IndexKind::Primary,
-        },
-        IndexSpec {
-            name: b"Key",
-            fields: DESC,
-            kind: IndexKind::Unique,
-        },
-    ];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Node",
-        columns: &columns,
-        indexes: &indexes,
-    };
-    let mut relation = edge(0);
-    relation.fields = &[RelationshipField {
-        parent: ColumnRef::Ordinal(1),
-        child: ColumnRef::Ordinal(2),
-    }];
-    let directory = Directory::new()?;
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table,
-                rows: &[&[RowValue::Long(1), RowValue::Null, RowValue::Null]],
-            }],
-            relationships: &[relation],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
-    let d = definition(&directory.target(), b"Node")?;
-    let row = {
-        let mut work = budget();
-        let mut db = DatabaseReader::open(directory.target(), &mut work)?;
-        db.rows(&d, &mut work)?
-            .next_row()?
-            .ok_or("self row")?
-            .locator()
-    };
-    let before = fs::read(directory.target())?;
+fn self_reference_key_changes_require_existing_parent_keys() -> TestResult {
+    use RowValue::{Long, Null};
+    let replacement = [Long(1), Long(4), Long(4)];
+    for initial in [
+        None,
+        Some([Long(1), Null, Null]),
+        Some([Long(1), Long(1), Null]),
+        Some([Long(1), Long(1), Long(1)]),
+    ] {
+        let directory = TempDir::new("create")?;
+        let path = directory.target();
+        let rows: Vec<&[RowValue<'_>]> =
+            initial.as_ref().map(|r| r.as_slice()).into_iter().collect();
+        node(&path, &rows)?;
+        let before = fs::read(&path)?;
+        let result = if initial.is_some() {
+            replace(&path, &replacement)
+        } else {
+            crate::insert_row(&path, b"Node", &replacement, &mut budget()).map(|_| ())
+        };
+        assert!(matches!(
+            result,
+            Err(WriteError::RelationshipConstraint { value: 4, .. })
+        ));
+        assert_eq!(fs::read(&path)?, before);
+    }
+
+    // The only null parent key is still referenced by its own null child key.
+    let directory = TempDir::new("create")?;
+    let path = directory.target();
+    node(&path, &[&[Long(1), Null, Null]])?;
+    let before = fs::read(&path)?;
     assert!(matches!(
-        crate::update_row(
-            directory.target(),
-            crate::RowUpdate {
-                table: b"Node",
-                row,
-                values: &[RowValue::Long(1), RowValue::Long(4), RowValue::Null]
-            },
-            &mut budget()
-        ),
-        Err(crate::WriteError::NullRelationshipConstraint { .. })
+        replace(&path, &[Long(1), Long(4), Null]),
+        Err(WriteError::NullRelationshipConstraint { .. })
     ));
-    assert_eq!(fs::read(directory.target())?, before);
+    assert_eq!(fs::read(&path)?, before);
+    let row = locate(&path, b"Node", 1)?;
     crate::delete_row(
-        directory.target(),
+        &path,
         crate::RowDelete {
             table: b"Node",
             row,
         },
         &mut budget(),
     )?;
-    assert_eq!(definition(&directory.target(), b"Node")?.row_count(), 0);
-    Ok(())
-}
+    assert_eq!(definition(&path, b"Node")?.row_count(), 0);
 
-#[test]
-fn parent_tree_after_foreign_requires_existing_self_keys() -> TestResult {
-    let columns = [
-        ColumnSpec::new(b"Id", ColumnType::Long),
-        ColumnSpec::new(b"ParentKey", ColumnType::Long),
-        ColumnSpec::new(b"ParentId", ColumnType::Long),
-    ];
-    let indexes = [
-        IndexSpec {
-            name: b"ById",
-            fields: ID,
-            kind: IndexKind::Primary,
-        },
-        IndexSpec {
-            name: b"Key",
-            fields: DESC,
-            kind: IndexKind::Unique,
-        },
-    ];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Node",
-        columns: &columns,
-        indexes: &indexes,
-    };
-    let mut relation = edge(0);
-    relation.fields = &[RelationshipField {
-        parent: ColumnRef::Ordinal(1),
-        child: ColumnRef::Ordinal(2),
-    }];
-    let states = [
-        None,
-        Some([RowValue::Long(1), RowValue::Null, RowValue::Null]),
-        Some([RowValue::Long(1), RowValue::Long(1), RowValue::Null]),
-        Some([RowValue::Long(1), RowValue::Long(1), RowValue::Long(1)]),
-    ];
-    for initial in states {
-        let directory = Directory::new()?;
-        let initial_rows: Vec<&[RowValue<'_>]> =
-            initial.as_ref().map(|r| r.as_slice()).into_iter().collect();
-        create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table,
-                    rows: &initial_rows,
-                }],
-                relationships: &[relation],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
-        )?;
-        let before = fs::read(directory.target())?;
-        let replacement = [RowValue::Long(1), RowValue::Long(4), RowValue::Long(4)];
-        let result = if initial.is_some() {
-            let d = definition(&directory.target(), b"Node")?;
-            let row = {
-                let mut work = budget();
-                let mut db = DatabaseReader::open(directory.target(), &mut work)?;
-                db.rows(&d, &mut work)?
-                    .next_row()?
-                    .ok_or("self row")?
-                    .locator()
-            };
-            crate::update_row(
-                directory.target(),
-                crate::RowUpdate {
-                    table: b"Node",
-                    row,
-                    values: &replacement,
-                },
-                &mut budget(),
-            )
-        } else {
-            crate::insert_row(directory.target(), b"Node", &replacement, &mut budget()).map(|_| ())
-        };
-        assert!(matches!(
-            result,
-            Err(crate::WriteError::RelationshipConstraint { value: 4, .. })
-        ));
-        assert_eq!(fs::read(directory.target())?, before);
-    }
-
-    let directory = Directory::new()?;
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table,
-                rows: &[
-                    &[RowValue::Long(1), RowValue::Null, RowValue::Null],
-                    &[RowValue::Long(2), RowValue::Long(1), RowValue::Long(1)],
-                ],
-            }],
-            relationships: &[relation],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+    let directory = TempDir::new("create")?;
+    let path = directory.target();
+    node(
+        &path,
+        &[&[Long(1), Null, Null], &[Long(2), Long(1), Long(1)]],
     )?;
-    let d = definition(&directory.target(), b"Node")?;
-    let row = {
-        let mut work = budget();
-        let mut db = DatabaseReader::open(directory.target(), &mut work)?;
-        db.rows(&d, &mut work)?
-            .next_row()?
-            .ok_or("null self row")?
-            .locator()
-    };
-    crate::update_row(
-        directory.target(),
-        crate::RowUpdate {
-            table: b"Node",
-            row,
-            values: &[RowValue::Long(1), RowValue::Long(4), RowValue::Long(1)],
-        },
-        &mut budget(),
-    )?;
-    let mut db = DatabaseReader::open(directory.target(), &mut budget())?;
-    assert_eq!(
-        db.validate(TextCodePage::Windows1252, &mut budget())?
-            .relationships_with_verified_keys,
-        1
-    );
+    replace(&path, &[Long(1), Long(4), Long(1)])?;
+    assert_eq!(verified(&path)?, 1);
     Ok(())
 }
 
 #[test]
 fn self_key_checks_follow_physical_order_for_generated_and_declared_parents() -> TestResult {
-    let columns = [
-        ColumnSpec::new(b"Id", ColumnType::Long),
-        ColumnSpec::new(b"ParentKey", ColumnType::Long),
-        ColumnSpec::new(b"ParentId", ColumnType::Long),
-    ];
     let foreign_fields = [IndexColumnSpec::ascending(ColumnRef::Ordinal(2))];
+    let generated: [IndexSpec<'_>; 2] = [
+        index(b"ById", ID, IndexKind::Primary),
+        index(b"Descending", DESC, IndexKind::Unique),
+    ];
+    let declared = [
+        index(b"ById", ID, IndexKind::Primary),
+        index(b"Child", &foreign_fields, IndexKind::Ordinary),
+        index(b"Ascending", ASC, IndexKind::Unique),
+    ];
     for generated_parent_first in [false, true] {
-        let indexes = if generated_parent_first {
-            vec![
-                IndexSpec {
-                    name: b"ById",
-                    fields: ID,
-                    kind: IndexKind::Primary,
-                },
-                IndexSpec {
-                    name: b"Descending",
-                    fields: DESC,
-                    kind: IndexKind::Unique,
-                },
-            ]
+        let indexes: &[IndexSpec<'_>] = if generated_parent_first {
+            &generated
         } else {
-            vec![
-                IndexSpec {
-                    name: b"ById",
-                    fields: ID,
-                    kind: IndexKind::Primary,
-                },
-                IndexSpec {
-                    name: b"Child",
-                    fields: &foreign_fields,
-                    kind: IndexKind::Ordinary,
-                },
-                IndexSpec {
-                    name: b"Ascending",
-                    fields: ASC,
-                    kind: IndexKind::Unique,
-                },
-            ]
+            &declared
         };
-        let table = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Node",
-            columns: &columns,
-            indexes: &indexes,
+        let external = RelationshipSpec {
+            name: b"External",
+            ..edge(1)
         };
-        let child = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Child",
-            columns: PAIR_COLUMNS,
-            indexes: &[],
-        };
-        let mut external = edge(1);
-        external.name = b"External";
-        let mut self_relation = edge(0);
-        self_relation.name = b"SelfLink";
-        self_relation.fields = &[RelationshipField {
-            parent: ColumnRef::Ordinal(1),
-            child: ColumnRef::Ordinal(2),
-        }];
-        let relations = [external, self_relation];
+        let relations = [external, self_link(b"SelfLink")];
         for insert in [false, true] {
-            let directory = Directory::new()?;
+            let directory = TempDir::new("create")?;
+            let path = directory.target();
             let row = [RowValue::Long(1), RowValue::Long(1), RowValue::Long(1)];
-            let initial: &[&[RowValue<'_>]] = if insert { &[] } else { &[&row] };
-            create_database(
-                directory.target(),
-                &DatabaseSpec {
-                    tables: &[
-                        TableRows {
-                            table,
-                            rows: initial,
-                        },
-                        TableRows {
-                            table: child,
-                            rows: &[],
-                        },
-                    ],
-                    relationships: &relations[usize::from(!generated_parent_first)..],
-                    ..DatabaseSpec::default()
+            let requests = [
+                TableRows {
+                    table: table(b"Node", NODE_COLUMNS, indexes),
+                    rows: if insert { &[] } else { &[&row] },
                 },
-                &mut budget(),
-            )?;
-            let d = definition(&directory.target(), b"Node")?;
+                TableRows::empty(table(b"Child", PAIR_COLUMNS, &[])),
+            ];
+            let edges = &relations[usize::from(!generated_parent_first)..];
+            create_spec(&path, &spec(&requests, edges))?;
+            let d = definition(&path, b"Node")?;
             let foreign = d
                 .relationships()
                 .find(|r| r.side() == RelationshipSide::ForeignTable)
-                .ok_or("self foreign index")?
-                .physical_index();
+                .ok_or("self foreign index")?;
             let parent = d
                 .relationships()
                 .find(|r| {
                     r.side() == RelationshipSide::PrimaryTable && r.related_table() == d.root()
                 })
-                .ok_or("self parent index")?
-                .physical_index();
-            assert_eq!(parent, 2);
-            assert_eq!(foreign, if generated_parent_first { 3 } else { 1 });
-            let before = fs::read(directory.target())?;
-            let values = [RowValue::Long(4), RowValue::Long(4), RowValue::Long(4)];
+                .ok_or("self parent index")?;
+            assert_eq!(parent.physical_index(), 2);
+            assert_eq!(
+                foreign.physical_index(),
+                if generated_parent_first { 3 } else { 1 }
+            );
+            let before = fs::read(&path)?;
             let result = if insert {
-                crate::insert_row(directory.target(), b"Node", &values, &mut budget()).map(|_| ())
+                let values = [RowValue::Long(4), RowValue::Long(4), RowValue::Long(4)];
+                crate::insert_row(&path, b"Node", &values, &mut budget()).map(|_| ())
             } else {
-                let locator = {
-                    let mut work = budget();
-                    let mut db = DatabaseReader::open(directory.target(), &mut work)?;
-                    db.rows(&d, &mut work)?
-                        .next_row()?
-                        .ok_or("self row")?
-                        .locator()
-                };
-                crate::update_row(
-                    directory.target(),
-                    crate::RowUpdate {
-                        table: b"Node",
-                        row: locator,
-                        values: &[RowValue::Long(1), RowValue::Long(4), RowValue::Long(4)],
-                    },
-                    &mut budget(),
+                replace(
+                    &path,
+                    &[RowValue::Long(1), RowValue::Long(4), RowValue::Long(4)],
                 )
             };
             if generated_parent_first {
                 result?;
-                let mut db = DatabaseReader::open(directory.target(), &mut budget())?;
-                assert_eq!(
-                    db.validate(TextCodePage::Windows1252, &mut budget())?
-                        .relationships_with_verified_keys,
-                    2
-                );
+                assert_eq!(verified(&path)?, 2);
             } else {
                 assert!(matches!(
                     result,
-                    Err(crate::WriteError::RelationshipConstraint { value: 4, .. })
+                    Err(WriteError::RelationshipConstraint { value: 4, .. })
                 ));
-                assert_eq!(fs::read(directory.target())?, before);
+                assert_eq!(fs::read(&path)?, before);
             }
         }
     }

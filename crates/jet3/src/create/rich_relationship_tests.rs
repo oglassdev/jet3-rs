@@ -1,21 +1,23 @@
 use super::api_relationship_tests::*;
 use crate::WriteError;
+use crate::testkit::create_spec;
+use crate::testkit::{index, table};
 use crate::{
     ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec,
     IndexDirection, IndexKind, IndexSpec, InlineLongValue, LongValue, LongValueChunkValue,
-    PageNumber, RelationshipField, RowValue, TableRef, TableSpec, TextCodePage, ValueKind,
+    PageNumber, RelationshipField, RowValue, TableRef, TextCodePage, ValueKind,
     create::{api::*, composer::ComposeError},
 };
 use std::fs;
 
-const PRIMARY: &[IndexSpec<'static>] = &[IndexSpec {
-    name: b"ById",
-    fields: &[IndexColumnSpec {
+const PRIMARY: &[IndexSpec<'static>] = &[index(
+    b"ById",
+    &[IndexColumnSpec {
         column: ColumnRef::Ordinal(0),
         direction: IndexDirection::Ascending,
     }],
-    kind: IndexKind::Primary,
-}];
+    IndexKind::Primary,
+)];
 const RELATION: crate::RelationshipSpec<'static> = crate::RelationshipSpec {
     unique: false,
     enforce: true,
@@ -34,7 +36,7 @@ const RELATION: crate::RelationshipSpec<'static> = crate::RelationshipSpec {
 #[test]
 fn rich_relationship_rows_keep_primary_null_keys_payloads_and_generated_ids() -> TestResult {
     for wide in [false, true] {
-        let directory = Directory::new()?;
+        let directory = TempDir::new("create")?;
         let names = (0..40)
             .map(|n| format!("Column{n:02}{}", "x".repeat(40)).into_bytes())
             .collect::<Vec<_>>();
@@ -68,18 +70,8 @@ fn rich_relationship_rows_keep_primary_null_keys_payloads_and_generated_ids() ->
                 );
             }
         }
-        let parent = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Parent",
-            columns: &parent_columns,
-            indexes: PRIMARY,
-        };
-        let child = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Child",
-            columns: &columns,
-            indexes: PRIMARY,
-        };
+        let parent = table(b"Parent", &parent_columns, PRIMARY);
+        let child = table(b"Child", &columns, PRIMARY);
         let payload = vec![b'q'; 4096];
         let mut values = Vec::new();
         for row in 0..4 {
@@ -113,15 +105,7 @@ fn rich_relationship_rows_keep_primary_null_keys_payloads_and_generated_ids() ->
                 rows: &rows,
             },
         ];
-        crate::create_database(
-            directory.target(),
-            &crate::DatabaseSpec {
-                tables: &requests,
-                relationships: std::slice::from_ref(&RELATION),
-                relationship_layout: crate::RelationshipLayout::SingleLong,
-            },
-            &mut budget(),
-        )?;
+        create_spec(directory.target(), &single(&requests, &RELATION))?;
         let mut operation = budget();
         let mut reader = DatabaseReader::open(directory.target(), &mut operation)?;
         let parent = reader.table_definition(PageNumber::new(20), &mut operation)?;
@@ -244,12 +228,7 @@ fn parent_relationship_record_at_definition_boundary_keeps_external_payload_star
                     },
                 )
             }));
-            let parent = TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Parent",
-                columns: &columns,
-                indexes: PRIMARY,
-            };
+            let parent = table(b"Parent", &columns, PRIMARY);
             let plan = plan_table_schema_for_order(
                 &parent,
                 20,
@@ -257,21 +236,13 @@ fn parent_relationship_record_at_definition_boundary_keeps_external_payload_star
                 &[b".rB".as_slice()],
                 parent.indexes.len(),
                 crate::SortOrder::General,
-                &mut crate::ResourceBudget::new(crate::ResourceLimits::default()),
+                &mut budget(),
             )?;
             if plan.definition_len() != 2048 {
                 continue;
             }
-            assert!(
-                plan_table_schema(
-                    &parent,
-                    20,
-                    true,
-                    &mut crate::ResourceBudget::new(crate::ResourceLimits::default())
-                )?
-                .continuation_page()
-                .is_none()
-            );
+            let plain = plan_table_schema(&parent, 20, true, &mut budget())?;
+            assert!(plain.continuation_page().is_none());
             assert!(plan.continuation_page().is_some());
             let payload = vec![b'p'; 4096];
             let mut values = vec![RowValue::Long(1), RowValue::Memo(&payload)];
@@ -280,31 +251,19 @@ fn parent_relationship_record_at_definition_boundary_keeps_external_payload_star
                 ColumnSpec::new(b"Id", ColumnType::Long),
                 ColumnSpec::new(b"ParentId", ColumnType::Long),
             ];
-            let child = TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Child",
-                columns: &child_columns,
-                indexes: PRIMARY,
-            };
-            let directory = Directory::new()?;
-            crate::create_database(
-                directory.target(),
-                &crate::DatabaseSpec {
-                    tables: &[
-                        TableRows {
-                            table: parent,
-                            rows: &[&values],
-                        },
-                        TableRows {
-                            table: child,
-                            rows: &[&[RowValue::Long(1), RowValue::Long(1)]],
-                        },
-                    ],
-                    relationships: std::slice::from_ref(&RELATION),
-                    relationship_layout: crate::RelationshipLayout::SingleLong,
+            let child = table(b"Child", &child_columns, PRIMARY);
+            let directory = TempDir::new("create")?;
+            let requests = [
+                TableRows {
+                    table: parent,
+                    rows: &[&values],
                 },
-                &mut budget(),
-            )?;
+                TableRows {
+                    table: child,
+                    rows: &[&[RowValue::Long(1), RowValue::Long(1)]],
+                },
+            ];
+            create_spec(directory.target(), &single(&requests, &RELATION))?;
             let raw = fs::read(directory.target())?;
             let continuation = plan.continuation_page().ok_or("continuation")?.get() as usize;
             assert_eq!(
@@ -330,22 +289,10 @@ fn relationship_names_cannot_replace_declared_primary_indexes() -> TestResult {
             ..PRIMARY[0]
         }];
         let tables = [
-            TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Parent",
-                columns: &parent_columns,
-                indexes: &parent_index,
-            },
-            TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Child",
-                columns: &child_columns,
-                indexes: PRIMARY,
-            },
+            table(b"Parent", &parent_columns, &parent_index),
+            table(b"Child", &child_columns, PRIMARY),
         ];
         let relation = crate::RelationshipSpec {
-            cascade_updates: false,
-            cascade_deletes: false,
             name: if parent_name == b".rB" {
                 b"ParentChild"
             } else {
@@ -353,20 +300,15 @@ fn relationship_names_cannot_replace_declared_primary_indexes() -> TestResult {
             },
             ..RELATION
         };
-        let directory = Directory::new()?;
+        let directory = TempDir::new("create")?;
         assert!(matches!(
-            crate::create_database(
+            create_spec(
                 directory.target(),
-                &crate::DatabaseSpec {
-                    tables: &tables.map(crate::TableRows::empty),
-                    relationships: std::slice::from_ref(&relation),
-                    relationship_layout: crate::RelationshipLayout::SingleLong
-                },
-                &mut budget()
+                &single(&tables.map(TableRows::empty), &relation)
             ),
             Err(WriteError::Compose(ComposeError::Schema(_)))
         ));
-        assert!(directory.empty()?);
+        assert!(directory.is_empty()?);
     }
     Ok(())
 }

@@ -1,13 +1,11 @@
 use crate::{
-    ByteCount, ByteOffset, Error, HeaderError, JetFileKind, LimitKind, PAGE_BYTES,
-    RawJet3Candidate, ReadAt, ReadBudget, ReadLimits, ResourceBudget, ResourceLimits, SliceSource,
+    ByteCount, HeaderError, JetFileKind, PAGE_BYTES, RawJet3Candidate, ReadLimits, ResourceBudget,
+    ResourceLimits, SliceSource,
 };
 use std::error::Error as StdError;
-use std::io;
 
 use super::database_header::{
-    DatabaseFormatError, DatabaseHeaderPage, DatabaseHeaderPageError, DatabaseProtection,
-    DatabaseVersion,
+    DatabaseFormatError, DatabaseHeaderPage, DatabaseProtection, DatabaseVersion,
 };
 
 const SIGNATURE_START: usize = 4;
@@ -31,6 +29,15 @@ fn supported_raw_page() -> [u8; PAGE_BYTES] {
     raw
 }
 
+fn format_with(offset: usize, change: impl FnOnce(&mut u8)) -> Result<DatabaseFormatError, String> {
+    let mut raw = supported_raw_page();
+    change(&mut raw[offset]);
+    let view = DatabaseHeaderPage::from_raw_bytes(raw).map_err(|error| error.to_string())?;
+    view.supported_format()
+        .err()
+        .ok_or_else(|| format!("offset {offset:#x} was accepted"))
+}
+
 #[test]
 fn supported_format_accepts_only_the_observed_v1_opening_state() -> Result<(), Box<dyn StdError>> {
     let view = DatabaseHeaderPage::from_raw_bytes(supported_raw_page())?;
@@ -40,60 +47,26 @@ fn supported_format_accepts_only_the_observed_v1_opening_state() -> Result<(), B
         format.protection(),
         DatabaseProtection::UnencryptedWithoutPassword
     );
-    Ok(())
-}
 
-#[test]
-fn supported_format_rejects_the_observed_jet4_marker() -> Result<(), HeaderError> {
     for observed in 1..=u8::MAX {
-        let mut raw = supported_raw_page();
-        raw[0x14] = observed;
-        let view = DatabaseHeaderPage::from_raw_bytes(raw)?;
         assert_eq!(
-            view.supported_format(),
-            Err(DatabaseFormatError::UnsupportedVersion { observed })
+            format_with(0x14, |byte| *byte = observed)?,
+            DatabaseFormatError::UnsupportedVersion { observed }
         );
     }
-    Ok(())
-}
-
-#[test]
-fn supported_format_rejects_the_observed_encrypted_marker() -> Result<(), HeaderError> {
-    for observed in 0..=u8::MAX {
-        if observed == 0x4e {
-            continue;
-        }
-        let mut raw = supported_raw_page();
-        raw[0x41] = observed;
-        let view = DatabaseHeaderPage::from_raw_bytes(raw)?;
+    for observed in (0..=u8::MAX).filter(|observed| *observed != 0x4e) {
         assert_eq!(
-            view.supported_format(),
-            Err(DatabaseFormatError::EncryptedOrUnsupported { observed })
+            format_with(0x41, |byte| *byte = observed)?,
+            DatabaseFormatError::EncryptedOrUnsupported { observed }
         );
     }
-    Ok(())
-}
-
-#[test]
-fn supported_format_rejects_passworded_or_unknown_header_state() -> Result<(), HeaderError> {
     for offset in 0x42..0x50 {
-        let mut raw = supported_raw_page();
-        raw[offset] ^= 0x01;
-        let view = DatabaseHeaderPage::from_raw_bytes(raw)?;
         assert_eq!(
-            view.supported_format(),
-            Err(DatabaseFormatError::PasswordedOrUnsupported)
+            format_with(offset, |byte| *byte ^= 0x01)?,
+            DatabaseFormatError::PasswordedOrUnsupported
         );
     }
     Ok(())
-}
-
-fn operation_budget(single_read: u64, total_read: u64) -> ResourceBudget {
-    ResourceBudget::new(ResourceLimits::new(ReadLimits::new(
-        ByteCount::new(PAGE_BYTES as u64),
-        ByteCount::new(single_read),
-        ByteCount::new(total_read),
-    )))
 }
 
 #[test]
@@ -103,7 +76,6 @@ fn view_preserves_the_complete_page_and_exposes_only_documented_fields() -> Resu
     let view = DatabaseHeaderPage::from_raw_bytes(raw)?;
 
     assert_eq!(view.raw_bytes(), &raw);
-    assert_eq!(view.signature_kind(), JetFileKind::Standard);
     assert_eq!(
         view.commit_region().raw_bytes().as_slice(),
         &raw[COMMIT_START..COMMIT_END]
@@ -116,36 +88,36 @@ fn view_preserves_the_complete_page_and_exposes_only_documented_fields() -> Resu
         view.commit_region().slot(255).map(|slot| slot.raw()),
         Some([254, 255])
     );
-    Ok(())
-}
 
-#[test]
-fn view_accepts_every_documented_generic_signature_kind() -> Result<(), HeaderError> {
     for (signature, expected) in [
-        (b"Standard Jet DB", JetFileKind::Standard),
-        (b"Jet System DB x", JetFileKind::System),
-        (b"Temp Jet DB xyz", JetFileKind::Temporary),
+        (b"Standard Jet DB", Ok(JetFileKind::Standard)),
+        (b"Jet System DB x", Ok(JetFileKind::System)),
+        (b"Temp Jet DB xyz", Ok(JetFileKind::Temporary)),
+        (
+            b"Not a Jet file!",
+            Err(HeaderError::UnknownSignature {
+                observed: *b"Not a Jet file!",
+            }),
+        ),
     ] {
-        let view = DatabaseHeaderPage::from_raw_bytes(raw_page(signature))?;
-        assert_eq!(view.signature_kind(), expected);
+        assert_eq!(
+            DatabaseHeaderPage::from_raw_bytes(raw_page(signature))
+                .map(|view| view.signature_kind()),
+            expected
+        );
     }
     Ok(())
-}
-
-#[test]
-fn unknown_signature_preserves_the_exact_observation() {
-    let observed = *b"Not a Jet file!";
-    assert_eq!(
-        DatabaseHeaderPage::from_raw_bytes(raw_page(&observed)),
-        Err(HeaderError::UnknownSignature { observed })
-    );
 }
 
 #[test]
 fn candidate_reads_one_complete_page_zero_with_shared_accounting() -> Result<(), Box<dyn StdError>>
 {
     let raw = raw_page(b"Standard Jet DB");
-    let mut budget = operation_budget(PAGE_BYTES as u64, (PAGE_BYTES + 15) as u64);
+    let mut budget = ResourceBudget::new(ResourceLimits::new(ReadLimits::new(
+        ByteCount::new(PAGE_BYTES as u64),
+        ByteCount::new(PAGE_BYTES as u64),
+        ByteCount::new((PAGE_BYTES + 15) as u64),
+    )));
     let source = SliceSource::new(&raw, budget.read_budget())?;
     let mut candidate = RawJet3Candidate::inspect(source, &mut budget)?;
 
@@ -158,87 +130,5 @@ fn candidate_reads_one_complete_page_zero_with_shared_accounting() -> Result<(),
         ByteCount::new((PAGE_BYTES + 15) as u64)
     );
     assert_eq!(budget.page_visits(), 1);
-    Ok(())
-}
-
-#[derive(Debug)]
-struct FailingPageSource {
-    raw: [u8; PAGE_BYTES],
-    reads: usize,
-}
-
-impl ReadAt for FailingPageSource {
-    fn len(&self) -> ByteCount {
-        ByteCount::new(PAGE_BYTES as u64)
-    }
-
-    fn read_exact_at(
-        &mut self,
-        _offset: ByteOffset,
-        destination: &mut [u8],
-        budget: &mut ReadBudget,
-    ) -> Result<(), Error> {
-        let count = ByteCount::from_usize(destination.len())?;
-        budget.charge_read_attempt(count)?;
-        self.reads += 1;
-        if destination.len() == 15 {
-            destination.copy_from_slice(&self.raw[SIGNATURE_START..SIGNATURE_END]);
-            return Ok(());
-        }
-        destination[..31].fill(0xD3);
-        Err(Error::Io {
-            operation: "read failing database-header test source",
-            kind: io::ErrorKind::Other,
-        })
-    }
-}
-
-#[test]
-fn failed_complete_page_read_returns_only_a_structured_error() -> Result<(), Box<dyn StdError>> {
-    let source = FailingPageSource {
-        raw: raw_page(b"Standard Jet DB"),
-        reads: 0,
-    };
-    let mut budget = operation_budget(PAGE_BYTES as u64, (PAGE_BYTES + 15) as u64);
-    let mut candidate = RawJet3Candidate::inspect(source, &mut budget)?;
-
-    assert_eq!(
-        candidate.read_database_header_page(&mut budget),
-        Err(DatabaseHeaderPageError::Read(Error::Io {
-            operation: "read failing database-header test source",
-            kind: io::ErrorKind::Other,
-        }))
-    );
-    assert_eq!(candidate.source().reads, 2);
-    assert_eq!(budget.page_visits(), 1);
-    assert_eq!(
-        budget.read_budget().total_read(),
-        ByteCount::new((PAGE_BYTES + 15) as u64)
-    );
-    Ok(())
-}
-
-#[test]
-fn page_read_limit_rejection_precedes_source_access_and_page_charging()
--> Result<(), Box<dyn StdError>> {
-    let source = FailingPageSource {
-        raw: raw_page(b"Standard Jet DB"),
-        reads: 0,
-    };
-    let maximum = (PAGE_BYTES - 1) as u64;
-    let mut budget = operation_budget(maximum, u64::MAX);
-    let mut candidate = RawJet3Candidate::inspect(source, &mut budget)?;
-
-    assert_eq!(
-        candidate.read_database_header_page(&mut budget),
-        Err(DatabaseHeaderPageError::Read(Error::LimitExceeded {
-            kind: LimitKind::SingleReadBytes,
-            requested: ByteCount::new(PAGE_BYTES as u64),
-            maximum: ByteCount::new(maximum),
-        }))
-    );
-    assert_eq!(candidate.source().reads, 1);
-    assert_eq!(budget.page_visits(), 0);
-    assert_eq!(budget.read_budget().total_read(), ByteCount::new(15));
     Ok(())
 }

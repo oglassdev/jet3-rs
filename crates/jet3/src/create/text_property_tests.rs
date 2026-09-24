@@ -1,15 +1,17 @@
 //! EXP-0299 text properties: API limits, refusals of unevaluated rules and the sort-order guard.
 use super::api_tests::*;
+use crate::testkit::index;
+use crate::testkit::table;
+use crate::testkit::{create, create_spec};
 use crate::{
-    ColumnOrdinal, ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, FieldUpdate,
+    ColumnOrdinal, ColumnSpec, ColumnType, ComposeError, DatabaseReader, FieldUpdate,
     PropertyChange, RowDelete, RowUpdate, RowValue, SchemaEdit, SortOrder, TableRows, TableSpec,
-    TableValidation, TextCodePage, WriteError,
-    create::{api::create_database, schema_plan::TableSchemaPlanError},
+    TableValidation, TextCodePage, WriteError, create::schema_plan::TableSchemaPlanError,
     delete_row, edit_schema, insert_row, update_field, update_row,
 };
 use std::fs;
 
-fn table<'a>(
+fn validated_table<'a>(
     name: &'a [u8],
     columns: &'a [ColumnSpec<'a>],
     validation: TableValidation<'a>,
@@ -55,23 +57,19 @@ fn unsupported(result: Result<(), WriteError>) -> bool {
 
 #[test]
 fn stored_rules_refuse_row_writes_and_preserve_the_file() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
     let columns = [
         ColumnSpec::new(b"Id", ColumnType::Long),
         ColumnSpec::new(b"Amount", ColumnType::Long).with_default_value(b"5"),
     ];
-    let plain = table(b"Items", &columns, TableValidation::NONE);
-    create_database(
+    let plain = validated_table(b"Items", &columns, TableValidation::NONE);
+    create(
         &path,
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table: plain,
-                rows: &[&[RowValue::Long(1), RowValue::Null]],
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table: plain,
+            rows: &[&[RowValue::Long(1), RowValue::Null]],
+        }],
     )?;
     let row = first_row(&path, b"Items")?;
     // DAO stores explicit Null over a default (EXP-0299); Rust never applies defaults.
@@ -140,38 +138,27 @@ fn stored_rules_refuse_row_writes_and_preserve_the_file() -> TestResult {
 
 #[test]
 fn table_rules_refuse_initial_and_later_rows() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
     let columns = [ColumnSpec::new(b"A", ColumnType::Long)];
     let rule = TableValidation {
         rule: Some(b"[A]>0"),
         text: Some(b"positive"),
     };
-    let ruled = table(b"Checked", &columns, rule);
-    let error = create_database(
+    let ruled = validated_table(b"Checked", &columns, rule);
+    let error = create(
         &path,
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table: ruled,
-                rows: &[&[RowValue::Long(1)]],
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table: ruled,
+            rows: &[&[RowValue::Long(1)]],
+        }],
     );
     assert!(matches!(
         error,
         Err(WriteError::Compose(ComposeError::ValidationRuleRows))
     ));
     assert!(!path.exists());
-    create_database(
-        &path,
-        &DatabaseSpec {
-            tables: &[TableRows::empty(ruled)],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(&path, &[TableRows::empty(ruled)])?;
     let stored = properties(&path, b"Checked")?;
     assert_eq!(stored.validation_rule(), Some(b"[A]>0".as_slice()));
     assert_eq!(stored.validation_text(), Some(b"positive".as_slice()));
@@ -200,7 +187,7 @@ fn table_rules_refuse_initial_and_later_rows() -> TestResult {
 
 #[test]
 fn unsupported_property_requests_are_refused_before_writing() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
     let long = [b'a'; crate::properties::column::MAX_TEXT_PROPERTY + 1];
     let guid = ColumnSpec::new(b"G", ColumnType::Guid);
@@ -216,17 +203,13 @@ fn unsupported_property_requests_are_refused_before_writing() -> TestResult {
         text.with_validation_rule(&long),
     ] {
         let columns = [column];
-        let result = create_database(
+        let result = create(
             &path,
-            &DatabaseSpec {
-                tables: &[TableRows::empty(table(
-                    b"T",
-                    &columns,
-                    TableValidation::NONE,
-                ))],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
+            &[TableRows::empty(validated_table(
+                b"T",
+                &columns,
+                TableValidation::NONE,
+            ))],
         );
         assert!(matches!(
             result,
@@ -240,17 +223,13 @@ fn unsupported_property_requests_are_refused_before_writing() -> TestResult {
         assert!(!path.exists());
     }
     let columns = [guid, auto.with_description(b"numbered")];
-    create_database(
+    create(
         &path,
-        &DatabaseSpec {
-            tables: &[TableRows::empty(table(
-                b"T",
-                &columns,
-                TableValidation::NONE,
-            ))],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows::empty(validated_table(
+            b"T",
+            &columns,
+            TableValidation::NONE,
+        ))],
     )?;
     let before = fs::read(&path)?;
     for (column, rule) in [(b"G".as_slice(), b"Is Not Null".as_slice()), (b"N", b"")] {
@@ -286,20 +265,16 @@ fn unsupported_property_requests_are_refused_before_writing() -> TestResult {
 
 #[test]
 fn unknown_sort_orders_are_readable_but_not_writable() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
     let columns = [ColumnSpec::new(b"A", ColumnType::Long)];
-    create_database(
+    create(
         &path,
-        &DatabaseSpec {
-            tables: &[TableRows::empty(table(
-                b"T",
-                &columns,
-                TableValidation::NONE,
-            ))],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows::empty(validated_table(
+            b"T",
+            &columns,
+            TableValidation::NONE,
+        ))],
     )?;
     let mut work = budget();
     let root = {
@@ -351,28 +326,19 @@ fn unknown_sort_orders_are_readable_but_not_writable() -> TestResult {
 
 #[test]
 fn rules_refuse_cascaded_updates_and_autoincrement_backfill() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
     let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
     let key = [crate::IndexColumnSpec::ascending(b"Id")];
-    let indexes = [crate::IndexSpec {
-        name: b"PrimaryKey",
-        fields: &key,
-        kind: crate::IndexKind::Primary,
-    }];
+    let indexes = [index(b"PrimaryKey", &key, crate::IndexKind::Primary)];
     let child_columns = [ColumnSpec::new(b"ParentId", ColumnType::Long)];
     let tables = [
         crate::TableRows {
-            table: TableSpec {
-                name: b"Parent",
-                columns: &columns,
-                indexes: &indexes,
-                validation: TableValidation::NONE,
-            },
+            table: table(b"Parent", &columns, &indexes),
             rows: &[&[RowValue::Long(1)]],
         },
         crate::TableRows {
-            table: table(b"Child", &child_columns, TableValidation::NONE),
+            table: validated_table(b"Child", &child_columns, TableValidation::NONE),
             rows: &[&[RowValue::Long(1)]],
         },
     ];
@@ -390,14 +356,13 @@ fn rules_refuse_cascaded_updates_and_autoincrement_backfill() -> TestResult {
             child: crate::ColumnRef::Name(b"ParentId"),
         }],
     };
-    crate::create_database(
+    create_spec(
         &path,
         &crate::DatabaseSpec {
             tables: &tables,
             relationships: &[relationship],
             ..crate::DatabaseSpec::default()
         },
-        &mut budget(),
     )?;
     let row = first_row(&path, b"Parent")?;
     for table in [b"Parent".as_slice(), b"Child"] {
@@ -445,24 +410,20 @@ fn rules_refuse_cascaded_updates_and_autoincrement_backfill() -> TestResult {
 
 #[test]
 fn chained_property_blobs_grow_and_shrink_without_touching_rows() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
     let columns = [
         ColumnSpec::new(b"Id", ColumnType::Long),
         ColumnSpec::new(b"Note", ColumnType::Memo),
     ];
-    let plain = table(b"Items", &columns, TableValidation::NONE);
+    let plain = validated_table(b"Items", &columns, TableValidation::NONE);
     let memo = [b'm'; 3000];
-    create_database(
+    create(
         &path,
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table: plain,
-                rows: &[&[RowValue::Long(1), RowValue::Memo(&memo)]],
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table: plain,
+            rows: &[&[RowValue::Long(1), RowValue::Memo(&memo)]],
+        }],
     )?;
     let user_pages = |bytes: &[u8]| -> Result<Vec<Vec<u8>>, Box<dyn std::error::Error>> {
         let mut work = budget();

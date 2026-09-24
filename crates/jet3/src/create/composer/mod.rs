@@ -54,8 +54,6 @@ mod relationship_graph_plan;
 #[cfg(all(test, any(unix, windows)))]
 mod relationship_graph_validation_tests;
 mod relationship_pages;
-#[cfg(test)]
-mod relationship_parameterized_tests;
 mod relationship_plan;
 mod relationship_rows;
 #[cfg(test)]

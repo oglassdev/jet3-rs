@@ -3,10 +3,10 @@ use super::reader_tests::*;
 use crate::{
     ColumnStorageClass, DatabaseReader, Error, PAGE_BYTES, PageNumber, ResourceBudget,
     RowColumnLayout, RowValue, SliceSource, TableDefinition, TableDefinitionError, TextCodePage,
-    ValueKind, row::reader::RawField,
+    ValueKind,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 fn schema(records: &[[u8; 18]], storage: u16, variables: u16) -> Vec<u8> {
     let mut bytes = definition()[..43].to_vec();
@@ -55,6 +55,33 @@ fn read_schema(schema: &[u8]) -> Result<TableDefinition, TableDefinitionError> {
     database.table_definition(PageNumber::new(ROOT as u64), &mut budget)
 }
 
+/// Stores `row` under `schema` and returns its fields by live column.
+fn read_fields(schema: &[u8], row: &[u8]) -> TestResult<Vec<Option<Vec<u8>>>> {
+    with_rows(&image(schema, row), |rows, definition| {
+        let row = rows.next_row()?.ok_or("missing stored row")?;
+        definition
+            .columns()
+            .iter()
+            .map(|column| {
+                let field = row.field(column.ordinal()).ok_or("missing field")?;
+                Ok(field.raw_bytes().map(<[u8]>::to_vec))
+            })
+            .collect()
+    })
+}
+
+/// Encodes `values` with the definition's own live layouts.
+fn encode(definition: &TableDefinition, values: &[RowValue<'_>]) -> TestResult<Vec<u8>> {
+    let layouts: Vec<_> = definition
+        .columns()
+        .iter()
+        .map(RowColumnLayout::from)
+        .collect();
+    let mut output = [0xcc; 64];
+    let length = crate::encode_row(&layouts, values, &mut output, &mut crate::testkit::budget())?;
+    Ok(output[..length.get() as usize].to_vec())
+}
+
 fn dropped_variable_records() -> [[u8; 18]; 4] {
     [
         column_record(4, 0, 0, 3, 0, 4),
@@ -78,10 +105,7 @@ fn preserves_storage_ids_and_reads_unchanged_rows_after_variable_drop_append() -
     let mut records = dropped_variable_records();
     records[3][5..7].copy_from_slice(&2_u16.to_le_bytes());
     let raw = schema(&records, 5, 3);
-    let bytes = image(&raw, &original_row());
-    let mut budget = ResourceBudget::new(limits(&bytes));
-    let mut database = open(&bytes, &mut budget)?;
-    let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
+    let definition = read_schema(&raw)?;
     assert_eq!(definition.storage_column_count(), 5);
     assert_eq!(definition.storage_variable_count(), 3);
     assert_eq!(definition.columns()[1].ordinal().get(), 1);
@@ -89,20 +113,10 @@ fn preserves_storage_ids_and_reads_unchanged_rows_after_variable_drop_append() -
     assert_eq!(definition.columns()[1].raw_record(), &records[1]);
     assert_eq!(definition.columns()[1].display_position(), 2);
     assert_eq!(definition.columns()[3].display_position(), 2);
-    let mut rows = database.rows(&definition, &mut budget)?;
-    let row = rows.next_row()?.ok_or("missing old row")?;
-    assert_eq!(
-        row.field(definition.columns()[1].ordinal()),
-        Some(RawField::Bytes(b"L"))
-    );
-    assert_eq!(
-        row.field(definition.columns()[2].ordinal()),
-        Some(RawField::Bytes(&99_i32.to_le_bytes()))
-    );
-    assert_eq!(
-        row.field(definition.columns()[3].ordinal()),
-        Some(RawField::Null)
-    );
+    let fields = read_fields(&raw, &original_row())?;
+    assert_eq!(fields[1].as_deref(), Some(&b"L"[..]));
+    assert_eq!(fields[2].as_deref(), Some(&99_i32.to_le_bytes()[..]));
+    assert_eq!(fields[3], None);
     Ok(())
 }
 
@@ -110,41 +124,23 @@ fn preserves_storage_ids_and_reads_unchanged_rows_after_variable_drop_append() -
 fn writes_empty_deleted_variable_slots_and_physical_presence_bits() -> TestResult {
     let raw = schema(&dropped_variable_records(), 5, 3);
     let definition = read_schema(&raw)?;
-    let layouts: Vec<_> = definition
-        .columns()
-        .iter()
-        .map(RowColumnLayout::from)
-        .collect();
-    let values = [
-        RowValue::Long(8),
-        RowValue::Text(b"label"),
-        RowValue::Null,
-        RowValue::Text(b"new"),
-    ];
-    let mut output = [0xcc; 64];
-    let bytes = image(&raw, &[0]);
-    let mut budget = ResourceBudget::new(limits(&bytes));
-    let length = crate::encode_row(&layouts, &values, &mut output, &mut budget)?.get() as usize;
-    let encoded = &output[..length];
+    let encoded = encode(
+        &definition,
+        &[
+            RowValue::Long(8),
+            RowValue::Text(b"label"),
+            RowValue::Null,
+            RowValue::Text(b"new"),
+        ],
+    )?;
+    let length = encoded.len();
     assert_eq!(encoded[0], 5);
     assert_eq!(encoded.last(), Some(&0x15));
     assert_eq!(&encoded[length - 6..length - 1], &[17, 14, 9, 9, 3]);
-    let bytes = image(&raw, encoded);
-    let mut database = open(&bytes, &mut budget)?;
-    let mut rows = database.rows(&definition, &mut budget)?;
-    let row = rows.next_row()?.ok_or("missing rewritten row")?;
-    assert_eq!(
-        row.field(definition.columns()[1].ordinal()),
-        Some(RawField::Bytes(b"label"))
-    );
-    assert_eq!(
-        row.field(definition.columns()[2].ordinal()),
-        Some(RawField::Null)
-    );
-    assert_eq!(
-        row.field(definition.columns()[3].ordinal()),
-        Some(RawField::Bytes(b"new"))
-    );
+    let fields = read_fields(&raw, &encoded)?;
+    assert_eq!(fields[1].as_deref(), Some(&b"label"[..]));
+    assert_eq!(fields[2], None);
+    assert_eq!(fields[3].as_deref(), Some(&b"new"[..]));
     Ok(())
 }
 
@@ -158,42 +154,22 @@ fn fixed_holes_can_be_reused_out_of_order_without_reinterpreting_old_rows() -> T
         column_record(4, 5, 2, 3, 4, 4),
     ];
     let raw = schema(&records, 6, 2);
-    let definition = read_schema(&raw)?;
-    let bytes = image(&raw, &original_row());
-    let mut budget = ResourceBudget::new(limits(&bytes));
-    let mut database = open(&bytes, &mut budget)?;
-    let mut rows = database.rows(&definition, &mut budget)?;
-    let row = rows.next_row()?.ok_or("missing old row")?;
-    assert_eq!(
-        row.field(definition.columns()[2].ordinal()),
-        Some(RawField::Bytes(b"L"))
-    );
-    assert_eq!(
-        row.field(definition.columns()[3].ordinal()),
-        Some(RawField::Null)
-    );
-    assert_eq!(
-        row.field(definition.columns()[4].ordinal()),
-        Some(RawField::Null)
-    );
-    drop(rows);
-    let layouts: Vec<_> = definition
-        .columns()
-        .iter()
-        .map(RowColumnLayout::from)
-        .collect();
-    let mut output = [0; 64];
-    let values = [
-        RowValue::Long(1),
-        RowValue::Null,
-        RowValue::Null,
-        RowValue::Long(44),
-        RowValue::Long(55),
-    ];
-    let length = crate::encode_row(&layouts, &values, &mut output, &mut budget)?.get() as usize;
+    let fields = read_fields(&raw, &original_row())?;
+    assert_eq!(fields[2].as_deref(), Some(&b"L"[..]));
+    assert_eq!(fields[3..], [None, None]);
+    let output = encode(
+        &read_schema(&raw)?,
+        &[
+            RowValue::Long(1),
+            RowValue::Null,
+            RowValue::Null,
+            RowValue::Long(44),
+            RowValue::Long(55),
+        ],
+    )?;
     assert_eq!(&output[5..9], &55_i32.to_le_bytes());
     assert_eq!(&output[9..13], &44_i32.to_le_bytes());
-    assert_eq!(output[length - 1], 0x31);
+    assert_eq!(output.last(), Some(&0x31));
     Ok(())
 }
 
@@ -205,16 +181,8 @@ fn dropped_last_fixed_field_and_deleted_variable_trailers_remain_opaque() -> Tes
         column_record(10, 2, 1, 2, 0, 40),
     ];
     for raw in [schema(&baseline, 4, 2), schema(&baseline[..1], 4, 2)] {
-        let bytes = image(&raw, &original_row());
-        let mut budget = ResourceBudget::new(limits(&bytes));
-        let mut database = open(&bytes, &mut budget)?;
-        let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
-        let mut rows = database.rows(&definition, &mut budget)?;
-        let row = rows.next_row()?.ok_or("missing retained row")?;
-        assert_eq!(
-            row.field(definition.columns()[0].ordinal()),
-            Some(RawField::Bytes(&7_i32.to_le_bytes()))
-        );
+        let fields = read_fields(&raw, &original_row())?;
+        assert_eq!(fields[0].as_deref(), Some(&7_i32.to_le_bytes()[..]));
     }
     Ok(())
 }
@@ -230,40 +198,28 @@ fn physical_ids_across_bitmap_bytes_and_appended_boolean_false() -> TestResult {
         0,
     );
     let definition = read_schema(&raw)?;
-    let old = [1, 7, 0, 0, 0, 1];
-    let bytes = image(&raw, &old);
-    let mut budget = ResourceBudget::new(limits(&bytes));
-    let mut database = open(&bytes, &mut budget)?;
-    let mut rows = database.rows(&definition, &mut budget)?;
-    let mut row = rows.next_row()?.ok_or("missing old fixed row")?;
+    with_rows(&image(&raw, &[1, 7, 0, 0, 0, 1]), |rows, _| {
+        let mut row = rows.next_row()?.ok_or("missing old fixed row")?;
+        assert_eq!(
+            row.value(definition.columns()[1].ordinal(), TextCodePage::Windows1252)?
+                .ok_or("boolean")?
+                .kind(),
+            &ValueKind::Boolean(false)
+        );
+        Ok(())
+    })?;
     assert_eq!(
-        row.value(definition.columns()[1].ordinal(), TextCodePage::Windows1252)?
-            .ok_or("boolean")?
-            .kind(),
-        &ValueKind::Boolean(false)
+        encode(&definition, &[RowValue::Long(7), RowValue::Boolean(true)])?,
+        [9, 7, 0, 0, 0, 1, 1]
     );
-    drop(rows);
-    let layouts: Vec<_> = definition
-        .columns()
-        .iter()
-        .map(RowColumnLayout::from)
-        .collect();
-    let mut output = [0; 16];
-    let length = crate::encode_row(
-        &layouts,
-        &[RowValue::Long(7), RowValue::Boolean(true)],
-        &mut output,
-        &mut budget,
-    )?
-    .get() as usize;
-    assert_eq!(&output[..length], &[9, 7, 0, 0, 0, 1, 1]);
     Ok(())
 }
 
 #[test]
 fn resolves_physical_index_and_long_value_map_storage_ids_to_live_positions() -> TestResult {
-    let definition = read_schema(&schema(&dropped_variable_records(), 5, 3))?;
-    let bytes = image(&schema(&dropped_variable_records(), 5, 3), &[0]);
+    let raw_schema = schema(&dropped_variable_records(), 5, 3);
+    let definition = read_schema(&raw_schema)?;
+    let bytes = image(&raw_schema, &[0]);
     let mut budget = ResourceBudget::new(limits(&bytes));
     let database = open(&bytes, &mut budget)?;
     let mut raw = [0_u8; 39];
@@ -273,19 +229,7 @@ fn resolves_physical_index_and_long_value_map_storage_ids_to_live_positions() ->
     raw[..3].copy_from_slice(&[4, 0, 1]);
     raw[30..34].copy_from_slice(&[0, MAP_PAGE as u8, 0, 0]);
     raw[34..38].copy_from_slice(&(FIRST_DATA as u32).to_le_bytes());
-    let physical = crate::definition::physical_index::decode_physical(
-        0,
-        [0; 8],
-        raw,
-        definition.columns(),
-        &[0],
-        database.geometry(),
-        &mut budget,
-    )?;
-    assert_eq!(physical.fields()[0].column().get(), 3);
-    assert_eq!(physical.raw_record(), &raw);
-    raw[0] = 1;
-    assert!(
+    let mut decode = |raw| {
         crate::definition::physical_index::decode_physical(
             0,
             [0; 8],
@@ -293,10 +237,14 @@ fn resolves_physical_index_and_long_value_map_storage_ids_to_live_positions() ->
             definition.columns(),
             &[0],
             database.geometry(),
-            &mut budget
+            &mut budget,
         )
-        .is_err()
-    );
+    };
+    let physical = decode(raw)?;
+    assert_eq!(physical.fields()[0].column().get(), 3);
+    assert_eq!(physical.raw_record(), &raw);
+    raw[0] = 1;
+    assert!(decode(raw).is_err());
 
     let mut lob_schema = schema(
         &[
@@ -348,29 +296,20 @@ fn rejects_gap_definition_corruption_and_overlapping_live_fixed_ranges() {
 #[test]
 fn sparse_rows_reject_short_fixed_regions_and_out_of_range_variable_trailers() -> TestResult {
     let raw = schema(&dropped_variable_records(), 5, 3);
-    let mut short_fixed = original_row();
-    short_fixed[13] = 8;
-    let mut too_few = original_row();
-    too_few[14] = 1;
-    let mut too_many = original_row();
-    too_many[14] = 4;
-    let mut too_many_columns = original_row();
-    too_many_columns[0] = 6;
-    for row in [short_fixed, too_few, too_many, too_many_columns] {
-        let bytes = image(&raw, &row);
-        let mut budget = ResourceBudget::new(limits(&bytes));
-        let mut database = open(&bytes, &mut budget)?;
-        let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
-        let mut rows = database.rows(&definition, &mut budget)?;
-        assert!(rows.next_row().is_err());
+    // Short fixed region, too few and too many variables, too many columns.
+    for (offset, value) in [(13, 8), (14, 1), (14, 4), (0, 6)] {
+        let mut row = original_row();
+        row[offset] = value;
+        with_rows(&image(&raw, &row), |rows, _| {
+            assert!(rows.next_row().is_err(), "offset {offset}");
+            Ok(())
+        })?;
     }
     Ok(())
 }
 
 #[test]
 fn public_dense_writer_still_rejects_storage_holes() {
-    let bytes = image(&definition(), &[0]);
-    let mut budget = ResourceBudget::new(limits(&bytes));
     let mut output = [0; 32];
     for column in [
         RowColumnLayout::new(
@@ -384,6 +323,14 @@ fn public_dense_writer_still_rejects_storage_holes() {
             40,
         ),
     ] {
-        assert!(crate::encode_row(&[column], &[RowValue::Null], &mut output, &mut budget).is_err());
+        assert!(
+            crate::encode_row(
+                &[column],
+                &[RowValue::Null],
+                &mut output,
+                &mut crate::testkit::budget()
+            )
+            .is_err()
+        );
     }
 }

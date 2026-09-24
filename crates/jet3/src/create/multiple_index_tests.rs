@@ -1,11 +1,12 @@
 use super::initial_index_tests::*;
 use crate::WriteError;
+use crate::testkit::create;
+use crate::testkit::{index, table};
 use crate::{
-    ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexColumnSpec,
-    IndexDirection, IndexKind, IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue,
-    TableRows, TableSpec,
+    ColumnSpec, ColumnType, ComposeError, DatabaseReader, IndexColumnSpec, IndexDirection,
+    IndexKind, IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue, TableRows,
+    TableSpec,
     create::{api_tests::*, initial_rows_tests::*},
-    create_database,
     definition::column_writer::nz,
 };
 use std::collections::BTreeSet;
@@ -20,27 +21,15 @@ const MIXED: [IndexColumnSpec<'static>; 2] = [
 ];
 fn indexes() -> [IndexSpec<'static>; 3] {
     [
-        IndexSpec {
-            name: b"ZPrimary",
-            kind: IndexKind::Primary,
-            fields: &PRIMARY,
-        },
-        IndexSpec {
-            name: b"AGroup",
-            kind: IndexKind::Ordinary,
-            fields: &GROUP_KEY,
-        },
-        IndexSpec {
-            name: b"MMixed",
-            kind: IndexKind::Unique,
-            fields: &MIXED,
-        },
+        index(b"ZPrimary", &PRIMARY, IndexKind::Primary),
+        index(b"AGroup", &GROUP_KEY, IndexKind::Ordinary),
+        index(b"MMixed", &MIXED, IndexKind::Unique),
     ]
 }
 
 #[test]
 fn three_separate_trees_counts_and_maps_precede_a_later_table() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let indexes = indexes();
     let columns = [
         ID,
@@ -64,32 +53,15 @@ fn three_separate_trees_counts_and_maps_precede_a_later_table() -> TestResult {
     let later_indexes = one_index(IndexKind::Primary);
     let requests = [
         crate::TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Items",
-                columns: &columns,
-                indexes: &indexes,
-            },
+            table: table(b"Items", &columns, &indexes),
             rows: &rows,
         },
         crate::TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Later",
-                columns: &[ID],
-                indexes: &later_indexes,
-            },
+            table: table(b"Later", &[ID], &later_indexes),
             rows: &[&[RowValue::Long(99)]],
         },
     ];
-    crate::create_database(
-        directory.target(),
-        &crate::DatabaseSpec {
-            tables: &requests,
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(directory.target(), &requests)?;
     let bytes = fs::read(directory.target())?;
     let mut b = budget();
     let mut db = DatabaseReader::open(directory.target(), &mut b)?;
@@ -155,41 +127,28 @@ fn three_separate_trees_counts_and_maps_precede_a_later_table() -> TestResult {
 #[test]
 fn independent_null_policies_generated_ids_and_empty_trees() -> TestResult {
     let indexes = [
-        IndexSpec {
-            name: b"ZId",
-            kind: IndexKind::Primary,
-            fields: &PRIMARY,
-        },
-        IndexSpec {
-            name: b"AGroup",
-            kind: IndexKind::Ordinary.with_null_policy(crate::IndexNullPolicy::IgnoreAllNull),
-            fields: &GROUP_KEY,
-        },
+        index(b"ZId", &PRIMARY, IndexKind::Primary),
+        index(
+            b"AGroup",
+            &GROUP_KEY,
+            IndexKind::Ordinary.with_null_policy(crate::IndexNullPolicy::IgnoreAllNull),
+        ),
     ];
     let columns = [ColumnSpec::new(b"Id", ColumnType::AutoIncrement), GROUP];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &columns,
-        indexes: &indexes,
-    };
+    let table = table(b"Items", &columns, &indexes);
     let rows: &[&[RowValue<'_>]] = &[
         &[RowValue::AutoIncrement, RowValue::Null],
         &[RowValue::AutoIncrement, RowValue::Currency { scaled: 5 }],
         &[RowValue::AutoIncrement, RowValue::Currency { scaled: 5 }],
     ];
     for requested in [&rows[..0], rows] {
-        let directory = TestDirectory::create()?;
-        create_database(
+        let directory = TempDir::new("create")?;
+        create(
             directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table,
-                    rows: requested,
-                }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
+            &[TableRows {
+                table,
+                rows: requested,
+            }],
         )?;
         let mut b = budget();
         let mut db = DatabaseReader::open(directory.target(), &mut b)?;
@@ -223,27 +182,15 @@ fn independent_null_policies_generated_ids_and_empty_trees() -> TestResult {
 
 #[test]
 fn later_index_corruption_and_publication_failures_are_detected() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let indexes = indexes();
     let columns = [ID, GROUP];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &columns,
-        indexes: &indexes,
-    };
+    let table = table(b"Items", &columns, &indexes);
     let rows: &[&[RowValue<'_>]] = &[
         &[RowValue::Long(1), RowValue::Currency { scaled: 7 }],
         &[RowValue::Long(2), RowValue::Currency { scaled: 8 }],
     ];
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows { table, rows }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(directory.target(), &[TableRows { table, rows }])?;
     let original = fs::read(directory.target())?;
     let map_start = u16::from_le_bytes(
         original[21 * crate::PAGE_BYTES + 16..21 * crate::PAGE_BYTES + 18].try_into()?,
@@ -269,17 +216,7 @@ fn later_index_corruption_and_publication_failures_are_detected() -> TestResult 
         );
     }
     fs::write(directory.target(), &original)?;
-    assert!(
-        create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows { table, rows }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget()
-        )
-        .is_err()
-    );
+    assert!(create(directory.target(), &[TableRows { table, rows }]).is_err());
     assert_eq!(fs::read(directory.target())?, original);
     let one = TableSpec {
         indexes: &indexes[..1],
@@ -298,53 +235,29 @@ fn later_index_corruption_and_publication_failures_are_detected() -> TestResult 
 
 #[test]
 fn second_unique_index_refuses_duplicates_on_first_and_later_tables() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let mut indexes = indexes();
     indexes[1].kind = IndexKind::Unique;
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &[ID, GROUP],
-        indexes: &indexes[..2],
-    };
+    let table = table(b"Items", &[ID, GROUP], &indexes[..2]);
     let rows: &[&[RowValue<'_>]] = &[
         &[RowValue::Long(1), RowValue::Currency { scaled: 7 }],
         &[RowValue::Long(2), RowValue::Currency { scaled: 7 }],
     ];
     assert!(matches!(
-        create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows { table, rows }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget()
-        ),
+        create(directory.target(), &[TableRows { table, rows }]),
         Err(WriteError::Compose(
             ComposeError::DuplicateInitialScalarIndexKey
         ))
     ));
     let requests = [
         crate::TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"First",
-                columns: &[ID],
-                indexes: &[],
-            },
+            table: crate::testkit::table(b"First", &[ID], &[]),
             rows: &[],
         },
         crate::TableRows { table, rows },
     ];
     assert!(matches!(
-        crate::create_database(
-            directory.target(),
-            &crate::DatabaseSpec {
-                tables: &requests,
-                ..crate::DatabaseSpec::default()
-            },
-            &mut budget()
-        ),
+        create(directory.target(), &requests),
         Err(WriteError::Compose(
             ComposeError::DuplicateInitialScalarIndexKey
         ))
@@ -354,30 +267,107 @@ fn second_unique_index_refuses_duplicates_on_first_and_later_tables() -> TestRes
 }
 
 #[test]
-fn aggregate_index_pages_extend_independent_maps() -> TestResult {
-    let directory = TestDirectory::create()?;
-    let fields = [field(0, IndexDirection::Ascending)];
-    let indexes = [b"First".as_slice(), b"Second", b"Third"].map(|name| IndexSpec {
-        name,
-        kind: IndexKind::Ordinary,
-        fields: &fields,
-    });
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Items",
-        columns: &[ID],
-        indexes: &indexes,
-    };
-    let row = [RowValue::Long(1)];
-    let rows = vec![row.as_slice(); 60000];
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows { table, rows: &rows }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
-    assert!(fs::metadata(directory.target())?.len() > 1024 * crate::PAGE_BYTES as u64);
+fn thirty_two_indexes_span_maps_and_validate_the_final_unique_index() -> TestResult {
+    let directory = TempDir::new("create")?;
+    let column_names = (0..10)
+        .map(|n| format!("C{n:02}").into_bytes())
+        .collect::<Vec<_>>();
+    let columns = column_names
+        .iter()
+        .map(|n| ColumnSpec::new(n, ColumnType::Long))
+        .collect::<Vec<_>>();
+    let names = (0..32)
+        .map(|n| format!("I{n:02}").into_bytes())
+        .collect::<Vec<_>>();
+    let fields = (0..32)
+        .map(|n| {
+            if n == 31 {
+                return vec![field(9, IndexDirection::Ascending)];
+            }
+            (0..10)
+                .map(|c| {
+                    field(
+                        c,
+                        if n & (1 << (c % 5)) == 0 {
+                            IndexDirection::Ascending
+                        } else {
+                            IndexDirection::Descending
+                        },
+                    )
+                })
+                .collect()
+        })
+        .collect::<Vec<_>>();
+    let indexes = names
+        .iter()
+        .zip(&fields)
+        .map(|(name, fields)| index(name, fields, IndexKind::Unique))
+        .collect::<Vec<_>>();
+    let table = table(b"Items", &columns, &indexes);
+    let values = (0..64)
+        .map(|n| {
+            (0..10)
+                .map(|c| RowValue::Long(n * 100 + c))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let rows = values.iter().map(Vec::as_slice).collect::<Vec<_>>();
+    create(directory.target(), &[TableRows { table, rows: &rows }])?;
+    let original = fs::read(directory.target())?;
+    let mut b = budget();
+    let mut db = DatabaseReader::open(directory.target(), &mut b)?;
+    let definition = db.table_definition(PageNumber::new(20), &mut b)?;
+    assert_eq!(definition.physical_indexes().len(), 32);
+    let mut all_nodes = BTreeSet::new();
+    for (n, physical) in definition.physical_indexes().iter().enumerate() {
+        let row = 2 + n;
+        assert_eq!(physical.usage_map().page().get(), 21 + (row / 15) as u64);
+        assert_eq!(physical.usage_map().row(), (row % 15) as u8);
+        let tree = db.index_tree(&definition, n as u16, &mut b)?;
+        assert_eq!(tree.entries().len(), 64);
+        assert_eq!(physical.fields().len(), if n == 31 { 1 } else { 10 });
+        for node in tree.nodes() {
+            assert!(all_nodes.insert(node.page()));
+            assert!(map_bit(
+                &original,
+                physical.usage_map().page().get(),
+                physical.usage_map().row(),
+                node.page().get()
+            )?);
+        }
+    }
+    let last_root = db.index_tree(&definition, 31, &mut b)?.root().get();
+    drop(db);
+    let mut incoming = (0..10)
+        .map(|c| RowValue::Long(10000 + c))
+        .collect::<Vec<_>>();
+    incoming[9] = RowValue::Long(9);
+    assert!(matches!(
+        crate::insert_row(directory.target(), b"Items", &incoming, &mut budget()),
+        Err(crate::WriteError::Unsupported("duplicate unique key"))
+    ));
+    assert_eq!(fs::read(directory.target())?, original);
+    incoming[9] = RowValue::Long(10009);
+    crate::insert_row(directory.target(), b"Items", &incoming, &mut budget())?;
+    let mut b = budget();
+    let mut db = DatabaseReader::open(directory.target(), &mut b)?;
+    let definition = db.table_definition(PageNumber::new(20), &mut b)?;
+    for n in 0..32 {
+        assert_eq!(db.index_tree(&definition, n, &mut b)?.entries().len(), 65);
+    }
+    drop(db);
+    let mut corrupt = fs::read(directory.target())?;
+    let page = 23 * crate::PAGE_BYTES;
+    let start = u16::from_le_bytes(corrupt[page + 16..page + 18].try_into()?) as usize;
+    assert_ne!(
+        corrupt[page + start + 5 + last_root as usize / 8] & (1 << (last_root % 8)),
+        0
+    );
+    corrupt[page + start + 5 + last_root as usize / 8] &= !(1 << (last_root % 8));
+    fs::write(directory.target(), &corrupt)?;
+    incoming[0] = RowValue::Long(20000);
+    incoming[9] = RowValue::Long(20009);
+    assert!(crate::insert_row(directory.target(), b"Items", &incoming, &mut budget()).is_err());
+    assert_eq!(fs::read(directory.target())?, corrupt);
     Ok(())
 }

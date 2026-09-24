@@ -21,8 +21,6 @@ pub(crate) mod value;
 #[cfg(test)]
 mod value_tests;
 pub(crate) mod writer;
-#[cfg(test)]
-mod writer_binary_tests;
 mod writer_layout;
 #[cfg(test)]
 mod writer_minimum_tests;

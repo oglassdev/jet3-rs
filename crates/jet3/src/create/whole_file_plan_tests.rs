@@ -6,7 +6,7 @@ use crate::{
     format::limits::ReadLimits,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 use crate::testkit::budget;
 
@@ -74,32 +74,58 @@ fn complete_plan_preserves_existing_and_appended_images_in_slot_order() -> TestR
 }
 
 #[test]
-fn rejected_append_preserves_whole_file_plan_and_global_map() -> TestResult {
+fn rejected_appends_preserve_the_plan_and_global_map() -> TestResult {
     let existing = existing_images();
-    let mut plan_budget = budget();
-    let mut plan = WholeFileImagePlan::from_existing_pages(existing.clone(), &mut plan_budget)?;
-    let mut map = global_map(3)?;
-    let map_before = map.clone();
-
-    assert_eq!(
-        plan.append(
-            PageImage::from_bytes([0x33; crate::PAGE_BYTES]),
-            &mut map,
-            &mut plan_budget,
-        ),
-        Err(WholeFilePlanError::Append(
-            AppendPageError::PageAlreadyInUse {
+    let initial_storage = planned_page_storage(EMPTY_DATABASE_PAGE_COUNT);
+    let tight = ResourceLimits::new(ReadLimits::default())
+        .with_max_allocation_bytes(ByteCount::new(initial_storage));
+    for (limits, free_page, expected) in [
+        (
+            ResourceLimits::default(),
+            false,
+            WholeFilePlanError::Append(AppendPageError::PageAlreadyInUse {
                 page: PageNumber::new(20),
-            }
-        ))
-    );
-    assert_eq!(plan.page_count(), 20);
-    assert_eq!(plan.pages().len(), 20);
-    for (index, (planned, image)) in plan.pages().iter().zip(existing.iter()).enumerate() {
-        assert_eq!(planned.number(), PageNumber::new(index as u64));
-        assert_eq!(planned.image(), image);
+            }),
+        ),
+        (
+            tight,
+            true,
+            WholeFilePlanError::Resource(Error::ResourceLimitExceeded {
+                kind: ResourceLimitKind::AllocationBytes,
+                requested: 2 * initial_storage,
+                maximum: initial_storage,
+            }),
+        ),
+    ] {
+        let mut plan_budget = ResourceBudget::new(limits);
+        let mut plan = WholeFileImagePlan::from_existing_pages(existing.clone(), &mut plan_budget)?;
+        let mut map = global_map(3)?;
+        if free_page {
+            map.set_page(PageNumber::new(20))?;
+        }
+        let map_before = map.clone();
+        assert_eq!(
+            plan.append(
+                PageImage::from_bytes([0x33; crate::PAGE_BYTES]),
+                &mut map,
+                &mut plan_budget,
+            ),
+            Err(expected)
+        );
+        if free_page {
+            assert_eq!(
+                plan_budget.allocation_bytes(),
+                ByteCount::new(initial_storage)
+            );
+        }
+        assert_eq!(plan.page_count(), EMPTY_DATABASE_PAGE_COUNT);
+        assert_eq!(plan.pages().len(), EXISTING_PAGE_COUNT);
+        for (index, (planned, image)) in plan.pages().iter().zip(existing.iter()).enumerate() {
+            assert_eq!(planned.number(), PageNumber::new(index as u64));
+            assert_eq!(planned.image(), image);
+        }
+        assert_eq!(map, map_before);
     }
-    assert_eq!(map, map_before);
     Ok(())
 }
 
@@ -121,46 +147,6 @@ fn constructor_budget_rejection_precedes_storage_reservation() {
         }))
     );
     assert_eq!(plan_budget.allocation_bytes(), ByteCount::new(0));
-}
-
-#[test]
-fn append_budget_rejection_preserves_plan_and_global_map() -> TestResult {
-    let existing = existing_images();
-    let initial_storage = planned_page_storage(EMPTY_DATABASE_PAGE_COUNT);
-    let appended_storage = planned_page_storage(EMPTY_DATABASE_PAGE_COUNT);
-    let mut plan_budget = ResourceBudget::new(
-        ResourceLimits::new(ReadLimits::default())
-            .with_max_allocation_bytes(ByteCount::new(initial_storage)),
-    );
-    let mut plan = WholeFileImagePlan::from_existing_pages(existing.clone(), &mut plan_budget)?;
-    let mut map = global_map(3)?;
-    map.set_page(PageNumber::new(20))?;
-    let map_before = map.clone();
-
-    assert_eq!(
-        plan.append(
-            PageImage::from_bytes([0x44; crate::PAGE_BYTES]),
-            &mut map,
-            &mut plan_budget,
-        ),
-        Err(WholeFilePlanError::Resource(Error::ResourceLimitExceeded {
-            kind: ResourceLimitKind::AllocationBytes,
-            requested: initial_storage + appended_storage,
-            maximum: initial_storage,
-        }))
-    );
-    assert_eq!(
-        plan_budget.allocation_bytes(),
-        ByteCount::new(initial_storage)
-    );
-    assert_eq!(plan.page_count(), EMPTY_DATABASE_PAGE_COUNT);
-    assert_eq!(plan.pages().len(), EXISTING_PAGE_COUNT);
-    for (index, (planned, image)) in plan.pages().iter().zip(existing.iter()).enumerate() {
-        assert_eq!(planned.number(), PageNumber::new(index as u64));
-        assert_eq!(planned.image(), image);
-    }
-    assert_eq!(map, map_before);
-    Ok(())
 }
 
 #[test]

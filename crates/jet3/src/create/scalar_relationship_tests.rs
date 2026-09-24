@@ -1,10 +1,12 @@
 //! EXP-0288 scalar endpoint compatibility and relationship key normalization.
 use super::api_relationship_graph_tests::*;
+use crate::testkit::create_spec;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
-    ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, IndexColumnSpec,
-    IndexDirection, IndexKind, IndexSpec, RelationshipField, RelationshipSpec, RowLocator,
-    RowValue, TableRef, TableSpec, TextCodePage, ValueKind, WriteError,
-    create::{DatabaseSpec, TableRows, composer::ComposeError, create_database},
+    ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, IndexColumnSpec, IndexDirection, IndexKind,
+    IndexSpec, RelationshipField, RelationshipSpec, RowValue, TableRef, WriteError,
+    create::{DatabaseSpec, TableRows, composer::ComposeError},
 };
 use std::fs;
 use std::path::Path;
@@ -18,16 +20,8 @@ const VALUE_KEY: &[IndexColumnSpec<'_>] = &[IndexColumnSpec {
     direction: IndexDirection::Ascending,
 }];
 const PARENT_INDEXES: &[IndexSpec<'_>] = &[
-    IndexSpec {
-        name: b"ById",
-        fields: ID_KEY,
-        kind: IndexKind::Primary,
-    },
-    IndexSpec {
-        name: b"ByKey",
-        fields: VALUE_KEY,
-        kind: IndexKind::Unique,
-    },
+    index(b"ById", ID_KEY, IndexKind::Primary),
+    index(b"ByKey", VALUE_KEY, IndexKind::Unique),
 ];
 
 fn schema(
@@ -37,33 +31,31 @@ fn schema(
     child_rows: &[&[RowValue<'_>]],
     path: &Path,
 ) -> Result<(), WriteError> {
-    create_database(
+    create_spec(
         path,
         &DatabaseSpec {
             tables: &[
                 TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Parent",
-                        columns: &[
+                    table: table(
+                        b"Parent",
+                        &[
                             ColumnSpec::new(b"Id", ColumnType::Long),
                             ColumnSpec::new(b"Key", parent),
                         ],
-                        indexes: PARENT_INDEXES,
-                    },
+                        PARENT_INDEXES,
+                    ),
                     rows: parent_rows,
                 },
                 TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Child",
-                        columns: &[
+                    table: table(
+                        b"Child",
+                        &[
                             ColumnSpec::new(b"Id", ColumnType::Long),
                             ColumnSpec::new(b"Key", child),
                             ColumnSpec::new(b"Body", ColumnType::Memo),
                         ],
-                        indexes: &PARENT_INDEXES[..1],
-                    },
+                        &PARENT_INDEXES[..1],
+                    ),
                     rows: child_rows,
                 },
             ],
@@ -83,41 +75,17 @@ fn schema(
             }],
             ..DatabaseSpec::default()
         },
-        &mut budget(),
     )
 }
 
-fn locate(path: &Path, table: &[u8], id: i32) -> Result<RowLocator, Box<dyn std::error::Error>> {
-    let mut work = budget();
-    let mut db = DatabaseReader::open(path, &mut work)?;
-    let definition = crate::write::update::indexed_writable_table(&mut db, table, &mut work)?;
-    let mut rows = db.rows(&definition, &mut work)?;
-    while let Some(mut row) = rows.next_row()? {
-        if matches!(row.value(ColumnOrdinal::new(0), TextCodePage::Windows1252)?.ok_or("missing Id")?.kind(), ValueKind::Long(value) if *value == id)
-        {
-            return Ok(row.locator());
-        }
-    }
-    Err("missing row".into())
+fn erase(path: &Path, table: &[u8], id: i32) -> Result<(), WriteError> {
+    let row = locate(path, table, id).map_err(|_| WriteError::NotFound("test row"))?;
+    crate::delete_row(path, crate::RowDelete { table, row }, &mut budget())
 }
-
-fn erase(path: &Path, table: &[u8], id: i32) -> TestResult {
-    crate::delete_row(
-        path,
-        crate::RowDelete {
-            table,
-            row: locate(path, table, id)?,
-        },
-        &mut budget(),
-    )?;
-    Ok(())
-}
-
-fn verified(path: &Path) -> TestResult {
-    let mut db = DatabaseReader::open(path, &mut budget())?;
-    let report = db.validate(TextCodePage::Windows1252, &mut budget())?;
-    assert_eq!(report.relationships_with_verified_keys, 1);
-    Ok(())
+fn replace(path: &Path, table: &[u8], id: i32, values: &[RowValue<'_>]) -> Result<(), WriteError> {
+    let row = locate(path, table, id).map_err(|_| WriteError::NotFound("test row"))?;
+    let request = crate::RowUpdate { table, row, values };
+    crate::update_row(path, request, &mut budget())
 }
 
 #[test]
@@ -177,7 +145,7 @@ fn scalar_relationship_lifecycles_enforce_keys_and_preserve_refused_inputs() -> 
             RowValue::Guid([2; 16]),
         ),
     ] {
-        let directory = Directory::new()?;
+        let directory = TempDir::new("create")?;
         let path = directory.target();
         schema(
             kind,
@@ -186,71 +154,37 @@ fn scalar_relationship_lifecycles_enforce_keys_and_preserve_refused_inputs() -> 
             &[&[RowValue::Long(11), first, RowValue::Memo(b"old")]],
             &path,
         )?;
-        verified(&path)?;
+        assert_eq!(verified(&path)?, 1);
         let original = fs::read(&path)?;
         let orphan = crate::insert_row(
             &path,
             b"Child",
             &[RowValue::Long(12), second, RowValue::Null],
             &mut budget(),
-        );
-        assert!(
-            matches!(
-                orphan,
-                Err(WriteError::ScalarRelationshipConstraint { .. }
-                    | WriteError::RelationshipConstraint { .. })
-            ),
-            "{kind:?}: {orphan:?}"
-        );
-        assert_eq!(fs::read(&path)?, original);
-        let referenced = crate::delete_row(
-            &path,
-            crate::RowDelete {
-                table: b"Parent",
-                row: locate(&path, b"Parent", 1)?,
-            },
-            &mut budget(),
-        );
-        assert!(
-            matches!(
-                referenced,
-                Err(WriteError::ScalarRelationshipConstraint { .. }
-                    | WriteError::RelationshipConstraint { .. })
-            ),
-            "{kind:?}: {referenced:?}"
-        );
-        assert_eq!(fs::read(&path)?, original);
-        let repeated = crate::update_row(
-            &path,
-            crate::RowUpdate {
-                table: b"Parent",
-                row: locate(&path, b"Parent", 1)?,
-                values: &[RowValue::Long(1), first],
-            },
-            &mut budget(),
-        );
-        assert!(
-            matches!(
-                repeated,
-                Err(WriteError::ScalarRelationshipConstraint { .. }
-                    | WriteError::RelationshipConstraint { .. })
-            ),
-            "{kind:?}: {repeated:?}"
-        );
+        )
+        .map(|_| ());
+        let referenced = erase(&path, b"Parent", 1);
+        let repeated = replace(&path, b"Parent", 1, &[RowValue::Long(1), first]);
+        for result in [orphan, referenced, repeated] {
+            assert!(
+                matches!(
+                    result,
+                    Err(WriteError::ScalarRelationshipConstraint { .. }
+                        | WriteError::RelationshipConstraint { .. })
+                ),
+                "{kind:?}: {result:?}"
+            );
+        }
         assert_eq!(fs::read(&path)?, original);
         if kind == ColumnType::Long {
-            let repeated = crate::update_field(
-                &path,
-                crate::FieldUpdate {
-                    table: b"Parent",
-                    row: locate(&path, b"Parent", 1)?,
-                    column: ColumnOrdinal::new(1),
-                    value: first,
-                },
-                &mut budget(),
-            );
+            let request = crate::FieldUpdate {
+                table: b"Parent",
+                row: locate(&path, b"Parent", 1)?,
+                column: ColumnOrdinal::new(1),
+                value: first,
+            };
             assert!(matches!(
-                repeated,
+                crate::update_field(&path, request, &mut budget()),
                 Err(WriteError::RelationshipConstraint { .. })
             ));
             assert_eq!(fs::read(&path)?, original);
@@ -262,42 +196,24 @@ fn scalar_relationship_lifecycles_enforce_keys_and_preserve_refused_inputs() -> 
             &mut budget(),
         )?;
         let payload = [b'x'; 4096];
-        crate::update_row(
-            &path,
-            crate::RowUpdate {
-                table: b"Child",
-                row: locate(&path, b"Child", 11)?,
-                values: &[RowValue::Long(11), second, RowValue::Memo(&payload)],
-            },
-            &mut budget(),
-        )?;
+        let moved = [RowValue::Long(11), second, RowValue::Memo(&payload)];
+        replace(&path, b"Child", 11, &moved)?;
         erase(&path, b"Parent", 1)?;
-        crate::insert_row(
-            &path,
-            b"Child",
-            &[RowValue::Long(12), second, RowValue::Null],
-            &mut budget(),
-        )?;
+        let child = [RowValue::Long(12), second, RowValue::Null];
+        crate::insert_row(&path, b"Child", &child, &mut budget())?;
         if kind != ColumnType::Boolean {
-            crate::update_row(
-                &path,
-                crate::RowUpdate {
-                    table: b"Child",
-                    row: locate(&path, b"Child", 11)?,
-                    values: &[
-                        RowValue::Long(11),
-                        RowValue::Null,
-                        RowValue::Memo(b"inline"),
-                    ],
-                },
-                &mut budget(),
-            )?;
+            let nulled = [
+                RowValue::Long(11),
+                RowValue::Null,
+                RowValue::Memo(b"inline"),
+            ];
+            replace(&path, b"Child", 11, &nulled)?;
         } else {
             erase(&path, b"Child", 11)?;
         }
         erase(&path, b"Child", 12)?;
         erase(&path, b"Parent", 2)?;
-        verified(&path)?;
+        assert_eq!(verified(&path)?, 1);
     }
     Ok(())
 }
@@ -314,14 +230,14 @@ fn scalar_relationship_creation_rejects_incompatible_endpoint_types() -> TestRes
         (ColumnType::Guid, ColumnType::Binary { max_len: width }),
         (ColumnType::Boolean, ColumnType::Byte),
     ] {
-        let directory = Directory::new()?;
+        let directory = TempDir::new("create")?;
         assert!(matches!(
             schema(parent, child, &[], &[], &directory.target()),
             Err(WriteError::Compose(
                 ComposeError::UnsupportedRelationship { .. }
             ))
         ));
-        assert!(fs::read_dir(&directory.0)?.next().is_none());
+        assert!(fs::read_dir(&*directory)?.next().is_none());
     }
     Ok(())
 }
@@ -360,7 +276,7 @@ fn scalar_relationship_widths_and_text_storage_can_differ() -> TestResult {
             RowValue::Text(b"Zulu"),
         ),
     ] {
-        let directory = Directory::new()?;
+        let directory = TempDir::new("create")?;
         schema(
             parent,
             child,
@@ -368,8 +284,8 @@ fn scalar_relationship_widths_and_text_storage_can_differ() -> TestResult {
             &[&[RowValue::Long(11), matching, RowValue::Null]],
             &directory.target(),
         )?;
-        verified(&directory.target())?;
-        let absent_path = directory.0.join("absent.mdb");
+        assert_eq!(verified(&directory.target())?, 1);
+        let absent_path = directory.join("absent.mdb");
         assert!(matches!(
             schema(
                 parent,
@@ -389,7 +305,7 @@ fn scalar_relationship_widths_and_text_storage_can_differ() -> TestResult {
 
 #[test]
 fn scalar_relationship_fixed_field_change_checks_parent_keys_before_publication() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     let path = directory.target();
     let first = RowValue::Currency { scaled: -12345 };
     let second = RowValue::Currency { scaled: 23456 };
@@ -401,28 +317,19 @@ fn scalar_relationship_fixed_field_change_checks_parent_keys_before_publication(
         &path,
     )?;
     let selected = locate(&path, b"Child", 11)?;
-    crate::update_field(
-        &path,
-        crate::FieldUpdate {
+    let assign = |value| {
+        let request = crate::FieldUpdate {
             table: b"Child",
             row: selected,
             column: ColumnOrdinal::new(1),
-            value: second,
-        },
-        &mut budget(),
-    )?;
-    verified(&path)?;
+            value,
+        };
+        crate::update_field(&path, request, &mut budget())
+    };
+    assign(second)?;
+    assert_eq!(verified(&path)?, 1);
     let changed = fs::read(&path)?;
-    let refusal = crate::update_field(
-        &path,
-        crate::FieldUpdate {
-            table: b"Child",
-            row: selected,
-            column: ColumnOrdinal::new(1),
-            value: RowValue::Currency { scaled: 34567 },
-        },
-        &mut budget(),
-    );
+    let refusal = assign(RowValue::Currency { scaled: 34567 });
     assert!(
         matches!(
             refusal,
@@ -432,13 +339,13 @@ fn scalar_relationship_fixed_field_change_checks_parent_keys_before_publication(
     );
     assert_eq!(fs::read(&path)?, changed);
     erase(&path, b"Parent", 1)?;
-    verified(&path)?;
+    assert_eq!(verified(&path)?, 1);
     Ok(())
 }
 
 #[test]
 fn scalar_relationship_boolean_null_is_false_and_binary_empty_is_null() -> TestResult {
-    let directory = Directory::new()?;
+    let directory = TempDir::new("create")?;
     schema(
         ColumnType::Boolean,
         ColumnType::Boolean,
@@ -446,7 +353,7 @@ fn scalar_relationship_boolean_null_is_false_and_binary_empty_is_null() -> TestR
         &[&[RowValue::Long(11), RowValue::Null, RowValue::Null]],
         &directory.target(),
     )?;
-    verified(&directory.target())?;
+    assert_eq!(verified(&directory.target())?, 1);
     let original = fs::read(directory.target())?;
     assert!(matches!(
         crate::insert_row(
@@ -458,7 +365,7 @@ fn scalar_relationship_boolean_null_is_false_and_binary_empty_is_null() -> TestR
         Err(WriteError::Unsupported("duplicate unique key"))
     ));
     assert_eq!(fs::read(directory.target())?, original);
-    let absent = directory.0.join("no-false.mdb");
+    let absent = directory.join("no-false.mdb");
     assert!(matches!(
         schema(
             ColumnType::Boolean,
@@ -475,7 +382,7 @@ fn scalar_relationship_boolean_null_is_false_and_binary_empty_is_null() -> TestR
     let binary = ColumnType::Binary {
         max_len: std::num::NonZeroU8::new(8).ok_or("width")?,
     };
-    let empty = directory.0.join("empty-binary.mdb");
+    let empty = directory.join("empty-binary.mdb");
     schema(
         binary,
         binary,
@@ -483,6 +390,6 @@ fn scalar_relationship_boolean_null_is_false_and_binary_empty_is_null() -> TestR
         &[&[RowValue::Long(11), RowValue::Binary(b""), RowValue::Null]],
         &empty,
     )?;
-    verified(&empty)?;
+    assert_eq!(verified(&empty)?, 1);
     Ok(())
 }

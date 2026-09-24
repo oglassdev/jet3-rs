@@ -1,10 +1,11 @@
 use super::cursor::CatalogError;
 use crate::{
-    ByteCount, CatalogObjectClass, CatalogObjectKind, CatalogRecordError, DatabaseReader, Error,
-    JET3_PAGE_SIZE, PAGE_BYTES, PageKind, PageNumber, ReadLimits, ResourceBudget,
-    ResourceLimitKind, ResourceLimits, SliceSource,
+    ByteCount, CatalogObjectClass, CatalogObjectKind, CatalogRecord, DatabaseReader, Error,
+    JET3_PAGE_SIZE, PAGE_BYTES, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits,
+    RowDirectoryError, RowError, SliceSource,
 };
-use std::error::Error as _;
+
+use crate::testkit::TestResult;
 
 pub(super) fn record(id: u32, kind: u16, flags: u32, name: &[u8]) -> Vec<u8> {
     let mut row = vec![0_u8; 31 + name.len() + 6];
@@ -50,14 +51,13 @@ pub(super) fn database_bytes(
     write_tdef(&mut bytes[PAGE_BYTES..2 * PAGE_BYTES], 0);
     write_tdef(&mut bytes[4 * PAGE_BYTES..5 * PAGE_BYTES], 2);
 
-    let mut maps = vec![
+    let maps = vec![
         vec![0, 0, 0, 0, 0, 1 << 3],
         vec![0, 0, 0, 0, 0],
         vec![0, 0, 0, 0, 0, if duplicate_root { 1 << 5 } else { 0 }],
         vec![0, 0, 0, 0, 0],
     ];
     write_rows(&mut bytes[2 * PAGE_BYTES..3 * PAGE_BYTES], &maps);
-    maps.clear();
 
     let catalog_rows = vec![
         record(1, 1, 0x8000_0000, self_name),
@@ -89,8 +89,31 @@ pub(super) fn open<'a>(
     Ok(DatabaseReader::from_source(source, resources)?)
 }
 
+/// Streams past the self record and returns the next item; a failed cursor
+/// must stay exhausted.
+fn second_record(bytes: &[u8]) -> TestResult<Result<Option<CatalogRecord>, CatalogError>> {
+    let mut resources = operation(bytes);
+    let mut database = open(bytes, &mut resources)?;
+    let mut catalog = database.catalog(&mut resources)?;
+    catalog.next_record()?.ok_or("missing self record")?;
+    let result = catalog.next_record();
+    if result.is_err() {
+        assert!(catalog.next_record()?.is_none());
+    }
+    Ok(result)
+}
+
+fn catalog_error(bytes: &[u8]) -> TestResult<CatalogError> {
+    let mut resources = operation(bytes);
+    let mut database = open(bytes, &mut resources)?;
+    Ok(database
+        .catalog(&mut resources)
+        .err()
+        .ok_or("catalog opened")?)
+}
+
 #[test]
-fn discovers_root_and_streams_lossless_records() -> Result<(), Box<dyn std::error::Error>> {
+fn discovers_root_and_streams_lossless_records() -> TestResult {
     let bytes = database_bytes(b"MSysObjects", 4, 1, false);
     let mut resources = operation(&bytes);
     let mut database = open(&bytes, &mut resources)?;
@@ -115,17 +138,9 @@ fn discovers_root_and_streams_lossless_records() -> Result<(), Box<dyn std::erro
     assert!(catalog.next_record()?.is_none());
     assert_eq!(catalog.owned.budget_mut().read_budget().total_read(), reads);
     assert_eq!(catalog.owned.budget_mut().total_work_units(), work);
-    Ok(())
-}
 
-#[test]
-fn unknown_kinds_are_yielded_without_a_table_reference() -> Result<(), Box<dyn std::error::Error>> {
-    let bytes = database_bytes(b"MSysObjects", 0xfeed_beef, 0x1234, false);
-    let mut resources = operation(&bytes);
-    let mut database = open(&bytes, &mut resources)?;
-    let mut catalog = database.catalog(&mut resources)?;
-    let _ = catalog.next_record()?.ok_or("missing system record")?;
-    let unknown = catalog.next_record()?.ok_or("missing unknown record")?;
+    let unknown = second_record(&database_bytes(b"MSysObjects", 0xfeed_beef, 0x1234, false))??
+        .ok_or("missing unknown record")?;
     assert_eq!(unknown.kind(), CatalogObjectKind::Unknown(0x1234));
     assert_eq!(unknown.kind().raw(), 0x1234);
     assert_eq!(unknown.table_definition(), None);
@@ -133,34 +148,22 @@ fn unknown_kinds_are_yielded_without_a_table_reference() -> Result<(), Box<dyn s
 }
 
 #[test]
-fn root_discovery_rejects_zero_and_multiple_matches() -> Result<(), Box<dyn std::error::Error>> {
-    let bytes = database_bytes(b"NotTheCatalog", 4, 1, false);
-    let mut resources = operation(&bytes);
-    let mut database = open(&bytes, &mut resources)?;
+fn root_discovery_rejects_zero_and_multiple_matches() -> TestResult {
     assert!(matches!(
-        database.catalog(&mut resources),
-        Err(CatalogError::RootNotFound)
+        catalog_error(&database_bytes(b"NotTheCatalog", 4, 1, false))?,
+        CatalogError::RootNotFound
     ));
-
-    let bytes = database_bytes(b"MSysObjects", 4, 1, true);
-    let mut resources = operation(&bytes);
-    let mut database = open(&bytes, &mut resources)?;
     assert!(matches!(
-        database.catalog(&mut resources),
-        Err(CatalogError::DuplicateRoot { .. })
+        catalog_error(&database_bytes(b"MSysObjects", 4, 1, true))?,
+        CatalogError::DuplicateRoot { .. }
     ));
 
     let mut bytes = database_bytes(b"NotTheCatalog", 4, 1, false);
     bytes[PAGE_BYTES] = 0;
     bytes[4 * PAGE_BYTES] = 0;
     let page_count = u64::try_from(bytes.len() / PAGE_BYTES)?;
-    let limits = ResourceLimits::new(ReadLimits::new(
-        ByteCount::new(bytes.len() as u64),
-        JET3_PAGE_SIZE,
-        ByteCount::new(u64::MAX),
-    ))
-    .with_max_item_work(page_count);
-    let mut exact = ResourceBudget::new(limits);
+    let limits = operation(&bytes).limits();
+    let mut exact = ResourceBudget::new(limits.with_max_item_work(page_count));
     let mut database = open(&bytes, &mut exact)?;
     let result = database.catalog(&mut exact);
     assert!(
@@ -169,13 +172,7 @@ fn root_discovery_rejects_zero_and_multiple_matches() -> Result<(), Box<dyn std:
     );
     assert_eq!(exact.item_work(), page_count);
 
-    let limits = ResourceLimits::new(ReadLimits::new(
-        ByteCount::new(bytes.len() as u64),
-        JET3_PAGE_SIZE,
-        ByteCount::new(u64::MAX),
-    ))
-    .with_max_item_work(page_count - 1);
-    let mut one_below = ResourceBudget::new(limits);
+    let mut one_below = ResourceBudget::new(limits.with_max_item_work(page_count - 1));
     let mut database = open(&bytes, &mut one_below)?;
     assert!(matches!(
         database.catalog(&mut one_below),
@@ -190,7 +187,7 @@ fn root_discovery_rejects_zero_and_multiple_matches() -> Result<(), Box<dyn std:
 }
 
 #[test]
-fn discovery_skips_unadmitted_tag_two_candidates() -> Result<(), Box<dyn std::error::Error>> {
+fn discovery_skips_unadmitted_tag_two_candidates() -> TestResult {
     let mut bytes = database_bytes(b"MSysObjects", 4, 1, true);
     write_rows(
         &mut bytes[5 * PAGE_BYTES..6 * PAGE_BYTES],
@@ -206,95 +203,185 @@ fn discovery_skips_unadmitted_tag_two_candidates() -> Result<(), Box<dyn std::er
 }
 
 #[test]
-fn duplicate_ids_exhaust_the_cursor() -> Result<(), Box<dyn std::error::Error>> {
-    let bytes = database_bytes(b"MSysObjects", 1, 1, false);
-    let mut resources = operation(&bytes);
-    let mut database = open(&bytes, &mut resources)?;
-    let mut catalog = database.catalog(&mut resources)?;
-    let _ = catalog.next_record()?.ok_or("missing first record")?;
+fn duplicate_ids_and_bad_table_references_exhaust_the_cursor() -> TestResult {
     assert!(matches!(
-        catalog.next_record(),
+        second_record(&database_bytes(b"MSysObjects", 1, 1, false))?,
         Err(CatalogError::DuplicateObjectId { .. })
     ));
-    assert!(catalog.next_record()?.is_none());
-    Ok(())
-}
-
-#[test]
-fn bad_table_references_are_distinguished() -> Result<(), Box<dyn std::error::Error>> {
-    let bytes = database_bytes(b"MSysObjects", 5, 1, false);
-    let mut resources = operation(&bytes);
-    let mut database = open(&bytes, &mut resources)?;
-    let mut catalog = database.catalog(&mut resources)?;
-    let _ = catalog.next_record()?.ok_or("missing first record")?;
     assert!(matches!(
-        catalog.next_record(),
+        second_record(&database_bytes(b"MSysObjects", 5, 1, false))?,
         Err(CatalogError::InvalidTableDefinitionReference { .. })
     ));
-
-    let bytes = database_bytes(b"MSysObjects", 3, 1, false);
-    let mut resources = operation(&bytes);
-    let mut database = open(&bytes, &mut resources)?;
-    let mut catalog = database.catalog(&mut resources)?;
-    let _ = catalog.next_record()?.ok_or("missing first record")?;
     assert!(matches!(
-        catalog.next_record(),
+        second_record(&database_bytes(b"MSysObjects", 3, 1, false))?,
         Err(CatalogError::UnexpectedTableDefinitionReference { .. })
     ));
     Ok(())
 }
 
+fn overflow_bytes(move_self: bool) -> Vec<u8> {
+    let mut bytes = database_bytes(b"MSysObjects", 4, 1, false);
+    bytes.resize(6 * PAGE_BYTES, 0);
+    let moved = if move_self {
+        record(1, 1, 0x8000_0000, b"MSysObjects")
+    } else {
+        record(4, 1, 0, b"MovedTable")
+    };
+    let rows = if move_self {
+        vec![vec![0, 5, 0, 0], record(4, 1, 0, b"OrdinaryTable")]
+    } else {
+        vec![record(1, 1, 0x8000_0000, b"MSysObjects"), vec![0, 5, 0, 0]]
+    };
+    write_rows(&mut bytes[3 * PAGE_BYTES..4 * PAGE_BYTES], &rows);
+    let slot = usize::from(!move_self);
+    bytes[3 * PAGE_BYTES + 11 + 2 * slot] |= 0x40;
+    write_rows(&mut bytes[5 * PAGE_BYTES..6 * PAGE_BYTES], &[moved]);
+    bytes[5 * PAGE_BYTES + 11] |= 0x80;
+    bytes[5 * PAGE_BYTES + 4..5 * PAGE_BYTES + 8].copy_from_slice(&1_u32.to_le_bytes());
+    // Catalog owns the target page too; hidden storage must not be emitted twice.
+    bytes[3 * PAGE_BYTES - 1] |= 1 << 5;
+    bytes
+}
+
 #[test]
-fn catalog_errors_expose_context_and_nested_sources() -> Result<(), Box<dyn std::error::Error>> {
-    let bytes = database_bytes(b"MSysObjects", 4, 1, false);
-    let mut resources = operation(&bytes);
-    let mut database = open(&bytes, &mut resources)?;
-    let id = database
-        .catalog(&mut resources)?
-        .next_record()?
-        .ok_or("missing catalog record")?
-        .id();
-
-    let plain = [
-        CatalogError::UnexpectedOwnedPageKind {
-            page: PageNumber::new(3),
-            actual: PageKind::LeafIndex,
-        },
-        CatalogError::RootNotFound,
-        CatalogError::DuplicateRoot {
-            first: PageNumber::new(1),
-            duplicate: PageNumber::new(2),
-        },
-        CatalogError::DuplicateObjectId { id },
-        CatalogError::UnexpectedTableDefinitionReference {
-            id,
-            page: PageNumber::new(3),
-        },
-    ];
-    for error in plain {
-        assert!(!error.to_string().is_empty());
-        assert!(error.source().is_none());
+fn moved_catalog_record_and_moved_self_record_stream_once() -> Result<(), Box<dyn std::error::Error>>
+{
+    for move_self in [false, true] {
+        let bytes = overflow_bytes(move_self);
+        let mut budget = operation(&bytes);
+        let mut database = open(&bytes, &mut budget)?;
+        let mut catalog = database.catalog(&mut budget)?;
+        assert_eq!(catalog.next_record()?.ok_or("missing self")?.id().get(), 1);
+        let user = catalog.next_record()?.ok_or("missing user")?;
+        assert_eq!(user.id().get(), 4);
+        assert_eq!(
+            user.name().decoded_ascii(),
+            Some(if move_self {
+                "OrdinaryTable"
+            } else {
+                "MovedTable"
+            })
+        );
+        assert!(catalog.next_record()?.is_none());
     }
+    Ok(())
+}
 
-    let nested = [
-        CatalogError::Record(CatalogRecordError::RecordTooShort {
-            length: 1,
-            minimum: 37,
-        }),
-        CatalogError::InvalidTableDefinitionReference {
-            id,
-            page: PageNumber::new(9),
-            source: Error::Arithmetic {
-                operation: "test invalid catalog reference",
-            },
-        },
-        CatalogError::Resource(Error::Arithmetic {
-            operation: "test catalog resource",
-        }),
-    ];
-    for error in nested {
-        assert!(!error.to_string().is_empty());
-        assert!(error.source().is_some());
+#[test]
+fn malformed_catalog_overflow_exhausts_cursor() -> TestResult {
+    for case in 0..9 {
+        let mut bytes = overflow_bytes(false);
+        match case {
+            0 => bytes[5 * PAGE_BYTES + 4] = 4,
+            1 => bytes[5 * PAGE_BYTES + 11] &= !0x80,
+            2 | 8 => {}
+            3 => bytes[5 * PAGE_BYTES] = 3,
+            4 => bytes[5 * PAGE_BYTES + 10..5 * PAGE_BYTES + 12]
+                .copy_from_slice(&0xc800_u16.to_le_bytes()),
+            5 | 6 => {
+                write_rows(
+                    &mut bytes[5 * PAGE_BYTES..6 * PAGE_BYTES],
+                    &[vec![0, 5, 0, 0]],
+                );
+                bytes[5 * PAGE_BYTES + 11] |= 0xc0;
+                if case == 6 {
+                    bytes[6 * PAGE_BYTES - 4..6 * PAGE_BYTES].copy_from_slice(&[1, 3, 0, 0]);
+                }
+            }
+            7 => bytes[3 * PAGE_BYTES + 12] += 1,
+            _ => unreachable!(),
+        }
+        if case == 2 || case == 8 {
+            let start = usize::from(
+                u16::from_le_bytes([bytes[3 * PAGE_BYTES + 12], bytes[3 * PAGE_BYTES + 13]])
+                    & 0x1fff,
+            );
+            bytes[3 * PAGE_BYTES + start + usize::from(case == 8)] = 9;
+        }
+        let mut budget = operation(&bytes);
+        let mut database = open(&bytes, &mut budget)?;
+        let mut catalog = database.catalog(&mut budget)?;
+        catalog.next_record()?.ok_or("missing self")?;
+        let error = catalog
+            .next_record()
+            .err()
+            .ok_or("must reject overflow corruption")?;
+        match (case, &error) {
+            (
+                0,
+                CatalogError::Overflow(RowError::Directory(RowDirectoryError::UnexpectedOwner {
+                    ..
+                })),
+            )
+            | (1 | 4, CatalogError::Overflow(RowError::InvalidOverflowTarget { .. }))
+            | (
+                2,
+                CatalogError::Overflow(RowError::Directory(RowDirectoryError::MissingRow {
+                    ..
+                })),
+            )
+            | (3, CatalogError::Overflow(RowError::UnexpectedOwnedPageKind { .. }))
+            | (5, CatalogError::Overflow(RowError::SelfLink { .. }))
+            | (7, CatalogError::InvalidOverflowPointerLength { .. })
+            | (8, CatalogError::Overflow(RowError::Allocation(_)))
+            | (6, CatalogError::Overflow(RowError::Cycle { .. })) => {}
+            _ => return Err(format!("case {case}: {error:?}").into()),
+        }
+        let work = catalog.budget_mut().total_work_units();
+        assert!(catalog.next_record()?.is_none());
+        assert_eq!(catalog.budget_mut().total_work_units(), work);
+    }
+    Ok(())
+}
+
+#[test]
+fn catalog_overflow_depth_limit_is_not_swallowed_during_discovery() -> TestResult {
+    for maximum in [0, 1] {
+        let bytes = overflow_bytes(true);
+        let mut budget =
+            ResourceBudget::new(operation(&bytes).limits().with_max_chain_depth(maximum));
+        let mut database = open(&bytes, &mut budget)?;
+        let result = database.catalog(&mut budget);
+        if maximum == 0 {
+            assert!(matches!(
+                result,
+                Err(CatalogError::Overflow(RowError::Resource(
+                    Error::ResourceLimitExceeded {
+                        kind: ResourceLimitKind::ChainDepth,
+                        ..
+                    }
+                )))
+            ));
+        } else {
+            assert!(result.is_ok());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn catalog_source_slot_is_not_limited_by_the_target_locator_width() -> TestResult {
+    for row in [255, 256, 1000] {
+        let mut bytes = overflow_bytes(true);
+        let mut rows = vec![Vec::new(); row];
+        rows.push(vec![0, 5, 0, 0]);
+        write_rows(&mut bytes[3 * PAGE_BYTES..4 * PAGE_BYTES], &rows);
+        for slot in 0..row {
+            bytes[3 * PAGE_BYTES + 11 + 2 * slot] |= 0xc0;
+        }
+        bytes[3 * PAGE_BYTES + 11 + 2 * row] |= 0x40;
+        let mut budget = operation(&bytes);
+        let mut database = open(&bytes, &mut budget)?;
+        let mut catalog = database.catalog(&mut budget)?;
+        assert_eq!(
+            catalog
+                .next_record()?
+                .ok_or("missing moved self")?
+                .id()
+                .get(),
+            1
+        );
+        assert!(catalog.next_record()?.is_none());
     }
     Ok(())
 }

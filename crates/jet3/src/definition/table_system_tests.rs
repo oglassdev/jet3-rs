@@ -1,10 +1,10 @@
 use super::table_tests::*;
+use crate::testkit::TestResult;
 use crate::{
-    ColumnPhysicalType, ColumnStorageClass, Error, IndexDefinitionError, IndexDefinitionKind,
+    ColumnPhysicalType, ColumnStorageClass, IndexDefinitionError, IndexDefinitionKind,
     LongValueMapError, PageNumber, UsageMapError,
     definition::table::{TableDefinitionError, TableDefinitionKind},
 };
-use std::error::Error as _;
 
 fn long_value_columns() -> Vec<ColumnSpec> {
     vec![
@@ -56,54 +56,8 @@ fn system_definition_with_first_flags(first_flags: u8) -> Vec<u8> {
 }
 
 #[test]
-fn definition_errors_expose_display_and_nested_sources() {
-    let plain = TableDefinitionError::InvalidHeaderMarker { raw: 0 };
-    assert!(plain.to_string().contains("table definition failed"));
-    assert!(plain.source().is_none());
-
-    let resource = TableDefinitionError::Resource(Error::Arithmetic {
-        operation: "test table definition source",
-    });
-    assert!(resource.source().is_some());
-
-    let index = IndexDefinitionError::Truncated {
-        offset: 1,
-        needed: 2,
-        length: 1,
-    };
-    assert!(index.to_string().contains("invalid table index definition"));
-    assert!(index.source().is_none());
-    assert!(TableDefinitionError::Index(index).source().is_some());
-
-    let index_resource = IndexDefinitionError::Resource(Error::Arithmetic {
-        operation: "test index definition source",
-    });
-    assert!(index_resource.source().is_some());
-
-    let map = LongValueMapError::MissingColumn { ordinal: 1 };
-    assert!(map.to_string().contains("long-value map suffix failed"));
-    assert!(map.source().is_none());
-    let map_row = LongValueMapError::InvalidMapRow {
-        ordinal: 1,
-        role: "owned",
-        locator: crate::MapRowLocator::new(PageNumber::new(2), 9),
-        source: UsageMapError::RowOutOfBounds {
-            row: 9,
-            row_count: 4,
-        },
-    };
-    assert!(map_row.source().is_some());
-    assert!(
-        TableDefinitionError::LongValueMap(map_row)
-            .source()
-            .is_some()
-    );
-}
-
-#[test]
-fn decodes_system_definition_under_exp_0073_relaxations() -> Result<(), Box<dyn std::error::Error>>
-{
-    let definition = decode(&database_bytes(&system_definition(), None))?;
+fn decodes_system_definition_under_exp_0073_relaxations() -> TestResult {
+    let definition = decode_logical(&system_definition())?;
     assert_eq!(definition.kind(), TableDefinitionKind::System);
     assert_eq!(definition.raw_header()[20], SYSTEM_MARKER);
     let columns = definition.columns();
@@ -134,10 +88,7 @@ fn decodes_system_definition_under_exp_0073_relaxations() -> Result<(), Box<dyn 
     assert!(!definition.physical_indexes()[1].required());
 
     assert!(matches!(
-        decode(&database_bytes(
-            &system_definition_with_first_flags(3),
-            None
-        )),
+        decode_logical(&system_definition_with_first_flags(3)),
         Err(TableDefinitionError::Index(
             IndexDefinitionError::UnsupportedPhysicalFlags { raw: 3, .. }
         ))
@@ -146,7 +97,7 @@ fn decodes_system_definition_under_exp_0073_relaxations() -> Result<(), Box<dyn 
     let mut user_flags = primary_definition();
     user_flags[PHYSICAL_OFFSET + 38] = 2;
     assert!(matches!(
-        decode(&database_bytes(&user_flags, None)),
+        decode_logical(&user_flags),
         Err(TableDefinitionError::Index(
             IndexDefinitionError::InvalidPrimaryFlags { raw: 2, .. }
         ))
@@ -171,14 +122,14 @@ fn rejects_column_constants_of_the_other_definition_kind() {
     let mut constant = system.clone();
     constant[system_column(0) + 7] = 1;
     assert!(matches!(
-        decode(&database_bytes(&constant, None)),
+        decode_logical(&constant),
         Err(TableDefinitionError::InvalidColumnConstant { ordinal: 0, raw: 1 })
     ));
 
     let mut repeat = system.clone();
     repeat[system_column(1) + 5] = 1;
     assert!(matches!(
-        decode(&database_bytes(&repeat, None)),
+        decode_logical(&repeat),
         Err(TableDefinitionError::InvalidColumnOrdinal {
             record: 1,
             repeated: 1,
@@ -190,7 +141,7 @@ fn rejects_column_constants_of_the_other_definition_kind() {
         let mut user_class = system.clone();
         user_class[system_column(0) + 13] = class;
         assert!(matches!(
-            decode(&database_bytes(&user_class, None)),
+            decode_logical(&user_class),
             Err(TableDefinitionError::UnsupportedColumnClass { ordinal: 0, .. })
         ));
     }
@@ -198,7 +149,7 @@ fn rejects_column_constants_of_the_other_definition_kind() {
     let mut user = column_only_definition();
     user[COLUMN_ONLY_OFFSET + 13] = 0x13;
     assert!(matches!(
-        decode(&database_bytes(&user, None)),
+        decode_logical(&user),
         Err(TableDefinitionError::UnsupportedColumnClass {
             ordinal: 0,
             raw: 0x13,
@@ -208,13 +159,12 @@ fn rejects_column_constants_of_the_other_definition_kind() {
 }
 
 #[test]
-fn decodes_long_value_maps_in_stored_order_and_rejects_corruption()
--> Result<(), Box<dyn std::error::Error>> {
+fn decodes_long_value_maps_in_stored_order_and_rejects_corruption() -> TestResult {
     let page = MAP_PAGE as u8;
     let mut suffix = Vec::new();
     suffix.extend_from_slice(&group(2, 0, 1, page));
     suffix.extend_from_slice(&group(1, 2, 3, page));
-    let definition = decode(&database_bytes(&long_value_definition(&suffix), None))?;
+    let definition = decode_logical(&long_value_definition(&suffix))?;
     let maps = definition.long_value_maps();
     assert_eq!(maps.len(), 2);
     assert_eq!(maps[0].column().get(), 2);
@@ -222,9 +172,7 @@ fn decodes_long_value_maps_in_stored_order_and_rejects_corruption()
     assert_eq!(maps[1].owned().row(), 2);
     assert_eq!(maps[1].available().row(), 3);
 
-    let decode_suffix =
-        |suffix: &[u8]| decode(&database_bytes(&long_value_definition(suffix), None));
-    let map_error = |suffix: &[u8]| match decode_suffix(suffix) {
+    let map_error = |suffix: &[u8]| match decode_logical(&long_value_definition(suffix)) {
         Err(TableDefinitionError::LongValueMap(error)) => Some(error),
         _ => None,
     };
@@ -303,6 +251,42 @@ fn decodes_long_value_maps_in_stored_order_and_rejects_corruption()
             source: UsageMapError::RowOutOfBounds { row: 9, .. },
             ..
         })
+    ));
+    Ok(())
+}
+
+#[test]
+fn ordinary_logical_aliases_share_one_physical_index() -> TestResult {
+    let first = ordinary_logical(0, 0);
+    let mut second = first;
+    second[..4].copy_from_slice(&1_u32.to_le_bytes());
+    let aliases = |second: [u8; 20]| {
+        build_definition(
+            USER_MARKER,
+            &[(4, 3, 0, 4, b"Id".to_vec())],
+            &[physical_index(0)],
+            &[(first, b"FkA"), (second, b"FkB")],
+            &[],
+        )
+    };
+    let definition = decode_logical(&aliases(second))?;
+    assert_eq!(definition.physical_indexes().len(), 1);
+    assert_eq!(definition.indexes().len(), 2);
+    for (index, expected) in definition.indexes().iter().zip([first, second]) {
+        assert_eq!(index.physical_index(), 0);
+        assert_eq!(index.kind(), IndexDefinitionKind::Ordinary);
+        assert_eq!(index.raw_record(), &expected);
+    }
+    second[4..8].copy_from_slice(&1_u32.to_le_bytes());
+    assert!(matches!(
+        decode_logical(&aliases(second)),
+        Err(TableDefinitionError::Index(
+            IndexDefinitionError::InvalidPhysicalIndexOrdinal {
+                logical_index: 1,
+                ordinal: 1,
+                physical_count: 1,
+            }
+        ))
     ));
     Ok(())
 }

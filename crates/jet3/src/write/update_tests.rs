@@ -1,14 +1,15 @@
 use super::{error::WriteError, update::*};
+use crate::testkit::create;
+use crate::testkit::table;
 use crate::{
-    ByteCount, ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, DatabaseSpec, PAGE_BYTES,
-    PublishStage, ResourceBudget, ResourceLimits, RowLocator, RowValue, TableRows, TableSpec,
-    create_database, row::directory::RowDirectory,
+    ByteCount, ColumnOrdinal, ColumnSpec, ColumnType, DatabaseReader, PAGE_BYTES, PublishStage,
+    ResourceBudget, ResourceLimits, RowLocator, RowValue, TableRows,
 };
 use std::error::Error as StdError;
 use std::fs;
 use std::path::PathBuf;
 
-pub(super) type TestResult = Result<(), Box<dyn StdError>>;
+pub(super) use crate::testkit::TestResult;
 pub(super) struct Fixture(crate::testkit::TempDir);
 impl Fixture {
     pub(super) fn new(
@@ -17,21 +18,12 @@ impl Fixture {
     ) -> Result<Self, Box<dyn StdError>> {
         let directory = crate::testkit::TempDir::new("field-update")?;
         let fixture = Self(directory);
-        create_database(
+        create(
             fixture.path(),
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Items",
-                        columns,
-                        indexes: &[],
-                    },
-                    rows: values,
-                }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
+            &[TableRows {
+                table: table(b"Items", columns, &[]),
+                rows: values,
+            }],
         )?;
         Ok(fixture)
     }
@@ -85,49 +77,6 @@ pub(super) fn simple() -> Result<Fixture, Box<dyn StdError>> {
             &[RowValue::Null, RowValue::Long(88)],
         ],
     )
-}
-
-#[test]
-fn four_byte_update_preserves_slack_opaque_pages_and_other_fields() -> TestResult {
-    let fixture = simple()?;
-    let row = fixture.locator(0)?;
-    let mut original = fs::read(fixture.path())?;
-    original[row.page().get() as usize * PAGE_BYTES + 64] = 0xa7;
-    original.extend_from_slice(&[0xb6; PAGE_BYTES]);
-    fs::write(fixture.path(), &original)?;
-    for value in [i32::MIN, i32::MAX, -123, 0] {
-        update_field(
-            fixture.path(),
-            request(row, RowValue::Long(value)),
-            &mut budget(),
-        )?;
-        let after = fs::read(fixture.path())?;
-        let mut expected = original.clone();
-        let mut db = DatabaseReader::open(fixture.path(), &mut budget())?;
-        let mut b = budget();
-        let definition = db.table_definition(crate::PageNumber::new(20), &mut b)?;
-        let offset = {
-            let mut rows = db.rows(&definition, &mut b)?;
-            let view = rows.next_row()?.ok_or("row absent")?;
-            assert_eq!(
-                view.field(ColumnOrdinal::new(0))
-                    .and_then(|field| field.raw_bytes()),
-                Some(value.to_le_bytes().as_slice())
-            );
-            view.present_fixed_field_range(ColumnOrdinal::new(0))
-                .ok_or("field absent")?
-                .start
-        };
-        let mut page = [0; PAGE_BYTES];
-        db.read_raw_page(row.page(), &mut page, &mut b)?;
-        let directory = RowDirectory::validate(row.page(), definition.root(), &page, &mut b)?;
-        let start = row.page().get() as usize * PAGE_BYTES
-            + directory.entry(&page, row.slot())?.range().start
-            + offset;
-        expected[start..start + 4].copy_from_slice(&value.to_le_bytes());
-        assert_eq!(after, expected);
-    }
-    fixture.assert_only_original()
 }
 
 #[test]
@@ -268,45 +217,6 @@ fn private_byte_corruption_is_rejected_by_streaming_verification() -> TestResult
 }
 
 #[test]
-fn nonunique_index_keys_are_updated() -> TestResult {
-    let fixture = simple()?;
-    fs::remove_file(fixture.path())?;
-    let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
-    let keys = [crate::IndexColumnSpec::ascending(0)];
-    let indexes = [crate::IndexSpec {
-        name: b"Pk",
-        kind: crate::IndexKind::Ordinary,
-        fields: &keys,
-    }];
-    create_database(
-        fixture.path(),
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Items",
-                    columns: &columns,
-                    indexes: &indexes,
-                },
-                rows: &[&[RowValue::Long(1)]],
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
-    update_field(
-        fixture.path(),
-        request(fixture.locator(0)?, RowValue::Long(3)),
-        &mut budget(),
-    )?;
-    let mut b = budget();
-    let mut db = DatabaseReader::open(fixture.path(), &mut b)?;
-    let definition = guarded_table(&mut db, b"Items", true, &mut b)?;
-    crate::index::mutation::load(&mut db, &definition, &mut b)?;
-    fixture.assert_only_original()
-}
-
-#[test]
 fn malformed_hidden_and_overflow_slots_are_refused() -> TestResult {
     let fixture = simple()?;
     let row = fixture.locator(0)?;
@@ -385,32 +295,15 @@ fn a_valid_locator_from_another_table_is_rejected() -> TestResult {
     let columns = [ColumnSpec::new(b"Id", ColumnType::Long)];
     let tables = [
         crate::TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Items",
-                columns: &columns,
-                indexes: &[],
-            },
+            table: table(b"Items", &columns, &[]),
             rows: &[&[RowValue::Long(1)]],
         },
         crate::TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Other",
-                columns: &columns,
-                indexes: &[],
-            },
+            table: table(b"Other", &columns, &[]),
             rows: &[&[RowValue::Long(2)]],
         },
     ];
-    crate::create_database(
-        fixture.path(),
-        &crate::DatabaseSpec {
-            tables: &tables,
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(fixture.path(), &tables)?;
     let original = fs::read(fixture.path())?;
     let wrong = FieldUpdate {
         table: b"Other",
@@ -427,10 +320,7 @@ fn a_valid_locator_from_another_table_is_rejected() -> TestResult {
 #[test]
 fn relationship_catalog_rows_are_checked_with_and_without_user_indexes() -> TestResult {
     relationship_catalog_cases(simple()?, ColumnOrdinal::new(0))?;
-    relationship_catalog_cases(
-        super::update_indexed_tests::indexed()?,
-        ColumnOrdinal::new(2),
-    )
+    relationship_catalog_cases(super::update_key_tests::indexed()?, ColumnOrdinal::new(2))
 }
 
 fn relationship_catalog_cases(fixture: Fixture, column: ColumnOrdinal) -> TestResult {

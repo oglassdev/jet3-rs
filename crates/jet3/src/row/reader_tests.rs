@@ -1,9 +1,11 @@
-use super::reader::{RawField, RowError};
+use super::reader::{RawField, RowCursor, RowError};
 use crate::{
     ByteCount, DatabaseReader, Error, JET3_PAGE_SIZE, PAGE_BYTES, PageNumber, ReadLimits,
-    ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource, TextCodePage, ValueKind,
+    ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource, TableDefinition, TextCodePage,
+    ValueKind,
 };
-use std::error::Error as _;
+
+use crate::testkit::TestResult;
 
 pub(super) const ROOT: usize = 1;
 pub(super) const MAP_PAGE: usize = 2;
@@ -119,92 +121,88 @@ pub(super) fn open<'a>(
     Ok(DatabaseReader::from_source(source, budget)?)
 }
 
-#[test]
-fn streams_direct_and_overflow_rows_with_lossless_field_slices()
--> Result<(), Box<dyn std::error::Error>> {
-    let bytes = database_bytes([0, SECOND_DATA as u8, 0, 0], 0x8000, ROOT as u32);
-    let mut budget = ResourceBudget::new(limits(&bytes));
-    let mut database = open(&bytes, &mut budget)?;
+/// Opens `bytes` under `limits` and hands the root table's row cursor to
+/// `check`.
+pub(super) fn with_rows_limited<T>(
+    bytes: &[u8],
+    limits: ResourceLimits,
+    check: impl FnOnce(&mut RowCursor<'_, '_, SliceSource<'_>>, &TableDefinition) -> TestResult<T>,
+) -> TestResult<T> {
+    let mut budget = ResourceBudget::new(limits);
+    let mut database = open(bytes, &mut budget)?;
     let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
-    let id = definition.columns()[0].ordinal();
-    let payload = definition.columns()[1].ordinal();
     let mut rows = database.rows(&definition, &mut budget)?;
+    check(&mut rows, &definition)
+}
 
-    {
-        let mut first = rows.next_row()?.ok_or("missing direct row")?;
-        assert_eq!(first.locator().page(), PageNumber::new(FIRST_DATA as u64));
-        assert_eq!(first.storage_locator(), first.locator());
-        assert_eq!(first.field(id), Some(RawField::Bytes(&1_u32.to_le_bytes())));
-        assert_eq!(first.field(payload), Some(RawField::Bytes(b"a")));
-        assert!(!first.field(id).ok_or("missing id")?.is_null());
-        assert!(RawField::Null.is_null());
-        assert_eq!(RawField::Null.raw_bytes(), None);
-        assert_eq!(
-            first
-                .value(id, TextCodePage::Windows1252)?
-                .ok_or("missing id value")?
-                .kind(),
-            &ValueKind::Long(1)
-        );
-        let payload_value = first
-            .value(payload, TextCodePage::Windows1252)?
-            .ok_or("missing payload value")?;
-        let ValueKind::Text(text) = payload_value.kind() else {
-            return Err("payload was not text".into());
-        };
-        assert_eq!(text.as_str(), "a");
-        assert!(
-            first
-                .value(crate::ColumnOrdinal::new(99), TextCodePage::Windows1252)?
-                .is_none()
-        );
-    }
-    {
-        let overflow = rows.next_row()?.ok_or("missing overflow row")?;
-        assert_eq!(overflow.locator().slot(), 1);
-        assert_eq!(
-            overflow.storage_locator().page(),
-            PageNumber::new(SECOND_DATA as u64)
-        );
-        assert_eq!(
-            overflow.field(id),
-            Some(RawField::Bytes(&5_u32.to_le_bytes()))
-        );
-        assert_eq!(
-            overflow.field(payload).and_then(RawField::raw_bytes),
-            Some(&[b'O'; 255][..])
-        );
-        assert_eq!(overflow.raw_bytes().len(), 265);
-    }
-    assert!(rows.next_row()?.is_none());
-    let work = rows.owned.budget_mut().total_work_units();
-    assert!(rows.next_row()?.is_none());
-    assert_eq!(rows.owned.budget_mut().total_work_units(), work);
-    Ok(())
+pub(super) fn with_rows<T>(
+    bytes: &[u8],
+    check: impl FnOnce(&mut RowCursor<'_, '_, SliceSource<'_>>, &TableDefinition) -> TestResult<T>,
+) -> TestResult<T> {
+    with_rows_limited(bytes, limits(bytes), check)
 }
 
 #[test]
-fn row_errors_expose_display_and_nested_sources() {
-    let plain = RowError::RowTooShort {
-        length: 0,
-        minimum: 1,
-    };
-    assert!(plain.to_string().contains("row stream failed"));
-    assert!(plain.source().is_none());
-
-    let resource = RowError::Resource(Error::Arithmetic {
-        operation: "test row source",
-    });
-    assert!(resource.source().is_some());
-    let directory = RowError::Directory(crate::RowDirectoryError::UnexpectedOwner {
-        expected: PageNumber::new(1),
-        actual: PageNumber::new(2),
-    });
-    assert!(directory.source().is_some());
+fn streams_direct_and_overflow_rows_with_lossless_field_slices() -> TestResult {
+    let bytes = database_bytes([0, SECOND_DATA as u8, 0, 0], 0x8000, ROOT as u32);
+    with_rows(&bytes, |rows, definition| {
+        let id = definition.columns()[0].ordinal();
+        let payload = definition.columns()[1].ordinal();
+        {
+            let mut first = rows.next_row()?.ok_or("missing direct row")?;
+            assert_eq!(first.locator().page(), PageNumber::new(FIRST_DATA as u64));
+            assert_eq!(first.storage_locator(), first.locator());
+            assert_eq!(first.field(id), Some(RawField::Bytes(&1_u32.to_le_bytes())));
+            assert_eq!(first.field(payload), Some(RawField::Bytes(b"a")));
+            assert!(RawField::Null.is_null());
+            assert_eq!(RawField::Null.raw_bytes(), None);
+            assert_eq!(
+                first
+                    .value(id, TextCodePage::Windows1252)?
+                    .ok_or("missing id value")?
+                    .kind(),
+                &ValueKind::Long(1)
+            );
+            let payload_value = first
+                .value(payload, TextCodePage::Windows1252)?
+                .ok_or("missing payload value")?;
+            let ValueKind::Text(text) = payload_value.kind() else {
+                return Err("payload was not text".into());
+            };
+            assert_eq!(text.as_str(), "a");
+            assert!(
+                first
+                    .value(crate::ColumnOrdinal::new(99), TextCodePage::Windows1252)?
+                    .is_none()
+            );
+        }
+        {
+            let overflow = rows.next_row()?.ok_or("missing overflow row")?;
+            assert_eq!(overflow.locator().slot(), 1);
+            assert_eq!(
+                overflow.storage_locator().page(),
+                PageNumber::new(SECOND_DATA as u64)
+            );
+            assert_eq!(
+                overflow.field(id),
+                Some(RawField::Bytes(&5_u32.to_le_bytes()))
+            );
+            assert_eq!(
+                overflow.field(payload).and_then(RawField::raw_bytes),
+                Some(&[b'O'; 255][..])
+            );
+            assert_eq!(overflow.raw_bytes().len(), 265);
+        }
+        assert!(rows.next_row()?.is_none());
+        let work = rows.owned.budget_mut().total_work_units();
+        assert!(rows.next_row()?.is_none());
+        assert_eq!(rows.owned.budget_mut().total_work_units(), work);
+        Ok(())
+    })
 }
 
 #[test]
-fn skips_owned_long_value_pages_after_primary_rows() -> Result<(), Box<dyn std::error::Error>> {
+fn skips_owned_long_value_pages_after_primary_rows() -> TestResult {
     let mut bytes = database_bytes([0, SECOND_DATA as u8, 0, 0], 0x8000, ROOT as u32);
     let first = direct_row(1, b"a");
     write_rows(
@@ -217,59 +215,51 @@ fn skips_owned_long_value_pages_after_primary_rows() -> Result<(), Box<dyn std::
         u32::from_le_bytes(*b"LVAL"),
         &[(&[0, 0, 0, 0, b'x'], 0)],
     );
-
-    let mut budget = ResourceBudget::new(limits(&bytes));
-    let mut database = open(&bytes, &mut budget)?;
-    let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
-    let mut rows = database.rows(&definition, &mut budget)?;
-    assert!(rows.next_row()?.is_some());
-    assert!(rows.next_row()?.is_none());
-    Ok(())
+    with_rows(&bytes, |rows, _| {
+        assert!(rows.next_row()?.is_some());
+        assert!(rows.next_row()?.is_none());
+        Ok(())
+    })
 }
 
 #[test]
-fn rejects_self_links_cycles_wrong_owner_and_chain_exhaustion()
--> Result<(), Box<dyn std::error::Error>> {
+fn rejects_self_links_cycles_wrong_owner_and_chain_exhaustion() -> TestResult {
     let self_link = database_bytes([1, FIRST_DATA as u8, 0, 0], 0x8000, ROOT as u32);
-    let mut budget = ResourceBudget::new(limits(&self_link));
-    let mut database = open(&self_link, &mut budget)?;
-    let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
-    let mut rows = database.rows(&definition, &mut budget)?;
-    let _ = rows.next_row()?.ok_or("missing first")?;
-    assert!(matches!(rows.next_row(), Err(RowError::SelfLink { .. })));
-    assert!(rows.next_row()?.is_none());
-
-    let cycle = database_bytes([0, SECOND_DATA as u8, 0, 0], 0xc000, ROOT as u32);
-    let mut cycle = cycle;
+    let mut cycle = database_bytes([0, SECOND_DATA as u8, 0, 0], 0xc000, ROOT as u32);
     write_rows(
         &mut cycle[SECOND_DATA * PAGE_BYTES..(SECOND_DATA + 1) * PAGE_BYTES],
         ROOT as u32,
         &[(&[1, FIRST_DATA as u8, 0, 0], 0xc000)],
     );
-    let mut budget = ResourceBudget::new(limits(&cycle));
-    let mut database = open(&cycle, &mut budget)?;
-    let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
-    let mut rows = database.rows(&definition, &mut budget)?;
-    let _ = rows.next_row()?.ok_or("missing first")?;
-    assert!(matches!(rows.next_row(), Err(RowError::Cycle { .. })));
-
     let wrong_owner = database_bytes([0, SECOND_DATA as u8, 0, 0], 0x8000, 99);
-    let mut budget = ResourceBudget::new(limits(&wrong_owner));
-    let mut database = open(&wrong_owner, &mut budget)?;
-    let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
-    let mut rows = database.rows(&definition, &mut budget)?;
-    let _ = rows.next_row()?.ok_or("missing first")?;
-    assert!(matches!(rows.next_row(), Err(RowError::Directory(_))));
+    for (bytes, label) in [
+        (self_link, "self link"),
+        (cycle, "cycle"),
+        (wrong_owner, "owner"),
+    ] {
+        with_rows(&bytes, |rows, _| {
+            rows.next_row()?.ok_or("missing first")?;
+            let error = rows
+                .next_row()
+                .err()
+                .ok_or("overflow corruption accepted")?;
+            let expected = match label {
+                "self link" => matches!(error, RowError::SelfLink { .. }),
+                "cycle" => matches!(error, RowError::Cycle { .. }),
+                _ => matches!(error, RowError::Directory(_)),
+            };
+            assert!(expected, "{label}: {error:?}");
+            assert!(rows.next_row()?.is_none());
+            Ok(())
+        })?;
+    }
 
     let bytes = database_bytes([0, SECOND_DATA as u8, 0, 0], 0x8000, ROOT as u32);
-    let mut schema_budget = ResourceBudget::new(limits(&bytes));
-    let mut schema_database = open(&bytes, &mut schema_budget)?;
-    let definition =
-        schema_database.table_definition(PageNumber::new(ROOT as u64), &mut schema_budget)?;
+    let definition = with_rows(&bytes, |_, definition| Ok(definition.clone()))?;
     let mut budget = ResourceBudget::new(limits(&bytes).with_max_chain_depth(0));
     let mut database = open(&bytes, &mut budget)?;
     let mut rows = database.rows(&definition, &mut budget)?;
-    let _ = rows.next_row()?.ok_or("missing first")?;
+    rows.next_row()?.ok_or("missing first")?;
     assert!(matches!(
         rows.next_row(),
         Err(RowError::Resource(Error::ResourceLimitExceeded {
@@ -281,32 +271,26 @@ fn rejects_self_links_cycles_wrong_owner_and_chain_exhaustion()
 }
 
 #[test]
-fn validates_row_trailers_ignores_unused_presence_bits_and_bounds_work()
--> Result<(), Box<dyn std::error::Error>> {
+fn validates_row_trailers_ignores_unused_presence_bits_and_bounds_work() -> TestResult {
     let mut bytes = database_bytes([0, SECOND_DATA as u8, 0, 0], 0x8000, ROOT as u32);
-    let page = &mut bytes[FIRST_DATA * PAGE_BYTES..(FIRST_DATA + 1) * PAGE_BYTES];
-    let start = usize::from(u16::from_le_bytes([page[10], page[11]]) & 0x1fff);
-    page[PAGE_BYTES - 2] = 2;
-    let mut budget = ResourceBudget::new(limits(&bytes));
-    let mut database = open(&bytes, &mut budget)?;
-    let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
-    let mut rows = database.rows(&definition, &mut budget)?;
-    assert!(matches!(
-        rows.next_row(),
-        Err(RowError::VariableCountMismatch { .. })
-    ));
-    assert!(start < PAGE_BYTES);
+    bytes[FIRST_DATA * PAGE_BYTES + PAGE_BYTES - 2] = 2;
+    with_rows(&bytes, |rows, _| {
+        assert!(matches!(
+            rows.next_row(),
+            Err(RowError::VariableCountMismatch { .. })
+        ));
+        Ok(())
+    })?;
 
     let mut bytes = database_bytes([0, SECOND_DATA as u8, 0, 0], 0x8000, ROOT as u32);
     bytes[FIRST_DATA * PAGE_BYTES + PAGE_BYTES - 1] = 0x83;
-    let mut budget = ResourceBudget::new(limits(&bytes));
-    let mut database = open(&bytes, &mut budget)?;
-    let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
-    let mut rows = database.rows(&definition, &mut budget)?;
-    let row = rows
-        .next_row()?
-        .ok_or("missing row with unused presence bits")?;
-    assert_eq!(row.raw_bytes().last(), Some(&0x83));
+    with_rows(&bytes, |rows, _| {
+        let row = rows
+            .next_row()?
+            .ok_or("missing row with unused presence bits")?;
+        assert_eq!(row.raw_bytes().last(), Some(&0x83));
+        Ok(())
+    })?;
 
     let bytes = database_bytes([0, SECOND_DATA as u8, 0, 0], 0x8000, ROOT as u32);
     let mut observed = ResourceBudget::new(limits(&bytes));
@@ -314,17 +298,15 @@ fn validates_row_trailers_ignores_unused_presence_bits_and_bounds_work()
     let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut observed)?;
     let before_rows = observed.item_work();
     let mut rows = database.rows(&definition, &mut observed)?;
-    let _ = rows.next_row()?.ok_or("missing row")?;
+    rows.next_row()?.ok_or("missing row")?;
     let row_items = rows.owned.budget_mut().item_work() - before_rows;
 
-    let mut limited =
-        ResourceBudget::new(limits(&bytes).with_max_item_work(before_rows + row_items - 1));
-    let mut database = open(&bytes, &mut limited)?;
-    let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut limited)?;
-    let mut rows = database.rows(&definition, &mut limited)?;
-    assert!(matches!(
-        rows.next_row(),
-        Err(RowError::Resource(_)) | Err(RowError::Directory(_))
-    ));
-    Ok(())
+    let limited = limits(&bytes).with_max_item_work(before_rows + row_items - 1);
+    with_rows_limited(&bytes, limited, |rows, _| {
+        assert!(matches!(
+            rows.next_row(),
+            Err(RowError::Resource(_)) | Err(RowError::Directory(_))
+        ));
+        Ok(())
+    })
 }

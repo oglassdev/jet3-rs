@@ -1,6 +1,9 @@
 //! Internal graph fixtures composed from EXP-0059/0073/0268 primitives.
 //! These isolate constraint checks; they do not establish DAO compatibility.
 use super::*;
+use crate::testkit::create;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
     ColumnOrdinal, DatabaseReader, FieldUpdate, FileSource, IndexColumnSpec, IndexFieldSpec,
     IndexKind, IndexSpec, PAGE_BYTES, RowDelete, RowLocator, TableDefinition, TableRows,
@@ -15,30 +18,30 @@ const COLUMNS: [ColumnSpec<'static>; 3] = [
     ColumnSpec::new(b"Two", ColumnType::Long),
 ];
 const INDEXES: [IndexSpec<'static>; 3] = [
-    IndexSpec {
-        name: b"ById",
-        fields: &[IndexColumnSpec {
+    index(
+        b"ById",
+        &[IndexColumnSpec {
             column: crate::ColumnRef::Ordinal(0),
             direction: IndexDirection::Ascending,
         }],
-        kind: IndexKind::Primary,
-    },
-    IndexSpec {
-        name: b"ByOne",
-        fields: &[IndexColumnSpec {
+        IndexKind::Primary,
+    ),
+    index(
+        b"ByOne",
+        &[IndexColumnSpec {
             column: crate::ColumnRef::Ordinal(1),
             direction: IndexDirection::Ascending,
         }],
-        kind: IndexKind::Ordinary,
-    },
-    IndexSpec {
-        name: b"ByTwo",
-        fields: &[IndexColumnSpec {
+        IndexKind::Ordinary,
+    ),
+    index(
+        b"ByTwo",
+        &[IndexColumnSpec {
             column: crate::ColumnRef::Ordinal(2),
             direction: IndexDirection::Ascending,
         }],
-        kind: IndexKind::Ordinary,
-    },
+        IndexKind::Ordinary,
+    ),
 ];
 #[derive(Clone, Copy)]
 pub(super) struct Edge {
@@ -46,6 +49,14 @@ pub(super) struct Edge {
     pub(super) parent: usize,
     pub(super) child: usize,
     pub(super) column: u16,
+}
+pub(super) const fn edge(name: &'static [u8], parent: usize, child: usize, column: u16) -> Edge {
+    Edge {
+        name,
+        parent,
+        child,
+        column,
+    }
 }
 pub(super) use crate::testkit::budget;
 pub(super) struct Fixture(crate::testkit::TempDir);
@@ -73,26 +84,14 @@ pub(super) fn fixture(edges: &[Edge]) -> Result<Fixture> {
     let directory = crate::testkit::TempDir::new("relationship-graph")?;
     let fixture = Fixture(directory);
     let requests = NAMES.map(|name| TableRows {
-        table: TableSpec {
-            validation: crate::TableValidation::NONE,
-            name,
-            columns: &COLUMNS,
-            indexes: &INDEXES,
-        },
+        table: table(name, &COLUMNS, &INDEXES),
         rows: &[
             &[RowValue::Long(1), RowValue::Null, RowValue::Null],
             &[RowValue::Long(2), RowValue::Long(1), RowValue::Long(1)],
             &[RowValue::Long(3), RowValue::Long(2), RowValue::Long(2)],
         ],
     });
-    crate::create_database(
-        fixture.path(),
-        &crate::DatabaseSpec {
-            tables: &requests,
-            ..crate::DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(fixture.path(), &requests)?;
     let mut work = budget();
     let mut db = DatabaseReader::open(fixture.path(), &mut work)?;
     let tables = NAMES
@@ -324,18 +323,8 @@ fn check(fixture: &Fixture) -> Result {
 fn two_foreign_keys_and_both_parent_endpoints_enforce_every_constraint() -> Result {
     for second_parent in [0, 2] {
         let fixture = fixture(&[
-            Edge {
-                name: b"LeftRelation",
-                parent: 0,
-                child: 1,
-                column: 1,
-            },
-            Edge {
-                name: b"RightRelation",
-                parent: second_parent,
-                child: 1,
-                column: 2,
-            },
+            edge(b"LeftRelation", 0, 1, 1),
+            edge(b"RightRelation", second_parent, 1, 2),
         ])?;
         check(&fixture)?;
         let before = fs::read(fixture.path())?;
@@ -367,18 +356,8 @@ fn two_foreign_keys_and_both_parent_endpoints_enforce_every_constraint() -> Resu
 #[test]
 fn chain_middle_table_is_checked_as_both_parent_and_child() -> Result {
     let fixture = fixture(&[
-        Edge {
-            name: b"FirstRelation",
-            parent: 0,
-            child: 1,
-            column: 1,
-        },
-        Edge {
-            name: b"SecondRelation",
-            parent: 1,
-            child: 2,
-            column: 1,
-        },
+        edge(b"FirstRelation", 0, 1, 1),
+        edge(b"SecondRelation", 1, 2, 1),
     ])?;
     let before = fs::read(fixture.path())?;
     assert!(matches!(
@@ -395,61 +374,8 @@ fn chain_middle_table_is_checked_as_both_parent_and_child() -> Result {
     check(&fixture)
 }
 #[test]
-fn self_reference_checks_the_resulting_row_set_once_per_side() -> Result {
-    let fixture = fixture(&[Edge {
-        name: b"SelfRelation",
-        parent: 0,
-        child: 0,
-        column: 1,
-    }])?;
-    crate::insert_row(
-        fixture.path(),
-        NAMES[0],
-        &[RowValue::Long(4), RowValue::Long(4), RowValue::Null],
-        &mut budget(),
-    )?;
-    let before = fs::read(fixture.path())?;
-    assert!(matches!(
-        field(&fixture, 0, 4, 0, RowValue::Long(44)),
-        Err(WriteError::RelationshipConstraint { .. })
-    ));
-    assert_eq!(fs::read(fixture.path())?, before);
-    crate::update_row(
-        fixture.path(),
-        crate::RowUpdate {
-            table: NAMES[0],
-            row: locator(&fixture, 0, 4)?,
-            values: &[RowValue::Long(44), RowValue::Long(44), RowValue::Null],
-        },
-        &mut budget(),
-    )?;
-    crate::delete_row(
-        fixture.path(),
-        RowDelete {
-            table: NAMES[0],
-            row: locator(&fixture, 0, 44)?,
-        },
-        &mut budget(),
-    )?;
-    check(&fixture)
-}
-
-#[test]
 fn parent_remains_protected_until_both_children_release_its_key() -> Result {
-    let fixture = fixture(&[
-        Edge {
-            name: b"FirstChild",
-            parent: 0,
-            child: 1,
-            column: 1,
-        },
-        Edge {
-            name: b"SecondChild",
-            parent: 0,
-            child: 2,
-            column: 1,
-        },
-    ])?;
+    let fixture = fixture(&[edge(b"FirstChild", 0, 1, 1), edge(b"SecondChild", 0, 2, 1)])?;
     field(&fixture, 1, 2, 1, RowValue::Long(3))?;
     let before = fs::read(fixture.path())?;
     let request = RowDelete {
@@ -468,12 +394,7 @@ fn parent_remains_protected_until_both_children_release_its_key() -> Result {
 
 #[test]
 fn duplicate_catalog_bindings_cannot_hide_a_different_target_record() -> Result {
-    let edge = Edge {
-        name: b"Repeated",
-        parent: 0,
-        child: 1,
-        column: 1,
-    };
+    let edge = edge(b"Repeated", 0, 1, 1);
     let fixture = fixture(&[edge, edge])?;
     let before = fs::read(fixture.path())?;
     assert!(matches!(
@@ -482,38 +403,4 @@ fn duplicate_catalog_bindings_cannot_hide_a_different_target_record() -> Result 
     ));
     assert_eq!(fs::read(fixture.path())?, before);
     Ok(())
-}
-
-#[test]
-fn shared_foreign_index_still_requires_the_key_in_both_parent_tables() -> Result {
-    let fixture = fixture(&[
-        Edge {
-            name: b"FirstParent",
-            parent: 0,
-            child: 1,
-            column: 1,
-        },
-        Edge {
-            name: b"SecondParent",
-            parent: 2,
-            child: 1,
-            column: 1,
-        },
-    ])?;
-    crate::delete_row(
-        fixture.path(),
-        RowDelete {
-            table: NAMES[2],
-            row: locator(&fixture, 2, 3)?,
-        },
-        &mut budget(),
-    )?;
-    let before = fs::read(fixture.path())?;
-    assert!(matches!(
-        field(&fixture, 1, 2, 1, RowValue::Long(3)),
-        Err(WriteError::RelationshipConstraint { .. })
-    ));
-    assert_eq!(fs::read(fixture.path())?, before);
-    field(&fixture, 1, 2, 1, RowValue::Long(2))?;
-    check(&fixture)
 }

@@ -1,9 +1,10 @@
 use super::api_tests::*;
 use crate::WriteError;
+use crate::testkit::create;
+use crate::testkit::table;
 use crate::{
-    ColumnOrdinal, ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, PageNumber,
-    RawField, RowValue, SliceSource, TableRows, TableSpec,
-    create::{api::create_database, schema_plan::TableSchemaPlanError},
+    ColumnOrdinal, ColumnSpec, ColumnType, ComposeError, DatabaseReader, PageNumber, RawField,
+    RowValue, SliceSource, TableRows, create::schema_plan::TableSchemaPlanError,
     definition::column_writer::nz,
 };
 use std::fs;
@@ -11,7 +12,7 @@ use std::fs;
 #[test]
 fn fixed_schema_capacity_includes_the_presence_map() -> TestResult {
     for (count, total) in [(8, 2000), (16, 1999)] {
-        let directory = TestDirectory::create()?;
+        let directory = TempDir::new("create")?;
         let names: Vec<_> = (0..count).map(|i| format!("F{i:02}")).collect();
         let widths: Vec<_> = (0..count)
             .map(|i| (total - 4) / count + usize::from(i < (total - 4) % count))
@@ -28,22 +29,13 @@ fn fixed_schema_capacity_includes_the_presence_map() -> TestResult {
         let payloads: Vec<_> = widths.iter().map(|&width| vec![b'X'; width]).collect();
         let mut values = vec![RowValue::Long(1)];
         values.extend(payloads.iter().map(|bytes| RowValue::Text(bytes)));
-        let spec = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &columns,
-            indexes: &[],
-        };
-        create_database(
+        let spec = table(b"Items", &columns, &[]);
+        create(
             directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table: spec,
-                    rows: &[&values],
-                }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
+            &[TableRows {
+                table: spec,
+                rows: &[&values],
+            }],
         )?;
         let original = fs::read(directory.target())?;
         {
@@ -66,21 +58,9 @@ fn fixed_schema_capacity_includes_the_presence_map() -> TestResult {
                 len: nz(widths[0] as u8 + 1),
             },
         );
-        let invalid = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &columns,
-            indexes: &[],
-        };
+        let invalid = table(b"Items", &columns, &[]);
         assert!(matches!(
-            create_database(
-                directory.target(),
-                &DatabaseSpec {
-                    tables: &[TableRows::empty(invalid)],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget()
-            ),
+            create(directory.target(), &[TableRows::empty(invalid)]),
             Err(WriteError::Compose(ComposeError::Schema(
                 TableSchemaPlanError::Definition(
                     crate::TableDefinitionWriteError::RowLayoutTooLarge {
@@ -98,7 +78,7 @@ fn fixed_schema_capacity_includes_the_presence_map() -> TestResult {
 #[test]
 fn all_variable_rows_disambiguate_the_final_boundary_and_reject_bad_trailers() -> TestResult {
     // EXP-0258: ff means both an unused threshold and boundary ordinal 255.
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let names: Vec<_> = (0..255).map(|i| format!("V{i:03}")).collect();
     let columns: Vec<_> = names
         .iter()
@@ -146,21 +126,12 @@ fn all_variable_rows_disambiguate_the_final_boundary_and_reject_bad_trailers() -
         })
         .collect();
     let rows: Vec<_> = values.iter().map(Vec::as_slice).collect();
-    create_database(
+    create(
         directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Items",
-                    columns: &columns,
-                    indexes: &[],
-                },
-                rows: &rows,
-            }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+        &[TableRows {
+            table: table(b"Items", &columns, &[]),
+            rows: &rows,
+        }],
     )?;
     let bytes = fs::read(directory.target())?;
     let mut work = budget();

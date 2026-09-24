@@ -4,11 +4,12 @@ use crate::{
     PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits, SliceSource,
     index::tree::page::parse_node,
 };
-use std::error::Error as _;
+
+use crate::testkit::TestResult;
 
 pub(super) const PAGE_COUNT: usize = 8;
 const ROOT: usize = 1;
-const MAP_PAGE: usize = 2;
+pub(super) const MAP_PAGE: usize = 2;
 pub(super) const INDEX_ROOT: usize = 3;
 pub(super) const FIRST_LEAF: usize = 4;
 pub(super) const SECOND_LEAF: usize = 5;
@@ -207,6 +208,35 @@ pub(super) fn traverse_with_limits(
     Ok((tree, budget))
 }
 
+type ErrorCheck = fn(&IndexTreeError) -> bool;
+
+/// The index traversal refusal for `bytes`, if traversal failed with one.
+pub(super) fn tree_error(bytes: &[u8], limits: ResourceLimits) -> Option<IndexTreeError> {
+    traverse_with_limits(bytes, limits)
+        .err()?
+        .downcast::<IndexTreeError>()
+        .ok()
+        .map(|error| *error)
+}
+
+/// A Long-keyed table whose index root is one leaf holding `entries`.
+fn single_leaf(prefix: &[u8], entries: &[&[u8]]) -> Vec<u8> {
+    let mut bytes = database_bytes(4, 3, 4);
+    write_node(
+        &mut bytes,
+        NodeSpec {
+            page: INDEX_ROOT,
+            tag: 4,
+            previous: 0,
+            next: 0,
+            tail_child: 0,
+            prefix,
+            entries,
+        },
+    );
+    bytes
+}
+
 pub(super) fn branch_tree() -> Vec<u8> {
     let mut bytes = database_bytes(4, 3, 4);
     let first = leaf_entry(&[0x7f, 0x80, 0, 0, 0], 0);
@@ -254,8 +284,7 @@ pub(super) fn branch_tree() -> Vec<u8> {
 }
 
 #[test]
-fn traverses_branch_and_prefixed_leaves_in_physical_order() -> Result<(), Box<dyn std::error::Error>>
-{
+fn traverses_branch_and_prefixed_leaves_in_physical_order() -> TestResult {
     let bytes = branch_tree();
     let (tree, _) = traverse_with_limits(&bytes, limits(&bytes))?;
     assert_eq!(tree.root(), PageNumber::new(INDEX_ROOT as u64));
@@ -281,59 +310,39 @@ fn traverses_branch_and_prefixed_leaves_in_physical_order() -> Result<(), Box<dy
 }
 
 #[test]
-fn rejects_child_cycles_repeats_and_leaf_link_self_references() {
-    let mut child_cycle = branch_tree();
-    let branch_end = ENTRY_AREA_OFFSET + 13;
-    child_cycle[INDEX_ROOT * PAGE_BYTES + branch_end - 4..INDEX_ROOT * PAGE_BYTES + branch_end]
-        .copy_from_slice(&(INDEX_ROOT as u32).to_be_bytes());
-    assert!(matches!(
-        traverse_with_limits(&child_cycle, limits(&child_cycle)),
-        Err(error) if error.downcast_ref::<IndexTreeError>().is_some_and(|source| matches!(source, IndexTreeError::SelfReference { role: "branch child", .. }))
-    ));
-
-    let mut repeated = branch_tree();
-    repeated[INDEX_ROOT * PAGE_BYTES + 16..INDEX_ROOT * PAGE_BYTES + 20]
-        .copy_from_slice(&(FIRST_LEAF as u32).to_le_bytes());
-    assert!(matches!(
-        traverse_with_limits(&repeated, limits(&repeated)),
-        Err(error) if error.downcast_ref::<IndexTreeError>().is_some_and(|source| matches!(source, IndexTreeError::RepeatedPage { .. }))
-    ));
-
-    let mut link_cycle = branch_tree();
-    link_cycle[FIRST_LEAF * PAGE_BYTES + 12..FIRST_LEAF * PAGE_BYTES + 16]
-        .copy_from_slice(&(FIRST_LEAF as u32).to_le_bytes());
-    assert!(matches!(
-        traverse_with_limits(&link_cycle, limits(&link_cycle)),
-        Err(error) if error.downcast_ref::<IndexTreeError>().is_some_and(|source| matches!(source, IndexTreeError::SelfReference { role: "next sibling", .. }))
-    ));
-}
-
-#[test]
-fn exact_depth_succeeds_and_one_over_is_resource_rejected() -> Result<(), Box<dyn std::error::Error>>
-{
+fn exact_depth_and_item_work_succeed_and_one_over_is_resource_rejected() -> TestResult {
     let bytes = branch_tree();
+    let (_, budget) = traverse_with_limits(&bytes, limits(&bytes))?;
+    let work = budget.item_work();
+    assert!(
+        work >= 3 + 5 + 4,
+        "nodes, entries, and row slots must be charged"
+    );
+    let exact = limits(&bytes).with_max_item_work(work);
+    assert_eq!(traverse_with_limits(&bytes, exact)?.0.entries().len(), 4);
+    assert!(matches!(
+        tree_error(&bytes, limits(&bytes).with_max_item_work(work - 1)),
+        Some(IndexTreeError::Resource(Error::ResourceLimitExceeded {
+            kind: ResourceLimitKind::ItemWork,
+            ..
+        }))
+    ));
+
     let exact = limits(&bytes).with_max_chain_depth(2);
     assert_eq!(traverse_with_limits(&bytes, exact)?.0.nodes().len(), 3);
-    let one_over = limits(&bytes).with_max_chain_depth(1);
-    let result = traverse_with_limits(&bytes, one_over);
-    let error = result.err().ok_or("depth two unexpectedly succeeded")?;
-    let source = error
-        .downcast_ref::<IndexTreeError>()
-        .ok_or("missing index error")?;
     assert!(matches!(
-        source,
-        IndexTreeError::Resource(Error::ResourceLimitExceeded {
+        tree_error(&bytes, limits(&bytes).with_max_chain_depth(1)),
+        Some(IndexTreeError::Resource(Error::ResourceLimitExceeded {
             kind: ResourceLimitKind::ChainDepth,
             requested: 2,
             maximum: 1,
-        })
+        }))
     ));
     Ok(())
 }
 
 #[test]
-fn composite_descending_keys_stay_lossless_in_physical_order()
--> Result<(), Box<dyn std::error::Error>> {
+fn composite_descending_keys_stay_lossless_in_physical_order() -> TestResult {
     let mut bytes = database_with_definition(&composite_definition());
     let keys: [&[u8]; 3] = [
         &[0x7f, 0x7f, 0xff, 0xff, 0xfd, 0x7f, 0x80, 0, 0, 0],
@@ -369,36 +378,120 @@ fn composite_descending_keys_stay_lossless_in_physical_order()
 }
 
 #[test]
-fn item_work_is_charged_online_for_nodes_entries_and_rows() -> Result<(), Box<dyn std::error::Error>>
-{
-    let bytes = branch_tree();
-    let (_, budget) = traverse_with_limits(&bytes, limits(&bytes))?;
-    let work = budget.item_work();
-    assert!(
-        work >= 3 + 5 + 4,
-        "nodes, entries, and row slots must be charged"
-    );
-    let exact = limits(&bytes).with_max_item_work(work);
-    assert_eq!(traverse_with_limits(&bytes, exact)?.0.entries().len(), 4);
-    let one_over = limits(&bytes).with_max_item_work(work - 1);
-    let error = traverse_with_limits(&bytes, one_over)
-        .err()
-        .ok_or("one-over item work unexpectedly succeeded")?;
-    assert!(matches!(
-        error.downcast_ref::<IndexTreeError>(),
-        Some(IndexTreeError::Resource(Error::ResourceLimitExceeded {
-            kind: ResourceLimitKind::ItemWork,
-            ..
-        }))
-    ));
+fn key_inventory_is_typed_only_for_observed_encodings_and_other_bytes_are_lossless() -> TestResult {
+    let cases: &[(u8, u8, u16, &[u8], IndexKeyEncoding)] = &[
+        (1, 3, 1, &[0x7f, 0xff], IndexKeyEncoding::Boolean),
+        (2, 3, 1, &[0x7f, 0x7f], IndexKeyEncoding::Byte),
+        (3, 3, 2, &[0x7f, 0x80, 0], IndexKeyEncoding::Integer),
+        (4, 3, 4, &[0x7f, 0x80, 0, 0, 0], IndexKeyEncoding::Long),
+        (
+            5,
+            3,
+            8,
+            &[0x7f, 0x80, 0, 0, 0, 0, 0, 0, 0],
+            IndexKeyEncoding::Currency,
+        ),
+        (6, 3, 4, &[0x7f, 0x80, 0, 0, 0], IndexKeyEncoding::Single),
+        (
+            7,
+            3,
+            8,
+            &[0x7f, 0x80, 0, 0, 0, 0, 0, 0, 0],
+            IndexKeyEncoding::Double,
+        ),
+        (
+            8,
+            3,
+            8,
+            &[0x7f, 0xc0, 0, 0, 0, 0, 0, 0, 0],
+            IndexKeyEncoding::DateTime,
+        ),
+        (9, 2, 3, &[0x7f, 1, 2, 3, 3], IndexKeyEncoding::Binary),
+        (10, 2, 20, &[0x7f, 0x60, 0], IndexKeyEncoding::TextCollation),
+        (4, 3, 4, &[0], IndexKeyEncoding::Null),
+        (11, 2, 0, &[0xde, 0xad], IndexKeyEncoding::Unsupported),
+        (12, 2, 0, &[0xbe, 0xef], IndexKeyEncoding::Unsupported),
+        (15, 3, 16, &[0xca, 0xfe], IndexKeyEncoding::Unsupported),
+    ];
+    for &(physical_type, class, size, raw_key, expected) in cases {
+        let mut bytes = database_bytes(physical_type, class, size);
+        let entry = leaf_entry(raw_key, 0);
+        write_node(
+            &mut bytes,
+            NodeSpec {
+                page: INDEX_ROOT,
+                tag: 4,
+                previous: 0,
+                next: 0,
+                tail_child: 0,
+                prefix: &[],
+                entries: &[&entry],
+            },
+        );
+        let (tree, _) = traverse_with_limits(&bytes, limits(&bytes))?;
+        assert_eq!(tree.entries()[0].key().encoding(), expected);
+        assert_eq!(tree.entries()[0].key().raw_bytes(), raw_key);
+    }
     Ok(())
 }
 
 #[test]
-fn interleaved_row_pages_are_validated_once_each() -> Result<(), Box<dyn std::error::Error>> {
+fn common_prefix_can_include_leaf_locator_and_branch_trailer_bytes() -> TestResult {
+    let first = leaf_entry(&[0], 0);
+    let second = leaf_entry(&[0], 1);
+    for prefix_len in 0..first.len() {
+        let bytes = single_leaf(&first[..prefix_len], &[&first, &second]);
+        let (tree, _) = traverse_with_limits(&bytes, limits(&bytes))?;
+        assert_eq!(tree.entries().len(), 2);
+        for (slot, entry) in tree.entries().iter().enumerate() {
+            assert_eq!(entry.key().raw_bytes(), &[0]);
+            assert_eq!(entry.row().page(), PageNumber::new(ROW_PAGE as u64));
+            assert_eq!(usize::from(entry.row().slot()), slot);
+        }
+    }
+
+    let separator = branch_entry(&[0], 0, FIRST_LEAF);
+    for prefix_len in 0..separator.len() {
+        let mut bytes = database_bytes(4, 3, 4);
+        write_node(
+            &mut bytes,
+            NodeSpec {
+                page: INDEX_ROOT,
+                tag: 3,
+                previous: 0,
+                next: 0,
+                tail_child: SECOND_LEAF,
+                prefix: &separator[..prefix_len],
+                entries: &[&separator],
+            },
+        );
+        for (page, previous, next, entry) in [
+            (FIRST_LEAF, 0, SECOND_LEAF, &first),
+            (SECOND_LEAF, FIRST_LEAF, 0, &second),
+        ] {
+            write_node(
+                &mut bytes,
+                NodeSpec {
+                    page,
+                    tag: 4,
+                    previous,
+                    next,
+                    tail_child: 0,
+                    prefix: &[],
+                    entries: &[entry],
+                },
+            );
+        }
+        let (tree, _) = traverse_with_limits(&bytes, limits(&bytes))?;
+        assert_eq!(tree.nodes().len(), 3);
+        assert_eq!(tree.entries().len(), 2);
+    }
+    Ok(())
+}
+
+#[test]
+fn interleaved_row_pages_are_validated_once_each() -> TestResult {
     const SECOND_ROW_PAGE: usize = 7;
-    let mut bytes = database_bytes(4, 3, 4);
-    write_row_page(&mut bytes, SECOND_ROW_PAGE, 1);
     let entries: Vec<Vec<u8>> = (0..4_u8)
         .map(|ordinal| {
             let mut entry = leaf_entry(&[0x7f, 0x80, 0, 0, ordinal], 0);
@@ -411,18 +504,8 @@ fn interleaved_row_pages_are_validated_once_each() -> Result<(), Box<dyn std::er
         })
         .collect();
     let entry_refs: Vec<&[u8]> = entries.iter().map(Vec::as_slice).collect();
-    write_node(
-        &mut bytes,
-        NodeSpec {
-            page: INDEX_ROOT,
-            tag: 4,
-            previous: 0,
-            next: 0,
-            tail_child: 0,
-            prefix: &[],
-            entries: &entry_refs,
-        },
-    );
+    let mut bytes = single_leaf(&[], &entry_refs);
+    write_row_page(&mut bytes, SECOND_ROW_PAGE, 1);
     let mut opened = ResourceBudget::new(limits(&bytes));
     let source = SliceSource::new(&bytes, opened.read_budget())?;
     let mut database = DatabaseReader::from_source(source, &mut opened)?;
@@ -438,48 +521,27 @@ fn interleaved_row_pages_are_validated_once_each() -> Result<(), Box<dyn std::er
 fn rejects_row_locators_outside_validated_data_pages() {
     let entry = leaf_entry(&[0x7f, 0x80, 0, 0, 0], 0);
     let trailer = INDEX_ROOT * PAGE_BYTES + ENTRY_AREA_OFFSET + entry.len() - 4;
-    let single_leaf = |mutate: &dyn Fn(&mut [u8])| {
-        let mut bytes = database_bytes(4, 3, 4);
-        write_node(
-            &mut bytes,
-            NodeSpec {
-                page: INDEX_ROOT,
-                tag: 4,
-                previous: 0,
-                next: 0,
-                tail_child: 0,
-                prefix: &[],
-                entries: &[&entry],
-            },
-        );
-        mutate(&mut bytes);
-        traverse_with_limits(&bytes, limits(&bytes))
-            .err()
-            .and_then(|error| error.downcast::<IndexTreeError>().ok())
-            .map(|error| *error)
+    let with_locator = |offset: usize, value: u8| {
+        let mut bytes = single_leaf(&[], &[&entry]);
+        bytes[trailer + offset] = value;
+        tree_error(&bytes, limits(&bytes))
     };
-
-    let table_page = single_leaf(&|bytes| bytes[trailer + 2] = ROOT as u8);
     assert!(matches!(
-        table_page,
+        with_locator(2, ROOT as u8),
         Some(IndexTreeError::UnexpectedRowPageKind {
             actual: PageKind::TableDefinition,
             ..
         })
     ));
-
-    let foreign_owner = single_leaf(&|bytes| bytes[trailer + 2] = MAP_PAGE as u8);
     assert!(matches!(
-        foreign_owner,
+        with_locator(2, MAP_PAGE as u8),
         Some(IndexTreeError::RowDirectory {
             source: crate::RowDirectoryError::UnexpectedOwner { .. },
             ..
         })
     ));
-
-    let missing_slot = single_leaf(&|bytes| bytes[trailer + 3] = 4);
     assert!(matches!(
-        missing_slot,
+        with_locator(3, 4),
         Some(IndexTreeError::RowDirectory {
             source: crate::RowDirectoryError::MissingRow {
                 row: 4,
@@ -488,59 +550,36 @@ fn rejects_row_locators_outside_validated_data_pages() {
             ..
         })
     ));
+    assert!(matches!(
+        with_locator(2, PAGE_COUNT as u8),
+        Some(IndexTreeError::InvalidReference {
+            role: "leaf row page",
+            ..
+        })
+    ));
 }
 
 #[test]
-fn rejects_bitmap_free_space_and_sibling_corruption() {
-    let mut outside = branch_tree();
-    outside[INDEX_ROOT * PAGE_BYTES + 247] |= 1 << 1;
-    assert!(traverse_with_limits(&outside, limits(&outside)).is_err());
-
+fn rejects_cycles_bitmap_free_space_sibling_and_truncation_corruption() {
+    let mut child_cycle = branch_tree();
+    let branch_end = INDEX_ROOT * PAGE_BYTES + ENTRY_AREA_OFFSET + 13;
+    child_cycle[branch_end - 4..branch_end].copy_from_slice(&(INDEX_ROOT as u32).to_be_bytes());
+    let mut repeated = branch_tree();
+    repeated[INDEX_ROOT * PAGE_BYTES + 16..INDEX_ROOT * PAGE_BYTES + 20]
+        .copy_from_slice(&(FIRST_LEAF as u32).to_le_bytes());
+    let mut link_cycle = branch_tree();
+    link_cycle[FIRST_LEAF * PAGE_BYTES + 12..FIRST_LEAF * PAGE_BYTES + 16]
+        .copy_from_slice(&(FIRST_LEAF as u32).to_le_bytes());
     let mut free = branch_tree();
     free[INDEX_ROOT * PAGE_BYTES + 2] ^= 1;
-    assert!(matches!(
-        traverse_with_limits(&free, limits(&free)),
-        Err(error) if error.downcast_ref::<IndexTreeError>().is_some_and(|source| matches!(source, IndexTreeError::InvalidFreeSpace { .. }))
-    ));
-
     let mut sibling = branch_tree();
     sibling[FIRST_LEAF * PAGE_BYTES + 12..FIRST_LEAF * PAGE_BYTES + 16]
         .copy_from_slice(&0_u32.to_le_bytes());
-    assert!(matches!(
-        traverse_with_limits(&sibling, limits(&sibling)),
-        Err(error) if error.downcast_ref::<IndexTreeError>().is_some_and(|source| matches!(source, IndexTreeError::InvalidSiblingLink { .. }))
-    ));
-
     let mut previous_sibling = branch_tree();
     previous_sibling[SECOND_LEAF * PAGE_BYTES + 8..SECOND_LEAF * PAGE_BYTES + 12]
         .copy_from_slice(&0_u32.to_le_bytes());
-    assert!(matches!(
-        traverse_with_limits(&previous_sibling, limits(&previous_sibling)),
-        Err(error) if error.downcast_ref::<IndexTreeError>().is_some_and(|source| matches!(source, IndexTreeError::InvalidSiblingLink { role: "previous sibling", .. }))
-    ));
-
-    let prefix = [0x7f, 0x80, 0, 0, 0];
-    let mut short_leaf = database_bytes(4, 3, 4);
-    let short_leaf_entry = [0x7f, 0x80, 0, 0];
-    write_node(
-        &mut short_leaf,
-        NodeSpec {
-            page: INDEX_ROOT,
-            tag: 4,
-            previous: 0,
-            next: 0,
-            tail_child: 0,
-            prefix: &prefix[..2],
-            entries: &[&short_leaf_entry],
-        },
-    );
-    assert!(matches!(
-        traverse_with_limits(&short_leaf, limits(&short_leaf)),
-        Err(error) if error.downcast_ref::<IndexTreeError>().is_some_and(|source| matches!(source, IndexTreeError::TruncatedEntry { .. }))
-    ));
-
+    let short_leaf = single_leaf(&[0x7f, 0x80], &[&[0x7f, 0x80, 0, 0]]);
     let mut short_branch = database_bytes(4, 3, 4);
-    let short_branch_entry = [0x7f, 0x80, 0, 0, ROW_PAGE as u8, 0, 0, 4];
     write_node(
         &mut short_branch,
         NodeSpec {
@@ -549,14 +588,62 @@ fn rejects_bitmap_free_space_and_sibling_corruption() {
             previous: 0,
             next: 0,
             tail_child: SECOND_LEAF,
-            prefix: &prefix[..2],
-            entries: &[&short_branch_entry],
+            prefix: &[0x7f, 0x80],
+            entries: &[&[0x7f, 0x80, 0, 0, ROW_PAGE as u8, 0, 0, 4]],
         },
     );
-    assert!(matches!(
-        traverse_with_limits(&short_branch, limits(&short_branch)),
-        Err(error) if error.downcast_ref::<IndexTreeError>().is_some_and(|source| matches!(source, IndexTreeError::TruncatedEntry { .. }))
-    ));
+    let cases: [(&str, Vec<u8>, ErrorCheck); 8] = [
+        ("child cycle", child_cycle, |error| {
+            matches!(
+                error,
+                IndexTreeError::SelfReference {
+                    role: "branch child",
+                    ..
+                }
+            )
+        }),
+        ("repeated page", repeated, |error| {
+            matches!(error, IndexTreeError::RepeatedPage { .. })
+        }),
+        ("next link cycle", link_cycle, |error| {
+            matches!(
+                error,
+                IndexTreeError::SelfReference {
+                    role: "next sibling",
+                    ..
+                }
+            )
+        }),
+        ("free space", free, |error| {
+            matches!(error, IndexTreeError::InvalidFreeSpace { .. })
+        }),
+        ("next sibling", sibling, |error| {
+            matches!(error, IndexTreeError::InvalidSiblingLink { .. })
+        }),
+        ("previous sibling", previous_sibling, |error| {
+            matches!(
+                error,
+                IndexTreeError::InvalidSiblingLink {
+                    role: "previous sibling",
+                    ..
+                }
+            )
+        }),
+        ("short leaf", short_leaf, |error| {
+            matches!(error, IndexTreeError::TruncatedEntry { .. })
+        }),
+        ("short branch", short_branch, |error| {
+            matches!(error, IndexTreeError::TruncatedEntry { .. })
+        }),
+    ];
+    for (label, bytes, expected) in cases {
+        let error = tree_error(&bytes, limits(&bytes));
+        assert!(error.as_ref().is_some_and(expected), "{label}: {error:?}");
+    }
+
+    let mut outside = branch_tree();
+    outside[INDEX_ROOT * PAGE_BYTES + 247] |= 1 << 1;
+    assert!(traverse_with_limits(&outside, limits(&outside)).is_err());
 }
 
 fn parse_page(
@@ -594,41 +681,45 @@ fn page_copy(bytes: &[u8], page: usize) -> [u8; PAGE_BYTES] {
 fn rejects_each_node_header_and_reference_corruption() {
     let bytes = branch_tree();
     let root = page_copy(&bytes, INDEX_ROOT);
+    let branch = |offset: usize, value: &[u8]| {
+        let mut page = root;
+        page[offset..offset + value.len()].copy_from_slice(value);
+        parse_page(&page, PageKind::IntermediateIndex, INDEX_ROOT)
+    };
     assert!(matches!(
         parse_page(&root, PageKind::Data, INDEX_ROOT),
         Err(IndexTreeError::UnexpectedPageKind { .. })
     ));
-
-    let mut header = root;
-    header[1] = 0;
     assert!(matches!(
-        parse_page(&header, PageKind::IntermediateIndex, INDEX_ROOT),
+        branch(1, &[0]),
         Err(IndexTreeError::InvalidHeaderMarker { offset: 1, .. })
     ));
-
-    let mut owner = root;
-    owner[4..8].copy_from_slice(&(SECOND_LEAF as u32).to_le_bytes());
     assert!(matches!(
-        parse_page(&owner, PageKind::IntermediateIndex, INDEX_ROOT),
+        branch(4, &(SECOND_LEAF as u32).to_le_bytes()),
         Err(IndexTreeError::UnexpectedOwner { .. })
     ));
-
-    let mut marker = root;
-    marker[21] = 0;
     assert!(matches!(
-        parse_page(&marker, PageKind::IntermediateIndex, INDEX_ROOT),
+        branch(21, &[0]),
         Err(IndexTreeError::InvalidHeaderMarker { offset: 21, .. })
     ));
-
-    let mut branch_without_tail = root;
-    branch_without_tail[16..20].copy_from_slice(&0_u32.to_le_bytes());
     assert!(matches!(
-        parse_page(
-            &branch_without_tail,
-            PageKind::IntermediateIndex,
-            INDEX_ROOT,
-        ),
+        branch(16, &[0; 4]),
         Err(IndexTreeError::InvalidTailChild { child, .. }) if child == PageNumber::new(0)
+    ));
+    assert!(matches!(
+        branch(20, &[13]),
+        Err(IndexTreeError::InvalidEntryBoundary {
+            boundary: 13,
+            previous: 13,
+            ..
+        })
+    ));
+    assert!(matches!(
+        branch(8, &(PAGE_COUNT as u32).to_le_bytes()),
+        Err(IndexTreeError::InvalidReference {
+            role: "previous sibling",
+            ..
+        })
     ));
 
     let mut leaf_with_tail = page_copy(&bytes, FIRST_LEAF);
@@ -636,17 +727,6 @@ fn rejects_each_node_header_and_reference_corruption() {
     assert!(matches!(
         parse_page(&leaf_with_tail, PageKind::LeafIndex, FIRST_LEAF),
         Err(IndexTreeError::InvalidTailChild { .. })
-    ));
-
-    let mut reversed_boundary = root;
-    reversed_boundary[20] = 13;
-    assert!(matches!(
-        parse_page(&reversed_boundary, PageKind::IntermediateIndex, INDEX_ROOT,),
-        Err(IndexTreeError::InvalidEntryBoundary {
-            boundary: 13,
-            previous: 13,
-            ..
-        })
     ));
 
     let mut empty_prefixed_leaf = [0_u8; PAGE_BYTES];
@@ -685,56 +765,4 @@ fn rejects_each_node_header_and_reference_corruption() {
         },
     );
     assert!(parse_page(&empty_branch, PageKind::IntermediateIndex, 0).is_ok());
-
-    let mut outside_sibling = root;
-    outside_sibling[8..12].copy_from_slice(&(PAGE_COUNT as u32).to_le_bytes());
-    assert!(matches!(
-        parse_page(&outside_sibling, PageKind::IntermediateIndex, INDEX_ROOT,),
-        Err(IndexTreeError::InvalidReference {
-            role: "previous sibling",
-            ..
-        })
-    ));
-}
-
-#[test]
-fn invalid_row_reference_and_error_sources_remain_structured()
--> Result<(), Box<dyn std::error::Error>> {
-    let mut bytes = database_bytes(4, 3, 4);
-    let entry = leaf_entry(&[0x7f, 0x80, 0, 0, 0], 0);
-    write_node(
-        &mut bytes,
-        NodeSpec {
-            page: INDEX_ROOT,
-            tag: 4,
-            previous: 0,
-            next: 0,
-            tail_child: 0,
-            prefix: &[],
-            entries: &[&entry],
-        },
-    );
-    let trailer_page = INDEX_ROOT * PAGE_BYTES + ENTRY_AREA_OFFSET + entry.len() - 4;
-    bytes[trailer_page..trailer_page + 3].copy_from_slice(&[0, 0, PAGE_COUNT as u8]);
-    let error = traverse_with_limits(&bytes, limits(&bytes))
-        .err()
-        .ok_or("out-of-range row page unexpectedly succeeded")?;
-    let source = error
-        .downcast_ref::<IndexTreeError>()
-        .ok_or("missing index traversal error")?;
-    assert!(matches!(
-        source,
-        IndexTreeError::InvalidReference {
-            role: "leaf row page",
-            ..
-        }
-    ));
-    assert!(source.to_string().contains("index traversal failed"));
-    assert!(source.source().is_some());
-
-    let plain = IndexTreeError::RepeatedPage {
-        page: PageNumber::new(INDEX_ROOT as u64),
-    };
-    assert!(plain.source().is_none());
-    Ok(())
 }

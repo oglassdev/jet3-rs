@@ -1,8 +1,9 @@
 use super::tests::*;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
     ByteCount, ColumnSpec, ColumnType, IndexColumnSpec, IndexKind, IndexSpec, PAGE_BYTES,
-    PageNumber, ResourceLimits, RowValue, TableRows, TableSpec,
-    create::composer::compose_database_with_table_rows, validate::*,
+    PageNumber, ResourceLimits, RowValue, TableRows, validate::*,
 };
 
 fn first_row(bytes: &[u8], table: &TableDefinition) -> TestResult<(RowLocator, usize)> {
@@ -82,34 +83,25 @@ fn retained_directory_slots_do_not_make_deleted_rows_valid_index_targets() -> Te
 
 #[test]
 fn unsupported_key_schemas_report_coverage_and_still_check_membership() -> TestResult {
-    let plan = compose_database_with_table_rows(
-        &[TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Items",
-                columns: &[
-                    ColumnSpec::new(b"Id", ColumnType::Long),
-                    ColumnSpec::new(b"Body", ColumnType::Memo),
-                ],
-                indexes: &[IndexSpec {
-                    name: b"ById",
-                    kind: IndexKind::Primary,
-                    fields: &[IndexColumnSpec::ascending(0)],
-                }],
-            },
-            rows: &[
-                &[RowValue::Long(2), RowValue::Memo(b"two")],
-                &[RowValue::Long(0), RowValue::Memo(b"zero")],
-                &[RowValue::Long(1), RowValue::Memo(b"one")],
+    let mut bytes = compose(&[TableRows {
+        table: table(
+            b"Items",
+            &[
+                ColumnSpec::new(b"Id", ColumnType::Long),
+                ColumnSpec::new(b"Body", ColumnType::Memo),
             ],
-        }],
-        &mut budget(),
-    )?;
-    let mut bytes: Vec<_> = plan
-        .pages()
-        .iter()
-        .flat_map(|p| p.image().as_bytes().iter().copied())
-        .collect();
+            &[index(
+                b"ById",
+                &[IndexColumnSpec::ascending(0)],
+                IndexKind::Primary,
+            )],
+        ),
+        rows: &[
+            &[RowValue::Long(2), RowValue::Memo(b"two")],
+            &[RowValue::Long(0), RowValue::Memo(b"zero")],
+            &[RowValue::Long(1), RowValue::Memo(b"one")],
+        ],
+    }])?;
     let table = definition(&bytes, b"Items")?;
     let raw = table.physical_indexes()[0].raw_record();
     let start = page_start(table.root());
@@ -184,11 +176,7 @@ fn composite_text_binary_guid_null_policies_and_branch_bounds_are_checked() -> T
         IndexColumnSpec::descending(3),
     ];
     let indexes = [
-        IndexSpec {
-            name: b"Composite",
-            kind: IndexKind::Ordinary,
-            fields: &keys,
-        },
+        index(b"Composite", &keys, IndexKind::Ordinary),
         IndexSpec {
             name: b"Primary",
             kind: IndexKind::Primary,
@@ -219,23 +207,10 @@ fn composite_text_binary_guid_null_policies_and_branch_bounds_are_checked() -> T
         })
         .collect();
     let rows: Vec<_> = values.iter().map(|row| row.as_slice()).collect();
-    let plan = compose_database_with_table_rows(
-        &[TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Items",
-                columns: &columns,
-                indexes: &indexes,
-            },
-            rows: &rows,
-        }],
-        &mut budget(),
-    )?;
-    let mut bytes: Vec<_> = plan
-        .pages()
-        .iter()
-        .flat_map(|page| page.image().as_bytes().iter().copied())
-        .collect();
+    let mut bytes = compose(&[TableRows {
+        table: table(b"Items", &columns, &indexes),
+        rows: &rows,
+    }])?;
     let report = validate(&bytes)??;
     assert_eq!(report.indexes_with_verified_keys, 9);
     assert_eq!(report.uninterpreted_index_entries, 0);
@@ -265,35 +240,26 @@ fn all_null_omission_and_repeated_nullable_unique_keys_have_complete_coverage() 
         crate::IndexNullPolicy::Include,
         crate::IndexNullPolicy::IgnoreAllNull,
     ] {
-        let plan = compose_database_with_table_rows(
-            &[TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Items",
-                    columns: &[
-                        ColumnSpec::new(b"Id", ColumnType::Long),
-                        ColumnSpec::new(b"Value", ColumnType::Long),
-                    ],
-                    indexes: &[IndexSpec {
-                        name: b"Nullable",
-                        kind: IndexKind::Unique.with_null_policy(policy),
-                        fields: &[IndexColumnSpec::ascending(1)],
-                    }],
-                },
-                rows: &[
-                    &[RowValue::Long(0), RowValue::Null],
-                    &[RowValue::Long(1), RowValue::Null],
-                    &[RowValue::Long(2), RowValue::Long(7)],
-                    &[RowValue::Long(3), RowValue::Long(8)],
+        let mut bytes = compose(&[TableRows {
+            table: table(
+                b"Items",
+                &[
+                    ColumnSpec::new(b"Id", ColumnType::Long),
+                    ColumnSpec::new(b"Value", ColumnType::Long),
                 ],
-            }],
-            &mut budget(),
-        )?;
-        let mut bytes: Vec<_> = plan
-            .pages()
-            .iter()
-            .flat_map(|page| page.image().as_bytes().iter().copied())
-            .collect();
+                &[index(
+                    b"Nullable",
+                    &[IndexColumnSpec::ascending(1)],
+                    IndexKind::Unique.with_null_policy(policy),
+                )],
+            ),
+            rows: &[
+                &[RowValue::Long(0), RowValue::Null],
+                &[RowValue::Long(1), RowValue::Null],
+                &[RowValue::Long(2), RowValue::Long(7)],
+                &[RowValue::Long(3), RowValue::Long(8)],
+            ],
+        }])?;
         let report = validate(&bytes)??;
         assert_eq!(report.indexes_with_verified_keys, 8);
         assert_eq!(
@@ -378,27 +344,18 @@ fn numeric_and_text_index_decoding_keep_resource_errors_structured() -> TestResu
             RowValue::Text(b"key"),
         ),
     ] {
-        let plan = compose_database_with_table_rows(
-            &[TableRows {
-                table: TableSpec {
-                    validation: crate::TableValidation::NONE,
-                    name: b"Items",
-                    columns: &[ColumnSpec::new(b"Value", kind)],
-                    indexes: &[IndexSpec {
-                        name: b"ByValue",
-                        kind: IndexKind::Ordinary,
-                        fields: &[IndexColumnSpec::ascending(0)],
-                    }],
-                },
-                rows: &[&[value]],
-            }],
-            &mut budget(),
-        )?;
-        let bytes: Vec<_> = plan
-            .pages()
-            .iter()
-            .flat_map(|page| page.image().as_bytes().iter().copied())
-            .collect();
+        let bytes = compose(&[TableRows {
+            table: table(
+                b"Items",
+                &[ColumnSpec::new(b"Value", kind)],
+                &[index(
+                    b"ByValue",
+                    &[IndexColumnSpec::ascending(0)],
+                    IndexKind::Ordinary,
+                )],
+            ),
+            rows: &[&[value]],
+        }])?;
         let table = definition(&bytes, b"Items")?;
         let (row, _) = first_row(&bytes, &table)?;
         let mut work = budget();

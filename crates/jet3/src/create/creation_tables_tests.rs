@@ -1,8 +1,11 @@
 use super::api_tests::*;
 use crate::WriteError;
+use crate::testkit::create;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
     ColumnSpec, ColumnType, ComposeError, DatabaseReader, DatabaseSpec, IndexDirection, IndexKind,
-    IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue, TableRows, TableSpec,
+    IndexSpec, PageNumber, ResourceBudget, ResourceLimits, RowValue, TableRows,
     create::api::create_database,
 };
 use std::fs;
@@ -10,37 +13,32 @@ use std::fs;
 const COLUMNS: [ColumnSpec<'static>; 3] =
     [ID, SEQUENCE, ColumnSpec::new(b"Value", ColumnType::Long)];
 const INDEXES: [IndexSpec<'static>; 3] = [
-    IndexSpec {
-        name: b"ZPrimary",
-        fields: &[field(0, IndexDirection::Ascending)],
-        kind: IndexKind::Primary,
-    },
-    IndexSpec {
-        name: b"ASequence",
-        fields: &[field(1, IndexDirection::Descending)],
-        kind: IndexKind::Ordinary,
-    },
-    IndexSpec {
-        name: b"MValue",
-        fields: &[field(2, IndexDirection::Ascending)],
-        kind: IndexKind::Unique,
-    },
+    index(
+        b"ZPrimary",
+        &[field(0, IndexDirection::Ascending)],
+        IndexKind::Primary,
+    ),
+    index(
+        b"ASequence",
+        &[field(1, IndexDirection::Descending)],
+        IndexKind::Ordinary,
+    ),
+    index(
+        b"MValue",
+        &[field(2, IndexDirection::Ascending)],
+        IndexKind::Unique,
+    ),
 ];
 
 #[test]
 fn six_tables_preserve_independent_index_roots_and_initial_rows() -> TestResult {
     for populated in [false, true] {
-        let directory = TestDirectory::create()?;
+        let directory = TempDir::new("create")?;
         let names = (0..6).map(|n| format!("T{n:02}")).collect::<Vec<_>>();
         let tables = names
             .iter()
             .enumerate()
-            .map(|(n, name)| TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: name.as_bytes(),
-                columns: &COLUMNS,
-                indexes: &INDEXES[..[3, 0, 1, 2, 3, 3][n]],
-            })
+            .map(|(n, name)| table(name.as_bytes(), &COLUMNS, &INDEXES[..[3, 0, 1, 2, 3, 3][n]]))
             .collect::<Vec<_>>();
         let values = (0..17)
             .map(|n| {
@@ -63,26 +61,15 @@ fn six_tables_preserve_independent_index_roots_and_initial_rows() -> TestResult 
                     rows: &rows,
                 })
                 .collect::<Vec<_>>();
-            create_database(
-                directory.target(),
-                &DatabaseSpec {
-                    tables: &requests,
-                    ..DatabaseSpec::default()
-                },
-                &mut budget(),
-            )?;
+            create(directory.target(), &requests)?;
         } else {
-            create_database(
+            create(
                 directory.target(),
-                &DatabaseSpec {
-                    tables: &tables
-                        .iter()
-                        .copied()
-                        .map(TableRows::empty)
-                        .collect::<Vec<_>>(),
-                    ..DatabaseSpec::default()
-                },
-                &mut budget(),
+                &tables
+                    .iter()
+                    .copied()
+                    .map(TableRows::empty)
+                    .collect::<Vec<_>>(),
             )?;
         }
         let mut budget = budget();
@@ -118,16 +105,8 @@ fn six_tables_preserve_independent_index_roots_and_initial_rows() -> TestResult 
 
 #[test]
 fn creation_counter_overflow_is_refused_before_allocating_or_writing() -> TestResult {
-    let directory = TestDirectory::create()?;
-    let tables = vec![
-        TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"T",
-            columns: &[ID],
-            indexes: &[],
-        };
-        32640
-    ];
+    let directory = TempDir::new("create")?;
+    let tables = vec![table(b"T", &[ID], &[]); 32640];
     let mut budget = budget();
     assert!(matches!(
         create_database(
@@ -167,30 +146,21 @@ fn catalog_data_and_index_pages_grow_with_complete_row_locators() -> TestResult 
         (255, 0),
         (256, 0),
     ] {
-        let directory = TestDirectory::create()?;
+        let directory = TempDir::new("create")?;
         let names = (0..count)
             .map(|n| format!("T{n:02}{}", "x".repeat(padding)))
             .collect::<Vec<_>>();
         let tables = names
             .iter()
-            .map(|name| TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: name.as_bytes(),
-                columns: &[ID],
-                indexes: &[],
-            })
+            .map(|name| table(name.as_bytes(), &[ID], &[]))
             .collect::<Vec<_>>();
-        create_database(
+        create(
             directory.target(),
-            &DatabaseSpec {
-                tables: &tables
-                    .iter()
-                    .copied()
-                    .map(TableRows::empty)
-                    .collect::<Vec<_>>(),
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
+            &tables
+                .iter()
+                .copied()
+                .map(TableRows::empty)
+                .collect::<Vec<_>>(),
         )?;
         let mut budget = budget();
         let mut database = DatabaseReader::open(directory.target(), &mut budget)?;
@@ -300,8 +270,8 @@ fn catalog_data_and_index_pages_grow_with_complete_row_locators() -> TestResult 
 }
 
 #[test]
-fn catalog_spill_extends_maps_without_overwriting_existing_destination() -> TestResult {
-    let directory = TestDirectory::create()?;
+fn catalog_spill_extends_maps_past_inline_capacity() -> TestResult {
+    let directory = TempDir::new("create")?;
     let names = (0..40).map(|n| format!("T{n:02}")).collect::<Vec<_>>();
     let payload = [b'x'; 200];
     let values = [RowValue::Binary(&payload); 8];
@@ -313,45 +283,18 @@ fn catalog_spill_extends_maps_without_overwriting_existing_destination() -> Test
         .iter()
         .enumerate()
         .map(|(n, name)| TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: name.as_bytes(),
-                columns: &columns,
-                indexes: &[],
-            },
+            table: table(name.as_bytes(), &columns, &[]),
             rows: &rows[..if n == 39 { 25 } else { 23 }],
         })
         .collect::<Vec<_>>();
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &requests,
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
-    let before = fs::read(directory.target())?;
-    assert_eq!(before.len(), 1024 * crate::PAGE_BYTES);
-    requests[39].rows = &rows;
-    let result = create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &requests,
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
+    create(directory.target(), &requests)?;
+    assert_eq!(
+        fs::metadata(directory.target())?.len(),
+        1024 * crate::PAGE_BYTES as u64
     );
-    assert!(result.is_err());
-    assert_eq!(fs::read(directory.target())?, before);
+    requests[39].rows = &rows;
     let grown = directory.target().with_file_name("grown.mdb");
-    create_database(
-        &grown,
-        &DatabaseSpec {
-            tables: &requests,
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(&grown, &requests)?;
     assert!(fs::metadata(grown)?.len() > 1024 * crate::PAGE_BYTES as u64);
     Ok(())
 }

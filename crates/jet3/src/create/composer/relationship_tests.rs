@@ -1,16 +1,80 @@
 use super::{relationship::*, tests::inline_map_bit};
+use crate::testkit::TestResult;
+use crate::testkit::budget;
+use crate::testkit::table;
 use crate::{
-    ColumnOrdinal, DatabaseReader, PAGE_BYTES, ResourceLimits, SliceSource, create::composer::*,
+    ColumnOrdinal, ColumnRef, DatabaseReader, IndexColumnSpec, IndexKind, IndexSpec, PAGE_BYTES,
+    RelationshipField, RelationshipSpec, ResourceLimits, SliceSource, TableRef,
+    create::composer::*, definition::column_writer::nz,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
-use crate::testkit::budget;
-fn bytes() -> Result<Vec<u8>, ComposeError> {
-    Ok(compose_parent_child(&mut budget())?
-        .pages()
+const RENAMED_PARENT_COLUMNS: [ColumnSpec<'static>; 2] = [
+    ColumnSpec::new(b"Code2", ColumnType::Long),
+    ColumnSpec::new(b"Key1", ColumnType::Long),
+];
+const RENAMED_CHILD_COLUMNS: [ColumnSpec<'static>; 2] = [
+    ColumnSpec::new(b"Label3", ColumnType::Text { max_len: nz(8) }),
+    ColumnSpec::new(b"Account4", ColumnType::Long),
+];
+
+fn image(plan: &WholeFileImagePlan) -> Vec<u8> {
+    plan.pages()
         .iter()
         .flat_map(|page| page.image().as_bytes().iter().copied())
-        .collect())
+        .collect()
+}
+fn bytes() -> Result<Vec<u8>, ComposeError> {
+    Ok(image(&compose_parent_child(&mut budget())?))
+}
+fn renamed(two: bool) -> ([TableSpec<'static>; 2], RelationshipSpec<'static>) {
+    let parent_name: &[u8] = if two { b"Owners2" } else { b"Accounts7" };
+    let child_name: &[u8] = if two { b"Details4" } else { b"Events9" };
+    let indexes: &[IndexSpec<'static>] = &[
+        IndexSpec {
+            name: b"Primary9",
+            fields: &[IndexColumnSpec {
+                column: ColumnRef::Ordinal(1),
+                direction: IndexDirection::Ascending,
+            }],
+            kind: IndexKind::Primary,
+        },
+        IndexSpec {
+            name: b"Unique8",
+            fields: &[IndexColumnSpec {
+                column: ColumnRef::Ordinal(0),
+                direction: IndexDirection::Ascending,
+            }],
+            kind: IndexKind::Unique,
+        },
+    ];
+    (
+        [
+            table(
+                parent_name,
+                &RENAMED_PARENT_COLUMNS,
+                &indexes[..if two { 2 } else { 1 }],
+            ),
+            table(child_name, &RENAMED_CHILD_COLUMNS, &[]),
+        ],
+        RelationshipSpec {
+            unique: false,
+            enforce: true,
+            join: crate::RelationshipJoin::Inner,
+            cascade_updates: false,
+            cascade_deletes: false,
+            name: if two {
+                b"Owner2_Details4"
+            } else {
+                b"Account7Events9"
+            },
+            parent: TableRef::Name(parent_name),
+            child: TableRef::Name(child_name),
+            fields: &[RelationshipField {
+                parent: ColumnRef::Name(b"Key1"),
+                child: ColumnRef::Name(b"Account4"),
+            }],
+        },
+    )
 }
 
 #[test]
@@ -188,13 +252,146 @@ fn index_locators_maps_and_unrelated_generated_pages_are_preserved() -> TestResu
 }
 
 #[test]
-fn candidate_budget_exhaustion_and_oversized_key_are_structured() {
-    let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(0));
-    assert!(compose_parent_child(&mut limited).is_err());
+fn caller_names_columns_and_both_selector_cases_reopen() -> TestResult {
+    for two in [false, true] {
+        let (tables, spec) = renamed(two);
+        let bytes = image(&compose_relationship(&tables, &spec, &mut budget())?);
+        assert_eq!(bytes.len(), (if two { 30 } else { 29 }) * PAGE_BYTES);
+        let mut budget = budget();
+        let mut database = DatabaseReader::from_source(
+            SliceSource::new(&bytes, budget.read_budget())?,
+            &mut budget,
+        )?;
+        let parent = database.table_definition(PageNumber::new(20), &mut budget)?;
+        let relation = parent
+            .relationships()
+            .next()
+            .ok_or("missing parent relationship")?;
+        assert_eq!(
+            relation.name().raw_bytes(),
+            if two { b".rC" } else { b".rB" }
+        );
+        assert_eq!(relation.raw_selector(), if two { 2 } else { 1 });
+        assert_eq!(parent.physical_indexes()[0].fields()[0].column().get(), 1);
+        let child = database.table_definition(relation.related_table(), &mut budget)?;
+        assert_eq!(
+            child
+                .relationships()
+                .next()
+                .ok_or("missing child relationship")?
+                .name()
+                .raw_bytes(),
+            spec.name
+        );
+        assert_eq!(child.physical_indexes()[0].fields()[0].column().get(), 1);
+    }
+    Ok(())
+}
+
+#[test]
+fn candidate_refuses_unsupported_endpoints_names_and_exhausted_budgets() {
+    let (tables, spec) = renamed(false);
+    let child = |name| RelationshipField {
+        parent: ColumnRef::Name(b"Key1"),
+        child: ColumnRef::Name(name),
+    };
+    for (wrong, detail) in [
+        (
+            RelationshipSpec {
+                parent: TableRef::Ordinal(9),
+                ..spec
+            },
+            None,
+        ),
+        (
+            RelationshipSpec {
+                fields: &[child(b"Missing")],
+                ..spec
+            },
+            Some("child column reference"),
+        ),
+        (
+            RelationshipSpec {
+                fields: &[child(b"Label3")],
+                ..spec
+            },
+            Some("relationship columns must both be Long"),
+        ),
+        (
+            RelationshipSpec {
+                fields: &[RelationshipField {
+                    parent: ColumnRef::Ordinal(0),
+                    child: ColumnRef::Name(b"Account4"),
+                }],
+                ..spec
+            },
+            None,
+        ),
+    ] {
+        let result = compose_relationship(&tables, &wrong, &mut budget());
+        assert!(
+            matches!(
+                result,
+                Err(ComposeError::UnsupportedRelationship { detail: actual })
+                    if detail.is_none_or(|detail| detail == actual)
+            ),
+            "{detail:?}"
+        );
+    }
+    let mut indexed_child = tables;
+    indexed_child[1].indexes = &[IndexSpec {
+        name: b"Extra",
+        fields: &[IndexColumnSpec {
+            column: ColumnRef::Ordinal(1),
+            direction: IndexDirection::Ascending,
+        }],
+        kind: IndexKind::Ordinary,
+    }];
+    assert!(matches!(
+        compose_relationship(&indexed_child, &spec, &mut budget()),
+        Err(ComposeError::UnsupportedRelationship {
+            detail: "child admits one separate ascending Long primary index"
+        })
+    ));
+    for name in [b"Link\x81".as_slice(), b""] {
+        let named = RelationshipSpec { name, ..spec };
+        assert!(matches!(
+            compose_relationship(&tables, &named, &mut budget()),
+            Err(ComposeError::NameKey(_))
+        ));
+    }
     assert!(matches!(
         relation_index_name(&[b'A'; 65], RELATION_DATA, &mut budget()),
         Err(ComposeError::NameKey(_))
     ));
+    let mut duplicate = tables;
+    duplicate[1].name = b"ACCOUNTS7";
+    let by_ordinal = RelationshipSpec {
+        name: b"Link",
+        parent: TableRef::Ordinal(0),
+        child: TableRef::Ordinal(1),
+        ..spec
+    };
+    assert!(matches!(
+        compose_relationship(&duplicate, &by_ordinal, &mut budget()),
+        Err(ComposeError::DuplicateTableName { .. })
+    ));
+    let mut limited = ResourceBudget::new(ResourceLimits::default().with_max_total_work_units(0));
+    assert!(compose_parent_child(&mut limited).is_err());
+    let mut limited =
+        ResourceBudget::new(ResourceLimits::default().with_max_allocation_bytes(ByteCount::new(0)));
+    assert!(compose_relationship(&tables, &spec, &mut limited).is_err());
+}
+
+#[test]
+fn long_value_child_columns_compose() {
+    let (mut tables, spec) = renamed(false);
+    let columns = [
+        ColumnSpec::new(b"Note", ColumnType::Memo),
+        ColumnSpec::new(b"Account4", ColumnType::Long),
+    ];
+    tables[1].columns = &columns;
+    assert!(compose_relationship(&tables, &spec, &mut budget()).is_ok());
 }
 
 #[test]
@@ -208,5 +405,30 @@ fn export_relationship_candidate() -> TestResult {
         .create_new(true)
         .open(path)?;
     file.write_all(&bytes()?)?;
+    Ok(())
+}
+
+#[test]
+#[ignore = "exports two renamed candidates for separately preregistered validation"]
+fn export_parameterized_relationship_candidates() -> TestResult {
+    use std::io::Write;
+    let root = std::path::PathBuf::from(
+        std::env::var_os("JET3_RELATIONSHIP_CANDIDATE_DIR")
+            .ok_or("JET3_RELATIONSHIP_CANDIDATE_DIR required")?,
+    );
+    for (two, name) in [
+        (false, "relationship-one-index.mdb"),
+        (true, "relationship-two-index.mdb"),
+    ] {
+        let (tables, spec) = renamed(two);
+        let plan = compose_relationship(&tables, &spec, &mut budget())?;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(root.join(name))?;
+        for page in plan.pages() {
+            file.write_all(page.image().as_bytes())?;
+        }
+    }
     Ok(())
 }

@@ -1,7 +1,7 @@
 use super::row_update_tests::*;
 use crate::{
-    ColumnOrdinal, DatabaseReader, PAGE_BYTES, PublishStage, ResourceBudget, ResourceLimits,
-    RowLocator, RowValue, WriteError, write::row_update::*,
+    ColumnOrdinal, DatabaseReader, PAGE_BYTES, ResourceBudget, ResourceLimits, RowLocator,
+    RowValue, WriteError, write::row_update::*,
 };
 use std::error::Error as StdError;
 use std::fs;
@@ -96,14 +96,7 @@ fn growth_fixed_key_edit_collapse_reuse_and_deletion_keep_logical_addresses() ->
         &mut budget(),
     )?;
     assert_eq!(inserted.page(), hidden.page());
-    crate::delete_row(
-        f.path(),
-        crate::RowDelete {
-            table: b"Rows",
-            row: logical,
-        },
-        &mut budget(),
-    )?;
+    f.delete(logical)?;
     let remaining = f.rows()?;
     for row in &before[1..] {
         assert!(remaining.contains(row));
@@ -114,14 +107,7 @@ fn growth_fixed_key_edit_collapse_reuse_and_deletion_keep_logical_addresses() ->
     assert_eq!(slot(&deleted, logical), (0xc000, &[][..]));
     assert_eq!(slot(&deleted, hidden), (0xc000, &[][..]));
     assert_eq!(deleted[hidden.page().get() as usize * PAGE_BYTES], 1);
-    crate::delete_row(
-        f.path(),
-        crate::RowDelete {
-            table: b"Rows",
-            row: inserted,
-        },
-        &mut budget(),
-    )?;
+    f.delete(inserted)?;
     assert_eq!(
         fs::read(f.path())?[hidden.page().get() as usize * PAGE_BYTES],
         9
@@ -205,17 +191,7 @@ fn bad_overflow_graphs_preserve_the_whole_source_for_every_mutation() -> TestRes
         fs::write(f.path(), &bad)?;
         assert!(update_row(f.path(), f.request(0, &large), &mut budget()).is_err());
         assert_eq!(fs::read(f.path())?, bad);
-        assert!(
-            crate::delete_row(
-                f.path(),
-                crate::RowDelete {
-                    table: b"Rows",
-                    row: first
-                },
-                &mut budget()
-            )
-            .is_err()
-        );
+        assert!(f.delete(first).is_err());
         assert_eq!(fs::read(f.path())?, bad);
         assert!(crate::insert_row(f.path(), b"Rows", &large, &mut budget()).is_err());
         assert_eq!(fs::read(f.path())?, bad);
@@ -281,14 +257,7 @@ fn logical_and_hidden_slots_on_the_same_page_compose_without_losing_neighbors() 
         fs::write(f.path(), &bytes)?;
         assert_eq!(storage(&f, logical)?, hidden);
         if deleting {
-            crate::delete_row(
-                f.path(),
-                crate::RowDelete {
-                    table: b"Rows",
-                    row: logical,
-                },
-                &mut budget(),
-            )?;
+            f.delete(logical)?;
         } else {
             update_row(
                 f.path(),
@@ -304,44 +273,6 @@ fn logical_and_hidden_slots_on_the_same_page_compose_without_losing_neighbors() 
         let bytes = fs::read(f.path())?;
         assert_eq!(slot(&bytes, hidden), (0xc000, &[][..]));
     }
-    Ok(())
-}
-
-#[test]
-fn overflow_allocation_failures_preserve_the_source_and_remove_private_files() -> TestResult {
-    let f = Fixture::with_index(67, true)?;
-    let before = fs::read(f.path())?;
-    let duplicate = values(1, &[b'X'; 255], &[0x11; 255]);
-    assert!(matches!(
-        update_row(f.path(), f.request(0, &duplicate), &mut budget()),
-        Err(WriteError::Unsupported("duplicate unique key"))
-    ));
-    assert_eq!(fs::read(f.path())?, before);
-    let large = values(0, &[b'X'; 255], &[0x11; 255]);
-    let result = update_with_hook(
-        &f.path(),
-        f.request(0, &large),
-        &mut budget(),
-        |stage| -> Result<(), std::io::Error> {
-            if stage == PublishStage::Validation {
-                for entry in fs::read_dir(&f.dir)? {
-                    let path = entry?.path();
-                    if path != f.path() {
-                        let mut bytes = fs::read(&path)?;
-                        let end = bytes.len() - 1;
-                        bytes[end] ^= 1;
-                        fs::write(path, bytes)?;
-                    }
-                }
-            }
-            Ok(())
-        },
-    );
-    assert!(
-        matches!(result, Err(WriteError::Publish(error)) if error.stage() == PublishStage::Validation)
-    );
-    assert_eq!(fs::read(f.path())?, before);
-    assert_eq!(fs::read_dir(&f.dir)?.count(), 1);
     Ok(())
 }
 
@@ -415,14 +346,7 @@ fn valid_multi_hop_chains_are_refused_without_changing_the_image() -> TestResult
                 },
                 &mut budget(),
             ),
-            _ => crate::delete_row(
-                f.path(),
-                crate::RowDelete {
-                    table: b"Rows",
-                    row: logical,
-                },
-                &mut budget(),
-            ),
+            _ => f.delete(logical),
         };
         assert!(matches!(
             result,

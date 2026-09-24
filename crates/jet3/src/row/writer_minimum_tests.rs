@@ -1,11 +1,16 @@
 use super::writer_tests::*;
-use crate::{
-    ColumnSpec, ColumnType, DatabaseReader, PageNumber, SliceSource, row::writer::RowValue,
-};
+use crate::{ColumnSpec, ColumnType, RowError, row::writer::RowValue};
+
+use crate::testkit::TestResult;
+
+/// Every field of a fixed-only row decodes as present.
+fn assert_all_present(columns: &[ColumnSpec<'_>], encoded: &[u8]) -> TestResult {
+    assert!(read_fields(columns, encoded)?.iter().all(Option::is_some));
+    Ok(())
+}
 
 #[test]
-fn fixed_only_rows_match_native_minimum_and_bitmap_boundaries()
--> Result<(), Box<dyn std::error::Error>> {
+fn fixed_only_rows_match_native_minimum_and_bitmap_boundaries() -> TestResult {
     for (kind, value, expected) in [
         (
             ColumnType::Boolean,
@@ -17,15 +22,12 @@ fn fixed_only_rows_match_native_minimum_and_bitmap_boundaries()
     ] {
         let columns = [ColumnSpec::new(b"F0", kind)];
         assert_eq!(encode(&layouts(&columns)?, &[value])?, expected);
-        read_row(&columns, &expected)?;
+        assert_all_present(&columns, &expected)?;
         let mut oversized = expected.clone();
         oversized.insert(1, 0);
         assert!(matches!(
-            read_row(&columns, &oversized)
-                .err()
-                .and_then(|e| e.downcast::<crate::RowError>().ok())
-                .as_deref(),
-            Some(crate::RowError::InvalidFixedBoundary { .. })
+            read_error(&columns, &oversized)?,
+            RowError::InvalidFixedBoundary { .. }
         ));
     }
     for count in [1_usize, 8, 9, 16, 17, 24, 25] {
@@ -38,25 +40,7 @@ fn fixed_only_rows_match_native_minimum_and_bitmap_boundaries()
         let encoded = encode(&layouts(&columns)?, &values)?;
         assert_eq!(encoded.len(), 3 + count.div_ceil(8));
         assert_eq!(&encoded[..3], &[count as u8, 0, 0]);
-        read_row(&columns, &encoded)?;
-    }
-    Ok(())
-}
-
-fn read_row(columns: &[ColumnSpec<'_>], encoded: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-    let bytes = database_bytes(columns, &[encoded])?;
-    let mut budget = budget_for(&bytes);
-    let source = SliceSource::new(&bytes, budget.read_budget())?;
-    let mut database = DatabaseReader::from_source(source, &mut budget)?;
-    let definition = database.table_definition(PageNumber::new(ROOT as u64), &mut budget)?;
-    let mut rows = database.rows(&definition, &mut budget)?;
-    let row = rows.next_row()?.ok_or("missing row")?;
-    for column in definition.columns() {
-        assert!(
-            !row.field(column.ordinal())
-                .ok_or("missing field")?
-                .is_null()
-        );
+        assert_all_present(&columns, &encoded)?;
     }
     Ok(())
 }

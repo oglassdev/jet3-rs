@@ -1,8 +1,10 @@
 use super::initial_index_tests::*;
 use crate::WriteError;
+use crate::testkit::create;
+use crate::testkit::{index, table};
 use crate::{
-    ColumnSpec, ColumnType, ComposeError, DatabaseSpec, IndexDirection, IndexKind, IndexSpec,
-    RowValue, TableRows, TableSpec, create::api_tests::*, create_database,
+    ColumnSpec, ColumnType, ComposeError, IndexDirection, IndexKind, IndexSpec, RowValue,
+    TableRows, TableSpec, create::api_tests::*,
 };
 use std::fs;
 
@@ -87,7 +89,7 @@ fn observed_numeric_bytes_directions_and_locators_survive_publication() -> TestR
         ),
     ] {
         for direction in [IndexDirection::Ascending, IndexDirection::Descending] {
-            let directory = TestDirectory::create()?;
+            let directory = TempDir::new("create")?;
             let indexes = [IndexSpec {
                 fields: &[field(0, direction)],
                 ..one_index(IndexKind::Unique)[0]
@@ -98,16 +100,12 @@ fn observed_numeric_bytes_directions_and_locators_survive_publication() -> TestR
                 columns: &[ColumnSpec::new(b"Value", column)],
                 indexes: &indexes,
             };
-            create_database(
+            create(
                 directory.target(),
-                &DatabaseSpec {
-                    tables: &[TableRows {
-                        table,
-                        rows: &[&[values[0]], &[values[1]]],
-                    }],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget(),
+                &[TableRows {
+                    table,
+                    rows: &[&[values[0]], &[values[1]]],
+                }],
             )?;
             let actual = tree(&directory.target())?;
             let mut expected = ascending.clone();
@@ -156,26 +154,14 @@ fn nullable_numeric_composites_reuse_full_key_policy_and_scalar_duplicate_error(
         crate::IndexNullPolicy::IgnoreAllNull,
         crate::IndexNullPolicy::Required,
     ] {
-        let directory = TestDirectory::create()?;
-        let indexes = [IndexSpec {
-            name: b"ByKey",
-            kind: IndexKind::Unique.with_null_policy(policy),
-            fields: &fields,
-        }];
-        let table = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Items",
-            columns: &columns,
-            indexes: &indexes,
-        };
-        let result = create_database(
-            directory.target(),
-            &DatabaseSpec {
-                tables: &[TableRows { table, rows }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
-        );
+        let directory = TempDir::new("create")?;
+        let indexes = [index(
+            b"ByKey",
+            &fields,
+            IndexKind::Unique.with_null_policy(policy),
+        )];
+        let table = table(b"Items", &columns, &indexes);
+        let result = create(directory.target(), &[TableRows { table, rows }]);
         if policy == crate::IndexNullPolicy::Required {
             assert!(matches!(
                 result,
@@ -202,16 +188,12 @@ fn nullable_numeric_composites_reuse_full_key_policy_and_scalar_duplicate_error(
         );
         fs::remove_file(directory.target())?;
         assert!(matches!(
-            create_database(
+            create(
                 directory.target(),
-                &DatabaseSpec {
-                    tables: &[TableRows {
-                        table,
-                        rows: &[rows[4], rows[4]]
-                    }],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget()
+                &[TableRows {
+                    table,
+                    rows: &[rows[4], rows[4]]
+                }]
             ),
             Err(WriteError::Compose(
                 ComposeError::DuplicateInitialScalarIndexKey
@@ -224,16 +206,12 @@ fn nullable_numeric_composites_reuse_full_key_policy_and_scalar_duplicate_error(
 
 #[test]
 fn wide_numeric_components_pack_across_leaf_boundaries() -> TestResult {
-    let directory = TestDirectory::create()?;
+    let directory = TempDir::new("create")?;
     let fields = [
         field(0, IndexDirection::Ascending),
         field(1, IndexDirection::Descending),
     ];
-    let indexes = [IndexSpec {
-        name: b"ByKey",
-        kind: IndexKind::Unique,
-        fields: &fields,
-    }];
+    let indexes = [index(b"ByKey", &fields, IndexKind::Unique)];
     let table = TableSpec {
         validation: crate::TableValidation::NONE,
         name: b"Items",
@@ -247,14 +225,7 @@ fn wide_numeric_components_pack_across_leaf_boundaries() -> TestResult {
         .map(|n| [RowValue::Currency { scaled: n }, RowValue::Double(n as f64)])
         .collect();
     let rows: Vec<_> = values.iter().map(|r| r.as_slice()).collect();
-    create_database(
-        directory.target(),
-        &DatabaseSpec {
-            tables: &[TableRows { table, rows: &rows }],
-            ..DatabaseSpec::default()
-        },
-        &mut budget(),
-    )?;
+    create(directory.target(), &[TableRows { table, rows: &rows }])?;
     let index = tree(&directory.target())?;
     assert_eq!(index.entries().len(), 170);
     assert!(index.nodes().len() > 1);
@@ -282,7 +253,7 @@ fn excluded_scalar_values_and_types_never_publish() -> TestResult {
         (ColumnType::Double, RowValue::Double(f64::NAN)),
         (ColumnType::DateTime, RowValue::DateTime { days: f64::NAN }),
     ] {
-        let directory = TestDirectory::create()?;
+        let directory = TempDir::new("create")?;
         let table = TableSpec {
             validation: crate::TableValidation::NONE,
             name: b"Items",
@@ -290,16 +261,12 @@ fn excluded_scalar_values_and_types_never_publish() -> TestResult {
             indexes: &one_index(IndexKind::Ordinary),
         };
         assert!(
-            create_database(
+            create(
                 directory.target(),
-                &DatabaseSpec {
-                    tables: &[TableRows {
-                        table,
-                        rows: &[&[value]]
-                    }],
-                    ..DatabaseSpec::default()
-                },
-                &mut budget()
+                &[TableRows {
+                    table,
+                    rows: &[&[value]]
+                }]
             )
             .is_err()
         );

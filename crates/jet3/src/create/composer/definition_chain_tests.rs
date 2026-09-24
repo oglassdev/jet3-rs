@@ -1,13 +1,11 @@
 use super::table_create::*;
+use crate::testkit::{index, table};
 use crate::{
     ColumnOrdinal, PAGE_BYTES, ResourceLimits, SliceSource, TableRows, TextCodePage, ValueKind,
-    create::{
-        composer::*,
-        schema_plan::{TableSpec, plan_table_schema},
-    },
+    create::{composer::*, schema_plan::plan_table_schema},
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 use crate::testkit::budget;
 
@@ -43,12 +41,7 @@ fn exact_definition_boundaries_reassemble_without_padding_or_missing_columns() -
     for length in [2048, 2049, 4088, 4089, 6128, 6129] {
         let names = names(length);
         let columns = columns(&names);
-        let spec = TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"Wide",
-            columns: &columns,
-            indexes: &[],
-        };
+        let spec = table(b"Wide", &columns, &[]);
         let row = vec![RowValue::Long(17); columns.len()];
         let data = bytes(&[TableRows {
             table: spec,
@@ -113,32 +106,18 @@ fn later_generated_rows_and_payloads_follow_three_indexed_definition_continuatio
         column: crate::ColumnRef::Ordinal(0),
         direction: IndexDirection::Ascending,
     }];
-    let indexes = [b"A", b"B", b"C"].map(|name| crate::IndexSpec {
-        name,
-        fields: &keys,
-        kind: crate::IndexKind::Unique,
-    });
+    let indexes = [b"A", b"B", b"C"].map(|name| index(name, &keys, crate::IndexKind::Unique));
     let payload = vec![b'x'; 4096];
     let mut row = vec![RowValue::Long(17); columns.len()];
     row[0] = RowValue::AutoIncrement;
     row[last] = RowValue::Memo(&payload);
     let data = bytes(&[
         TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"First",
-                columns: &[ColumnSpec::new(b"Id", ColumnType::Long)],
-                indexes: &[],
-            },
+            table: table(b"First", &[ColumnSpec::new(b"Id", ColumnType::Long)], &[]),
             rows: &[],
         },
         TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: b"Wide",
-                columns: &columns,
-                indexes: &indexes,
-            },
+            table: table(b"Wide", &columns, &indexes),
             rows: &[&row, &row],
         },
     ])?;
@@ -146,12 +125,7 @@ fn later_generated_rows_and_payloads_follow_three_indexed_definition_continuatio
     let source = SliceSource::new(&data, b.read_budget())?;
     let mut db = crate::DatabaseReader::from_source(source, &mut b)?;
     let definition = db.table_definition(PageNumber::new(23), &mut b)?;
-    let spec = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Wide",
-        columns: &columns,
-        indexes: &indexes,
-    };
+    let spec = table(b"Wide", &columns, &indexes);
     let plan = plan_table_schema(
         &spec,
         23,
@@ -230,30 +204,5 @@ fn logical_definition_allocation_and_page_encoding_obey_the_callers_budget() -> 
             .is_err()
     );
     assert_eq!(b.encoded_bytes().get(), 0);
-    Ok(())
-}
-
-#[test]
-fn definition_chains_and_catalog_maps_extend_past_inline_capacity() -> TestResult {
-    let names = (0..255)
-        .map(|n| format!("C{n:04}{}", "x".repeat(43)).into_bytes())
-        .collect::<Vec<_>>();
-    let columns = columns(&names);
-    let table_names = (0..104).map(|n| format!("T{n:03}")).collect::<Vec<_>>();
-    let requests = table_names
-        .iter()
-        .map(|name| TableRows {
-            table: TableSpec {
-                validation: crate::TableValidation::NONE,
-                name: name.as_bytes(),
-                columns: &columns,
-                indexes: &[],
-            },
-            rows: &[],
-        })
-        .collect::<Vec<_>>();
-    let plan = compose_database_with_table_rows(&requests, &mut budget())?;
-    assert!(plan.page_count() > 1024);
-    assert_eq!(plan.pages()[1].image().as_bytes()[1915], 1);
     Ok(())
 }

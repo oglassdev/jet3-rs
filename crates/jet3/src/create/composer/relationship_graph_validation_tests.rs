@@ -1,4 +1,5 @@
 use super::relationship_graph_mutation_tests::*;
+use crate::testkit::validate_file;
 use crate::{
     ColumnOrdinal, DatabaseReader, PAGE_BYTES, RelationshipValidationError, ResourceLimits,
     TextCodePage, ValidationError, ValidationReport, WriteError, create::composer::*,
@@ -7,9 +8,7 @@ use std::fs;
 
 fn validate(fixture: &Fixture) -> Result<ValidationReport> {
     let before = fs::read(fixture.path())?;
-    let mut work = budget();
-    let mut db = DatabaseReader::open(fixture.path(), &mut work)?;
-    let report = db.validate(TextCodePage::Windows1252, &mut work)?;
+    let report = validate_file(fixture.path())?;
     assert_eq!(fs::read(fixture.path())?, before);
     Ok(report)
 }
@@ -60,18 +59,8 @@ fn relation_error(fixture: &Fixture) -> Result<RelationshipValidationError> {
 #[test]
 fn validation_checks_self_and_multiple_relationships_and_nullable_keys() -> Result {
     let fixture = fixture(&[
-        Edge {
-            name: b"SelfRelation",
-            parent: 0,
-            child: 0,
-            column: 1,
-        },
-        Edge {
-            name: b"OtherRelation",
-            parent: 0,
-            child: 1,
-            column: 1,
-        },
+        edge(b"SelfRelation", 0, 0, 1),
+        edge(b"OtherRelation", 0, 1, 1),
     ])?;
     let report = validate(&fixture)?;
     assert_eq!(report.relationship_catalog_rows, 2);
@@ -83,18 +72,8 @@ fn validation_checks_self_and_multiple_relationships_and_nullable_keys() -> Resu
 
 #[test]
 fn unsupported_rows_do_not_hide_malformed_known_reciprocals_or_duplicate_names() -> Result {
-    let first = Edge {
-        name: b"FirstRelation",
-        parent: 0,
-        child: 1,
-        column: 1,
-    };
-    let second = Edge {
-        name: b"SecondRelation",
-        parent: 0,
-        child: 2,
-        column: 1,
-    };
+    let first = edge(b"FirstRelation", 0, 1, 1);
+    let second = edge(b"SecondRelation", 0, 2, 1);
     let fixture = fixture(&[first, second])?;
     let mut bytes = fs::read(fixture.path())?;
     // Unknown central flags retain the first constraint outside semantic coverage.
@@ -142,12 +121,7 @@ fn unsupported_rows_do_not_hide_malformed_known_reciprocals_or_duplicate_names()
 
 #[test]
 fn complete_inventory_rejects_an_endpoint_hidden_from_the_central_catalog() -> Result {
-    let fixture = fixture(&[Edge {
-        name: b"OnlyRelation",
-        parent: 0,
-        child: 1,
-        column: 1,
-    }])?;
+    let fixture = fixture(&[edge(b"OnlyRelation", 0, 1, 1)])?;
     let mut work = budget();
     let mut db = DatabaseReader::open(fixture.path(), &mut work)?;
     let central = definition(&mut db, b"MSysRelationships", &mut work)?;
@@ -195,12 +169,7 @@ fn complete_inventory_rejects_an_endpoint_hidden_from_the_central_catalog() -> R
 
 #[test]
 fn consistent_child_rows_and_indexes_still_reject_an_orphan_key() -> Result {
-    let fixture = fixture(&[Edge {
-        name: b"OnlyRelation",
-        parent: 0,
-        child: 1,
-        column: 1,
-    }])?;
+    let fixture = fixture(&[edge(b"OnlyRelation", 0, 1, 1)])?;
     let selected = locator(&fixture, 1, 2)?;
     let mut work = budget();
     let mut db = DatabaseReader::open(fixture.path(), &mut work)?;
@@ -253,12 +222,7 @@ fn consistent_child_rows_and_indexes_still_reject_an_orphan_key() -> Result {
 
 #[test]
 fn relationship_checks_share_the_validation_resource_budget() -> Result {
-    let fixture = fixture(&[Edge {
-        name: b"OnlyRelation",
-        parent: 0,
-        child: 1,
-        column: 1,
-    }])?;
+    let fixture = fixture(&[edge(b"OnlyRelation", 0, 1, 1)])?;
     let before = fs::read(fixture.path())?;
     let mut measured = budget();
     let mut db = DatabaseReader::open(fixture.path(), &mut measured)?;
@@ -284,12 +248,7 @@ fn relationship_checks_share_the_validation_resource_budget() -> Result {
 #[test]
 fn relationship_names_above_the_usable_index_limit_remain_uninterpreted() -> Result {
     for name in [&[b'R'; 63][..], &[b'R'; 64][..]] {
-        let fixture = fixture(&[Edge {
-            name,
-            parent: 0,
-            child: 1,
-            column: 1,
-        }])?;
+        let fixture = fixture(&[edge(name, 0, 1, 1)])?;
         let report = validate(&fixture)?;
         assert_eq!(
             report.relationships_with_verified_keys,

@@ -1,4 +1,6 @@
 use super::{compose_database, compose_table_database, global_map_page, tests::*};
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
     CatalogObjectClass, ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader,
     IndexColumnSpec, IndexDirection, MapRowLocator, PageNumber, SliceSource, TableDefinitionKind,
@@ -16,37 +18,32 @@ const IDX_TRI_COLUMNS: [ColumnSpec<'static>; 3] = [
     ColumnSpec::new(b"Sequence", ColumnType::Long),
 ];
 const IDX_TRI_INDEXES: [IndexSpec<'static>; 3] = [
-    IndexSpec {
-        name: b"ZPrimary",
-        fields: &[IndexColumnSpec {
+    index(
+        b"ZPrimary",
+        &[IndexColumnSpec {
             column: ColumnRef::Ordinal(0),
             direction: IndexDirection::Ascending,
         }],
-        kind: IndexKind::Primary,
-    },
-    IndexSpec {
-        name: b"MUniqueX",
-        fields: &[IndexColumnSpec {
+        IndexKind::Primary,
+    ),
+    index(
+        b"MUniqueX",
+        &[IndexColumnSpec {
             column: ColumnRef::Ordinal(1),
             direction: IndexDirection::Descending,
         }],
-        kind: IndexKind::Unique,
-    },
-    IndexSpec {
-        name: b"ASecondx",
-        fields: &[IndexColumnSpec {
+        IndexKind::Unique,
+    ),
+    index(
+        b"ASecondx",
+        &[IndexColumnSpec {
             column: ColumnRef::Ordinal(2),
             direction: IndexDirection::Ascending,
         }],
-        kind: IndexKind::Ordinary,
-    },
+        IndexKind::Ordinary,
+    ),
 ];
-const IDX_TRI: TableSpec<'static> = TableSpec {
-    validation: crate::TableValidation::NONE,
-    name: b"IdxTri",
-    columns: &IDX_TRI_COLUMNS,
-    indexes: &IDX_TRI_INDEXES,
-};
+const IDX_TRI: TableSpec<'static> = table(b"IdxTri", &IDX_TRI_COLUMNS, &IDX_TRI_INDEXES);
 const WIDE_FIELD_COUNT: usize = 70;
 
 fn indexed_candidate_bytes() -> Result<Vec<u8>, ComposeError> {
@@ -67,12 +64,7 @@ fn wide_candidate_bytes() -> CandidateResult<Vec<u8>> {
         .iter()
         .map(|name| ColumnSpec::new(name, ColumnType::Long))
         .collect::<Vec<_>>();
-    let base = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"ContOneX",
-        columns: &columns[..40],
-        indexes: &[],
-    };
+    let base = table(b"ContOneX", &columns[..40], &[]);
     let mut budget = compose_budget();
     let plan = compose_table_database(&base, &mut budget)?;
     let mut pages = plan
@@ -164,19 +156,11 @@ fn the_composer_reproduces_the_accepted_cont_one_x_candidate() -> TestResult {
         .map(|name| ColumnSpec::new(name, ColumnType::Long))
         .collect::<Vec<_>>();
     let mut budget = compose_budget();
-    let composed = compose_table_database(
-        &TableSpec {
-            validation: crate::TableValidation::NONE,
-            name: b"ContOneX",
-            columns: &columns,
-            indexes: &[],
-        },
-        &mut budget,
-    )?
-    .pages()
-    .iter()
-    .flat_map(|page| page.image().as_bytes().iter().copied())
-    .collect::<Vec<u8>>();
+    let composed = compose_table_database(&table(b"ContOneX", &columns, &[]), &mut budget)?
+        .pages()
+        .iter()
+        .flat_map(|page| page.image().as_bytes().iter().copied())
+        .collect::<Vec<u8>>();
     let candidate = wide_candidate_bytes()?;
     assert_eq!(composed.len(), 24 * crate::PAGE_BYTES);
     assert!(
@@ -192,6 +176,15 @@ fn the_schema_candidates_decode_to_their_preregistered_shapes() -> TestResult {
     let indexed = indexed_candidate_bytes()?;
     assert_shared_candidate(&indexed, b"IdxTri")?;
     assert_eq!(indexed.len(), 26 * crate::PAGE_BYTES);
+    // Map rows 2 through 4 each own exactly their index root.
+    for (row, root) in [(2, 23), (3, 24), (4, 25)] {
+        assert_eq!(indexed[root as usize * crate::PAGE_BYTES], 4);
+        assert!(!inline_map_bit(&indexed, 1, 0, root)?);
+        for page in 23..26 {
+            assert_eq!(inline_map_bit(&indexed, 21, row, page)?, page == root);
+        }
+    }
+    assert!(inline_map_bit(&indexed, 1, 0, 26)?);
     let mut budget = read_budget(indexed.len());
     let source = SliceSource::new(&indexed, budget.read_budget())?;
     let mut database = DatabaseReader::from_source(source, &mut budget)?;
@@ -311,52 +304,36 @@ const QUAD_DELTA_COLUMNS: [ColumnSpec<'static>; 1] = [ColumnSpec::new(
     b"Label",
     ColumnType::Text { max_len: nz(30) },
 )];
-const QUAD_GAMMA_INDEXES: [IndexSpec<'static>; 1] = [IndexSpec {
-    name: b"PrimaryKey",
-    fields: &[IndexColumnSpec {
+const QUAD_GAMMA_INDEXES: [IndexSpec<'static>; 1] = [index(
+    b"PrimaryKey",
+    &[IndexColumnSpec {
         column: ColumnRef::Ordinal(0),
         direction: IndexDirection::Ascending,
     }],
-    kind: IndexKind::Primary,
-}];
-const QUAD_DELTA_INDEXES: [IndexSpec<'static>; 1] = [IndexSpec {
-    name: b"ByLabel",
-    fields: &[IndexColumnSpec {
+    IndexKind::Primary,
+)];
+const QUAD_DELTA_INDEXES: [IndexSpec<'static>; 1] = [index(
+    b"ByLabel",
+    &[IndexColumnSpec {
         column: ColumnRef::Ordinal(0),
         direction: IndexDirection::Ascending,
     }],
-    kind: IndexKind::Ordinary,
-}];
+    IndexKind::Ordinary,
+)];
 const QUAD_TABLES: [TableSpec<'static>; 4] = [
-    TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Alpha",
-        columns: &QUAD_ALPHA_COLUMNS,
-        indexes: &[],
-    },
-    TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Beta",
-        columns: &QUAD_BETA_COLUMNS,
-        indexes: &[],
-    },
-    TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Gamma",
-        columns: &QUAD_ALPHA_COLUMNS,
-        indexes: &QUAD_GAMMA_INDEXES,
-    },
-    TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Delta",
-        columns: &QUAD_DELTA_COLUMNS,
-        indexes: &QUAD_DELTA_INDEXES,
-    },
+    table(b"Alpha", &QUAD_ALPHA_COLUMNS, &[]),
+    table(b"Beta", &QUAD_BETA_COLUMNS, &[]),
+    table(b"Gamma", &QUAD_ALPHA_COLUMNS, &QUAD_GAMMA_INDEXES),
+    table(b"Delta", &QUAD_DELTA_COLUMNS, &QUAD_DELTA_INDEXES),
 ];
 
 fn quad_candidate_bytes() -> Result<Vec<u8>, ComposeError> {
+    quad_prefix_bytes(QUAD_TABLES.len())
+}
+
+fn quad_prefix_bytes(count: usize) -> Result<Vec<u8>, ComposeError> {
     let mut budget = compose_budget();
-    let plan = compose_database(&QUAD_TABLES, &mut budget)?;
+    let plan = compose_database(&QUAD_TABLES[..count], &mut budget)?;
     Ok(plan
         .pages()
         .iter()
@@ -367,6 +344,11 @@ fn quad_candidate_bytes() -> Result<Vec<u8>, ComposeError> {
 #[test]
 fn the_quad_candidate_preserves_schema_with_explicit_text_properties() -> TestResult {
     // EXP-0087 schema and EXP-0284 explicit properties on both text tables.
+    for (count, pages) in [(1, 23), (2, 26), (3, 29)] {
+        let prefix = quad_prefix_bytes(count)?;
+        assert_eq!(prefix.len(), pages * crate::PAGE_BYTES, "{count} tables");
+        assert_eq!(prefix[1538], 2 * count as u8);
+    }
     let quad = quad_candidate_bytes()?;
     assert_eq!(quad.len(), 33 * crate::PAGE_BYTES);
     assert_eq!(quad[1538], 8);
@@ -374,6 +356,13 @@ fn the_quad_candidate_preserves_schema_with_explicit_text_properties() -> TestRe
         &quad[22 * crate::PAGE_BYTES..22 * crate::PAGE_BYTES + 10],
         b"\x01\x01\xf6\x07LVAL\0\0"
     );
+    for root in [20, 23, 26, 29] {
+        assert_eq!(quad[root * crate::PAGE_BYTES], 2, "definition root {root}");
+        assert_eq!(quad[(root + 1) * crate::PAGE_BYTES], 1, "map after {root}");
+    }
+    for root in [28, 32] {
+        assert_eq!(quad[root * crate::PAGE_BYTES], 4, "index root {root}");
+    }
     let mut budget = read_budget(quad.len());
     let source = SliceSource::new(&quad, budget.read_budget())?;
     let mut database = DatabaseReader::from_source(source, &mut budget)?;
@@ -384,6 +373,7 @@ fn the_quad_candidate_preserves_schema_with_explicit_text_properties() -> TestRe
             if record.class() == CatalogObjectClass::User {
                 user_tables.push((
                     record.name().raw_bytes().to_vec(),
+                    record.id().get(),
                     record.table_definition(),
                 ));
             }
@@ -392,12 +382,20 @@ fn the_quad_candidate_preserves_schema_with_explicit_text_properties() -> TestRe
     assert_eq!(
         user_tables,
         [
-            (b"Alpha".to_vec(), Some(PageNumber::new(20))),
-            (b"Beta".to_vec(), Some(PageNumber::new(23))),
-            (b"Gamma".to_vec(), Some(PageNumber::new(26))),
-            (b"Delta".to_vec(), Some(PageNumber::new(29))),
+            (b"Alpha".to_vec(), 20, Some(PageNumber::new(20))),
+            (b"Beta".to_vec(), 23, Some(PageNumber::new(23))),
+            (b"Gamma".to_vec(), 26, Some(PageNumber::new(26))),
+            (b"Delta".to_vec(), 29, Some(PageNumber::new(29))),
         ]
     );
+    let aces = database.table_definition(PageNumber::new(3), &mut budget)?;
+    let mut ace_rows = 0;
+    let mut rows = database.rows(&aces, &mut budget)?;
+    while rows.next_row()?.is_some() {
+        ace_rows += 1;
+    }
+    drop(rows);
+    assert_eq!(ace_rows, 16 + 2 * 4);
     let objects = database.table_definition(PageNumber::new(2), &mut budget)?;
     let mut rows = database.rows(&objects, &mut budget)?;
     let mut null_properties = 0;
@@ -425,6 +423,10 @@ fn the_quad_candidate_preserves_schema_with_explicit_text_properties() -> TestRe
     }
     let gamma = database.table_definition(PageNumber::new(26), &mut budget)?;
     assert_eq!(gamma.physical_indexes()[0].root(), PageNumber::new(28));
+    assert_eq!(
+        gamma.physical_indexes()[0].usage_map().page(),
+        PageNumber::new(27)
+    );
     let delta = database.table_definition(PageNumber::new(29), &mut budget)?;
     assert_eq!(delta.physical_indexes()[0].root(), PageNumber::new(32));
     Ok(())

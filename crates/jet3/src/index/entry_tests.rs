@@ -4,7 +4,7 @@ use crate::{
     ResourceLimits, RowLocator, RowValue, index::key::scalar::ScalarKeyType,
 };
 
-use crate::testkit::budget;
+use crate::testkit::{TestResult, budget};
 
 const FIELDS: [ScalarIndexField; 2] = [
     ScalarIndexField {
@@ -19,15 +19,26 @@ const FIELDS: [ScalarIndexField; 2] = [
     },
 ];
 const LOCATOR: RowLocator = RowLocator::new(PageNumber::new(0x12_3456), 255);
+const BINARY: ScalarIndexField = ScalarIndexField {
+    column: 0,
+    direction: IndexDirection::Ascending,
+    kind: ScalarKeyType::Binary { max_len: 255 },
+};
+
+fn encode(
+    fields: &[ScalarIndexField],
+    values: &[RowValue<'_>],
+    policy: IndexNullPolicy,
+) -> Result<Option<ScalarIndexEntry>, EntryError> {
+    ScalarIndexEntry::encode(fields, values, policy, LOCATOR, &mut budget())
+}
 
 #[test]
-fn composite_null_records_keep_direction_and_locator() -> Result<(), Box<dyn std::error::Error>> {
-    let entry = ScalarIndexEntry::encode(
+fn composite_null_records_keep_direction_and_locator() -> TestResult {
+    let entry = encode(
         &FIELDS,
         &[RowValue::Long(1), RowValue::Null],
         IndexNullPolicy::Include,
-        LOCATOR,
-        &mut budget(),
     )?
     .ok_or("entry omitted")?;
     // EXP-0148 ascending null followed by descending present Long.
@@ -39,32 +50,26 @@ fn composite_null_records_keep_direction_and_locator() -> Result<(), Box<dyn std
     assert!(entry.has_null());
     assert_eq!(entry.locator(), LOCATOR);
     assert_eq!(
-        ScalarIndexEntry::encode(
+        encode(
             &FIELDS,
             &[RowValue::Long(1), RowValue::Null],
-            IndexNullPolicy::IgnoreAllNull,
-            LOCATOR,
-            &mut budget(),
+            IndexNullPolicy::IgnoreAllNull
         )?,
         Some(entry)
     );
     assert_eq!(
-        ScalarIndexEntry::encode(
+        encode(
             &FIELDS,
             &[RowValue::Null, RowValue::Null],
-            IndexNullPolicy::IgnoreAllNull,
-            LOCATOR,
-            &mut budget(),
+            IndexNullPolicy::IgnoreAllNull
         )?,
         None
     );
     assert_eq!(
-        ScalarIndexEntry::encode(
+        encode(
             &FIELDS,
             &[RowValue::Long(1), RowValue::Null],
-            IndexNullPolicy::Required,
-            LOCATOR,
-            &mut budget(),
+            IndexNullPolicy::Required
         ),
         Err(EntryError::NullRequired)
     );
@@ -75,26 +80,14 @@ fn composite_null_records_keep_direction_and_locator() -> Result<(), Box<dyn std
 fn schema_and_value_refusals_are_structured() {
     for fields in [&[][..], &[FIELDS[0]; MAX_FIELDS + 1][..]] {
         assert_eq!(
-            ScalarIndexEntry::encode(
-                fields,
-                &[],
-                IndexNullPolicy::Include,
-                LOCATOR,
-                &mut budget(),
-            ),
+            encode(fields, &[], IndexNullPolicy::Include),
             Err(EntryError::FieldCount {
                 actual: fields.len()
             })
         );
     }
     assert_eq!(
-        ScalarIndexEntry::encode(
-            &FIELDS,
-            &[],
-            IndexNullPolicy::Include,
-            LOCATOR,
-            &mut budget(),
-        ),
+        encode(&FIELDS, &[], IndexNullPolicy::Include),
         Err(EntryError::MissingColumn { column: 1 })
     );
     for (kind, value) in [
@@ -109,16 +102,14 @@ fn schema_and_value_refusals_are_structured() {
         (ScalarKeyType::Single, RowValue::Single(f32::INFINITY)),
     ] {
         assert_eq!(
-            ScalarIndexEntry::encode(
+            encode(
                 &[ScalarIndexField {
                     column: 0,
                     kind,
                     ..FIELDS[0]
                 }],
                 &[value],
-                IndexNullPolicy::Include,
-                LOCATOR,
-                &mut budget(),
+                IndexNullPolicy::Include
             ),
             Err(EntryError::UnsupportedValue { column: 0, kind })
         );
@@ -126,7 +117,7 @@ fn schema_and_value_refusals_are_structured() {
 }
 
 #[test]
-fn locator_width_and_budget_are_checked() -> Result<(), Box<dyn std::error::Error>> {
+fn locator_width_and_budget_are_checked() -> TestResult {
     let fields = [ScalarIndexField {
         column: 0,
         ..FIELDS[0]
@@ -176,8 +167,7 @@ fn locator_width_and_budget_are_checked() -> Result<(), Box<dyn std::error::Erro
 }
 
 #[test]
-fn key_shapes_check_each_component_null_policy_and_complete_width()
--> Result<(), Box<dyn std::error::Error>> {
+fn key_shapes_check_each_component_null_policy_and_complete_width() -> TestResult {
     for (kind, value) in [
         (ScalarKeyType::Boolean, RowValue::Boolean(false)),
         (ScalarKeyType::Byte, RowValue::Byte(7)),
@@ -197,14 +187,7 @@ fn key_shapes_check_each_component_null_policy_and_complete_width()
                 kind,
                 direction,
             }];
-            let entry = ScalarIndexEntry::encode(
-                &fields,
-                &[value],
-                IndexNullPolicy::Required,
-                LOCATOR,
-                &mut budget(),
-            )?
-            .ok_or("entry")?;
+            let entry = encode(&fields, &[value], IndexNullPolicy::Required)?.ok_or("entry")?;
             assert!(valid_key_shape(
                 &fields,
                 IndexNullPolicy::Required,
@@ -249,14 +232,7 @@ fn key_shapes_check_each_component_null_policy_and_complete_width()
         [RowValue::Null, RowValue::Long(2)],
         [RowValue::Long(1), RowValue::Long(2)],
     ] {
-        let entry = ScalarIndexEntry::encode(
-            &FIELDS,
-            &values,
-            IndexNullPolicy::Include,
-            LOCATOR,
-            &mut budget(),
-        )?
-        .ok_or("entry")?;
+        let entry = encode(&FIELDS, &values, IndexNullPolicy::Include)?.ok_or("entry")?;
         assert!(valid_key_shape(
             &FIELDS,
             IndexNullPolicy::Include,
@@ -275,13 +251,8 @@ fn key_shapes_check_each_component_null_policy_and_complete_width()
 }
 
 #[test]
-fn binary_components_and_shortened_keys_keep_observed_framing()
--> Result<(), Box<dyn std::error::Error>> {
-    let mut fields = [ScalarIndexField {
-        column: 0,
-        direction: IndexDirection::Ascending,
-        kind: ScalarKeyType::Binary { max_len: 255 },
-    }];
+fn binary_components_and_shortened_keys_keep_observed_framing() -> TestResult {
+    let mut fields = [BINARY];
     for (direction, suffix225, suffix255) in [
         (IndexDirection::Ascending, [1, 0], [0x44, 0xda]),
         (IndexDirection::Descending, [0xff, 0x8f], [1, 0xff]),
@@ -294,12 +265,10 @@ fn binary_components_and_shortened_keys_keep_observed_framing()
         };
         for size in [1_usize, 8, 9, 17, 224, 225, 255] {
             let payload = vec![0; size];
-            let entry = ScalarIndexEntry::encode(
+            let entry = encode(
                 &fields,
                 &[RowValue::Binary(&payload)],
                 IndexNullPolicy::Include,
-                LOCATOR,
-                &mut budget(),
             )?
             .ok_or("missing entry")?;
             assert_eq!(entry.key()[0], 0x7f ^ mask);
@@ -335,32 +304,22 @@ fn binary_components_and_shortened_keys_keep_observed_framing()
         }
     }
     assert_eq!(
-        ScalarIndexEntry::encode(
+        encode(
             &fields,
             &[RowValue::Binary(&[])],
-            IndexNullPolicy::IgnoreAllNull,
-            LOCATOR,
-            &mut budget()
+            IndexNullPolicy::IgnoreAllNull
         )?,
         None
     );
     assert_eq!(
-        ScalarIndexEntry::encode(
-            &fields,
-            &[RowValue::Binary(&[])],
-            IndexNullPolicy::Required,
-            LOCATOR,
-            &mut budget()
-        ),
+        encode(&fields, &[RowValue::Binary(&[])], IndexNullPolicy::Required),
         Err(EntryError::NullRequired)
     );
     assert!(matches!(
-        ScalarIndexEntry::encode(
+        encode(
             &fields,
             &[RowValue::Binary(&[0; 256])],
-            IndexNullPolicy::Include,
-            LOCATOR,
-            &mut budget()
+            IndexNullPolicy::Include
         ),
         Err(EntryError::UnsupportedValue { .. })
     ));
@@ -368,19 +327,12 @@ fn binary_components_and_shortened_keys_keep_observed_framing()
 }
 
 #[test]
-fn shortened_key_prefixes_enforce_schema_capacity_and_padding()
--> Result<(), Box<dyn std::error::Error>> {
-    let field = ScalarIndexField {
-        column: 0,
-        direction: IndexDirection::Ascending,
-        kind: ScalarKeyType::Binary { max_len: 255 },
-    };
-    let entry = ScalarIndexEntry::encode(
+fn shortened_key_prefixes_enforce_schema_capacity_and_padding() -> TestResult {
+    let field = BINARY;
+    let entry = encode(
         &[field],
         &[RowValue::Binary(&[0; 255])],
         IndexNullPolicy::Include,
-        LOCATOR,
-        &mut budget(),
     )?
     .ok_or("entry")?;
     assert!(!valid_key_shape(
@@ -398,12 +350,10 @@ fn shortened_key_prefixes_enforce_schema_capacity_and_padding()
             &entry.key()[..length]
         ));
     }
-    let mut padded = ScalarIndexEntry::encode(
+    let mut padded = encode(
         &[field],
         &[RowValue::Binary(&[1])],
         IndexNullPolicy::Include,
-        LOCATOR,
-        &mut budget(),
     )?
     .ok_or("entry")?
     .key()
@@ -418,8 +368,7 @@ fn shortened_key_prefixes_enforce_schema_capacity_and_padding()
 }
 
 #[test]
-fn whole_composite_key_is_shortened_after_its_components() -> Result<(), Box<dyn std::error::Error>>
-{
+fn whole_composite_key_is_shortened_after_its_components() -> TestResult {
     for (direction, expected) in [
         (IndexDirection::Ascending, [0xf5, 0x75]),
         (IndexDirection::Descending, [0x0b, 0x06]),
@@ -431,9 +380,8 @@ fn whole_composite_key_is_shortened_after_its_components() -> Result<(), Box<dyn
         };
         let fields = [
             ScalarIndexField {
-                column: 0,
                 direction,
-                kind: ScalarKeyType::Binary { max_len: 255 },
+                ..BINARY
             },
             ScalarIndexField {
                 column: 1,
@@ -441,12 +389,10 @@ fn whole_composite_key_is_shortened_after_its_components() -> Result<(), Box<dyn
                 kind: ScalarKeyType::Long,
             },
         ];
-        let entry = ScalarIndexEntry::encode(
+        let entry = encode(
             &fields,
             &[RowValue::Binary(&[0; 224]), RowValue::Long(13)],
             IndexNullPolicy::Required,
-            LOCATOR,
-            &mut budget(),
         )?
         .ok_or("entry")?;
         // EXP-0245 held-out native Binary224 + Long13 composite, both directions.
@@ -462,13 +408,8 @@ fn whole_composite_key_is_shortened_after_its_components() -> Result<(), Box<dyn
 }
 
 #[test]
-fn binary_record_storage_charges_before_heap_allocation() -> Result<(), Box<dyn std::error::Error>>
-{
-    let fields = [ScalarIndexField {
-        column: 0,
-        direction: IndexDirection::Ascending,
-        kind: ScalarKeyType::Binary { max_len: 255 },
-    }];
+fn binary_record_storage_charges_before_heap_allocation() -> TestResult {
+    let fields = [BINARY];
     let limited = |bytes| {
         ResourceBudget::new(
             ResourceLimits::default().with_max_allocation_bytes(crate::ByteCount::new(bytes)),

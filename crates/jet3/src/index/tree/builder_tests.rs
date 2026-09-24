@@ -8,9 +8,7 @@ use crate::{
     },
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
-
-use crate::testkit::budget;
+use crate::testkit::{TestResult, budget};
 
 fn entry(
     values: [RowValue<'_>; 2],

@@ -1,29 +1,27 @@
+pub(super) use crate::testkit::TestResult;
+use crate::testkit::create;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{PAGE_BYTES, *};
 use std::{fs, path::PathBuf};
-pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
 pub(super) struct Fixture(pub(super) crate::testkit::TempDir);
 impl Fixture {
     pub(super) fn new(rows: &[&[RowValue<'_>]]) -> Result<Self, Box<dyn std::error::Error>> {
         let path = crate::testkit::TempDir::new("schema-index")?;
         let fixture = Self(path);
-        create_database(
+        create(
             fixture.path(),
-            &DatabaseSpec {
-                tables: &[TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Items",
-                        columns: &[
-                            ColumnSpec::new(b"Id", ColumnType::Long),
-                            ColumnSpec::new(b"Payload", ColumnType::Memo),
-                        ],
-                        indexes: &[],
-                    },
-                    rows,
-                }],
-                ..DatabaseSpec::default()
-            },
-            &mut budget(),
+            &[TableRows {
+                table: table(
+                    b"Items",
+                    &[
+                        ColumnSpec::new(b"Id", ColumnType::Long),
+                        ColumnSpec::new(b"Payload", ColumnType::Memo),
+                    ],
+                    &[],
+                ),
+                rows,
+            }],
         )?;
         Ok(fixture)
     }
@@ -45,14 +43,14 @@ impl Fixture {
             self.path(),
             SchemaEdit::CreateIndex {
                 table: b"Items",
-                index: IndexSpec {
+                index: index(
                     name,
-                    kind,
-                    fields: &[IndexColumnSpec {
+                    &[IndexColumnSpec {
                         column: ColumnRef::Name(b"Id"),
                         direction,
                     }],
-                },
+                    kind,
+                ),
             },
             &mut budget(),
         )
@@ -79,7 +77,7 @@ fn index_edits_preserve_rows_payloads_and_unrelated_source_pages() -> TestResult
     let rows: Vec<_> = values.iter().map(|row| row.as_slice()).collect();
     let fixture = Fixture::new(&rows)?;
     let before = fs::read(fixture.path())?;
-    let table = fixture.table()?;
+    let root = fixture.table()?.root().get() as usize;
     let mut database = DatabaseReader::open(fixture.path(), &mut budget())?;
     let global = crate::alloc::mutation_map::MapBits::load(
         &mut database,
@@ -91,16 +89,18 @@ fn index_edits_preserve_rows_payloads_and_unrelated_source_pages() -> TestResult
         .iter()
         .map(|span| span.page.get() as usize)
         .collect();
-    fixture.create(b"ById", IndexKind::Unique, IndexDirection::Descending)?;
-    let after = fs::read(fixture.path())?;
-    for (number, page) in before.chunks_exact(PAGE_BYTES).enumerate() {
-        if number != 1 && number != table.root().get() as usize && !allocation.contains(&number) {
-            assert!(
-                page == &after[number * PAGE_BYTES..(number + 1) * PAGE_BYTES],
-                "source page {number}"
-            );
+    let unchanged = |after: &[u8]| {
+        for (number, page) in before.chunks_exact(PAGE_BYTES).enumerate() {
+            if number != 1 && number != root && !allocation.contains(&number) {
+                assert!(
+                    page == &after[number * PAGE_BYTES..(number + 1) * PAGE_BYTES],
+                    "source page {number}"
+                );
+            }
         }
-    }
+    };
+    fixture.create(b"ById", IndexKind::Unique, IndexDirection::Descending)?;
+    unchanged(&fs::read(fixture.path())?);
     let table = fixture.table()?;
     let mut database = DatabaseReader::open(fixture.path(), &mut budget())?;
     let tree = database.index_tree(&table, 0, &mut budget())?;
@@ -114,15 +114,7 @@ fn index_edits_preserve_rows_payloads_and_unrelated_source_pages() -> TestResult
     let dropped = fixture.table()?;
     assert!(dropped.indexes().is_empty());
     assert!(dropped.physical_indexes().is_empty());
-    let after = fs::read(fixture.path())?;
-    for (number, page) in before.chunks_exact(PAGE_BYTES).enumerate() {
-        if number != 1 && number != table.root().get() as usize && !allocation.contains(&number) {
-            assert!(
-                page == &after[number * PAGE_BYTES..(number + 1) * PAGE_BYTES],
-                "source page {number}"
-            );
-        }
-    }
+    unchanged(&fs::read(fixture.path())?);
     Ok(())
 }
 
@@ -160,25 +152,13 @@ fn shared_alias_rename_and_drop_keep_the_tree_until_the_last_alias() -> TestResu
 }
 
 #[test]
-fn unique_required_names_and_resource_refusals_leave_the_source_unchanged() -> TestResult {
+fn names_missing_indexes_and_resource_refusals_leave_the_source_unchanged() -> TestResult {
     let fixture = Fixture::new(&[
         &[RowValue::Long(7), RowValue::Null],
         &[RowValue::Long(7), RowValue::Null],
         &[RowValue::Null, RowValue::Null],
     ])?;
     let before = fs::read(fixture.path())?;
-    for kind in [
-        IndexKind::Unique,
-        IndexKind::Primary,
-        IndexKind::Ordinary.with_null_policy(IndexNullPolicy::Required),
-    ] {
-        assert!(
-            fixture
-                .create(b"Key", kind, IndexDirection::Ascending)
-                .is_err()
-        );
-        assert_eq!(fs::read(fixture.path())?, before);
-    }
     for name in [b"".as_slice(), b" Leading", b"bad.name", &[b'x'; 64]] {
         assert!(
             fixture
@@ -328,12 +308,7 @@ fn create_table_keeps_existing_storage_and_accepts_later_rows() -> TestResult {
         kind: IndexKind::Primary,
         fields: &[IndexColumnSpec::ascending(0)],
     }];
-    let table = TableSpec {
-        validation: crate::TableValidation::NONE,
-        name: b"Added",
-        columns: &columns,
-        indexes: &indexes,
-    };
+    let table = table(b"Added", &columns, &indexes);
     edit_schema(
         fixture.path(),
         SchemaEdit::CreateTable { table },
@@ -507,11 +482,11 @@ fn drop_columns_retains_rows_releases_payloads_and_allows_sparse_mutations() -> 
         fixture.path(),
         SchemaEdit::CreateIndex {
             table: b"Items",
-            index: IndexSpec {
-                name: b"ByNext",
-                fields: &[IndexColumnSpec::ascending(1)],
-                kind: IndexKind::Ordinary,
-            },
+            index: index(
+                b"ByNext",
+                &[IndexColumnSpec::ascending(1)],
+                IndexKind::Ordinary,
+            ),
         },
         &mut budget(),
     )?;

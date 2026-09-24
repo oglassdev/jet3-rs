@@ -1,8 +1,11 @@
 use super::update_tests::*;
+use crate::testkit::create_spec;
+use crate::testkit::index;
+use crate::testkit::table;
 use crate::{
     ColumnOrdinal, ColumnRef, ColumnSpec, ColumnType, DatabaseReader, FileSource, IndexColumnSpec,
-    IndexKind, IndexSpec, PAGE_BYTES, RelationshipField, RelationshipSpec, ResourceBudget,
-    RowLocator, RowValue, TableRef, TableRows, TableSpec,
+    IndexKind, PAGE_BYTES, RelationshipField, RelationshipSpec, ResourceBudget, RowLocator,
+    RowValue, TableRef, TableRows,
     row::directory::RowDirectory,
     write::{error::WriteError, update::*},
 };
@@ -12,24 +15,23 @@ use std::fs;
 fn fixture() -> Result<Fixture, Box<dyn StdError>> {
     let fixture = simple()?;
     fs::remove_file(fixture.path())?;
-    crate::create_database(
+    create_spec(
         fixture.path(),
         &crate::DatabaseSpec {
             tables: &[
                 TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Parent",
-                        columns: &[
+                    table: table(
+                        b"Parent",
+                        &[
                             ColumnSpec::new(b"Id", ColumnType::Long),
                             ColumnSpec::new(b"Other", ColumnType::Long),
                         ],
-                        indexes: &[IndexSpec {
-                            name: b"ById",
-                            fields: &[IndexColumnSpec::ascending(0)],
-                            kind: IndexKind::Primary,
-                        }],
-                    },
+                        &[index(
+                            b"ById",
+                            &[IndexColumnSpec::ascending(0)],
+                            IndexKind::Primary,
+                        )],
+                    ),
                     rows: &[
                         &[RowValue::Long(1), RowValue::Long(11)],
                         &[RowValue::Long(2), RowValue::Long(22)],
@@ -37,16 +39,15 @@ fn fixture() -> Result<Fixture, Box<dyn StdError>> {
                     ],
                 },
                 TableRows {
-                    table: TableSpec {
-                        validation: crate::TableValidation::NONE,
-                        name: b"Child",
-                        columns: &[
+                    table: table(
+                        b"Child",
+                        &[
                             ColumnSpec::new(b"Id", ColumnType::Long),
                             ColumnSpec::new(b"ParentId", ColumnType::Long),
                             ColumnSpec::new(b"Other", ColumnType::Long),
                         ],
-                        indexes: &[],
-                    },
+                        &[],
+                    ),
                     rows: &[
                         &[RowValue::Long(10), RowValue::Long(1), RowValue::Long(7)],
                         &[RowValue::Long(11), RowValue::Long(1), RowValue::Long(8)],
@@ -70,7 +71,6 @@ fn fixture() -> Result<Fixture, Box<dyn StdError>> {
             }),
             relationship_layout: crate::RelationshipLayout::SingleLong,
         },
-        &mut budget(),
     )?;
     Ok(fixture)
 }
@@ -90,23 +90,14 @@ fn definition(
     }
     Ok(database.table_definition(root.ok_or("table absent")?, budget)?)
 }
-#[test]
-fn catalog_and_reciprocal_indexes_resolve_both_relationship_sides() -> TestResult {
-    let fixture = fixture()?;
-    let mut work = budget();
-    let mut database = DatabaseReader::open(fixture.path(), &mut work)?;
-    let parent = definition(&mut database, b"Parent", &mut work)?;
-    let child = definition(&mut database, b"Child", &mut work)?;
-    for (name, target) in [(b"Parent".as_slice(), &parent), (b"Child", &child)] {
-        let constraints =
-            crate::relationship::catalog::load(&mut database, target, name, &mut work)?;
-        assert_eq!(constraints.len(), 1);
-        assert_eq!(constraints[0].parent.root(), parent.root());
-        assert_eq!(constraints[0].child.root(), child.root());
-        assert_eq!(constraints[0].parent_columns, [ColumnOrdinal::new(0)]);
-        assert_eq!(constraints[0].child_columns, [ColumnOrdinal::new(1)]);
-    }
-    Ok(())
+/// Absolute file offset of `needle` within page `page` of `bytes`.
+fn raw_offset(bytes: &[u8], page: crate::PageNumber, needle: &[u8]) -> TestResult<usize> {
+    let start = page.get() as usize * PAGE_BYTES;
+    let position = bytes[start..start + PAGE_BYTES]
+        .windows(needle.len())
+        .position(|window| window == needle)
+        .ok_or("raw bytes absent")?;
+    Ok(start + position)
 }
 
 fn locator(fixture: &Fixture, name: &[u8], id: i32) -> Result<RowLocator, Box<dyn StdError>> {
@@ -115,7 +106,8 @@ fn locator(fixture: &Fixture, name: &[u8], id: i32) -> Result<RowLocator, Box<dy
     let table = definition(&mut database, name, &mut work)?;
     let mut rows = database.rows(&table, &mut work)?;
     while let Some(mut row) = rows.next_row()? {
-        if matches!(row.value(ColumnOrdinal::new(0), crate::TextCodePage::Windows1252)?.ok_or("Id absent")?.kind(), crate::ValueKind::Long(value) if *value == id)
+        if crate::row::scalar_values::read_column(&mut row, ColumnOrdinal::new(0))?
+            == RowValue::Long(id)
         {
             return Ok(row.locator());
         }
@@ -123,43 +115,48 @@ fn locator(fixture: &Fixture, name: &[u8], id: i32) -> Result<RowLocator, Box<dy
     Err("Id absent".into())
 }
 
-fn field(fixture: &Fixture, table: &[u8], id: i32, column: u8, value: i32) -> TestResult {
-    update_field(
-        fixture.path(),
-        FieldUpdate {
-            table,
-            row: locator(fixture, table, id)?,
-            column: ColumnOrdinal::new(u16::from(column)),
-            value: RowValue::Long(value),
-        },
-        &mut budget(),
-    )?;
-    Ok(())
+fn row(fixture: &Fixture, table: &[u8], id: i32) -> Result<RowLocator, WriteError> {
+    locator(fixture, table, id).map_err(|_| WriteError::NotFound("test row"))
 }
 
-fn replace(fixture: &Fixture, table: &[u8], id: i32, values: &[RowValue<'_>]) -> TestResult {
-    crate::update_row(
-        fixture.path(),
-        crate::RowUpdate {
-            table,
-            row: locator(fixture, table, id)?,
-            values,
-        },
-        &mut budget(),
-    )?;
-    Ok(())
+fn field(
+    fixture: &Fixture,
+    table: &[u8],
+    id: i32,
+    column: u8,
+    value: i32,
+) -> Result<(), WriteError> {
+    let request = FieldUpdate {
+        table,
+        row: row(fixture, table, id)?,
+        column: ColumnOrdinal::new(u16::from(column)),
+        value: RowValue::Long(value),
+    };
+    update_field(fixture.path(), request, &mut budget())
 }
 
-fn delete(fixture: &Fixture, table: &[u8], id: i32) -> TestResult {
+fn replace(
+    fixture: &Fixture,
+    table: &[u8],
+    id: i32,
+    values: &[RowValue<'_>],
+) -> Result<(), WriteError> {
+    let row = row(fixture, table, id)?;
+    let request = crate::RowUpdate { table, row, values };
+    crate::update_row(fixture.path(), request, &mut budget())
+}
+
+fn delete(fixture: &Fixture, table: &[u8], id: i32) -> Result<(), WriteError> {
+    let row = row(fixture, table, id)?;
     crate::delete_row(
         fixture.path(),
-        crate::RowDelete {
-            table,
-            row: locator(fixture, table, id)?,
-        },
+        crate::RowDelete { table, row },
         &mut budget(),
-    )?;
-    Ok(())
+    )
+}
+
+fn insert(fixture: &Fixture, table: &[u8], values: &[RowValue<'_>]) -> Result<(), WriteError> {
+    crate::insert_row(fixture.path(), table, values, &mut budget()).map(|_| ())
 }
 
 fn rows(fixture: &Fixture, name: &[u8]) -> Result<Vec<Vec<Option<i32>>>, Box<dyn StdError>> {
@@ -193,23 +190,20 @@ fn rows(fixture: &Fixture, name: &[u8]) -> Result<Vec<Vec<Option<i32>>>, Box<dyn
 #[test]
 fn related_tables_accept_inserts_key_changes_nulls_and_ordered_deletes() -> TestResult {
     let fixture = fixture()?;
-    crate::insert_row(
-        fixture.path(),
+    insert(
+        &fixture,
         b"Parent",
         &[RowValue::Long(4), RowValue::Long(44)],
-        &mut budget(),
     )?;
-    crate::insert_row(
-        fixture.path(),
+    insert(
+        &fixture,
         b"Child",
         &[RowValue::Long(13), RowValue::Long(4), RowValue::Long(9)],
-        &mut budget(),
     )?;
-    crate::insert_row(
-        fixture.path(),
+    insert(
+        &fixture,
         b"Child",
         &[RowValue::Long(14), RowValue::Null, RowValue::Long(11)],
-        &mut budget(),
     )?;
     field(&fixture, b"Child", 10, 1, 2)?;
     replace(
@@ -248,61 +242,23 @@ fn related_tables_accept_inserts_key_changes_nulls_and_ordered_deletes() -> Test
 fn orphan_and_referenced_parent_requests_preserve_the_complete_file() -> TestResult {
     let fixture = fixture()?;
     let before = fs::read(fixture.path())?;
-    let child = locator(&fixture, b"Child", 12)?;
-    let parent = locator(&fixture, b"Parent", 1)?;
+    let orphan = [RowValue::Long(13), RowValue::Long(999), RowValue::Long(0)];
     let results = [
-        crate::insert_row(
-            fixture.path(),
+        insert(&fixture, b"Child", &orphan),
+        field(&fixture, b"Child", 12, 1, 999),
+        replace(
+            &fixture,
             b"Child",
-            &[RowValue::Long(13), RowValue::Long(999), RowValue::Long(0)],
-            &mut budget(),
-        )
-        .map(|_| ()),
-        update_field(
-            fixture.path(),
-            FieldUpdate {
-                table: b"Child",
-                row: child,
-                column: ColumnOrdinal::new(1),
-                value: RowValue::Long(999),
-            },
-            &mut budget(),
+            12,
+            &[RowValue::Long(12), RowValue::Long(999), RowValue::Long(0)],
         ),
-        crate::update_row(
-            fixture.path(),
-            crate::RowUpdate {
-                table: b"Child",
-                row: child,
-                values: &[RowValue::Long(12), RowValue::Long(999), RowValue::Long(0)],
-            },
-            &mut budget(),
-        ),
-        crate::delete_row(
-            fixture.path(),
-            crate::RowDelete {
-                table: b"Parent",
-                row: parent,
-            },
-            &mut budget(),
-        ),
-        update_field(
-            fixture.path(),
-            FieldUpdate {
-                table: b"Parent",
-                row: parent,
-                column: ColumnOrdinal::new(0),
-                value: RowValue::Long(99),
-            },
-            &mut budget(),
-        ),
-        crate::update_row(
-            fixture.path(),
-            crate::RowUpdate {
-                table: b"Parent",
-                row: parent,
-                values: &[RowValue::Long(99), RowValue::Long(11)],
-            },
-            &mut budget(),
+        delete(&fixture, b"Parent", 1),
+        field(&fixture, b"Parent", 1, 0, 99),
+        replace(
+            &fixture,
+            b"Parent",
+            1,
+            &[RowValue::Long(99), RowValue::Long(11)],
         ),
     ];
     for result in results {
@@ -403,20 +359,18 @@ fn deletion_caps_positive_foreign_state_and_retains_state_after_zero() -> TestRe
     assert_eq!(foreign_index(&fixture)?.0, [2, 2]);
     delete(&fixture, b"Child", 11)?;
     assert_eq!(foreign_index(&fixture)?.0, [1, 1]);
-    crate::insert_row(
-        fixture.path(),
+    insert(
+        &fixture,
         b"Child",
         &[RowValue::Long(14), RowValue::Long(3), RowValue::Long(14)],
-        &mut budget(),
     )?;
     assert_eq!(foreign_index(&fixture)?.0, [1, 2]);
     delete(&fixture, b"Child", 14)?;
     assert_eq!(foreign_index(&fixture)?.0, [0, 0]);
-    crate::insert_row(
-        fixture.path(),
+    insert(
+        &fixture,
         b"Child",
         &[RowValue::Long(15), RowValue::Null, RowValue::Long(15)],
-        &mut budget(),
     )?;
     assert_eq!(foreign_index(&fixture)?.0, [0, 1]);
     delete(&fixture, b"Child", 15)?;
@@ -439,12 +393,7 @@ fn damaged_reciprocal_metadata_and_stale_parent_index_are_refused() -> TestResul
         .next()
         .ok_or("parent relation absent")?
         .raw_record();
-    let relation_start = parent.root().get() as usize * PAGE_BYTES;
-    let relation_offset = before[relation_start..relation_start + PAGE_BYTES]
-        .windows(20)
-        .position(|record| record == relation)
-        .ok_or("relation raw record absent")?
-        + relation_start;
+    let relation_offset = raw_offset(&before, parent.root(), &relation)?;
     let tree = database.index_tree(&parent, 0, &mut work)?;
     let key = tree
         .entries()
@@ -452,12 +401,7 @@ fn damaged_reciprocal_metadata_and_stale_parent_index_are_refused() -> TestResul
         .ok_or("parent key absent")?
         .key()
         .raw_bytes();
-    let index_start = parent.physical_indexes()[0].root().get() as usize * PAGE_BYTES;
-    let key_offset = before[index_start..index_start + PAGE_BYTES]
-        .windows(key.len())
-        .position(|bytes| bytes == key)
-        .ok_or("parent raw key absent")?
-        + index_start;
+    let key_offset = raw_offset(&before, parent.physical_indexes()[0].root(), key)?;
     drop(database);
     for (offset, bit) in [
         (relation_offset + 9, 16),
@@ -503,16 +447,11 @@ fn missing_catalog_and_parent_records_cannot_hide_an_incoming_relationship() -> 
         .ok_or("catalog row absent")?
         .locator();
     let mut damaged = fs::read(fixture.path())?;
-    let start = parent.root().get() as usize * PAGE_BYTES;
     let relation = parent
         .relationships()
         .next()
         .ok_or("parent relation absent")?;
-    let offset = damaged[start..start + PAGE_BYTES]
-        .windows(20)
-        .position(|record| record == relation.raw_record())
-        .ok_or("parent raw relation absent")?
-        + start;
+    let offset = raw_offset(&damaged, parent.root(), relation.raw_record())?;
     let ordinary = parent
         .indexes()
         .iter()
@@ -627,12 +566,7 @@ fn duplicate_reciprocal_relationship_records_are_refused() -> TestResult {
         .ok_or("primary absent")?;
     let relation = parent.relationships().next().ok_or("relation absent")?;
     let mut damaged = fs::read(fixture.path())?;
-    let start = parent.root().get() as usize * PAGE_BYTES;
-    let offset = damaged[start..start + PAGE_BYTES]
-        .windows(20)
-        .position(|record| record == primary.raw_record())
-        .ok_or("primary raw record absent")?
-        + start;
+    let offset = raw_offset(&damaged, parent.root(), primary.raw_record())?;
     damaged[offset..offset + 20].copy_from_slice(relation.raw_record());
     drop(database);
     fs::write(fixture.path(), &damaged)?;

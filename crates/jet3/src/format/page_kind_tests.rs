@@ -3,7 +3,7 @@ use crate::{
     Error, PAGE_BYTES, PageNumber, ReadLimits, ResourceBudget, ResourceLimitKind, ResourceLimits,
 };
 
-type TestResult = Result<(), Box<dyn std::error::Error>>;
+use crate::testkit::TestResult;
 
 fn budget(maximum_work: u64) -> ResourceBudget {
     ResourceBudget::new(
@@ -26,26 +26,24 @@ fn page_zero_tag_zero_is_the_only_database_definition_context() -> TestResult {
 }
 
 #[test]
-fn nonzero_pages_map_each_documented_payload_tag_exactly() -> TestResult {
-    let cases = [
-        (0x01, PageKind::Data),
-        (0x02, PageKind::TableDefinition),
-        (0x03, PageKind::IntermediateIndex),
-        (0x04, PageKind::LeafIndex),
-        (0x05, PageKind::ExtendedUsageBitmap),
-    ];
-    let mut operation = budget(cases.len() as u64);
-
-    for (tag, expected) in cases {
-        let mut page = [0xA5_u8; PAGE_BYTES];
+fn nonzero_pages_map_documented_tags_and_keep_all_others_as_lossless_unknowns() -> TestResult {
+    let mut operation = budget(256);
+    for tag in u8::MIN..=u8::MAX {
+        let expected = match tag {
+            0x01 => PageKind::Data,
+            0x02 => PageKind::TableDefinition,
+            0x03 => PageKind::IntermediateIndex,
+            0x04 => PageKind::LeafIndex,
+            0x05 => PageKind::ExtendedUsageBitmap,
+            other => PageKind::Unknown(other),
+        };
+        let mut page = [if tag % 2 == 0 { 0x00 } else { 0xFF }; PAGE_BYTES];
         page[0] = tag;
-        assert_eq!(
-            classify_page(PageNumber::new(1), &page, &mut operation)?.kind(),
-            expected
-        );
+        let classified = classify_page(PageNumber::new(42), &page, &mut operation)?;
+        assert_eq!(classified.kind(), expected, "tag {tag:#04x}");
+        assert_eq!(classified.raw_bytes(), &page);
     }
-
-    assert_eq!(operation.total_work_units(), cases.len() as u64);
+    assert_eq!(operation.total_work_units(), 256);
     Ok(())
 }
 
@@ -67,44 +65,6 @@ fn documented_tags_in_the_wrong_page_context_are_unknown() -> TestResult {
             PageKind::Unknown(tag)
         );
     }
-    Ok(())
-}
-
-#[test]
-fn tag_eight_and_all_other_unsupported_bytes_remain_lossless_unknowns() -> TestResult {
-    let unsupported_count = u64::from(u8::MAX) + 1 - 5;
-    let mut operation = budget(unsupported_count);
-
-    for tag in u8::MIN..=u8::MAX {
-        if (1..=5).contains(&tag) {
-            continue;
-        }
-        let mut page = [0_u8; PAGE_BYTES];
-        page[0] = tag;
-        assert_eq!(
-            classify_page(PageNumber::new(42), &page, &mut operation)?.kind(),
-            PageKind::Unknown(tag)
-        );
-    }
-    assert_eq!(operation.total_work_units(), unsupported_count);
-    Ok(())
-}
-
-#[test]
-fn bytes_after_byte_zero_are_preserved_but_do_not_affect_classification() -> TestResult {
-    let mut first = [0_u8; PAGE_BYTES];
-    first[0] = 0x02;
-    let mut second = [0xFF_u8; PAGE_BYTES];
-    second[0] = 0x02;
-    let mut operation = budget(2);
-
-    let first_view = classify_page(PageNumber::new(7), &first, &mut operation)?;
-    let second_view = classify_page(PageNumber::new(7), &second, &mut operation)?;
-
-    assert_eq!(first_view.kind(), PageKind::TableDefinition);
-    assert_eq!(second_view.kind(), PageKind::TableDefinition);
-    assert_eq!(first_view.raw_bytes(), &first);
-    assert_eq!(second_view.raw_bytes(), &second);
     Ok(())
 }
 
