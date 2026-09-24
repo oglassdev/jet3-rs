@@ -114,7 +114,7 @@ fn find_released_page(
     for number in free {
         budget.charge_work_units(1)?;
         database.read_raw_page(number, &mut candidate, budget)?;
-        if candidate[0] != 9 || candidate[1] != 1 || candidate[4..8] != owner.to_le_bytes() {
+        if !crate::alloc::mutation_map::owned_page(&candidate, &[9], owner.to_le_bytes()) {
             continue;
         }
         let directory = crate::row::directory::RowDirectory::validate(

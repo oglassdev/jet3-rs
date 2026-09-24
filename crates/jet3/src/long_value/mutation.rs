@@ -3,9 +3,8 @@
 //! sibling slots. The inline cutoff and packing remain writer policies.
 use crate::{
     ByteCount, ColumnOrdinal, ColumnPhysicalType, DatabaseReader, ExternalLongValueStorage,
-    FileSource, LongValueMapDefinition, MapRowLocator, PAGE_BYTES, PageImage, PageNumber,
-    PageOffset, ResourceBudget, RowColumnLayout, RowLocator, RowValue, TableDefinition,
-    UpdateError,
+    FileSource, LongValueMapDefinition, PAGE_BYTES, PageImage, PageNumber, PageOffset,
+    ResourceBudget, RowColumnLayout, RowLocator, RowValue, TableDefinition, UpdateError,
     long_value::writer::{
         HEADER_LEN, MAX_CHAINED_FRAGMENT, MAX_SINGLE_PAGE_PAYLOAD,
         MAX_SINGLE_PAGE_PROPERTY_PAYLOAD, encode_chained_row, encode_inline_long_value,
@@ -294,7 +293,7 @@ impl LongValues {
         edits: &mut PageEdits,
         budget: &mut ResourceBudget,
     ) -> Result<(), UpdateError> {
-        let global = MapRowLocator::new(PageNumber::new(1), 0);
+        let global = crate::alloc::mutation_map::global_locator();
         for page in self.pages {
             if !page.changed {
                 continue;

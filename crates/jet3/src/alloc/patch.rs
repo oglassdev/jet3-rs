@@ -54,9 +54,8 @@ pub(crate) fn plan(
             ([false, true, before], [false, true, available])
         }
     };
-    // EXP-0051 identifies the global free-page map at page 1, row 0.
     let locators = [
-        MapRowLocator::new(PageNumber::new(1), 0),
+        crate::alloc::mutation_map::global_locator(),
         definition.maps().owned(),
         definition.maps().available(),
     ];

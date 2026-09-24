@@ -26,7 +26,7 @@ pub(super) fn load(
     }
     reserve(&mut result.maps, table.long_value_maps().len(), budget)?;
     result.maps.extend_from_slice(table.long_value_maps());
-    let global_locator = MapRowLocator::new(PageNumber::new(1), 0);
+    let global_locator = crate::alloc::mutation_map::global_locator();
     let global = MapBits::load(database, global_locator, budget)?;
     let mut map_locators = Vec::new();
     reserve(&mut map_locators, result.maps.len() * 2, budget)?;
@@ -78,7 +78,7 @@ pub(super) fn load(
     for page in global.existing_pages(result.first_append, true, budget)? {
         let mut bytes = [0; PAGE_BYTES];
         database.read_raw_page(page, &mut bytes, budget)?;
-        if !matches!(bytes[0], 1 | 9) || bytes[1] != 1 || bytes[4..8] != *b"LVAL" {
+        if !crate::alloc::mutation_map::owned_page(&bytes, &[1, 9], *b"LVAL") {
             continue;
         }
         live_slots(page, &bytes, false, false, budget)?;

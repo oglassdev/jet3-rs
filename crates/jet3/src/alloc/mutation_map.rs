@@ -289,8 +289,15 @@ impl PendingMap {
     }
 }
 
+/// EXP-0051 identifies the global free-page map at page 1, row 0.
 pub(crate) fn global_locator() -> crate::MapRowLocator {
     crate::MapRowLocator::new(PageNumber::new(1), 0)
+}
+
+/// Whether a mapped page carries one of `tags`, the `0x01` second byte and
+/// `owner` in bytes 4..8.
+pub(crate) fn owned_page(page: &[u8; crate::PAGE_BYTES], tags: &[u8], owner: [u8; 4]) -> bool {
+    tags.contains(&page[0]) && page[1] == 1 && page[4..8] == owner
 }
 
 impl MapBits {
