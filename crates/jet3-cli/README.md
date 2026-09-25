@@ -41,6 +41,17 @@ with exit 1. Invalid arguments produce JSON errors on stderr with exit 2. A
 successful inspection describes the requested decoded content; it is not a
 whole-file compatibility verdict. Inspection never modifies the database.
 
+`jet3-cli inspect example.mdb --layout [--table Items]` instead reports user
+tables (or the one `--table`) as the reader sees them: `page_count`, and per
+table its `root`, declared `row_count`, `columns` (name, raw physical `type`,
+`size`, `auto_increment`, `class_flags`), `rows` in stored order (`page`, `slot`,
+`values` with each stored field as hex, Booleans as JSON booleans and Memo/OLE
+payloads read in full, and `long_values` references with `storage`, `length`,
+`page` and `slot`) and `indexes` (name, raw logical record, root, flags, usage
+map, fields, sourced prefix, tree `depth`, `nodes` and `[key hex, page, slot]`
+`entries`). Any decode failure exits 1 with `inspect_failed`. `--layout` cannot
+be combined with `--page` or `--rows`.
+
 Validate reachable user and system table data without modifying the file:
 
 ```sh
@@ -134,6 +145,11 @@ value object. The tag must match the column type (fixed text uses `text`):
 | `{"text": [233]}`, `{"memo": [233]}` | Explicit database-code-page bytes, here Windows-1252 é |
 | `{"binary": [0, 255]}`, `{"long_binary": [0, 255]}` | Exact binary/OLE bytes |
 | `{"guid": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]}` | Sixteen bytes in conventional GUID display order |
+| `{"long_value": [0, 0, 0, 0]}` | An already-encoded Memo/OLE header and inline payload; creation and row writes refuse it |
+
+`create` and `mutate` accept `--max-allocation-bytes`, `--max-work-units`,
+`--max-chain-depth` and `--max-encoded-bytes` `<n>` after `--input`; each
+replaces one default resource limit of the write.
 
 Names are Unicode JSON strings encoded strictly as Windows-1252 for creation.
 Schema edits and row mutations use the existing database’s code page: 1252 for

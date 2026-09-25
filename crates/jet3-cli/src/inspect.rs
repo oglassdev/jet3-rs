@@ -16,6 +16,7 @@ use serde_json::{Value, json};
 pub(crate) const HELP: &str = "\
   jet3-cli inspect <file> [--table <name>] [--rows] [--code-page 1252|1251|1253]
   jet3-cli inspect <file> --page <number> [--hex]
+  jet3-cli inspect <file> --layout [--table <name>] [--code-page 1252|1251|1253]
 
 inspect classifies every page, lists catalog records, decodes every
 catalogued table definition (system tables included), lists the pages each
@@ -24,6 +25,9 @@ includes every row of every decoded table. --table restricts table definitions
 and rows to one exact catalog name; page and catalog diagnostics remain present.
 JSON includes ok=false and issues on partial decode failure (exit 1).
 --page dumps one page's classification, and --hex adds its bytes.
+--layout instead reports user tables (or the --table) as the reader sees them:
+column types, each row's locator, stored bytes (hex; Memo/OLE payloads read in
+full) and long-value references, and each index's definition and tree entries.
 ";
 
 #[derive(Debug)]
@@ -32,6 +36,7 @@ pub(crate) struct InspectCommand {
     page: Option<u64>,
     hex: bool,
     rows: bool,
+    layout: bool,
     code_page: TextCodePage,
     table: Option<String>,
 }
@@ -48,6 +53,7 @@ pub(crate) fn parse_args(
         page: None,
         hex: false,
         rows: false,
+        layout: false,
         code_page: TextCodePage::Windows1252,
         table: None,
     };
@@ -56,6 +62,8 @@ pub(crate) fn parse_args(
             command.hex = true;
         } else if option == "--rows" {
             command.rows = true;
+        } else if option == "--layout" {
+            command.layout = true;
         } else if option == "--page" {
             let value = arguments.next().ok_or("missing_option_value")?;
             let text = value.to_str().ok_or("invalid_option_value")?;
@@ -88,6 +96,9 @@ pub(crate) fn parse_args(
     if command.page.is_some() && (command.rows || command.table.is_some()) {
         return Err("page_conflicts_with_table_or_rows");
     }
+    if command.layout && (command.page.is_some() || command.rows) {
+        return Err("layout_conflicts_with_page_or_rows");
+    }
     Ok(command)
 }
 
@@ -113,6 +124,12 @@ pub(crate) fn run(command: &InspectCommand) -> Result<InspectOutput, String> {
 
     let document = match command.page {
         Some(page) => inspect_page(&mut database, &mut budget, page, command.hex)?,
+        None if command.layout => crate::layout::document(
+            &mut database,
+            &mut budget,
+            command.table.as_deref(),
+            command.code_page,
+        )?,
         None => inspect_database(&mut database, &mut budget, command)?,
     };
     let mut text = serde_json::to_string_pretty(&document).map_err(|e| e.to_string())?;
@@ -298,21 +315,21 @@ fn inspect_database(
     }))
 }
 
-fn decoded_name(raw: &[u8], code_page: TextCodePage) -> Option<String> {
+pub(crate) fn decoded_name(raw: &[u8], code_page: TextCodePage) -> Option<String> {
     code_page
         .decode(raw, &mut crate::values::budget())
         .ok()
         .map(|decoded| decoded.as_str().to_owned())
 }
 
-fn name_json(raw: &[u8], code_page: TextCodePage) -> Value {
+pub(crate) fn name_json(raw: &[u8], code_page: TextCodePage) -> Value {
     match decoded_name(raw, code_page) {
         Some(text) => json!(text),
         None => json!({"raw_hex": hex_string(raw)}),
     }
 }
 
-fn hex_string(bytes: &[u8]) -> String {
+pub(crate) fn hex_string(bytes: &[u8]) -> String {
     bytes.iter().fold(String::new(), |mut out, byte| {
         let _ = write!(out, "{byte:02x}");
         out

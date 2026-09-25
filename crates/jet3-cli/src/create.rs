@@ -3,22 +3,25 @@ use std::{ffi::OsString, path::PathBuf};
 
 use crate::names::Name;
 use crate::schema_input::{Column, Index, Relation, validation};
-use crate::values::{self, Cell};
+use crate::values::{self, Cell, Limits};
 use jet3::{DatabaseSpec, RelationshipLayout, RowValue, TableRows, TableSpec, create_database};
 use serde::Deserialize;
 
 pub(crate) const HELP: &str = "\
-  jet3-cli create <output.mdb> --input <request.json|->
+  jet3-cli create <output.mdb> --input <request.json|-> [limits]
 
 create reads a JSON request from a file or stdin (-), then calls the public
 creation API once. Existing output files are refused. See crates/jet3-cli/README.md
 for typed rows, indexes, relationships and the library's current limits.
+--max-allocation-bytes, --max-work-units, --max-chain-depth and --max-encoded-bytes
+<n> each replace one default resource limit of the write.
 ";
 
 #[derive(Debug)]
 pub(crate) struct CreateCommand {
     output: PathBuf,
     input: OsString,
+    limits: Limits,
 }
 
 pub(crate) fn parse_args(
@@ -32,12 +35,10 @@ pub(crate) fn parse_args(
         return Err("create_input_required");
     }
     let input = arguments.next().ok_or("missing_option_value")?;
-    if arguments.next().is_some() {
-        return Err("unexpected_argument");
-    }
     Ok(CreateCommand {
         output: output.into(),
         input,
+        limits: Limits::parse(arguments)?,
     })
 }
 
@@ -149,7 +150,7 @@ pub(crate) fn run(command: &CreateCommand) -> Result<String, String> {
         relationships: &relationships,
         relationship_layout,
     };
-    create_database(&command.output, &spec, &mut values::budget())
+    create_database(&command.output, &spec, &mut command.limits.budget())
         .map_err(|e| format!("create database: {e}"))?;
     Ok(
         serde_json::json!({"ok": true, "operation": "create", "output": command.output.to_string_lossy()})

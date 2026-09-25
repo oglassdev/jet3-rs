@@ -4,20 +4,19 @@ A suite subclasses `Scalar` with its recipe. Each case builds a DAO control, rep
 stages against Rust candidates (one DAO worker process per case, see Rows.ps1), then applies
 native successor writes to both outputs. The continuation round lets Rust edit the native
 DAO successor. Every image is decoded independently: rows, index trees with complete
-key/locator entries, maps, retained counters (EXP-0230) and the Rust receipts.
+key/locator entries, maps and retained counters (EXP-0230), and validated by jet3-cli.
 """
 
 from __future__ import annotations
 
 import copy
-import json
 from pathlib import Path
 import shutil
 import struct
-import subprocess
 import uuid
 
 import keys
+import recipes
 import structure
 from registry import common
 from registry.common import identity, require
@@ -25,6 +24,37 @@ from registry.common import identity, require
 NOTES_SCHEMA = [['Id', 4, 4], ['Body', 12, 0]]
 TABLES = ['Items', 'MSysACEs', 'MSysObjects', 'MSysQueries', 'MSysRelationships', 'Notes']
 DOCUMENT = 'dao_scalar_mutation_result'
+KINDS = {1: 'boolean', 2: 'byte', 3: 'integer', 4: 'long', 5: 'currency', 6: 'single', 7: 'double', 8: 'date_time',
+         9: 'binary', 10: 'text', 11: 'long_binary', 12: 'memo', 15: 'guid'}
+DUPLICATE = 'duplicate unique key'
+
+
+def cell(value, kind):
+    """A recipe value as a jet3-cli cell (Currency scaled; Binary, Text, Memo, OLE and GUID hex)."""
+    if value is None:
+        return None
+    return {KINDS[kind]: list(bytes.fromhex(value)) if kind in (9, 10, 11, 12, 15) else value}
+
+
+def cells(row, case):
+    return [cell(value, field[1]) for value, field in zip(row, case['fields'])]
+
+
+def index_request(case, index):
+    """A recipe index as a jet3-cli create request index."""
+    fields = [dict(column=case['fields'][c][0], **({'direction': 'descending'} if d else {})) for c, d in index['fields']]
+    kind = 'primary' if index['primary'] else 'unique' if index['unique'] else 'ordinary'
+    return dict(name=index['name'], kind=kind, fields=fields, **({'null_policy': 'ignore_all_null'} if index['ignore'] else {}))
+
+
+NOTES_TABLE = dict(name='Notes', columns=[dict(name='Id', type='long'), dict(name='Body', type='memo')], indexes=[],
+                   rows=[[{'long': 7}, {'memo': 'n' * 4096}], [{'long': 8}, None]])
+
+
+def write(case, row, id=None, **extra):
+    """An insert of `row`, or a replacement of the row whose Id is `id`, as a jet3-cli step."""
+    request = dict(operation='insert' if id is None else 'replace', table='Items', values=cells(row, case))
+    return dict(request=request, **({} if id is None else dict(locate=dict(table='Items', id=id))), **extra)
 
 
 class Scalar:
@@ -32,6 +62,8 @@ class Scalar:
     CASE_NAMES: tuple
     FINAL = 'regrown'
     SUMMARY = 'numeric mutation'
+    REFUSAL_SOURCE: str
+    REFUSALS: tuple
 
     # --- Recipe ----------------------------------------------------------------------
 
@@ -88,6 +120,69 @@ class Scalar:
                 self.apply(rows, operation, case, counters)
             yield stage, copy.deepcopy(rows), counters.copy()
 
+    # --- Rust candidates -------------------------------------------------------------
+
+    def create_request(self, case):
+        fixed = set(case.get('fixed_fields', ()))
+        columns = [dict(name=name, type='fixed_text' if name in fixed else KINDS[kind], **({'size': size} if kind in (9, 10) else {}))
+                   for name, kind, size in case['fields']]
+        items = dict(name='Items', columns=columns, indexes=[index_request(case, index) for index in case['indexes']],
+                     rows=[cells(r, case) for r in case['initial_rows']])
+        return dict(tables=[items, NOTES_TABLE])
+
+    def step(self, rows, operation, case, counters):
+        """The jet3-cli mutation for one recipe operation, which is then applied to `rows`.
+
+        Field edits involving Null, Boolean or variable-width values replace the whole row."""
+        kind = operation['kind']
+        if kind == 'insert':
+            result = write(case, operation['row'])
+        elif kind == 'replace':
+            result = write(case, operation['row'], operation['id'])
+        elif kind == 'delete':
+            result = dict(request=dict(operation='delete', table='Items'), locate=dict(table='Items', id=operation['id']))
+        else:
+            column, value = operation['column'], operation['value']
+            row = rows[operation['id']].copy()
+            field_kind = case['fields'][column][1]
+            if row[column] is None or value is None or field_kind in (1, 9, 10, 11, 12):
+                row[column] = value
+                result = write(case, row, operation['id'])
+            else:
+                request = dict(operation='update', table='Items', column=column, value=cell(value, field_kind))
+                result = dict(request=request, locate=dict(table='Items', id=operation['id']))
+        self.apply(rows, operation, case, counters)
+        return result
+
+    def refusal_images(self, case, source):
+        """`refusal-<name>-before.mdb` and `-after.mdb` inputs taken from `source`."""
+        raise NotImplementedError
+
+    def refusal_pair(self, name, source, step, damage=None):
+        before = f'refusal-{name}-before.mdb'
+        return [{'file': before, 'from': source, 'steps': [{'edit': damage}] if damage else []},
+                {'file': f'refusal-{name}-after.mdb', 'from': before, 'steps': [step]}]
+
+    def candidates(self, spec=None):
+        """Every `<case>-<stage>.mdb`, each continuing from the previous stage, and the refusal inputs."""
+        images = []
+        for name in self.CASE_NAMES:
+            case = self.recipe(name)
+            rows = {row[0]: row.copy() for row in case['initial_rows']}
+            counters = self.counters_for(case, rows)
+            previous = None
+            for stage in case['stages']:
+                file = f"{name}-{stage['name']}.mdb"
+                steps = [self.step(rows, operation, case, counters) for operation in stage['operations']]
+                if previous is None:
+                    images.append({'file': file, 'steps': [dict(command='create', request=self.create_request(case)), *steps]})
+                else:
+                    images.append({'file': file, 'from': previous, 'steps': steps})
+                previous = file
+                if file == self.REFUSAL_SOURCE + '.mdb':
+                    images += self.refusal_images(case, file)
+        return images
+
     # --- Raw checks ------------------------------------------------------------------
 
     def raw_rows(self, data, table, case):
@@ -105,10 +200,10 @@ class Scalar:
                     row['values'][n] = uuid.UUID(bytes_le=bytes.fromhex(value['raw_hex'])).hex
         return rows
 
-    def raw_extra(self, data, case, table, result, receipt):
+    def raw_extra(self, data, case, table, result):
         """Suite-specific additions to the raw layout."""
 
-    def raw_check(self, data, case, expected, counters, receipt=None, previous=None):
+    def raw_check(self, data, case, expected, counters, previous=None):
         table = common.tables(data, ['Items'])['Items']
         pages = table['data_pages']
         rows = self.raw_rows(data, table, case)
@@ -123,7 +218,6 @@ class Scalar:
         require(len(set(map_slots)) == len(map_slots), 'Distinct index map slots')
         all_owned = set(pages)
         results = {}
-        rust_indexes = {i['name']: i for i in receipt['indexes']} if receipt else {}
         for index in case['indexes']:
             physical = table['physical_indexes'][logical[index['name']]]
             require(physical['keys'] == [dict(column=c, direction=int(not d)) for c, d in index['fields']]
@@ -145,21 +239,29 @@ class Scalar:
                           entries=len(entries), distinct=len({e[:-4] for e in entries}), compressed=[n['page'] for n in nodes if n['prefix']],
                           stale_separators=sum(n['stale_separators'] for n in nodes), reserved=sorted(owned - reached))
             results[index['name']] = layout
-            if receipt:
-                actual = rust_indexes[index['name']]
-                require(actual['depth'] == layout['depth'] and sorted(actual['nodes']) == layout['nodes']
-                        and actual['entries'] == [[e[:-4].hex(), int.from_bytes(e[-4:-1], 'big'), e[-1]] for e in entries], 'Rust/raw complete index receipt')
         locators = sorted([r['values'][0], r['page'], r['row']] for r in rows)
-        if receipt:
-            require(receipt['items'] == sorted(expected.values()) and receipt['notes'] == common.NOTES
-                    and receipt['schema'] == dict(Items=case['fields'], Notes=NOTES_SCHEMA) and receipt['locators'] == locators
-                    and receipt['pages'] * common.PAGE == len(data) and receipt['data_pages'] == sorted(pages), 'Rust complete reader and schema receipt')
         result = dict(map_slots=map_slots, indexes=results, data_pages=sorted(pages), file_pages=len(data) // common.PAGE, locators=locators)
-        self.raw_extra(data, case, table, result, receipt)
+        self.raw_extra(data, case, table, result)
         return result
 
-    def refusal_check(self, directory, notes):
-        raise NotImplementedError
+    def refused_input(self, source, receipt, before):
+        """The exact refusal input expected from `source`; adds suite details to `receipt`."""
+        require(DUPLICATE in receipt['error'], 'Duplicate unique key refusal: ' + receipt['name'])
+        return source
+
+    def refusal_check(self, directory, notes, errors):
+        """Receipts of the refused writes (with their jet3-cli errors) that preserved every byte."""
+        require(len(errors) == len(self.REFUSALS), 'Refusal inventory')
+        source = (directory / (self.REFUSAL_SOURCE + '.mdb')).read_bytes()
+        receipts = []
+        for name, error in zip(self.REFUSALS, errors):
+            before = (directory / f'refusal-{name}-before.mdb').read_bytes()
+            after = (directory / f'refusal-{name}-after.mdb').read_bytes()
+            receipt = dict(name=name, error=error, preserved=True)
+            require(before == after == self.refused_input(source, receipt, before), 'Refused write preserves the whole image: ' + name)
+            require(common.notes_identity(after) == notes, 'Refusal preserves Notes-owned pages')
+            receipts.append(receipt)
+        return receipts
 
     def stage_check(self, stem, layout, original_layout):
         """Suite-specific boundary assertions for one prepared stage."""
@@ -206,27 +308,27 @@ class Scalar:
         items['indexes'].sort(key=lambda i: i['name'])
         return value
 
-    def retained_capture(self, outbox, capture, case, rows, counters, notes, receipt=None, previous=None):
+    def retained_capture(self, outbox, capture, case, rows, counters, notes, previous=None):
         path = outbox / capture['file']
         data = path.read_bytes()
         image = identity(path)
         require(capture['before'] == capture['after'] == image, 'Read-only capture and retained image identity')
         require(common.notes_identity(data) == notes, 'Notes-owned pages preserved')
         snapshot = self.normalized(capture, case, rows)
-        layout = self.raw_check(data, case, rows, counters, receipt, previous)
+        layout = self.raw_check(data, case, rows, counters, previous)
         return snapshot, dict(image=image, layout=layout), data
 
     # --- Registry interface ----------------------------------------------------------
 
-    def prepare(self, images: Path, revision: str, spec: dict, stdout: str) -> None:
+    def prepare(self, images: Path, revision: str, spec: dict, results: dict) -> None:
         cases = [self.recipe(name) for name in self.CASE_NAMES]
         for case in cases:
             previous = baseline_notes = original_layout = None
             for stage, expected, counters in self.expected_stages(case):
                 stem = f"{case['name']}-{stage['name']}"
                 data = (images / (stem + '.mdb')).read_bytes()
-                receipt = json.loads((images / (stem + '.snapshot.json')).read_text())
-                layout = self.raw_check(data, case, expected, counters, receipt, previous if len(stage['operations']) == 1 else None)
+                common.validate(images / (stem + '.mdb'))
+                layout = self.raw_check(data, case, expected, counters, previous if len(stage['operations']) == 1 else None)
                 if baseline_notes is None:
                     baseline_notes = common.notes_identity(data)
                     original_layout = layout
@@ -235,8 +337,9 @@ class Scalar:
                 stage['counters'] = counters
                 previous = data
             case['notes_pages'] = baseline_notes
-        refusals = self.refusal_check(images, self.refusal_notes(cases))
-        files = {p.name: identity(p) for p in sorted(images.iterdir()) if p.suffix in ('.mdb', '.json') and p.name != self.MANIFEST}
+        errors = [results[f'refusal-{name}-after.mdb'][-1]['refused'] for name in self.REFUSALS]
+        refusals = self.refusal_check(images, self.refusal_notes(cases), errors)
+        files = {p.name: identity(p) for p in sorted(images.iterdir()) if p.suffix == '.mdb'}
         common.write(images / self.MANIFEST, dict(document_type='scalar_mutation_inputs', round='mutations', source_revision=revision,
                                                   cases=cases, files=files, refusals=refusals))
 
@@ -274,7 +377,8 @@ class Scalar:
                 except Exception as error:
                     outcome['error'] = f'{type(error).__name__}: {error}'
             if manifest['round'] == 'mutations':
-                require(self.refusal_check(images, self.refusal_notes(manifest['cases'])) == manifest['refusals'], 'Refusal receipts')
+                errors = [r['error'] for r in manifest['refusals']]
+                require(self.refusal_check(images, self.refusal_notes(manifest['cases']), errors) == manifest['refusals'], 'Refusal receipts')
                 report['refusals'] = manifest['refusals']
             require(all(c['status'] == 'accepted' for c in report['cases']), f'One or more {self.SUMMARY} cases failed')
             report['status'] = 'accepted'
@@ -288,8 +392,7 @@ class Scalar:
         require(observed['operation']['count'] == len(case['operations']) and observed['operation']['before'] == manifest['files'][case['source_file']],
                 'Continuation operation input')
         for role in ('candidate', 'control'):
-            receipt = json.loads((images / f"{case['name']}-continued.snapshot.json").read_text()) if role == 'candidate' else None
-            pairs[role], checkpoints[role], _ = self.retained_capture(outbox, observed['roles'][role], case, rows, case['counters'], case['notes_pages'], receipt)
+            pairs[role], checkpoints[role], _ = self.retained_capture(outbox, observed['roles'][role], case, rows, case['counters'], case['notes_pages'])
         require(checkpoints['candidate']['image'] == manifest['files'][case['candidate_file']] and checkpoints['control']['image'] == observed['operation']['after'],
                 'Continuation output identities')
         require(pairs['candidate'] == pairs['control'], 'Paired continuation schema/rows/traversal/seeks')
@@ -309,9 +412,8 @@ class Scalar:
             stem = f"{case['name']}-{stage['name']}"
             for role in ('candidate', 'control'):
                 candidate = role == 'candidate'
-                receipt = json.loads((images / (stem + '.snapshot.json')).read_text()) if candidate else None
                 pairs[role], checkpoints[role], data = self.retained_capture(
-                    outbox, capture['roles'][role], case, rows, counters, case['notes_pages'] if candidate else native_notes, receipt,
+                    outbox, capture['roles'][role], case, rows, counters, case['notes_pages'] if candidate else native_notes,
                     previous if candidate and len(stage['operations']) == 1 else None)
                 if candidate:
                     previous = data
@@ -333,7 +435,7 @@ class Scalar:
         require(native_pairs['candidate'] == native_pairs['control'], 'Native follow-up writes on both outputs')
         outcome['native'] = native_details
 
-    def prepare_continue(self, images: Path, first_outbox: Path, output: Path, generator: Path, revision: str) -> None:
+    def prepare_continue(self, images: Path, first_outbox: Path, output: Path, revision: str) -> None:
         first = common.read(images / self.MANIFEST)
         result = common.read(first_outbox / 'result.json')
         require(result['manifest_sha256'] == identity(images / self.MANIFEST)['sha256'], 'Continuation parent run')
@@ -355,27 +457,21 @@ class Scalar:
                 self.continuation_check(name, compressed)
                 operations = [dict(kind='insert', row=self.initial_row(name, 1234567)), dict(kind='field', id=1234567, column=0, value=1234568),
                               dict(kind='delete', id=9001)]
-                for operation in operations:
-                    self.apply(rows, operation, case, counters)
-                child = output / name
-                done = subprocess.run([str(generator), 'continue', str(source), str(child), name], capture_output=True, text=True)
-                (output / (name + '.stdout.log')).write_text(done.stdout)
-                (output / (name + '.stderr.log')).write_text(done.stderr)
-                receipts.append(dict(name=name, source=identity(source), returncode=done.returncode))
-                require(done.returncode == 0, 'Rust native-input continuation: ' + name)
                 source_name = name + '-continuation-source.mdb'
                 shutil.copy2(source, output / source_name)
-                for suffix in ('.mdb', '.snapshot.json'):
-                    shutil.copy2(child / (name + '-continued' + suffix), output / (name + '-continued' + suffix))
-                continued = (output / (name + '-continued.mdb')).read_bytes()
-                receipt = json.loads((output / (name + '-continued.snapshot.json')).read_text())
-                self.raw_check(continued, case, rows, counters, receipt)
+                file = name + '-continued.mdb'
+                image = {'file': file, 'from': source_name, 'steps': [self.step(rows, operation, case, counters) for operation in operations]}
+                results = recipes.build([image], output, output.parent / 'requests')[file]
+                receipts.append(dict(name=name, source=identity(source), results=results))
+                common.validate(output / file)
+                continued = (output / file).read_bytes()
+                self.raw_check(continued, case, rows, counters)
                 notes = common.notes_identity(source.read_bytes())
                 require(common.notes_identity(continued) == notes, 'Continuation Notes-owned bytes')
                 case.update(source_file=source_name, candidate_file=name + '-continued.mdb', expected=sorted(rows.values()), counters=counters,
                             operations=operations, notes_pages=notes, compressed_source=compressed)
                 cases.append(case)
-            files = {p.name: identity(p) for p in sorted(output.iterdir()) if p.suffix in ('.mdb', '.json')}
+            files = {p.name: identity(p) for p in sorted(output.iterdir()) if p.suffix == '.mdb'}
             common.write(output / self.MANIFEST, dict(document_type='scalar_mutation_inputs', round='continuation', source_revision=revision,
                                                       cases=cases, files=files, parent_manifest=identity(images / self.MANIFEST),
                                                       parent_result=identity(first_outbox / 'result.json')))
@@ -385,5 +481,5 @@ class Scalar:
 
 def bind(module_globals: dict, engine: Scalar) -> None:
     """Exposes an engine as the registry module interface."""
-    for name in ('prepare', 'aggregate', 'evaluate', 'prepare_continue'):
+    for name in ('MANIFEST', 'candidates', 'prepare', 'aggregate', 'evaluate', 'prepare_continue'):
         module_globals[name] = getattr(engine, name)

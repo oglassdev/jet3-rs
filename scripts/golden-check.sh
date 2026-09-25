@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
-# Behavior-preservation check: build <base-rev> and the working tree, run the same
-# corpus of database-producing operations with each build, then compare SHA-256 of
-# every output file (databases, snapshots, and each command's stdout/stderr/exit).
+# Behavior-preservation check: build jet3-cli at <base-rev> and in the working tree,
+# run the working tree's corpus of database-producing requests with each build, then
+# compare SHA-256 of every output file (databases, request results, and each
+# command's stdout/stderr/exit).
+#
+# The corpus is scripts/golden_corpus.py (every DAO registry suite's candidates and
+# the recipes of archived DAO candidates in scripts/golden_recipes) plus the CLI
+# requests below. <base-rev> must accept the corpus requests (resource limit flags
+# and raw long values, jet3-cli from #380 part 6 on).
 #
 # Every command runs from its side's output root with relative paths, so outputs
 # that echo their own path match. Base==head runs show nothing else varies (no
 # timestamps, pids or temp paths reach any output), so nothing is normalized.
 #
-# Not run: row_overflow_candidate (needs-dao-capture); the continue/refuse modes of
-# the *_candidate examples (need-dao-sources); inspect/model modes (redundant).
-# allocation_candidate currently exits 1 on a read-budget limit; its partial
+# Not run: row-overflow unless JET3_ROW_OVERFLOW_CAPTURES names its retained DAO
+# captures; suite continuations and refusal inputs derived from DAO outputs. The
+# allocation-lifecycle suite currently stops on a read-budget limit; its partial
 # outputs and error are still compared.
 set -euo pipefail
 [[ $# -eq 1 ]] || { echo "usage: $0 <base-rev>" >&2; exit 2; }
@@ -22,7 +28,7 @@ trap cleanup EXIT
 start=$SECONDS
 
 git -C "$root" worktree add --quiet --detach "$tmp/src" "$base"
-build() { (cd "$1" && CARGO_TARGET_DIR="$2" cargo build --quiet --release -p jet3 -p jet3-cli --bins --examples); }
+build() { (cd "$1" && CARGO_TARGET_DIR="$2" cargo build --quiet --release -p jet3-cli); }
 echo "building base $(git -C "$root" rev-parse --short "$base") and working tree..."
 build "$tmp/src" "$root/target/golden-base"
 build "$root" "$root/target"
@@ -37,8 +43,8 @@ run() {
 rep() { printf "$1%.0s" $(seq "$2"); }  # rep TEXT N: TEXT repeated N times
 
 cli_corpus() {
-  local cli=$1 ex=$2 id
-  mkdir -p cli mut
+  local cli=$1
+  mkdir -p cli
   run cli/create-types "$cli" create cli/types.mdb --input - <<EOF
 {"tables": [
  {"name": "Parent", "columns": [
@@ -110,122 +116,17 @@ EOF
   mut 08-update-child '{"operation": "update", "table": "Child", "row": '"$(loc 02-insert-child)"', "column": 2, "value": null}'
   mut 09-cascade-delete '{"operation": "delete", "table": "Parent", "row": '"$(loc 01-insert)"'}'
 
-  # Fixtures for the Id-addressed mutation examples.
-  local fixed=() rows=() ins=()
-  for id in 1 2 3; do fixed+=("[{\"long\": $id}, {\"byte\": $id}, {\"integer\": $id}, {\"long\": $id}, {\"currency\": $id}, {\"single\": $id}, {\"double\": $id}, {\"date_time\": $id}, {\"guid\": [$id,0,0,0,0,0,0,0,0,0,0,0,0,0,0,$id]}, {\"text\": \"$id\"}, {\"text\": \"$(rep "$id" 255)\"}]"); done
-  for id in $(seq 12); do rows+=("[{\"long\": $id}, {\"long\": $((id * 7))}, {\"text\": \"$(rep r "$((id * 5))")\"}, {\"binary\": [$id, 1, 2]}, {\"boolean\": $([[ $((id % 2)) -eq 0 ]] && echo true || echo false)}]"); done
-  for id in 1 2 3 4 5; do ins+=("[{\"long\": $id}, {\"long\": $id}, {\"text\": \"row $id\"}]"); done
-  local pk='"indexes": [{"name": "PrimaryKey", "kind": "primary", "fields": [{"column": "Id"}]}]'
-  run cli/create-fixture "$cli" create mut/fixture.mdb --input - <<EOF
-{"tables": [
- {"name": "Fixed", $pk, "columns": [{"name": "Id", "type": "long"}, {"name": "B", "type": "byte"}, {"name": "I", "type": "integer"}, {"name": "L", "type": "long"}, {"name": "C", "type": "currency"}, {"name": "S", "type": "single"}, {"name": "D", "type": "double"}, {"name": "Dt", "type": "date_time"}, {"name": "G", "type": "guid"}, {"name": "F1", "type": "fixed_text", "size": 1}, {"name": "F255", "type": "fixed_text", "size": 255}],
-  "rows": [$(IFS=,; echo "${fixed[*]}")]},
- {"name": "Rows", $pk, "columns": [{"name": "Id", "type": "long"}, {"name": "Value", "type": "long"}, {"name": "Payload", "type": "text", "size": 80}, {"name": "Bin", "type": "binary", "size": 16}, {"name": "Flag", "type": "boolean"}],
-  "rows": [$(IFS=,; echo "${rows[*]}")]},
- {"name": "Ins", $pk, "columns": [{"name": "Id", "type": "long"}, {"name": "Value", "type": "long"}, {"name": "Payload", "type": "text", "size": 80}],
-  "rows": [$(IFS=,; echo "${ins[*]}")]}]}
-EOF
-  local arm col
-  while read -r arm col; do
-    run "mut/fixed-$arm" "$ex/fixed_field_update_candidate" mut/fixture.mdb "mut/fixed-$arm.mdb" Fixed 2 "$col" "$arm"
-  done <<'EOF'
-byte B
-integer I
-long-control L
-currency C
-single S
-double D
-date Dt
-guid G
-fixed-text-1 F1
-fixed-text-255 F255
-EOF
-  local profile
-  while read -r profile id; do
-    run "mut/row-update-$profile" "$ex/row_update_candidate" mut/fixture.mdb "mut/row-update-$profile.mdb" Rows "$id" "$profile"
-  done <<<$'grow-first 1\nshrink-middle 2\nnull-later 12\ntombstone 3'
-  run mut/field-update "$ex/field_update_candidate" mut/fixture.mdb mut/field-update.mdb Rows 4 Value 424242
-  run mut/row-insert "$ex/row_insert_candidate" mut/fixture.mdb mut/row-insert.mdb Ins 100 7 hello
-  run mut/row-delete "$ex/row_delete_candidate" mut/fixture.mdb mut/row-delete.mdb Rows 5
-  run mut/row-delete-compaction "$ex/row_delete_compaction" mut/fixture.mdb mut/row-delete-compaction.mdb Rows 6 7 8 9 1
-
-  run cli/create-rel "$cli" create mut/rel.mdb --input - <<EOF
-{"tables": [
- {"name": "Parent", $pk, "columns": [{"name": "Id", "type": "long"}, {"name": "Label", "type": "text", "size": 32}],
-  "rows": [[{"long": 1}, {"text": "p1"}], [{"long": 2}, {"text": "p2"}]]},
- {"name": "Child", $pk, "columns": [{"name": "Id", "type": "long"}, {"name": "ParentId", "type": "long"}, {"name": "Note", "type": "memo"}, {"name": "Blob", "type": "long_binary"}],
-  "rows": [[{"long": 1}, {"long": 1}, {"memo": "n1"}, {"long_binary": [1, 2]}], [{"long": 2}, {"long": 1}, null, null], [{"long": 3}, {"long": 2}, {"memo": "$(rep q 2500)"}, null]]}],
- "relationships": [{"name": "ParentChild", "cascade_deletes": true, "parent": {"table": "Parent", "column": "Id"}, "child": {"table": "Child", "column": "ParentId"}}]}
-EOF
-  cat >mut/recipe.json <<EOF
-{"stages": [
- {"name": "insert", "operations": [{"table": "Parent", "kind": "insert", "row": [3, "7033"]}, {"table": "Child", "kind": "insert", "row": [10, 3, "$(rep 6e 3000)", "$(rep ab 5000)"]}]},
- {"name": "field", "operations": [{"table": "Child", "kind": "field", "id": 10, "column": 2, "value": "6869"}, {"table": "Child", "kind": "field", "id": 1, "column": 3, "value": "$(rep cd 4000)"}]},
- {"name": "replace", "operations": [{"table": "Child", "kind": "replace", "id": 2, "row": [2, 3, null, null]}]},
- {"name": "delete", "operations": [{"table": "Parent", "kind": "delete", "id": 1}, {"table": "Child", "kind": "delete", "id": 10}]}],
- "refusals": [
-  {"name": "orphan", "operation": {"table": "Child", "kind": "insert", "row": [99, 42, null, null]}},
-  {"name": "duplicate", "operation": {"table": "Parent", "kind": "insert", "row": [1, "78"]}},
-  {"name": "limited", "operation": {"table": "Parent", "kind": "insert", "row": [50, "78"], "limited": true}}]}
-EOF
-  run mut/relationship-mutation "$ex/relationship_mutation_candidate" mut/rel.mdb mut/recipe.json mut/relationship-mutation
 }
 
 corpus() { # BIN_DIR OUT_DIR
-  local ex=$1/examples cli=$1/jet3-cli g m
-  mkdir -p "$2/gen" && cd "$2"
-  for g in allocation creation_definition_chains creation_tables empty_value fixed_text_index \
-    index_capacity indexed_boundary indexed_row_mutation index_tree_mutation long_value_lifecycle \
-    memo_allow_empty multi_level_index multiple_index multiple_long_value_creation numeric_index \
-    numeric_index_mutation practical_lifecycle single_leaf_key wide_row; do
-    run "gen/$g" "$ex/${g}_candidate" "gen/$g" &
-  done
-  for m in unindexed indexed multi; do
-    run "gen/autoincrement-$m" "$ex/autoincrement_candidate" "gen/autoincrement-$m.mdb" "$m" &
-    run "gen/autoincrement-validation-$m" "$ex/autoincrement_validation_candidate" "gen/autoincrement-validation-$m.mdb" "$m" &
-  done
-  for m in descending-unique ascending-descending-unique descending-ascending-ordinary; do
-    run "gen/composite-$m" "$ex/composite_index_candidate" "gen/composite-$m.mdb" "$m" &
-  done
-  for m in primary unique ordinary; do run "gen/indexed-row-$m" "$ex/indexed_row_candidate" "gen/indexed-row-$m.mdb" "$m" & done
-  for m in memo ole; do run "gen/initial-long-value-$m" "$ex/initial_long_value_candidate" "gen/initial-long-value-$m.mdb" "$m" & done
-  for m in mixed empty-first; do run "gen/multi-table-row-$m" "$ex/multi_table_row_candidate" "gen/multi-table-row-$m.mdb" "$m" & done
-  for m in unique ignore required composite composite-ignore auto; do
-    run "gen/nullable-index-$m" "$ex/nullable_index_candidate" "$m" "gen/nullable-index-$m.mdb" &
-  done
-  for g in initial_row multi_page_row relationship_row; do run "gen/$g" "$ex/${g}_candidate" "gen/$g.mdb" & done
-  run gen/relationship-graph "$ex/relationship_graph_candidate" /dev/stdin gen/relationship-graph <<'EOF' &
-{"replicas": 1, "graphs": [
- {"name": "cycle", "tables": [
-   {"name": "Alpha", "fields": [{"name": "Id", "type": 4}, {"name": "Fk", "type": 4}, {"name": "Body", "type": 12}], "rows": [{"Id": 1, "Fk": 1, "Body": "a1"}, {"Id": 2, "Fk": null, "Body": null}]},
-   {"name": "Bravo", "fields": [{"name": "Id", "type": 4}, {"name": "Fk", "type": 4}, {"name": "Body", "type": 12}], "rows": [{"Id": 1, "Fk": 1, "Body": "b1"}, {"Id": 2, "Fk": null, "Body": ""}]}],
-  "relations": [{"name": "R00", "table": "Alpha", "field": "Id", "foreign_table": "Bravo", "foreign_field": "Fk"},
-                {"name": "R01", "table": "Bravo", "field": "Id", "foreign_table": "Alpha", "foreign_field": "Fk", "attributes": 4352}]},
- {"name": "typed", "tables": [
-   {"name": "Parent", "fields": [{"name": "Id", "type": 4}, {"name": "Code", "type": 10, "attributes": 1, "size": 3}, {"name": "Name", "type": 10, "size": 20, "required": true},
-      {"name": "Amount", "type": 5}, {"name": "When", "type": 8}, {"name": "Blob", "type": 11}, {"name": "Uid", "type": 15}, {"name": "Bin", "type": 9, "size": 4},
-      {"name": "Flag", "type": 1}, {"name": "B", "type": 2}, {"name": "I", "type": 3}, {"name": "S", "type": 6}, {"name": "D", "type": 7}],
-    "indexes": [{"name": "PrimaryKey", "field": "Id", "primary": true}, {"name": "ByName", "field": "Name", "unique": true, "ignore_nulls": true},
-      {"name": "ByCodeWhen", "fields": [{"name": "Code"}, {"name": "When", "direction": "desc"}]}],
-    "rows": [{"Id": 1, "Code": "abc", "Name": "one", "Amount": 12345, "When": 1.5, "Blob": {"kind": "pattern", "seed": 3, "length": 6000}, "Uid": {"kind": "pattern", "seed": 1, "length": 16}, "Bin": [1, 2], "Flag": true, "B": 9, "I": -9, "S": 0.5, "D": -2.75},
-             {"Id": 2, "Code": null, "Name": "two", "Amount": null, "When": null, "Blob": null, "Uid": null, "Bin": null, "Flag": false, "B": null, "I": null, "S": null, "D": null}]},
-   {"name": "Child", "fields": [{"name": "Id", "type": 4, "attributes": 16}, {"name": "ParentId", "type": 4}, {"name": "Note", "type": 12}],
-    "rows": [{"Id": null, "ParentId": 1, "Note": {"kind": "repeat", "byte": 66, "length": 3000}}, {"Id": null, "ParentId": 2, "Note": "x"}]}],
-  "relations": [{"name": "ParentChild", "table": "Parent", "field": "Id", "foreign_table": "Child", "foreign_field": "ParentId", "attributes": 4096}]}]}
-EOF
-  run gen/rich-relationship "$ex/rich_relationship_candidate" /dev/stdin gen/rich-relationship <<'EOF' &
-{"replicas": 1, "arms": [{"name": "mixed",
-  "fields": [{"name": "Id", "type": 4}, {"name": "ParentId", "type": 4}, {"name": "Label", "type": 10, "size": 40, "allow_zero_length": true}, {"name": "Note", "type": 12, "allow_zero_length": true}, {"name": "Blob", "type": 11}],
-  "parents": [{"Id": 1, "Label": "one"}, {"Id": 2, "Label": "two"}],
-  "rows": [{"Id": 1, "ParentId": 1, "Label": {"kind": "ascii"}, "Note": {"kind": "repeat", "byte": 65, "length": 3000}, "Blob": {"kind": "pattern", "seed": 2, "length": 5000}},
-           {"Id": 2, "ParentId": 2, "Label": {"kind": "empty"}, "Note": {"kind": "empty"}, "Blob": {"kind": "null"}},
-           {"Id": 3, "ParentId": null, "Label": {"kind": "null"}, "Note": {"kind": "ascii"}, "Blob": {"kind": "repeat", "byte": 7, "length": 100}}]}]}
-EOF
-  cli_corpus "$cli" "$ex" &
+  local cli=$1/jet3-cli
+  mkdir -p "$2" && cd "$2"
+  run corpus python3 "$root/scripts/golden_corpus.py" --cli "$cli" --out gen &
+  cli_corpus "$cli" &
   wait
   # Read-path coverage: validate every produced database.
   local f
-  find gen cli mut -name '*.mdb' | LC_ALL=C sort | while read -r f; do run "validate/$f" "$cli" validate "$f"; done
+  find gen cli -name '*.mdb' | LC_ALL=C sort | while read -r f; do run "validate/$f" "$cli" validate "$f"; done
 }
 
 echo "running corpus..."

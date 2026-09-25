@@ -9,12 +9,11 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import json
 from pathlib import Path
 import shutil
 import struct
-import subprocess
 
+import recipes
 import structure
 from registry import common
 from registry.common import identity, require
@@ -23,7 +22,9 @@ SCRIPT = common.REGISTRY / 'allocation_lifecycle.ps1'
 EXTRA = [common.REGISTRY / 'allocation_lifecycle.cs']
 MANIFEST = 'allocation-lifecycle.json'
 DOCUMENT = 'dao_allocation_lifecycle_mutation_result'
-GENERATOR = common.ROOT / 'target/debug/examples/allocation_candidate'
+# Every candidate write runs with a 2 GiB allocation and 4e9 work-unit budget.
+LIMITS = {'allocation-bytes': 2 * 1024 ** 3, 'work-units': 4_000_000_000}
+REFUSAL_CATEGORIES = ('Mismatch', 'Allocation', 'UsageMap', 'Definition', 'Rows', 'Index', 'LongValue')
 CONFIG = {'rows-inline': (1000, False), 'rows-slot': (16350, False),
           'payload-inline': (512, True), 'payload-slot': (8200, True)}
 NOTES_FIELDS = [['Id', 4, 4, False], ['Body', 10, 64, False]]
@@ -87,6 +88,56 @@ def stages(case):
         yield stage, model.copy()
 
 
+# --- Rust candidates -----------------------------------------------------------------
+
+def cells(case, values):
+    """jet3-cli cells for stored column bytes (Long, Text, Memo, OLE)."""
+    result = []
+    for value, (_, kind, _, _) in zip(values, case['fields']):
+        if value is None:
+            result.append(None)
+        elif kind == 4:
+            result.append({'long': int.from_bytes(value, 'little', signed=True)})
+        else:
+            result.append({{10: 'text', 12: 'memo', 11: 'long_binary'}[kind]: value.decode('ascii') if kind != 11 else list(value)})
+    return result
+
+
+def step(case, operation, **extra):
+    kind = operation['kind']
+    if kind == 'delete':
+        return dict(request=dict(operation='delete', table='Items'), locate=dict(table='Items', id=operation['id']), limits=LIMITS, **extra)
+    request = dict(operation=kind, table='Items', values=cells(case, row_values(case, operation['id'], operation['seed'])))
+    locate = dict(locate=dict(table='Items', id=operation['old'])) if kind == 'replace' else {}
+    return dict(request=request, limits=LIMITS, **locate, **extra)
+
+
+def create(case):
+    if case['payload']:
+        columns = [dict(name='Id', type='long'), dict(name='Tag', type='long'), dict(name='Body', type='memo'), dict(name='Blob', type='long_binary')]
+    else:
+        columns = [dict(name='Id', type='long')] + [dict(name=f'Pad{c}', type='fixed_text', size=255) for c in range(4)]
+    indexes = [dict(name='ById', kind='primary', fields=[dict(column='Id')])]
+    if case['payload']:
+        indexes.append(dict(name='ByTag', kind='ordinary', fields=[dict(column='Tag', direction='descending')]))
+    items = dict(name='Items', columns=columns, indexes=indexes,
+                 rows=[cells(case, row_values(case, id, id)) for id in range(case['initial_count'])])
+    notes = dict(name='Notes', columns=[dict(name='Id', type='long'), dict(name='Body', type='text', size=64)], indexes=[],
+                 rows=[[{'long': 7}, {'text': 'allocation-control'}]])
+    return dict(command='create', request=dict(tables=[items, notes]), limits=LIMITS)
+
+
+def candidates(spec=None):
+    """`<case>-original.mdb` and `<case>-mutated.mdb` for every case (built lazily; the requests are large)."""
+    for name in CONFIG:
+        case = recipe(name)
+        yield {'file': name + '-original.mdb', 'steps': [create(case)]}
+        yield {'file': name + '-mutated.mdb', 'from': name + '-original.mdb',
+               'steps': [step(case, operation) for operation in case['stages'][1]['operations']]}
+
+
+# --- Canonical rows and reader receipts -------------------------------------------------
+
 def feed(state, value):
     state.update(struct.pack('<i', -1 if value is None else len(value)))
     if value is not None:
@@ -99,6 +150,26 @@ def canonical_digest(rows):
         for cell in row:
             feed(state, cell)
     return state.hexdigest()
+
+
+def receipt(path: Path) -> dict:
+    """The Rust reader's view of Items and Notes: schema, counts, canonical row digest,
+    locators in Id order and complete index definitions and trees."""
+    layout = common.reader(path)
+    tables = {}
+    for name, table in layout['tables'].items():
+        rows = {}
+        for row in table['rows']:
+            values = [None if value is None else bytes.fromhex(value) for value in row['values']]
+            rows[int.from_bytes(values[0], 'little', signed=True)] = (values, row['page'], row['slot'])
+        indexes = [dict(name=i['name'], entries=i['entries'], nodes=i['nodes'], depth=i['depth'],
+                        metadata=dict(logical=i['raw_record'], prefix=i['sourced_prefix'], root=i['root'], flags=i['raw_flags'], map=i['usage_map'],
+                                      keys=[[f['column'], int(not f['descending'])] for f in i['fields']]))
+                   for i in table['indexes']]
+        tables[name] = dict(fields=[[c['name'], c['type'], c['size'], c['class_flags']] for c in table['columns']], count=len(rows),
+                            declared_count=table['row_count'], digest=canonical_digest(rows[id][0] for id in sorted(rows)),
+                            locators=[[id, rows[id][1], rows[id][2]] for id in sorted(rows)], indexes=indexes)
+    return dict(pages=layout['pages'], tables=tables)
 
 
 def key(values, definition):
@@ -212,7 +283,7 @@ def check_indexes(data, case, table, members, decoded, locators, rust):
     return layout
 
 
-def inspect(data, case, expected_rows, receipt=None, receipt_root=None):
+def inspect(data, case, expected_rows, receipt=None):
     definitions = common.tables(data)
     table, notes = definitions['Items'], definitions['Notes']
     require([[c['name'], c['type'], c['size']] for c in table['columns']] ==
@@ -233,16 +304,15 @@ def inspect(data, case, expected_rows, receipt=None, receipt_root=None):
             require(actual['fields'] == [[c['name'], c['type_code'], c['size'], c['class']] for c in definition['columns']], 'Rust/raw complete column receipt')
             require(actual['count'] == actual['declared_count'] == (len(expected_rows) if name == 'Items' else 1), 'Rust row count')
             wanted = digest if name == 'Items' else canonical_digest([[struct.pack('<i', 7), b'allocation-control']])
-            path = receipt_root / actual['stream']
-            require(path.name == actual['stream'] and common.sha(path.read_bytes()) == wanted, 'Complete Rust canonical row stream')
+            require(actual['digest'] == wanted, 'Complete Rust canonical rows')
         require(receipt['tables']['Items']['locators'] == sorted(locators) and receipt['tables']['Notes']['indexes'] == [], 'Rust locators and Notes indexes')
     return dict(pages=len(data) // common.PAGE, maps=maps, indexes=index_layout, digest=digest, count=len(expected_rows),
                 locators=sorted(locators), notes=notes_identity)
 
 
-def raw_check(path, case, model, receipt_path=None):
-    receipt = common.read(receipt_path) if receipt_path else None
-    return inspect(path.read_bytes(), case, expected(case, model), receipt, receipt_path.parent if receipt_path else None)
+def raw_check(path, case, model, read=False):
+    """Independent raw checks, and with `read` the complete Rust reader receipt."""
+    return inspect(path.read_bytes(), case, expected(case, model), receipt(path) if read else None)
 
 
 def boundary(layout, case):
@@ -255,17 +325,9 @@ def boundary(layout, case):
             require(any(end > minimum for _, end in layout['maps'][role]['members']), 'Owned pages cross bitmap slot: ' + role)
 
 
-# --- Generator runs and refusals -----------------------------------------------------
+# --- Refusals ----------------------------------------------------------------------------
 
-def run(generator, args, root, label):
-    done = subprocess.run([str(generator), *map(str, args)], cwd=common.ROOT, capture_output=True, text=True, timeout=900)
-    (root / (label + '.stdout.log')).write_text(done.stdout)
-    (root / (label + '.stderr.log')).write_text(done.stderr)
-    require(done.returncode == 0, f'{label} failed ({done.returncode}); see retained logs in {root}')
-    return done.stdout
-
-
-def rollback(directory, layouts, generator):
+def rollback(directory, layouts):
     """Three damaged indirect-map references; Rust must refuse each and preserve the image."""
     definitions = [('outside-eof', 'rows-slot', 'global'), ('data-as-bitmap', 'payload-slot', 'lval2_owned'),
                    ('bitmap-alias', 'payload-slot', 'lval2_owned')]
@@ -290,8 +352,12 @@ def rollback(directory, layouts, generator):
         image[offset:offset + 4] = replacement.to_bytes(4, 'little')
         before, after = directory / (stem + '-before.mdb'), directory / (stem + '-after.mdb')
         before.write_bytes(image)
-        result = json.loads(run(generator, ['refuse', before, after, case_name], directory, stem))
-        require(result['preserved'] and before.read_bytes() == after.read_bytes(), 'Whole damaged image preserved')
+        insert = step(recipe(case_name), dict(kind='insert', id=999999, seed=999999), refused='field update failed: ')
+        refused, = recipes.build([{'file': after.name, 'from': before.name, 'steps': [insert]}], directory, directory.parent / 'requests')[after.name]
+        error = refused['refused'].removeprefix('field update failed: ')
+        require(error.startswith(REFUSAL_CATEGORIES), 'Map, allocation, definition, row, index or payload refusal: ' + error)
+        result = dict(error=refused['refused'], preserved=True)
+        require(before.read_bytes() == after.read_bytes(), 'Whole damaged image preserved')
         receipts.append(dict(name=name, source=identity(source), before=identity(before), after=identity(after),
                              offset=offset, old_reference=mapping['references'][0], replacement=replacement, result=result))
     common.write(directory / 'refusals.json', receipts)
@@ -309,29 +375,30 @@ def verify_refusals(directory, manifest):
 
 def manifest_files(directory):
     return {p.name: identity(p) for p in sorted(directory.iterdir())
-            if p.is_file() and p.suffix in ('.mdb', '.json', '.bin', '.log') and p.name != MANIFEST}
+            if p.is_file() and p.suffix in ('.mdb', '.json') and p.name != MANIFEST}
 
 
-def prepare(images: Path, revision: str, spec: dict, stdout: str) -> None:
+def prepare(images: Path, revision: str, spec: dict, results: dict) -> None:
     cases = [recipe(name) for name in CONFIG]
     layouts = {}
     for case in cases:
         notes = None
         for stage, model in stages(case):
             stem = case['name'] + '-' + stage['name']
-            layout = raw_check(images / (stem + '.mdb'), case, model, images / (stem + '.snapshot.json'))
+            common.validate(images / (stem + '.mdb'))
+            layout = raw_check(images / (stem + '.mdb'), case, model, read=True)
             boundary(layout, case)
             if notes is None:
                 notes = layout['notes']
             require(layout['notes'] == notes, 'Unrelated Notes pages preserved: ' + stem)
             layouts[case['name']] = layout
         case['notes_pages'] = notes
-    refusals = rollback(images, layouts, GENERATOR)
+    refusals = rollback(images, layouts)
     common.write(images / MANIFEST, dict(document_type='allocation_lifecycle_inputs', round='mutations', source_revision=revision,
                                          cases=cases, files=manifest_files(images), refusals=refusals))
 
 
-def prepare_continue(images: Path, outbox: Path, output: Path, generator: Path, revision: str) -> None:
+def prepare_continue(images: Path, outbox: Path, output: Path, revision: str) -> None:
     first = common.read(images / MANIFEST)
     result = common.read(outbox / 'result.json')
     require(result['manifest_sha256'] == identity(images / MANIFEST)['sha256'] and result['source_revision'] == first['source_revision']
@@ -354,14 +421,13 @@ def prepare_continue(images: Path, outbox: Path, output: Path, generator: Path, 
             if case['name'] == 'rows-inline':
                 edits += [dict(kind='insert', id=id, seed=id) for id in range(400000, 400064)]
             apply(model, edits)
-            child = output / case['name']
-            run(generator, ['continue', source, child, case['name']], output, case['name'])
             source_name = case['name'] + '-continuation-source.mdb'
             shutil.copy2(source, output / source_name)
-            for path in child.iterdir():
-                shutil.copy2(path, output / path.name)
             stem = case['name'] + '-continued'
-            changed = raw_check(output / (stem + '.mdb'), case, model, output / (stem + '.snapshot.json'))
+            image = {'file': stem + '.mdb', 'from': source_name, 'steps': [step(case, operation) for operation in edits]}
+            recipes.build([image], output, output.parent / 'requests')
+            common.validate(output / (stem + '.mdb'))
+            changed = raw_check(output / (stem + '.mdb'), case, model, read=True)
             require(changed['notes'] == layout['notes'], 'Native-input continuation preserves Notes pages')
             if case['name'] == 'rows-inline':
                 for role in ('global', 'table_owned'):
@@ -423,19 +489,16 @@ def normalized(capture, case, rows):
     return value
 
 
-def retained_capture(outbox, capture, case, model, notes, receipt_path=None):
+def retained_capture(outbox, capture, case, model, notes):
     path = outbox / capture['file']
     require(path.name == capture['file'], 'Capture filename')
     image = identity(path)
     require(capture['before'] == capture['after'] == image, 'Read-only closed capture image identity')
     snapshot = normalized(capture, case, expected(case, model))
-    if receipt_path is None:
-        receipt_path = outbox / (path.stem + '.reader.json')
-        run(GENERATOR, ['inspect', path, receipt_path], outbox, path.stem + '-reader')
-    layout = raw_check(path, case, model, receipt_path)
+    layout = raw_check(path, case, model, read=True)
     require(layout['notes'] == notes, 'Every unrelated Notes page preserved')
     boundary(layout, case)
-    return snapshot, dict(image=image, layout=layout, reader=identity(receipt_path))
+    return snapshot, dict(image=image, layout=layout)
 
 
 def aggregate(outbox: Path) -> dict:
@@ -448,8 +511,7 @@ def compare_continuation(images, outbox, manifest, case, observed, outcome):
             and observed['operation']['before'] == manifest['files'][case['source_file']], 'Continuation source binding')
     pairs, details = {}, {}
     for role in ('candidate', 'control'):
-        receipt = images / (case['name'] + '-continued.snapshot.json') if role == 'candidate' else None
-        pairs[role], details[role] = retained_capture(outbox, observed['roles'][role], case, model, case['notes_pages'], receipt)
+        pairs[role], details[role] = retained_capture(outbox, observed['roles'][role], case, model, case['notes_pages'])
     require(details['candidate']['image'] == manifest['files'][case['candidate_file']]
             and details['control']['image'] == observed['operation']['after'], 'Continuation output binding')
     require(pairs['candidate'] == pairs['control'], 'Full native-input continuation comparison')
@@ -469,9 +531,8 @@ def compare_mutations(images, outbox, manifest, case, observed, outcome):
         pairs, details = {}, {}
         stem = case['name'] + '-' + stage['name']
         for role in ('candidate', 'control'):
-            receipt = images / (stem + '.snapshot.json') if role == 'candidate' else None
             notes = case['notes_pages'] if role == 'candidate' else native_notes
-            pairs[role], details[role] = retained_capture(outbox, checkpoint['roles'][role], case, model, notes, receipt)
+            pairs[role], details[role] = retained_capture(outbox, checkpoint['roles'][role], case, model, notes)
         require(details['candidate']['image'] == manifest['files'][stem + '.mdb']
                 and details['control']['image'] == checkpoint['mutation']['after'], 'Checkpoint output binding')
         require(pairs['candidate'] == pairs['control'], 'Complete paired DAO schema/rows/traversal/Seek')

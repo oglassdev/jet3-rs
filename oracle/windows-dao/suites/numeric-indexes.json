@@ -2,6 +2,5 @@
   "description": "Numeric and multiple-index mutations: integral, Currency/Double/Single, deep, Date, Binary, Text and GUID keys across three indexes, DAO successors and Rust continuation (EXP-0230/0232/0243/0245/0246/0248/0250).",
   "provenance": ["EXP-0230", "EXP-0232", "EXP-0243", "EXP-0245", "EXP-0246", "EXP-0248", "EXP-0250"],
   "registry": "numeric_indexes",
-  "example": "numeric_index_mutation_candidate",
   "timeout": 7200
 }

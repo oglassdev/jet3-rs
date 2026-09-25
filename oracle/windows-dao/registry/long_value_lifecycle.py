@@ -8,17 +8,15 @@ outputs take native writes. The continuation round lets Rust edit the native DAO
 from __future__ import annotations
 
 import copy
-import json
 from pathlib import Path
 import shutil
-import subprocess
 
+import recipes
 from registry import common
 from registry import multiple_long_values as creation
 from registry.common import identity, require
 
 SCRIPT = common.REGISTRY / 'long_value_lifecycle.ps1'
-GENERATOR = common.ROOT / 'target/debug/examples/long_value_lifecycle_candidate'
 MANIFEST = 'long-value-lifecycle.json'
 PHASES = ['initial', 'inserted', 'edited', 'empty', 'reinserted']
 LENGTHS = [33, 512, 2036, 2037, 32, None, 1, 4096, 33, 33, 12, 2048]
@@ -70,6 +68,55 @@ def recipe():
                             replace(row(case, first + 2, -44, 44, [12, 2036, 2048, None])), dict(kind='delete', id=first + 3)]
         cases.append(case)
     return cases
+
+
+# Refused inserts after the `inserted` phase and the jet3-cli error text each must report.
+REFUSALS = {'duplicate-later-index': 'duplicate unique key', 'caller-header': 'caller-supplied long-value header',
+            'empty-payload': 'ZeroLengthNotAllowed', 'chain-budget': 'ChainDepth'}
+
+
+def refusal_kinds(case):
+    return ['duplicate-later-index', 'caller-header' if case['name'] == 'ole' else 'empty-payload', 'chain-budget']
+
+
+def step(case, operation):
+    """The jet3-cli mutation for one recipe operation; generated Ids are assigned on insert."""
+    kind = operation['kind']
+    locate = dict(locate=dict(table='Items', id=operation['id'])) if kind != 'insert' else {}
+    if kind == 'delete':
+        return dict(request=dict(operation='delete', table='Items'), **locate)
+    return dict(request=dict(operation=kind, table='Items', values=creation.cells(case, operation['row'], kind == 'insert')), **locate)
+
+
+def refusal(case, kind):
+    """Row 999 with 8192-byte payloads: a duplicate ByUniqueTag, a raw long-value header, or a chain
+    past a depth limit of 2; or with empty payloads."""
+    values = creation.cells(case, row(case, 999, 90 if kind == 'duplicate-later-index' else 9990, 999,
+                                      [0 if kind == 'empty-payload' else 8192] * 4), True)
+    if kind == 'caller-header':
+        values[2] = {'long_value': [0] * 12}
+    limits = dict(limits={'chain-depth': 2}) if kind == 'chain-budget' else {}
+    return dict(request=dict(operation='insert', table='Items', values=values), refused=REFUSALS[kind], **limits)
+
+
+def candidates(spec=None):
+    """`<case>-<phase>.mdb` for every phase, each continuing from the previous one, and
+    `<case>-refused-<kind>.mdb` refusals taken from `<case>-inserted.mdb`."""
+    images = []
+    for case in recipe():
+        previous = None
+        for phase in case['phases']:
+            file = f'{case["name"]}-{phase["name"]}.mdb'
+            steps = [step(case, operation) for operation in phase['operations']]
+            if previous is None:
+                images.append({'file': file, 'steps': [creation.create(case, []), *steps]})
+            else:
+                images.append({'file': file, 'from': previous, 'steps': steps})
+            previous = file
+            if phase['name'] == 'inserted':
+                images += [{'file': f'{case["name"]}-refused-{kind}.mdb', 'from': file, 'steps': [refusal(case, kind)]}
+                           for kind in refusal_kinds(case)]
+    return images
 
 
 def states(case):
@@ -129,14 +176,15 @@ def write_manifest(images, revision, cases, mode, **extra):
                                          cases=cases, files=files, **extra))
 
 
-def prepare(images: Path, revision: str, spec: dict, stdout: str) -> None:
+def prepare(images: Path, revision: str, spec: dict, results: dict) -> None:
     cases = recipe()
     for case in cases:
         expected = states(case)
         layouts, receipts, notes = {}, {}, None
         for phase in PHASES:
             image = images / f'{case["name"]}-{phase}.mdb'
-            receipt = json.loads(image.with_suffix('.snapshot.json').read_text())
+            common.validate(image)
+            receipt = creation.receipt(image)
             layouts[phase] = raw_check(image.read_bytes(), receipt, case, expected[phase])
             receipts[phase] = receipt
             actual = common.notes_identity(image.read_bytes())
@@ -146,20 +194,18 @@ def prepare(images: Path, revision: str, spec: dict, stdout: str) -> None:
         case['layout'] = layouts
         case['reuse'] = reuse_check(layouts, receipts)
         case['notes_pages'] = notes
-    refusals = json.loads((images / 'refusals.json').read_text())
-    wanted = [(c['name'], kind) for c in cases for kind in ['duplicate-later-index', 'caller-header' if c['name'] == 'ole' else 'empty-payload', 'chain-budget']]
-    require([(r['case'], r['kind']) for r in refusals] == wanted, 'Refusal inventory')
-    for refusal in refusals:
-        require(refusal['bytes_unchanged'] and refusal['error'], 'Structured refusal')
-        require(identity(images / refusal['file']) == identity(images / f'{refusal["case"]}-inserted.mdb'), 'Refusal byte preservation')
-        if refusal['kind'] == 'duplicate-later-index':
-            require('duplicate' in refusal['error'].lower(), 'Later-index duplicate refusal')
-        if refusal['kind'] == 'caller-header':
-            require(refusal['error'] == 'Unsupported("caller-supplied long-value header")', 'Caller header refusal')
+    refusals = []
+    for case in cases:
+        for kind in refusal_kinds(case):
+            file = f'{case["name"]}-refused-{kind}.mdb'
+            error = results[file][0]['refused']
+            require(REFUSALS[kind] in error, 'Structured refusal: ' + kind)
+            require(identity(images / file) == identity(images / f'{case["name"]}-inserted.mdb'), 'Refusal byte preservation')
+            refusals.append(dict(case=case['name'], kind=kind, file=file, error=error, bytes_unchanged=True))
     write_manifest(images, revision, cases, 'lifecycle', refusals=refusals)
 
 
-def prepare_continue(images: Path, outbox: Path, continued: Path, generator: Path, revision: str) -> None:
+def prepare_continue(images: Path, outbox: Path, continued: Path, revision: str) -> None:
     parent = common.read(images / MANIFEST)
     require(parent['mode'] == 'lifecycle', 'Continuation parent mode')
     report = outbox.with_suffix('.comparison.json')
@@ -176,30 +222,17 @@ def prepare_continue(images: Path, outbox: Path, continued: Path, generator: Pat
         require(identity(source) == observation['after'], 'Native source image identity')
         local = continued / f'{case["name"]}-native-source.mdb'
         shutil.copy2(source, local)
-        work = continued / (case['name'] + '-generation')
-        command = [str(generator), 'continue', case['name'], str(local), str(work)]
-        run = subprocess.run(command, capture_output=True, text=True)
-        common.write(continued / f'{case["name"]}-generation.json', dict(command=command, returncode=run.returncode, stdout=run.stdout, stderr=run.stderr))
-        require(run.returncode == 0, 'Rust native-input continuation: ' + run.stderr)
-        for path in work.iterdir():
-            shutil.move(path, continued / path.name)
-        work.rmdir()
         image = continued / f'{case["name"]}-continued.mdb'
-        receipt = json.loads(image.with_suffix('.snapshot.json').read_text())
+        steps = [step(case, operation) for operation in case['continue']]
+        recipes.build([{'file': image.name, 'from': local.name, 'steps': steps}], continued, continued.parent / 'requests')
+        common.validate(image)
+        receipt = creation.receipt(image)
         case['continued_layout'] = raw_check(image.read_bytes(), receipt, case, states(case)['continued'])
         case['source_notes'] = common.notes_identity(local.read_bytes())
         require(common.notes_identity(image.read_bytes()) == case['source_notes'], 'Rust native-input preserves Notes')
         case['source'] = identity(local)
     write_manifest(continued, revision, cases, 'continuation', parent_manifest=identity(images / MANIFEST),
                    parent_report=identity(report), parent_result=identity(outbox / 'result.json'))
-
-
-def read_snapshot(path, outbox):
-    output = outbox / (path.stem + '.rust.snapshot.json')
-    run = subprocess.run([str(GENERATOR), 'inspect', str(path), str(output)], capture_output=True, text=True)
-    common.write(outbox / (path.stem + '.rust-read.json'), dict(command=[str(a) for a in run.args], returncode=run.returncode, stdout=run.stdout, stderr=run.stderr))
-    require(run.returncode == 0, 'Rust retained image read: ' + run.stderr)
-    return json.loads(output.read_text())
 
 
 def evaluate(images: Path, outbox: Path) -> dict:
@@ -266,7 +299,7 @@ def compare_case(outbox, manifest, case, outcome, checked):
             if role not in notes:
                 notes[role] = case['source_notes'] if continuation else case['notes_pages'] if role == 'candidate' else actual_notes
             require(actual_notes == notes[role], 'All unrelated Notes metadata/data/LVAL page hashes')
-            receipt = read_snapshot(image, outbox)
+            receipt = creation.receipt(image)
             receipts[role][name] = receipt
             current[role] = raw_check(data, receipt, case, expected[name])
             layouts[role][name] = current[role]

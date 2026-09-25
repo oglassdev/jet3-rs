@@ -18,8 +18,13 @@ MANIFEST = 'creation-tables.json'
 INDEXES = [dict(name='ZPrimary', column=0, primary=True, unique=True, descending=False),
            dict(name='ASecond', column=1, primary=False, unique=False, descending=True),
            dict(name='MUnique', column=2, primary=False, unique=True, descending=False)]
-ARMS = [('five-empty', 5), ('six-indexed', 6), ('catalog-short', 40), ('catalog-wide', 30), ('catalog-aces', 110),
-        ('catalog-names', 40), ('counter-128', 128), ('counter-255', 255), ('counter-256', 256), ('names-boundary', 6)]
+# name, tables, columns per table, rows per table, table name width, column/index name width
+CASES = [('five-empty', 5, 1, 0, 3, 0), ('six-indexed', 6, 3, 17, 3, 0), ('catalog-short', 40, 1, 0, 3, 0),
+         ('catalog-wide', 30, 32, 0, 48, 0), ('catalog-aces', 110, 1, 0, 3, 0), ('catalog-names', 40, 3, 0, 48, 0),
+         ('counter-128', 128, 1, 0, 3, 0), ('counter-255', 255, 1, 0, 3, 0), ('counter-256', 256, 1, 0, 3, 0),
+         ('names-boundary', 6, 3, 17, 64, 64)]
+# One table past the 32639-table catalog counter.
+REFUSAL = ('refused', 32640, 1, 0, 3, 0)
 SEEKS = [-1000, 0, 2, 16, 1000]
 # General-sort primary weights of catalog names: letters and digits only, no secondary nibbles.
 LETTERS = bytes.fromhex('60 61 62 64 66 67 68 69 6a 6b 6c 6d 6f 70 72 73 74 75 76 77 78 7a 7b 7c 7d 7e')
@@ -35,20 +40,31 @@ def name_key(parent: int, name: str) -> bytes:
     return common.long_key(parent) + b'\x7f' + bytes(weight(c) for c in name.lower()) + b'\x00'
 
 
-def arms_from(images: Path) -> list[dict]:
-    arms = []
-    for line in (images / 'cases.tsv').read_text().splitlines():
-        name, count, width, rows, name_width, schema_width = line.split('\t')
-        count, width, rows, name_width, schema_width = map(int, (count, width, rows, name_width, schema_width))
-        indexes = [dict(index, name=index['name'].ljust(min(schema_width, 63), 'i')) for index in INDEXES]
-        tables = [dict(name=f'T{n:02}'.ljust(name_width, 'x'),
-                       columns=[f'C{c:02}'.ljust(schema_width, 'c') for c in range(width)],
-                       indexes=indexes[:[3, 0, 1, 2, 3, 3][n % 6]] if rows else [],
-                       rows=[[r, r % 3, r - 8] for r in range(rows)])
-                  for n in range(count)]
-        arms.append(dict(name=name, image=identity(images / (name + '.mdb')), tables=tables,
-                         native=[dict(table=t['name'], row=[1000 + c for c in range(len(t['columns']))]) for t in (tables[0], tables[-1])]))
-    return arms
+def expand(name, count, width, rows, name_width, schema_width) -> dict:
+    indexes = [dict(index, name=index['name'].ljust(min(schema_width, 63), 'i')) for index in INDEXES]
+    tables = [dict(name=f'T{n:02}'.ljust(name_width, 'x'),
+                   columns=[f'C{c:02}'.ljust(schema_width, 'c') for c in range(width)],
+                   indexes=indexes[:[3, 0, 1, 2, 3, 3][n % 6]] if rows else [],
+                   rows=[[r, r % 3, r - 8] for r in range(rows)])
+              for n in range(count)]
+    return dict(name=name, tables=tables,
+                native=[dict(table=t['name'], row=[1000 + c for c in range(len(t['columns']))]) for t in (tables[0], tables[-1])])
+
+
+def request(arm: dict) -> dict:
+    def index(table, i):
+        field = dict(column=table['columns'][i['column']], direction='descending' if i['descending'] else 'ascending')
+        return dict(name=i['name'], kind='primary' if i['primary'] else 'unique' if i['unique'] else 'ordinary', fields=[field])
+    return dict(tables=[dict(name=t['name'], columns=[dict(name=c, type='long') for c in t['columns']],
+                             indexes=[index(t, i) for i in t['indexes']], rows=[[{'long': v} for v in r] for r in t['rows']])
+                        for t in arm['tables']])
+
+
+def candidates(spec: dict) -> list[dict]:
+    """One `<case>.mdb` per case, and a refused creation past the table counter."""
+    images = [{'file': f'{case[0]}.mdb', 'steps': [dict(command='create', request=request(expand(*case)))]} for case in CASES]
+    refused = dict(command='create', request=request(expand(*REFUSAL)), refused='TableCountOverflow { count: 32640, maximum: 32639 }')
+    return images + [{'file': 'refused.mdb', 'steps': [refused]}]
 
 
 def normalized(snapshot, arm):
@@ -204,14 +220,14 @@ def native_contents(data: bytes, arm: dict) -> None:
             owned |= mapped
 
 
-def prepare(images: Path, revision: str, spec: dict, stdout: str) -> None:
-    arms = arms_from(images)
-    require([(a['name'], len(a['tables'])) for a in arms] == ARMS, 'Candidate arm inventory and catalog capacities')
-    require((images / 'refusals.tsv').read_text() == 'creation-counter\t32640\tTableCountOverflow\n', 'Capacity refusals')
-    for arm in arms:
-        raw_layout((images / (arm['name'] + '.mdb')).read_bytes(), arm)
+def prepare(images: Path, revision: str, spec: dict, results: dict) -> None:
+    arms = [dict(expand(*case), image=identity(images / f'{case[0]}.mdb')) for case in CASES]
+    refusal, = results['refused.mdb']
+    require(not (images / 'refused.mdb').exists(), 'Capacity refusal publishes nothing')
+    for case in arms:
+        raw_layout((images / (case['name'] + '.mdb')).read_bytes(), case)
     common.write(images / MANIFEST, dict(document_type='creation_tables_inputs', source_revision=revision,
-                                         refusals=identity(images / 'refusals.tsv'), arms=arms,
+                                         refusals=[dict(name='creation-counter', tables=REFUSAL[1], error=refusal['refused'])], arms=arms,
                                          files={a['name'] + '.mdb': a['image'] for a in arms}))
 
 

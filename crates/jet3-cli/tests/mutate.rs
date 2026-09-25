@@ -323,3 +323,72 @@ fn cascade_options_flow_from_create_through_update_and_delete() -> Result {
     );
     Ok(())
 }
+
+#[test]
+fn resource_limit_flags_and_raw_long_values_refuse_without_changes() -> Result {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("limits.mdb");
+    let output = request(
+        "create",
+        &path,
+        &json!({"tables":[{"name":"Notes","columns":[{"name":"Id","type":"long"},{"name":"Body","type":"memo"}]}]}),
+    )?;
+    assert!(output.status.success());
+    let before = std::fs::read(&path)?;
+    let input = dir.path().join("request.json");
+    let insert = |body: Value, limits: &[&str]| -> Result<std::process::Output> {
+        std::fs::write(
+            &input,
+            json!({"operation":"insert","table":"Notes","values":[{"long":1},body]}).to_string(),
+        )?;
+        Ok(cli()
+            .arg("mutate")
+            .arg(&path)
+            .arg("--input")
+            .arg(&input)
+            .args(limits)
+            .output()?)
+    };
+    let long = json!({"memo": "x".repeat(8192)});
+    for (body, limits, message) in [
+        (
+            json!({"long": 1}),
+            ["--max-work-units", "0"],
+            "TotalWorkUnits",
+        ),
+        (long.clone(), ["--max-chain-depth", "2"], "ChainDepth"),
+        (
+            json!({"long_value": vec![0; 12]}),
+            ["--max-encoded-bytes", "100000"],
+            "caller-supplied long-value header",
+        ),
+    ] {
+        let output = insert(body, &limits)?;
+        assert_eq!(output.status.code(), Some(1));
+        let error: Value = serde_json::from_slice(&output.stderr)?;
+        let text = error["message"].as_str().ok_or("message")?;
+        assert!(text.contains(message), "{text}");
+        assert_eq!(std::fs::read(&path)?, before);
+    }
+    for (limits, code) in [
+        (
+            ["--max-work-units", "1", "--max-work-units", "2"].as_slice(),
+            "duplicate_option",
+        ),
+        (["--max-work-units", "many"].as_slice(), "invalid_limit"),
+        (["--max-pages", "1"].as_slice(), "unexpected_argument"),
+    ] {
+        let output = insert(json!({"long": 1}), limits)?;
+        assert_eq!(output.status.code(), Some(2));
+        let error: Value = serde_json::from_slice(&output.stderr)?;
+        assert_eq!(error["error"], code);
+    }
+    assert_eq!(std::fs::read(&path)?, before);
+    let output = insert(long, &["--max-chain-depth", "8"])?;
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    Ok(())
+}

@@ -1,11 +1,58 @@
-//! Shared typed JSON cells, request reading and mutation failure reporting.
-use jet3::{ResourceBudget, ResourceLimits, RowValue, WriteError};
+//! Shared typed JSON cells, request reading, resource limits and mutation failure reporting.
+use jet3::{ByteCount, ResourceBudget, ResourceLimits, RowValue, WriteError};
 use serde::{Deserialize, de::DeserializeOwned};
-use std::{ffi::OsStr, fs::File};
+use std::{
+    ffi::{OsStr, OsString},
+    fs::File,
+};
 
 pub(crate) fn budget() -> ResourceBudget {
     ResourceBudget::new(ResourceLimits::default())
 }
+
+/// Optional `--max-allocation-bytes`, `--max-work-units`, `--max-chain-depth` and
+/// `--max-encoded-bytes` overrides of the default limits for one write command.
+#[derive(Debug, Default)]
+pub(crate) struct Limits([Option<u64>; 4]);
+
+impl Limits {
+    pub(crate) fn parse(mut args: impl Iterator<Item = OsString>) -> Result<Self, &'static str> {
+        let mut limits = Self::default();
+        while let Some(option) = args.next() {
+            let index = match option.to_str() {
+                Some("--max-allocation-bytes") => 0,
+                Some("--max-work-units") => 1,
+                Some("--max-chain-depth") => 2,
+                Some("--max-encoded-bytes") => 3,
+                _ => return Err("unexpected_argument"),
+            };
+            let value = crate::parse_u64(args.next(), "missing_option_value", "invalid_limit")?;
+            if limits.0[index].replace(value).is_some() {
+                return Err("duplicate_option");
+            }
+        }
+        Ok(limits)
+    }
+
+    pub(crate) fn budget(&self) -> ResourceBudget {
+        let [allocation, work, depth, encoded] = self.0;
+        let mut limits = ResourceLimits::default();
+        if let Some(value) = allocation {
+            limits = limits.with_max_allocation_bytes(ByteCount::new(value));
+        }
+        if let Some(value) = work {
+            limits = limits.with_max_total_work_units(value);
+        }
+        if let Some(value) = depth {
+            limits = limits.with_max_chain_depth(value);
+        }
+        if let Some(value) = encoded {
+            limits = limits.with_max_encoded_bytes(ByteCount::new(value));
+        }
+        ResourceBudget::new(limits)
+    }
+}
+
 pub(crate) fn read_request<T: DeserializeOwned>(input: &OsStr) -> Result<T, String> {
     if input == "-" {
         serde_json::from_reader(std::io::stdin().lock()).map_err(|e| e.to_string())
@@ -57,6 +104,7 @@ pub(crate) enum Cell {
     Binary(Vec<u8>),
     LongBinary(Vec<u8>),
     Guid([u8; 16]),
+    LongValue(Vec<u8>),
 }
 
 #[derive(Deserialize)]
@@ -95,6 +143,7 @@ impl Cell {
             Self::Binary(v) => RowValue::Binary(v),
             Self::LongBinary(v) => RowValue::LongBinary(v),
             Self::Guid(v) => RowValue::Guid(*v),
+            Self::LongValue(v) => RowValue::LongValue(v),
         })
     }
 }

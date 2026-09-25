@@ -1,5 +1,5 @@
 #![cfg(unix)]
-#[path = "../examples/support/indexed_boundary.rs"]
+#[path = "support/indexed_boundary.rs"]
 mod fixture;
 use fixture::*;
 use jet3::{DatabaseReader, MapRowLocator, PAGE_BYTES, PageNumber, WriteError};

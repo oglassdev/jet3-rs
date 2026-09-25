@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 
+import recipes
 import structure
 from registry import common, scalar
 from registry.common import require
@@ -15,6 +16,7 @@ SCRIPT = common.REGISTRY / 'wide_rows.ps1'
 CONFIG = {'vars2': (2, 5, False), 'vars3': (3, 5, False), 'vars8': (8, 5, False), 'vars32': (32, 5, False),
           'vars254': (254, 5, False), 'fixed260': (2, 260, False), 'fixed767': (2, 767, False), 'mixed': (4, 5, True)}
 ALPHABET = b'aAezZ\xe9\xc9\xc6\xe6\xdf\x8a\x9a'
+MALFORMED = 'row stream failed'
 
 
 def payload(length, id, column, text):
@@ -92,6 +94,30 @@ def table_rows(data, table):
     return rows
 
 
+def damage(data, name):
+    """(offset, value) of one malformed framing byte in vars3 row 0: the first jump ordinal,
+    the low byte of the data end, or the variable count (EXP-0257/0258)."""
+    where = recipes.locate(data, 'Items', 0)
+    base, slot = where['page'] * common.PAGE, where['slot']
+
+    def word(offset):
+        return int.from_bytes(data[offset:offset + 2], 'little') & 0x1fff
+
+    start = base + word(base + 10 + 2 * slot)
+    end = base + (common.PAGE if slot == 0 else word(base + 8 + 2 * slot))
+    count = end - (data[start] + 7) // 8 - 1
+    jump = count - (end - start - 1) // 256
+    low = jump - CONFIG['vars3'][0] - 1
+    return {'jump-ordinal': (jump, 254), 'end-low': (low, data[low] ^ 1), 'variable-count': (count, 255)}[name]
+
+
+def damaged(data, name):
+    offset, value = damage(data, name)
+    result = bytearray(data)
+    result[offset] = value
+    return bytes(result)
+
+
 def maps(data):
     """Every allocation map record, with disjoint ownership and separate metadata."""
     definitions = common.tables(data)
@@ -133,6 +159,8 @@ class Wide(scalar.Scalar):
     MANIFEST = 'wide-row-lifecycle.json'
     CASE_NAMES = tuple(CONFIG)
     SUMMARY = 'wide-row'
+    REFUSAL_SOURCE = 'vars3-original'
+    REFUSALS = ('jump-ordinal', 'end-low', 'variable-count')
 
     def initial_row(self, name, id):
         return row(name, id)
@@ -172,12 +200,9 @@ class Wide(scalar.Scalar):
                            for n, value in enumerate(r['values'])]
         return rows
 
-    def raw_extra(self, data, case, table, result, receipt):
+    def raw_extra(self, data, case, table, result):
         for column in table['columns']:
             require((column['storage'] == 'fixed') == (column['name'] == 'Id' or column['name'] in case['fixed_fields']), 'Exact fixed/variable schema storage')
-        if receipt:
-            require(receipt['classes'] == {name: [c['class'] for c in definition['columns']] for name, definition in common.tables(data).items()},
-                    'Complete Rust storage class receipt')
         result['rows'] = [dict(id=r['values'][0], **r['layout']) for r in sorted(table_rows(data, table), key=lambda r: r['values'][0])]
         result['maps'] = maps(data)
 
@@ -190,24 +215,25 @@ class Wide(scalar.Scalar):
                                   required=False, allow_zero_length=False, default_value=''), 'Complete default DAO field properties')
         return result
 
-    def refusal_check(self, directory, notes):
-        receipts = json.loads((directory / 'refusals.json').read_text())
-        require([r['name'] for r in receipts] == ['jump-ordinal', 'end-low', 'variable-count'], 'Corruption refusal inventory')
-        source = (directory / 'vars3-original.mdb').read_bytes()
-        for receipt in receipts:
-            before = (directory / f"refusal-{receipt['name']}-before.mdb").read_bytes()
-            after = (directory / f"refusal-{receipt['name']}-after.mdb").read_bytes()
-            expected = bytearray(source)
-            expected[receipt['offset']] = receipt['value']
-            require(before == after == expected and receipt['preserved'] and receipt['error'], 'Exact malformed input and whole-image refusal')
-            require(common.notes_identity(after) == notes, 'Corruption refusal preserves Notes')
-            try:
-                table_rows(before, common.tables(before, ['Items'])['Items'])
-            except ValueError:
-                pass
-            else:
-                raise ValueError('Independent raw decoder admitted malformed row')
-        return receipts
+    def refusal_images(self, case, source):
+        """Replacing row 0 after one byte of its row framing is damaged."""
+        images = []
+        for name in self.REFUSALS:
+            step = scalar.write(case, row('vars3', 0), 0, refused=MALFORMED)
+            step['locate']['image'] = source
+            images += self.refusal_pair(name, source, step, lambda data, name=name: damaged(data, name))
+        return images
+
+    def refused_input(self, source, receipt, before):
+        receipt['offset'], receipt['value'] = damage(source, receipt['name'])
+        require(MALFORMED in receipt['error'], 'Malformed row refusal: ' + receipt['name'])
+        try:
+            table_rows(before, common.tables(before, ['Items'])['Items'])
+        except ValueError:
+            pass
+        else:
+            raise ValueError('Independent raw decoder admitted malformed row')
+        return damaged(source, receipt['name'])
 
 
 scalar.bind(globals(), Wide())

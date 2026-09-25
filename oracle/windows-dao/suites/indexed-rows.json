@@ -2,7 +2,6 @@
   "description": "Indexed row insertion and deletion with next-row and duplicate follow-ups, three DAO replicas per arm (EXP-0215/0216/0219/0221). `rows` n seeds [[i, 100 + i] for i < n].",
   "provenance": ["EXP-0215", "EXP-0216", "EXP-0219", "EXP-0221"],
   "registry": "indexed_rows",
-  "example": "indexed_row_mutation_candidate",
   "arms": [
     {"name": "ascending", "kind": "insert", "descending": false, "primary": true, "rows": 3, "insert": [-2147483648, -777], "delete": [],
      "follow": [500000, 777], "duplicate": [0, 0], "queries": [-2147483648, 0, 1, 2, 500000, 600000]},

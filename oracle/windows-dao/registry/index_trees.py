@@ -13,8 +13,8 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
-import subprocess
 
+import recipes
 from registry import common
 from registry.common import identity, require
 
@@ -22,6 +22,7 @@ SCRIPT = common.REGISTRY / 'index_trees.ps1'
 MANIFEST = 'index-tree-mutation.json'
 QUERIES = [-2147483648, -3, -2, -1, 0, 1, 99, 199, 200, 13700, 27799, 27800, 27801, 1000000, 1000001, 1000002, 1234567, 2147483647]
 TABLES = ['Items', 'MSysACEs', 'MSysObjects', 'MSysQueries', 'MSysRelationships', 'Notes']
+CASES = ['primary', 'descending', 'empty', 'tombstone-empty', 'deep']
 
 
 def base_row(id, deep):
@@ -95,7 +96,7 @@ def items_tree(data):
     return common.long_tree(data, physical['root'], table['root'], physical['keys'][0]['direction'] == 0)[0]
 
 
-def raw_check(data, case, expected, layout, counter, previous=None):
+def raw_check(data, case, expected, counter, previous=None):
     table = common.tables(data, ['Items'])['Items']
     pages = table['data_pages']
     rows = common.table_rows(data, table)
@@ -119,37 +120,81 @@ def raw_check(data, case, expected, layout, counter, previous=None):
                 'Mapped spare index page retains its previous bytes and owner')
     require(physical['entry_count'] == counter, 'Retained index counter increments on insertions')
     depth = max(node['depth'] for node in nodes)
-    require(layout['rows'] == len(rows) and layout['depth'] == depth and sorted(layout['nodes']) == reached
-            and layout['pages'] * common.PAGE == len(data), 'Rust/raw layout receipt')
     required_depth = 1 if len(rows) <= 200 else 2 if len(rows) <= 27800 else 3
     require(depth == required_depth, 'Declared 200/201 and 27800/27801 depth boundaries')
     return dict(rows=len(rows), depth=depth, index_pages=reached, reserved_index_pages=sorted(set(maps) - set(reached)),
                 data_pages=pages, file_pages=len(data) // common.PAGE)
 
 
-def prepare(images: Path, revision: str, spec: dict, stdout: str) -> None:
-    cases = [recipe(name) for name in ('primary', 'descending', 'empty', 'tombstone-empty', 'deep')]
+def cells(row, deep):
+    if deep:
+        return [{'long': value} for value in row]
+    return [{'long': row[0]}, {'text': row[1]}, {'binary': list(bytes.fromhex(row[2]))}]
+
+
+def step(operation, deep):
+    """The jet3-cli mutation for one recipe operation."""
+    kind = operation['kind']
+    if kind == 'insert':
+        return dict(request=dict(operation='insert', table='Items', values=cells(operation['row'], deep)))
+    if kind == 'delete':
+        request = dict(operation='delete', table='Items')
+    elif kind == 'key':
+        request = dict(operation='update', table='Items', column=0, value={'long': operation['next_id']})
+    else:
+        request = dict(operation='replace', table='Items', values=cells(operation['row'], deep))
+    return dict(request=request, locate=dict(table='Items', id=operation['id']))
+
+
+def candidates(spec: dict) -> list[dict]:
+    """`<case>-<stage>.mdb` for every stage, each continuing from the previous one."""
+    images = []
+    for name in CASES:
+        case = recipe(name)
+        deep = case['deep']
+        columns = [('Id', 'long'), ('Value', 'long')] if deep else [('Id', 'long'), ('Text', 'text'), ('Bytes', 'binary')]
+        key = dict(column='Id', direction='descending' if case['descending'] else 'ascending')
+        items = dict(name='Items', columns=[dict(name=n, type=t, **({} if t == 'long' else {'size': 80})) for n, t in columns],
+                     indexes=[dict(name='ById', kind='unique' if case['descending'] else 'primary', fields=[key])],
+                     rows=[cells(base_row(id, deep), deep) for id in range(case['initial_count'])])
+        notes = dict(name='Notes', columns=[dict(name='Id', type='long'), dict(name='Body', type='memo')],
+                     rows=[[{'long': 7}, {'memo': 'n' * 4096}], [{'long': 8}, None]])
+        previous = None
+        for stage in case['stages']:
+            file = f"{name}-{stage['name']}.mdb"
+            steps = [step(operation, deep) for operation in stage['operations']]
+            if previous is None:
+                images.append({'file': file, 'steps': [dict(command='create', request=dict(tables=[items, notes]))]})
+            else:
+                images.append({'file': file, 'from': previous, 'steps': steps})
+            previous = file
+    return images
+
+
+def eof_insert(before: bytes, result: dict) -> bool:
+    """Whether an insert's row went to the page appended at the previous end of file."""
+    return result['row']['page'] * common.PAGE == len(before)
+
+
+def prepare(images: Path, revision: str, spec: dict, results: dict) -> None:
+    cases = [recipe(name) for name in CASES]
     files = {}
     for case in cases:
         original_notes = None
         previous = None
         for stage, expected in expected_stages(case):
-            stem = f"{case['name']}-{stage['name']}"
-            image, row_path, layout_path = [images / (stem + suffix) for suffix in ('.mdb', '.rows.json', '.layout.json')]
-            rows = json.loads(row_path.read_text())
-            layout = json.loads(layout_path.read_text())
-            require(rows == sorted(expected.values()), 'Rust reader rows versus independent operation recipe: ' + stem)
+            image = images / f"{case['name']}-{stage['name']}.mdb"
             data = image.read_bytes()
-            raw_check(data, case, expected, layout, stage['counter'], previous)
-            previous = data
+            raw_check(data, case, expected, stage['counter'], previous)
+            common.validate(image)
             notes = common.notes_identity(data)
             if original_notes is None:
                 original_notes = notes
-            require(notes == original_notes, 'Notes definition, maps, data and LVAL pages unchanged: ' + stem)
+            require(notes == original_notes, 'Notes definition, maps, data and LVAL pages unchanged: ' + image.stem)
             if stage['name'] == 'split' and not case['deep']:
-                require(layout['data_eof_insert'] is True, 'Combined data-EOF and index-node append')
-            for path in (image, row_path, layout_path):
-                files[path.name] = identity(path)
+                require(eof_insert(previous, results[image.name][0]), 'Combined data-EOF and index-node append')
+            previous = data
+            files[image.name] = identity(image)
         case['notes_pages'] = original_notes
     common.write(images / MANIFEST, dict(document_type='index_tree_mutation_inputs', round='mutations', source_revision=revision,
                                          cases=cases, files=files, queries=QUERIES))
@@ -243,10 +288,8 @@ def mutation_case(images, outbox, manifest, case, observed):
                 require(record['capture'] is None, 'Declared finite capture scope')
         if stage['capture']:
             require(snapshots['candidate'] == snapshots['control'], 'Complete paired DAO semantics')
-        layout_path = images / (stem + '.layout.json')
-        require(identity(layout_path) == manifest['files'][layout_path.name], 'Layout input identity')
         candidate = (outbox / observation['roles']['candidate']['file']).read_bytes()
-        raw = raw_check(candidate, case, expected, json.loads(layout_path.read_text()), stage['counter'], previous)
+        raw = raw_check(candidate, case, expected, stage['counter'], previous)
         previous = candidate
         checkpoints.append(dict(name=stage['name'], images=images_seen, raw=raw, dao_compared=stage['capture']))
     final_rows = expected
@@ -271,7 +314,7 @@ def mutation_case(images, outbox, manifest, case, observed):
     return dict(checkpoints=checkpoints, native_rows=len(final_rows), notes_payload_sha256=hashlib.sha256(b'n' * 4096).hexdigest())
 
 
-def prepare_continue(images: Path, first_outbox: Path, output: Path, generator: Path, revision: str) -> None:
+def prepare_continue(images: Path, first_outbox: Path, output: Path, revision: str) -> None:
     first = common.read(images / MANIFEST)
     result = common.read(first_outbox / 'result.json')
     require(result['manifest_sha256'] == identity(images / MANIFEST)['sha256'], 'Continuation source run')
@@ -296,23 +339,17 @@ def prepare_continue(images: Path, first_outbox: Path, output: Path, generator: 
             require(name != 'descending' or stale > 0, 'Descending source retains a separator after native deletion')
             operation = dict(kind='insert', row=base_row(1234567, case['deep']))
             apply(expected, operation)
-            child = output / name
-            done = subprocess.run([str(generator), 'continue', str(source), str(child), name], capture_output=True, text=True)
-            (output / (name + '.stdout.log')).write_text(done.stdout)
-            (output / (name + '.stderr.log')).write_text(done.stderr)
-            outcomes.append(dict(name=name, returncode=done.returncode, source=identity(source)))
-            require(done.returncode == 0, 'Rust continuation failed: ' + name)
             source_name = name + '-continuation-source.mdb'
             shutil.copy2(source, output / source_name)
-            for suffix in ('.mdb', '.rows.json', '.layout.json'):
-                file = name + '-continued' + suffix
-                shutil.copy2(child / file, output / file)
-                files[file] = identity(output / file)
+            file = name + '-continued.mdb'
+            image = {'file': file, 'from': source_name, 'steps': [step(operation, case['deep'])]}
+            inserted, = recipes.build([image], output, output.parent / 'requests')[file]
+            outcomes.append(dict(name=name, source=identity(source), row=inserted['row']))
+            files[file] = identity(output / file)
             files[source_name] = identity(output / source_name)
-            require(json.loads((output / (name + '-continued.rows.json')).read_text()) == sorted(expected.values()), 'Continuation Rust reader rows')
+            common.validate(output / file)
             counter = common.tables(source_data, ['Items'])['Items']['physical_indexes'][0]['entry_count'] + 1
-            layout = json.loads((output / (name + '-continued.layout.json')).read_text())
-            raw_check((output / (name + '-continued.mdb')).read_bytes(), case, expected, layout, counter, source_data)
+            raw_check((output / file).read_bytes(), case, expected, counter, source_data)
             notes = common.notes_identity(source_data)
             require(common.notes_identity((output / (name + '-continued.mdb')).read_bytes()) == notes, 'Continuation Notes bytes')
             cases.append(dict(name=name, deep=case['deep'], descending=case['descending'], source_file=source_name,
@@ -347,9 +384,6 @@ def continuation_case(images, outbox, manifest, case, observed):
     require(images_seen['candidate'] == manifest['files'][case['candidate_file']] and images_seen['control'] == observed['operation']['after'],
             'Continuation output identities')
     require(snapshots['candidate'] == snapshots['control'], 'Complete continuation paired DAO semantics')
-    layout = images / (case['name'] + '-continued.layout.json')
-    require(identity(layout) == manifest['files'][layout.name], 'Continuation layout identity')
-    raw = raw_check((outbox / observed['roles']['candidate']['file']).read_bytes(), case, expected,
-                    json.loads(layout.read_text()), case['counter'], previous)
+    raw = raw_check((outbox / observed['roles']['candidate']['file']).read_bytes(), case, expected, case['counter'], previous)
     return dict(images=images_seen, raw=raw, compressed_source_pages=case['compressed_source_pages'],
                 retained_source_separators=case['retained_source_separators'])

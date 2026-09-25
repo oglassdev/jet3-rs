@@ -187,9 +187,37 @@ def expected(snapshot, arm, role):
     return value
 
 
-def prepare(images: Path, revision: str, spec: dict, stdout: str) -> None:
-    receipts = json.loads(stdout)
+def candidates(spec: dict) -> list[dict]:
+    """`<arm>-original.mdb` and `<arm>-candidate.mdb`: the insert or deletions, then a refused duplicate."""
+    images = []
+    for arm in arms(spec):
+        key = {'column': 'Id', 'direction': 'descending'} if arm['descending'] else {'column': 'Id'}
+        items = dict(name='Items', columns=[dict(name=c, type='long') for c in COLUMNS],
+                     indexes=[dict(name='ByKey', kind='primary' if arm['primary'] else 'unique', fields=[key])],
+                     rows=[[{'long': v} for v in row] for row in arm['rows']])
+        if arm['kind'] == 'insert':
+            steps = [dict(request=dict(operation='insert', table='Items', values=[{'long': v} for v in arm['insert']]))]
+        else:
+            steps = [dict(request=dict(operation='delete', table='Items'), locate=dict(table='Items', id=id)) for id in arm['delete']]
+        steps.append(dict(request=dict(operation='insert', table='Items', values=[{'long': v} for v in arm['duplicate']]),
+                          refused='duplicate unique key'))
+        original = f"{arm['name']}-original.mdb"
+        images += [{'file': original, 'steps': [dict(command='create', request=dict(tables=[items]))]},
+                   {'file': f"{arm['name']}-candidate.mdb", 'from': original, 'steps': steps}]
+    return images
+
+
+def receipt(images: Path, arm: dict, results: dict) -> dict:
+    """The Items definition page, each insert/delete locator and the duplicate refusal."""
+    root = common.tables((images / f"{arm['name']}-original.mdb").read_bytes(), ['Items'])['Items']['root']
+    *changes, _ = results[f"{arm['name']}-candidate.mdb"]
+    return dict(root=root, actions=[dict(kind=arm['kind'], page=c['row']['page'], slot=c['row']['slot']) for c in changes],
+                public_refusal='duplicate', refusal_preserved=True)
+
+
+def prepare(images: Path, revision: str, spec: dict, results: dict) -> None:
     expanded = arms(spec)
+    receipts = {arm['name']: receipt(images, arm, results) for arm in expanded}
     for arm in expanded:
         patch_check((images / f"{arm['name']}-original.mdb").read_bytes(), (images / f"{arm['name']}-candidate.mdb").read_bytes(),
                     arm, receipts[arm['name']])

@@ -7,7 +7,6 @@ both outputs take native writes in one x86 process per case.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import structure
@@ -16,7 +15,6 @@ from registry import multiple_long_values as lval
 from registry.common import identity, require
 
 SCRIPT = common.REGISTRY / 'definition_chains.ps1'
-GENERATOR = common.ROOT / 'target/debug/examples/creation_definition_chains_candidate'
 MANIFEST = 'creation-definition-chains.json'
 DOCUMENT = 'dao_creation_definition_chains_result'
 CASES = [('root-full', 2048, 64, 3, 0, False, False, False), ('root-over', 2049, 64, 0, 0, False, False, True),
@@ -77,6 +75,10 @@ def recipe():
                           native=[dict(kind='insert', row=inserted), dict(kind='replace', id=target, row=replaced),
                                   dict(kind='delete', id=2 if count else target)]))
     return cases
+
+
+def candidates(spec=None):
+    return [{'file': case['name'] + '.mdb', 'steps': [lval.create(case, case['initial_rows'])]} for case in recipe()]
 
 
 def raw_check(data, receipt, case, rows, counters, *, candidate):
@@ -151,17 +153,15 @@ def raw_check(data, receipt, case, rows, counters, *, candidate):
                 indexes=indexes, long_value_maps=maps, payload_storage=lval.storage_inventory(data, receipt, table, maps))
 
 
-def prepare(images: Path, revision: str, spec: dict, stdout: str) -> None:
+def prepare(images: Path, revision: str, spec: dict, results: dict) -> None:
     cases, files = recipe(), {}
     for case in cases:
-        image, snapshot = [images / (case['name'] + suffix) for suffix in ('.mdb', '.snapshot.json')]
-        receipt = json.loads(snapshot.read_text())
+        image = images / (case['name'] + '.mdb')
         rows, counters = lval.expected(case)
-        lval.check_receipt(receipt, case, rows)
-        case['layout'] = raw_check(image.read_bytes(), receipt, case, rows, counters, candidate=True)
+        common.validate(image)
+        case['layout'] = raw_check(image.read_bytes(), lval.inspect(image, case, rows), case, rows, counters, candidate=True)
         case['notes_pages'] = common.notes_identity(image.read_bytes())
-        for path in (image, snapshot):
-            files[path.name] = identity(path)
+        files[image.name] = identity(image)
     common.write(images / MANIFEST, dict(document_type='creation_definition_chains_inputs', source_revision=revision, cases=cases, files=files))
 
 
@@ -185,7 +185,7 @@ def evaluate(images: Path, outbox: Path) -> dict:
             outcome = dict(name=case['name'], status='failed', checkpoints=[], error=None)
             report['cases'].append(outcome)
             try:
-                lval.compare_case(outbox, manifest, case, capture, outcome, raw_check, GENERATOR)
+                lval.compare_case(outbox, manifest, case, capture, outcome, raw_check)
                 outcome['status'] = 'accepted'
             except Exception as error:
                 outcome['error'] = f'{type(error).__name__}: {error}'

@@ -1,6 +1,5 @@
 {
   "description": "Multi-column Memo/OLE creation: four to eight long-value columns, zero to three indexes, generated Ids and later table order, with map, page-count and fragment checks, Rust reads of DAO outputs and native writes (EXP-0235/0236).",
   "provenance": ["EXP-0235", "EXP-0236"],
-  "registry": "multiple_long_values",
-  "example": "multiple_long_value_creation_candidate"
+  "registry": "multiple_long_values"
 }
