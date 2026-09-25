@@ -5,10 +5,7 @@ successors; see `registry.scalar`. A thirteenth-index duplicate must be refused 
 
 from __future__ import annotations
 
-import json
-
 from registry import common, scalar
-from registry.common import require
 from registry.numeric_indexes import SIZES, unique_queries
 
 SCRIPT = common.REGISTRY / 'index_capacity.ps1'
@@ -21,6 +18,8 @@ class Capacity(scalar.Scalar):
     MANIFEST = 'index-capacity.json'
     CASE_NAMES = tuple(CONFIG)
     SUMMARY = 'index capacity'
+    REFUSAL_SOURCE = 'indexes13-edited'
+    REFUSALS = ('later-insert', 'later-replace')
 
     def initial_row(self, name, id):
         if name == 'mixed10':
@@ -58,17 +57,15 @@ class Capacity(scalar.Scalar):
                             dict(name='regrown', operations=[dict(kind='delete', id=2), insert(1000), insert(1001)])],
                     native=[insert(9000), field(9000, 0, 9001), dict(kind='delete', id=1000)])
 
-    def refusal_check(self, directory, notes):
-        receipts = json.loads((directory / 'refusals.json').read_text())
-        require([r['name'] for r in receipts] == ['later-insert', 'later-replace'], 'Late-index refusal inventory')
-        source = (directory / 'indexes13-edited.mdb').read_bytes()
-        for receipt in receipts:
-            before = directory / f"refusal-{receipt['name']}-before.mdb"
-            after = directory / f"refusal-{receipt['name']}-after.mdb"
-            require(receipt['preserved'] and receipt['error'] == 'Unsupported("duplicate unique key")'
-                    and before.read_bytes() == after.read_bytes() == source, 'Thirteenth-index duplicate error and whole-image preservation')
-            require(common.notes_identity(after.read_bytes()) == notes, 'Refusal preserves Notes-owned pages')
-        return receipts
+    def refusal_images(self, case, source):
+        """Row 8 again (as Id 500, or replacing row 9) duplicates only the thirteenth index."""
+        images = []
+        for name, id in (('later-insert', 500), ('later-replace', 9)):
+            duplicate = self.initial_row('indexes13', 8)
+            duplicate[0] = id
+            step = scalar.write(case, duplicate, None if name == 'later-insert' else id, refused=scalar.DUPLICATE)
+            images += self.refusal_pair(name, source, step)
+        return images
 
 
 scalar.bind(globals(), Capacity())

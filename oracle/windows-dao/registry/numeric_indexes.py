@@ -44,6 +44,8 @@ def unique_queries(indexes, samples):
 class Numeric(scalar.Scalar):
     MANIFEST = 'numeric-index-mutation.json'
     CASE_NAMES = ('integral', 'wide', 'deep', 'dates', 'binary', 'text', 'guid')
+    REFUSAL_SOURCE = 'wide-edited'
+    REFUSALS = ('later-insert', 'later-replace')
 
     def initial_row(self, name, id):
         if name == 'integral':
@@ -134,17 +136,14 @@ class Numeric(scalar.Scalar):
         if name in ('integral', 'deep'):
             require(any(entry != 'ById' for entry in compressed), 'Native source contains prefix-compressed non-Long/composite nodes')
 
-    def refusal_check(self, directory, notes):
-        receipts = json.loads((directory / 'refusals.json').read_text())
-        require([r['name'] for r in receipts] == ['later-insert', 'later-replace'], 'Later-index refusal inventory')
-        source = (directory / 'wide-edited.mdb').read_bytes()
-        for receipt in receipts:
-            before = directory / f"refusal-{receipt['name']}-before.mdb"
-            after = directory / f"refusal-{receipt['name']}-after.mdb"
-            require(receipt['preserved'] and receipt['error'] == 'Unsupported("duplicate unique key")'
-                    and before.read_bytes() == after.read_bytes() == source, 'Third-index duplicate error and byte preservation')
-            require(common.notes_identity(after.read_bytes()) == notes, 'Refused operation Notes preservation')
-        return receipts
+    def refusal_images(self, case, source):
+        """A new row 500, or a replaced row 81, whose Single duplicates only the third index."""
+        insert = self.initial_row('wide', 500)
+        insert[3] = -1.5
+        replacement = self.initial_row('wide', 81)
+        replacement[3] = 2.25
+        return (self.refusal_pair('later-insert', source, scalar.write(case, insert, refused=scalar.DUPLICATE))
+                + self.refusal_pair('later-replace', source, scalar.write(case, replacement, 81, refused=scalar.DUPLICATE)))
 
 
 scalar.bind(globals(), Numeric())

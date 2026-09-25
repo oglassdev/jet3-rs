@@ -156,7 +156,30 @@ def raw_check(data, arm, role):
     return dict(count=len(entries), nodes=nodes, data_pages=pages)
 
 
-def prepare(images: Path, revision: str, spec: dict, stdout: str) -> None:
+def row(key):
+    return [{'long': key}, {'text': 'x' * 80}, None if key % 2 == 0 else {'currency': -123456}, {'boolean': key % 2 != 0}]
+
+
+def candidates(spec: dict) -> list[dict]:
+    """`<arm>-original.mdb` holds `count` rows; `<arm>-candidate.mdb` inserts Id `id` into a copy."""
+    images = []
+    for arm in spec['arms']:
+        columns = [dict(name='Id', type='long'), dict(name='Name', type='text', size=80),
+                   dict(name='Price', type='currency'), dict(name='Active', type='boolean')]
+        items = dict(name='Items', columns=columns, rows=[row(key) for key in range(arm['count'])],
+                     indexes=[dict(name='ById', kind='primary', fields=[dict(column='Id')])])
+        notes = dict(name='Notes', columns=[dict(name='Id', type='long'), dict(name='Body', type='memo')],
+                     rows=[[{'long': 7}, {'memo': 'n' * 4096}], [{'long': 8}, None]])
+        insert = dict(request=dict(operation='insert', table='Items', values=row(arm['id'])))
+        if arm['name'] == 'duplicate':
+            insert['refused'] = 'duplicate unique key'
+        original = f"{arm['name']}-original.mdb"
+        images += [{'file': original, 'steps': [dict(command='create', request=dict(tables=[items, notes]))]},
+                   {'file': f"{arm['name']}-candidate.mdb", 'from': original, 'steps': [insert]}]
+    return images
+
+
+def prepare(images: Path, revision: str, spec: dict, results: list) -> None:
     arms = spec['arms']
     for arm in arms:
         patch_check((images / f"{arm['name']}-original.mdb").read_bytes(), (images / f"{arm['name']}-candidate.mdb").read_bytes(), arm)

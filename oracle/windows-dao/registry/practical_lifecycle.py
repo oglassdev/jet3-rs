@@ -8,7 +8,6 @@ refusals must leave their source bytes unchanged.
 from __future__ import annotations
 
 import copy
-import json
 from pathlib import Path
 
 from registry import common
@@ -65,7 +64,63 @@ def semantics(rows):
                 traversal=sorted(rows.values()), seek=[dict(query=q, row=rows.get(q)) for q in QUERIES])
 
 
-def raw_check(data, expected, receipt):
+def cells(row):
+    id, name, price, active = row
+    return [{'long': id}, {'text': name}, None if price is None else {'currency': price}, {'boolean': active}]
+
+
+def step(operation):
+    if operation['kind'] == 'insert':
+        return dict(request=dict(operation='insert', table='Items', values=cells(operation['row'])))
+    request = dict(operation='delete', table='Items')
+    if operation['kind'] == 'replace':
+        request = dict(operation='replace', table='Items', values=cells(operation['row']))
+    return dict(request=request, locate=dict(table='Items', id=operation['id']))
+
+
+def damage_index_root(data: bytes) -> bytes:
+    """Zeroes the owner word of the Items index root page."""
+    root = common.tables(data, ['Items'])['Items']['physical_indexes'][0]['root']
+    offset = root * common.PAGE + 4
+    return data[:offset] + b'\0' * 4 + data[offset + 4:]
+
+
+REFUSALS = {
+    'duplicate': dict(request=dict(operation='insert', table='Items', values=cells(item(37))), refused='duplicate unique key'),
+    'wrong-value': dict(request=dict(operation='replace', table='Items', values=[{'long': 37}, {'text': 'wrong'}, {'text': 'not Currency'},
+                                                                                 {'boolean': False}]),
+                        locate=dict(table='Items', id=37), refused='TypeMismatch'),
+    'malformed-source': dict(request=dict(operation='insert', table='Items', values=cells(item(1000))),
+                             refused='mapped index page kind or owner'),
+    'resource': dict(request=dict(operation='insert', table='Items', values=cells(item(1000))), limits={'encoded-bytes': 0},
+                     refused='ResourceLimitExceeded'),
+}
+
+
+def candidates(spec: dict) -> list[dict]:
+    """`<case>-<stage>.mdb` per stage, and `refusal-<name>-{before,after}.mdb` from lifecycle-loaded."""
+    create = dict(command='create', request=dict(tables=[
+        dict(name='Items', columns=[dict(name='Id', type='long'), dict(name='Name', type='text', size=80),
+                                    dict(name='Price', type='currency'), dict(name='Active', type='boolean')],
+             indexes=[dict(name='ById', kind='primary', fields=[dict(column='Id')])]),
+        dict(name='Notes', columns=[dict(name='Id', type='long'), dict(name='Body', type='memo')],
+             rows=[[{'long': 7}, {'memo': 'n' * 4096}], [{'long': 8}, None]])]))
+    images = []
+    for case in recipe():
+        previous = None
+        for stage in case['stages']:
+            file = f"{case['name']}-{stage['name']}.mdb"
+            steps = [step(operation) for operation in stage['operations']]
+            images.append({'file': file, 'from': previous, 'steps': steps} if previous else {'file': file, 'steps': [create, *steps]})
+            previous = file
+    for name, refusal in REFUSALS.items():
+        before = {'file': f'refusal-{name}-before.mdb', 'from': 'lifecycle-loaded.mdb',
+                  'steps': [dict(edit=damage_index_root)] if name == 'malformed-source' else []}
+        images += [before, {'file': f'refusal-{name}-after.mdb', 'from': before['file'], 'steps': [refusal]}]
+    return images
+
+
+def raw_check(data, expected):
     table = common.tables(data, ['Items'])['Items']
     pages, long_values = table['data_pages'], table['long_value_pages']
     rows = common.table_rows(data, table)
@@ -85,45 +140,37 @@ def raw_check(data, expected, receipt):
     nodes, entries = common.long_tree(data, physical[0]['root'], table['root'])
     wanted = [common.long_key(row['values'][0]) + common.locator_bytes(row['page'], row['row']) for row in rows]
     require(entries == sorted(wanted), 'Full raw index keys and row references')
-    layout = dict(pages=len(data) // common.PAGE, data_pages=sorted(pages), index_pages=[n['page'] for n in nodes], depth=max(n['depth'] for n in nodes))
-    require(layout == receipt['layout'], 'Rust and raw traversal layout')
-    require(semantics(expected) == {k: receipt[k] for k in semantics(expected)}, 'Rust full reader/traversal/lookup receipt')
-    return layout
+    return dict(pages=len(data) // common.PAGE, data_pages=sorted(pages), index_pages=[n['page'] for n in nodes], depth=max(n['depth'] for n in nodes))
 
 
-def refusal_check(directory, files, notes):
-    receipts = json.loads((directory / 'refusals.json').read_text())
-    names = ['duplicate', 'wrong-value', 'malformed-source', 'resource']
-    require([r['name'] for r in receipts] == names, 'Refusal inventory')
+def refusal_check(directory, files, notes, errors):
+    """Each refusal's error and exact source preservation; `errors` are the jet3-cli messages by name."""
+    require(list(errors) == list(REFUSALS), 'Refusal inventory')
     original = (directory / 'lifecycle-loaded.mdb').read_bytes()
-    for receipt in receipts:
-        name = receipt['name']
+    receipts = []
+    for name, error in errors.items():
         before = directory / f'refusal-{name}-before.mdb'
         after = directory / f'refusal-{name}-after.mdb'
-        require(receipt['expected_error'] and receipt['preserved'] and receipt['error'] and
-                before.read_bytes() == after.read_bytes(), 'Refusal error and exact source preservation: ' + name)
-        expected = bytearray(original)
-        if name == 'malformed-source':
-            root = common.tables(original, ['Items'])['Items']['physical_indexes'][0]['root']
-            expected[root * common.PAGE + 4:root * common.PAGE + 8] = b'\0' * 4
+        require(REFUSALS[name]['refused'] in error and before.read_bytes() == after.read_bytes(),
+                'Refusal error and exact source preservation: ' + name)
+        expected = damage_index_root(original) if name == 'malformed-source' else original
         require(before.read_bytes() == expected, 'Declared refusal source: ' + name)
         require(common.notes_identity(after.read_bytes()) == notes, 'Refusal Notes preservation')
         for path in (before, after):
             files[path.name] = identity(path)
-        receipt.update(before=identity(before), after=identity(after))
-    files['refusals.json'] = identity(directory / 'refusals.json')
+        receipts.append(dict(name=name, error=error, before=identity(before), after=identity(after)))
     return receipts
 
 
-def prepare(candidates: Path, revision: str, spec: dict, stdout: str) -> None:
+def prepare(candidates: Path, revision: str, spec: dict, results: dict) -> None:
     cases, files = recipe(), {}
     for case in cases:
         original_notes = None
         for stage, expected in expected_stages(case):
             stem = f"{case['name']}-{stage['name']}"
-            path, snapshot = candidates / (stem + '.mdb'), candidates / (stem + '.snapshot.json')
-            receipt = json.loads(snapshot.read_text())
-            layout = raw_check(path.read_bytes(), expected, receipt)
+            path = candidates / (stem + '.mdb')
+            layout = raw_check(path.read_bytes(), expected)
+            common.validate(path)
             notes = common.notes_identity(path.read_bytes())
             if original_notes is None:
                 original_notes = notes
@@ -133,10 +180,10 @@ def prepare(candidates: Path, revision: str, spec: dict, stdout: str) -> None:
                 require(len(layout['data_pages']) > 1 and layout['depth'] == 2, 'Crossed data and leaf boundaries')
             if stem == 'reuse-reinserted':
                 require(layout['pages'] == first_layout['pages'] and layout['data_pages'] == first_layout['data_pages'], 'Released target page reuse without EOF growth')
-            for file in (path, snapshot):
-                files[file.name] = identity(file)
+            files[path.name] = identity(path)
         case['notes_pages'] = original_notes
-    refusals = refusal_check(candidates, files, cases[0]['notes_pages'])
+    errors = {name: results[f'refusal-{name}-after.mdb'][0]['refused'] for name in REFUSALS}
+    refusals = refusal_check(candidates, files, cases[0]['notes_pages'], errors)
     common.write(candidates / MANIFEST, dict(document_type='practical_lifecycle_inputs', source_revision=revision, cases=cases,
                                              files=files, queries=QUERIES, refusals=refusals))
 
@@ -199,15 +246,15 @@ def evaluate(candidates: Path, outbox: Path) -> dict:
                     require(mutation['after'] == images['control'], 'Native stage output identity')
                     chain = images['control']
                     require(normalized_roles['candidate'] == normalized_roles['control'], 'All paired DAO metadata and contents')
-                    receipt = json.loads((candidates / (stem + '.snapshot.json')).read_text())
-                    raw = raw_check((outbox / capture['roles']['candidate']['file']).read_bytes(), expected, receipt)
+                    raw = raw_check((outbox / capture['roles']['candidate']['file']).read_bytes(), expected)
                     outcome['checkpoints'].append(dict(name=stage['name'], images=images, rows=len(expected), layout=raw,
                                                        notes_pages=case['notes_pages'], control_notes_pages=control_notes))
                 outcome['status'] = 'accepted'
             except Exception as error:
                 outcome['error'] = str(error)
         refusal_files = {}
-        report['refusals'] = refusal_check(candidates, refusal_files, manifest['cases'][0]['notes_pages'])
+        errors = {r['name']: r['error'] for r in manifest['refusals']}
+        report['refusals'] = refusal_check(candidates, refusal_files, manifest['cases'][0]['notes_pages'], errors)
         require(report['refusals'] == manifest['refusals'], 'Refusal receipts unchanged')
         for name, pin in refusal_files.items():
             require(identity(outbox / name) == pin, 'Retained refusal artifact: ' + name)

@@ -9,16 +9,13 @@ candidate and a DAO control then take native insert/replace/delete writes.
 from __future__ import annotations
 
 import copy
-import json
 from pathlib import Path
-import subprocess
 
 import structure
 from registry import common, scalar
 from registry.common import identity, require
 
 SCRIPT = common.REGISTRY / 'multiple_long_values.ps1'
-GENERATOR = common.ROOT / 'target/debug/examples/multiple_long_value_creation_candidate'
 MANIFEST = 'multiple-long-value-creation.json'
 NAMES = ['Body', 'Blob', 'ExtraMemo', 'ExtraBlob', 'LastMemo', 'LastBlob', 'WideMemo', 'WideBlob']
 LENGTHS = [1, 32, 33, 512, 2036, 2037, 2048, 4064, 4096]
@@ -67,6 +64,46 @@ def recipe():
         result.append(dict(name=name, count=count, long_columns=long_columns, generated=generated, later=later,
                            fields=fields, indexes=indexes, initial_rows=[row(id, long_columns) for id in range(1, count + 1)],
                            native=[dict(kind='insert', row=inserted), dict(kind='replace', id=3, row=replaced), dict(kind='delete', id=2)]))
+    return result
+
+
+def cells(case, row, inserting=False):
+    """jet3-cli cells for a recipe row; generated Ids are assigned when `inserting`."""
+    return ['auto_increment' if case['generated'] and inserting else {'long': row[0]}] + [
+        {'memo': value} if field[1] == 12 and value is not None else scalar.cell(value, field[1])
+        for value, field in zip(row[1:], case['fields'][1:])]
+
+
+def create(case, rows):
+    """The jet3-cli creation step of Items (with `rows`) and Notes, in the case's table order."""
+    columns = [dict(name=name, type='auto_increment' if generated else scalar.KINDS[kind]) for name, kind, _, generated in case['fields']]
+    items = dict(name='Items', columns=columns, indexes=[scalar.index_request(case, index) for index in case['indexes']],
+                 rows=[cells(case, row, True) for row in rows])
+    return dict(command='create', request=dict(tables=[scalar.NOTES_TABLE, items] if case['later'] else [items, scalar.NOTES_TABLE]))
+
+
+def candidates(spec=None):
+    return [{'file': case['name'] + '.mdb', 'steps': [create(case, case['initial_rows'])]} for case in recipe()]
+
+
+def reader_value(value, kind):
+    if value is None or kind not in (2, 3, 4, 12):
+        return value
+    raw = bytes.fromhex(value)
+    return raw.decode('cp1252') if kind == 12 else int.from_bytes(raw, 'little', signed=kind != 2)
+
+
+def receipt(path: Path) -> dict:
+    """Items and Notes as the Rust reader reports them: fields, rows in Id order with locators,
+    payloads (Memo text, OLE hex) and long-value references, and index trees."""
+    result = {}
+    for name, table in common.reader(path)['tables'].items():
+        kinds = [c['type'] for c in table['columns']]
+        rows = [dict(values=[reader_value(v, k) for v, k in zip(r['values'], kinds)], page=r['page'], slot=r['slot'], references=r['long_values'])
+                for r in table['rows']]
+        result[name] = dict(fields=[[c['name'], c['type'], c['size'], c['auto_increment']] for c in table['columns']],
+                            rows=sorted(rows, key=lambda r: r['values'][0]),
+                            indexes=[dict(name=i['name'], entries=i['entries'], nodes=i['nodes'], depth=i['depth']) for i in table['indexes']])
     return result
 
 
@@ -228,35 +265,24 @@ def normalized(capture, case, rows):
     return value
 
 
-def inspect(outbox: Path, path: Path, case, rows, generator=GENERATOR):
-    """Runs the Rust reader on a retained image and checks its complete receipt."""
-    snapshot = outbox / (path.stem + '.rust.json')
-    done = subprocess.run([str(generator), 'inspect', str(path), str(snapshot)], capture_output=True, text=True)
-    common.write(outbox / (path.stem + '.rust-command.json'), dict(args=['inspect', path.name, snapshot.name], returncode=done.returncode,
-                                                                   stdout=done.stdout, stderr=done.stderr))
-    require(done.returncode == 0, 'Rust reader of DAO capture: ' + done.stderr)
-    receipt = json.loads(snapshot.read_text())
-    check_receipt(receipt, case, rows)
-    return receipt
+def inspect(path: Path, case, rows):
+    """Reads an image with the Rust reader and checks its complete receipt."""
+    result = receipt(path)
+    check_receipt(result, case, rows)
+    return result
 
 
-def prepare(images: Path, revision: str, spec: dict, stdout: str) -> None:
+def prepare(images: Path, revision: str, spec: dict, results: dict) -> None:
     cases, files = recipe(), {}
     for case in cases:
-        image, snapshot = [images / (case['name'] + suffix) for suffix in ('.mdb', '.snapshot.json')]
-        receipt = json.loads(snapshot.read_text())
+        image = images / (case['name'] + '.mdb')
         rows, counters = expected(case)
-        check_receipt(receipt, case, rows)
-        case['layout'] = raw_check(image.read_bytes(), receipt, case, rows, counters, candidate=True)
+        common.validate(image)
+        case['layout'] = raw_check(image.read_bytes(), inspect(image, case, rows), case, rows, counters, candidate=True)
         case['notes_pages'] = common.notes_identity(image.read_bytes())
-        for path in (image, snapshot):
-            files[path.name] = identity(path)
-    refusals = json.loads((images / 'refusals.json').read_text())
-    require(refusals == [], 'Map capacity refusal inventory')
-    require(not list(images.glob('*-overflow.mdb')), 'Refused destinations absent')
-    files['refusals.json'] = identity(images / 'refusals.json')
+        files[image.name] = identity(image)
     common.write(images / MANIFEST, dict(document_type='multiple_long_value_creation_inputs', source_revision=revision, cases=cases,
-                                         files=files, refusals=refusals))
+                                         files=files, refusals=[]))
 
 
 def evaluate(images: Path, outbox: Path) -> dict:
@@ -279,7 +305,6 @@ def evaluate(images: Path, outbox: Path) -> dict:
                 outcome['status'] = 'accepted'
             except Exception as error:
                 outcome['error'] = f'{type(error).__name__}: {error}'
-        require(identity(outbox / 'refusals.json') == manifest['files']['refusals.json'], 'Retained capacity refusals')
         report['refusals'] = manifest['refusals']
         require(all(c['status'] == 'accepted' for c in report['cases']), 'One or more multi-column cases failed')
         report['status'] = 'accepted'
@@ -288,7 +313,7 @@ def evaluate(images: Path, outbox: Path) -> dict:
     return report
 
 
-def compare_case(outbox, manifest, case, capture, outcome, check=None, generator=GENERATOR):
+def compare_case(outbox, manifest, case, capture, outcome, check=None):
     """Original and native checkpoints of one case; `check` replaces `raw_check`."""
     check = check or raw_check
     require(capture['status'] == 'pass' and capture['error'] is None, 'Case capture completed: ' + str(capture['error']))
@@ -312,7 +337,7 @@ def compare_case(outbox, manifest, case, capture, outcome, check=None, generator
                         'Native operation input/result chain')
                 require(common.notes_identity(path.read_bytes()) == notes[role], 'Unrelated Notes definition/maps/data/LVAL pages preserved')
             values[role] = normalized(observation, case, rows)
-            receipt = inspect(outbox, path, case, rows, generator)
+            receipt = inspect(path, case, rows)
             layouts[role] = check(path.read_bytes(), receipt, case, rows, counters, candidate=phase == 'original' and role == 'candidate')
         require(values['candidate'] == values['control'], 'All paired DAO metadata and semantics')
         outcome['checkpoints'].append(dict(phase=phase, rows=len(rows), images=images, layout=layouts, notes_pages=notes))

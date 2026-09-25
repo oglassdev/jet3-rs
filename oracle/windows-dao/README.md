@@ -37,7 +37,8 @@ Archived external inputs resolve under `$JET3_WINDOWS_SHARED_ROOT/checks` (or
 | `generate.py` | Formulaic suite data referenced by a spec's `generate` |
 | `suites/*.json` | One spec per suite; `module` and `registry` suites keep their own staging |
 | `suites/storage*` | Storage lifecycle staging and evaluation |
-| `registry/` | Byte-model suites driven by `crates/jet3/examples/*_candidate.rs` |
+| `recipes.py` | Builds Rust candidate images from ordered `jet3-cli` create/mutate/schema requests |
+| `registry/` | Byte-model suites whose candidates are `recipes.py` recipes |
 | `protocol/v1_2/` | Scenario and snapshot contract behind `jet3-cli snapshot` |
 
 A spec lists native `inputs` (operations, `extends`, `from` another image or a
@@ -51,8 +52,10 @@ Portable tests: `python3 -m unittest discover -s oracle/windows-dao/tests`.
 ## Suites
 
 Kinds: `spec` suites run entirely from their JSON (and `generate.py`); `module` suites
-stage their own lifecycles in `suites/<module>.py`; `registry` suites compare the images
-of a `crates/jet3/examples/<example>.rs` candidate with a DAO replay of the same recipe.
+stage their own lifecycles in `suites/<module>.py`; `registry` suites build their
+candidates from the module's `candidates()` recipe with the run's frozen `jet3-cli`
+(`recipes.py`), check them independently (`structure.py`, `jet3-cli validate` and
+`jet3-cli inspect --layout`) and compare them with a DAO replay of the same recipe.
 
 | Suite | Kind | EXP | Scope |
 | --- | --- | --- | --- |

@@ -10,8 +10,10 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 
 import dao
+import recipes
 import structure
 
 ROOT = dao.ROOT
@@ -46,6 +48,20 @@ def page_bytes(data: bytes, number: int) -> bytes:
 
 def check_provider(result: dict) -> None:
     dao.check_environment(result['environment'])
+
+
+def validate(path: Path) -> None:
+    """Strict read-only jet3-cli validation of every table, index and storage owner."""
+    done = subprocess.run([str(recipes.CLI), 'validate', str(path)], capture_output=True, text=True)
+    require(done.returncode == 0, f'jet3-cli validate {Path(path).name}: {done.stderr.strip()[-300:]}')
+
+
+def reader(path: Path) -> dict:
+    """The Rust reader's view of every user table (`jet3-cli inspect --layout`) by name."""
+    done = subprocess.run([str(recipes.CLI), 'inspect', str(path), '--layout'], capture_output=True, text=True)
+    require(done.returncode == 0, f'jet3-cli inspect --layout {Path(path).name}: {done.stderr.strip()[-300:]}')
+    document = json.loads(done.stdout)
+    return dict(pages=document['page_count'], tables={table['name']: table for table in document['tables']})
 
 
 # --- Table views ---------------------------------------------------------------------

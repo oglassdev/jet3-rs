@@ -1,6 +1,5 @@
 {
   "description": "Single-Long index trees through split, key reorder, row growth, collapse and regrowth, DAO successors, and Rust continuation on prefix-compressed native trees (EXP-0223/0225).",
   "provenance": ["EXP-0223", "EXP-0225"],
-  "registry": "index_trees",
-  "example": "index_tree_mutation_candidate"
+  "registry": "index_trees"
 }
