@@ -110,6 +110,7 @@ fn argument_open_selection_and_input_limit_errors_are_script_friendly() -> Resul
     create(&path)?;
     for args in [
         ["--page", "0", "--rows"].as_slice(),
+        ["--layout", "--rows"].as_slice(),
         ["--table", "Items", "--table", "Other"].as_slice(),
         ["--table", ""].as_slice(),
     ] {
@@ -144,5 +145,68 @@ fn argument_open_selection_and_input_limit_errors_are_script_friendly() -> Resul
         serde_json::from_slice::<Value>(&output.stderr)?["error"],
         "inspect_failed"
     );
+    Ok(())
+}
+
+#[test]
+fn layout_reports_locators_stored_values_long_values_and_index_trees() -> Result {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("layout.mdb");
+    let memo = "m".repeat(3000);
+    let output = request(
+        "create",
+        &path,
+        &json!({"tables": [{"name":"Items",
+            "columns":[{"name":"Id","type":"long"},{"name":"Flag","type":"boolean"},{"name":"Body","type":"memo"}],
+            "indexes":[{"name":"ById","kind":"primary","fields":[{"column":"Id"}]}],
+            "rows":[[{"long":1},{"boolean":true},{"memo":memo}],[{"long":2},{"boolean":false},null]]}]}),
+    )?;
+    assert!(output.status.success());
+    let before = std::fs::read(&path)?;
+    let output = inspect(&path, &["--layout"])?;
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let layout = document(&output)?;
+    assert_eq!(layout["page_count"], before.len() / 2048);
+    let tables = layout["tables"].as_array().ok_or("tables")?;
+    assert_eq!(tables.len(), 1);
+    let items = &tables[0];
+    assert_eq!(items["name"], "Items");
+    assert_eq!(items["row_count"], 2);
+    let types: Vec<Value> = items["columns"]
+        .as_array()
+        .ok_or("columns")?
+        .iter()
+        .map(|c| c["type"].clone())
+        .collect();
+    assert_eq!(types, [json!(4), json!(1), json!(12)]);
+    let rows = items["rows"].as_array().ok_or("rows")?;
+    assert_eq!(rows[0]["values"][0], "01000000");
+    assert_eq!(rows[0]["values"][1], true);
+    assert_eq!(rows[0]["values"][2], "6d".repeat(3000));
+    assert_eq!(rows[0]["long_values"][0]["column"], 2);
+    assert_eq!(rows[0]["long_values"][0]["length"], 3000);
+    assert_eq!(rows[1]["values"], json!(["02000000", false, null]));
+    assert_eq!(rows[1]["long_values"], json!([]));
+    let index = &items["indexes"][0];
+    assert_eq!(index["name"], "ById");
+    assert_eq!(index["depth"], 1);
+    let entries: Vec<[Value; 2]> = index["entries"]
+        .as_array()
+        .ok_or("entries")?
+        .iter()
+        .map(|e| [e[1].clone(), e[2].clone()])
+        .collect();
+    let locators: Vec<[Value; 2]> = rows
+        .iter()
+        .map(|r| [r["page"].clone(), r["slot"].clone()])
+        .collect();
+    assert_eq!(entries, locators);
+    let named = document(&inspect(&path, &["--layout", "--table", "MSysObjects"])?)?;
+    assert_eq!(named["tables"][0]["name"], "MSysObjects");
+    assert_eq!(std::fs::read(&path)?, before);
     Ok(())
 }

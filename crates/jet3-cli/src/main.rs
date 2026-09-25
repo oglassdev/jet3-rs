@@ -15,6 +15,7 @@ use std::process::ExitCode;
 
 mod create;
 mod inspect;
+mod layout;
 mod mutate;
 mod names;
 mod schema;
@@ -48,11 +49,12 @@ Usage:
     [--scan-pages --max-scan-bytes <bytes> --max-pages <count>]
   jet3-cli inspect <file> [--table <name>] [--rows] [--code-page <cp>]
   jet3-cli inspect <file> --page <number> [--hex]
+  jet3-cli inspect <file> --layout [--table <name>] [--code-page <cp>]
   jet3-cli validate <file> [--code-page <cp>] [--max-input-bytes <bytes>] \
     [--max-work-units <units>]
   jet3-cli snapshot <file> --out <dir> --scenario <id> [options]
-  jet3-cli create <output.mdb> --input <request.json|->
-  jet3-cli mutate <file.mdb> --input <request.json|->
+  jet3-cli create <output.mdb> --input <request.json|-> [--max-<limit> <n>]...
+  jet3-cli mutate <file.mdb> --input <request.json|-> [--max-<limit> <n>]...
   jet3-cli schema <file.mdb> --input <request.json|->
   jet3-cli --help
   jet3-cli --version

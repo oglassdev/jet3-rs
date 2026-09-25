@@ -1,6 +1,6 @@
 //! JSON requests over public row mutation APIs; no storage or publication logic.
 use crate::names::Name;
-use crate::values::{self, Cell, Failure};
+use crate::values::{Cell, Failure, Limits};
 use jet3::{
     CatalogObjectClass, ColumnOrdinal, DatabaseReader, ResourceBudget, RowLocator, RowValue,
 };
@@ -12,16 +12,19 @@ use std::{
 };
 
 pub(crate) const HELP: &str = "\
-  jet3-cli mutate <file.mdb> --input <request.json|->
+  jet3-cli mutate <file.mdb> --input <request.json|-> [limits]
 
 mutate applies one insert, update, replace or delete JSON request through the public API.
 Targets use exact database-code-page table names; update/replace/delete require a current page/slot.
 Callers must exclude concurrent writers. See README.md for current library bounds.
+--max-allocation-bytes, --max-work-units, --max-chain-depth and --max-encoded-bytes
+<n> each replace one default resource limit of the write.
 ";
 #[derive(Debug)]
 pub(crate) struct MutationCommand {
     path: PathBuf,
     input: OsString,
+    limits: Limits,
 }
 pub(crate) fn parse_args(
     mut args: impl Iterator<Item = OsString>,
@@ -34,12 +37,10 @@ pub(crate) fn parse_args(
         return Err("mutation_input_required");
     }
     let input = args.next().ok_or("missing_option_value")?;
-    if args.next().is_some() {
-        return Err("unexpected_argument");
-    }
     Ok(MutationCommand {
         path: path.into(),
         input,
+        limits: Limits::parse(args)?,
     })
 }
 #[derive(Deserialize)]
@@ -126,7 +127,7 @@ fn resolve(
 
 pub(crate) fn run(command: &MutationCommand) -> Result<String, Failure> {
     let request: Request = crate::names::read_request(&command.input, &command.path)?;
-    let mut budget = values::budget();
+    let mut budget = command.limits.budget();
     let (operation, locator) = match &request {
         Request::Insert { table, values } => {
             let values = values
