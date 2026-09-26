@@ -1,115 +1,143 @@
 # jet3-rs
 
-An original, clean-room Rust library and toolset for unencrypted Access 97 /
-Jet 3 `.mdb` files.
+A clean-room, safe Rust library and CLI for reading and writing unencrypted
+Microsoft Access 97 (Jet 3) `.mdb` files.
 
-The library opens unencrypted Jet 3 files, enumerates schema, streams rows,
-decodes values including Memo/OLE, and traverses indexes. It also provides
-bounded database creation and existing-file insert, update, and delete APIs.
-A CLI exposes inspection, typed JSON creation, row/schema mutations, and semantic
-snapshots; see [its usage guide](crates/jet3-cli/README.md).
+- No runtime dependency on Access, DAO, ODBC, Java or native libraries.
+- `unsafe` is forbidden in the library. Malformed input returns structured
+  errors, and all work is bounded by a caller-owned resource budget.
+- Every format fact is cited in [`docs/PROVENANCE.md`](docs/PROVENANCE.md).
+  Microsoft DAO on Windows is used only as a black-box test oracle.
 
-Development is ongoing. DAO differential evidence covers specific recorded
-reader, creation, and update scenarios; it does not establish full Jet 3
-compatibility or completion of the v1 release gates.
+> **Status: pre-v1.** Reading, creation and updates are implemented, but only
+> the specific scenarios recorded in `PROVENANCE.md` are verified against DAO.
+> v1 release verification is still open
+> ([#370](https://github.com/oglassdev/jet3-rs/issues/370)).
 
-## Workspace
+## What it does
 
-- `crates/jet3`: safe public library
-- `crates/jet3-cli`: inspection, creation, mutation, and snapshot commands
-- `crates/jet3-testkit`: fixture and semantic-comparison support
-- `oracle/windows-dao`: Windows-only independent DAO test oracle
-- `docs/validation`: measurable requirements and evidence rules
-- `docs/plans/V1_SCOPE.md`: what v1 is and is not
+**Read**
+- Open a file, list tables, columns and properties, stream rows and decode
+  every Jet 3 value type, including Memo/OLE.
+- Traverse indexes and read relationships.
+- Validate a whole file: rows, values, index membership, keys, relationships
+  and page allocation.
 
-## Start here
+**Create**
+- Create a database from tables, columns, indexes, initial rows and
+  relationships.
+- AutoIncrement, Memo/OLE, and up to 32 indexes per table, each with up to
+  ten components in either direction.
+- Scalar and composite relationships, including cascade, one-to-one and
+  unenforced forms.
+- Column and table properties: Required, AllowZeroLength, DefaultValue,
+  ValidationRule/Text and Description, stored as text.
+- The same request always produces the same bytes.
+
+**Update existing files**
+- Insert, update, replace and delete rows. Indexes, Memo/OLE payloads and
+  relationship constraints and cascades are maintained.
+- Schema edits: create, rename and drop tables, columns and indexes; change
+  Required/AllowZeroLength; create, drop and replace relationships.
+- Unrelated data is preserved, including objects the library doesn't
+  interpret, such as saved queries.
+- Changes are published atomically, and a refused change leaves the file
+  unchanged.
+
+**Not supported**
+- Anything other than Jet 3: Jet 4, ACCDB, encrypted or password-protected
+  files.
+- Forms, reports, macros, VBA, query execution, replication and multi-user
+  locking.
+- Creating databases with a sort order other than General. Existing
+  General, Nordic, traditional Spanish, Dutch, Cyrillic and Greek databases
+  are writable; other sort orders are read-only.
+- Evaluating validation rules or defaults, in-place column type changes,
+  indexes on Memo/OLE, and rows that would need multi-hop overflow.
+
+Unsupported requests are refused with a structured error rather than
+approximated. [`docs/plans/V1_SCOPE.md`](docs/plans/V1_SCOPE.md) has the full
+scope.
+
+## Quick start
+
+### CLI
 
 ```sh
-just ready
+cargo install --path crates/jet3-cli
+
+jet3-cli inspect example.mdb --table Items --rows   # schema and rows as JSON
+jet3-cli validate example.mdb                       # whole-file check
+jet3-cli create new.mdb --input tables.json         # create from a JSON request
+jet3-cli mutate new.mdb --input insert.json         # insert/update/replace/delete
+jet3-cli schema new.mdb --input edit.json           # schema edits
 ```
 
-`just` lists the other recipes (benchmarks, fuzzing, the DAO VM runner).
+```json
+{"operation": "insert", "table": "Items", "values": [{"long": 4}, {"text": "New"}]}
+```
 
-See [validation/README.md](docs/validation/README.md) for capability status and
-the three v1 release gates.
-See [TOOLING.md](docs/TOOLING.md) for the pinned mise-managed developer tools
-and the remaining host prerequisites.
+See the [CLI guide](crates/jet3-cli/README.md) for every request shape.
 
-Two design rules hold across the library: one caller-owned `ResourceBudget`
-covers a whole public operation (modules never start a nested budget), and the
-structural validator may share safe primitives with the writer but never its
-encoders or a successful self-read as proof of validity.
+### Library
 
-## Status
+```rust
+use std::num::NonZeroU8;
+use jet3::{
+    ColumnSpec, ColumnType, DatabaseSpec, IndexColumnSpec, IndexKind, IndexSpec,
+    ResourceBudget, ResourceLimits, TableRows, TableSpec, TableValidation, create_database,
+};
 
-The reader has hosted DAO differential evidence for its documented capability
-inventory. Creation packs tables and multi-page system catalogs with inline
-and indirect allocation maps. Table and column names admit 64 Windows-1252 bytes;
-index names admit 63. Linked table definitions support
-first and later tables, initial rows, and indexes with independent map pages.
-It supports initial rows, explicit/generated AutoIncrement IDs, independent
-Memo/OLE columns, up to 32 scalar indexes (including Date, Binary, fixed/variable
-Text and GUID), and enforced scalar/composite relationship graphs within each table's
-32-logical-index capacity. Creation handles
-multiple parents or children, chains, self-references and shared foreign indexes,
-with nullable child keys, scalar/AutoIncrement parents, column options and payloads. Existing-file mutations include row insertion/deletion,
-row replacement with stable locators across overflow growth and collapse,
-Memo/OLE payload allocation and reuse, generated IDs, and
-index maintenance for those key types with one to ten components per index. The accepted payload
-lifecycles include native DAO continuations and Rust mutation of native files.
-Related tables admit inserts, field/full-row updates and deletion for enforced
-relationships with one to ten ordered scalar fields, including multiple constraints
-and self-references. Cascade updates and deletes can be enabled independently.
-Endpoint types must agree; Text/Binary widths may differ and fixed/variable Text
-may mix. Only all-null child keys are exempt from parent matching. Explicit
-field assignments of referenced parent keys cascade to matching children when
-enabled; otherwise they are refused even when unchanged. Cascades include exact
-partial-null and all-null tuples, follow chains, and publish all affected rows
-together. Full-row self replacements retain explicit foreign-key assignments.
-Without cascades, other referencing rows block replacement; a self-reference
-can retain its own reference when the parent tree precedes the foreign tree. One-field
-updates support nullable/variable values and retain unassigned Memo/OLE descriptors.
-Boolean null assignments store False. Nullable foreign keys and shared
-foreign indexes are supported. Atomic
-self-reference changes follow physical index order: if the foreign index precedes
-the parent index, the child key must exist before the edit.
-Related-row payloads retain the normal Memo/OLE mutation bounds. Orphan writes
-and conflicts with other enforced relationships are refused before publication.
+const NAME_LEN: NonZeroU8 = NonZeroU8::new(50).unwrap();
+let columns = [
+    ColumnSpec::new(b"Id", ColumnType::AutoIncrement),
+    ColumnSpec::new(b"Name", ColumnType::Text { max_len: NAME_LEN }),
+];
+let indexes = [IndexSpec {
+    name: b"PrimaryKey",
+    fields: &[IndexColumnSpec::ascending(b"Id")],
+    kind: IndexKind::Primary,
+}];
+let people = TableSpec {
+    name: b"People",
+    columns: &columns,
+    indexes: &indexes,
+    validation: TableValidation::NONE,
+};
+let mut budget = ResourceBudget::new(ResourceLimits::default());
+let spec = DatabaseSpec { tables: &[TableRows::empty(people)], ..DatabaseSpec::default() };
+create_database("people.mdb", &spec, &mut budget)?;
+```
 
-Existing files can be edited through `edit_schema` or `jet3-cli schema`: create,
-rename and drop tables/columns/indexes; change Required and AllowZeroLength;
-and create, drop or atomically replace relationships and indexes. Deleted
-columns retain the surviving fields' storage identities, and all operations
-preserve unrelated objects. Existing databases support General, Nordic,
-traditional Spanish, Dutch, Cyrillic and Greek collations for Text indexes and
-schema names. New databases use General; other sort orders remain read-only.
-See the [CLI examples](crates/jet3-cli/README.md)
-for request shapes and constraints.
+Reading starts at `DatabaseReader`. Row writes are `insert_row`,
+`update_field`, `update_row` and `delete_row`, and schema changes go through
+`edit_schema`. Run `cargo doc -p jet3 --open` for the API docs.
 
-Creation and updates remain partial: schema combinations, index key types,
-allocation, and relationship mutation are restricted. Publication supports Unix
-and Windows. Windows flushes the file before publication without a separate
-directory-sync guarantee.
-Creation produces identical MDB bytes for the same ordered request and library
-version, independently of the destination path and successful resource limits.
-The read-only library and CLI validator check user/system table rows, values, index
-membership and supported scalar key semantics within a shared budget. It checks
-key completeness, null rules, uniqueness and branch bounds, and reports indexes
-whose key schemas remain uninterpreted.
-It also checks catalogued allocation ownership, availability-map membership,
-and unique reachability of rows and live Memo/OLE fragments, including catalog
-property payloads. Enforced scalar/composite
-relationships get reciprocal-metadata and parent/child key checks; unsupported
-forms are counted separately. Saved select, parameter, aggregate, join, union,
-crosstab, update, append, delete, make-table and DDL query definitions and their
-system storage survive the recorded native-input row lifecycles unchanged;
-query execution is outside v1.
-Atomic publication has Rust fault-injection tests on Unix and Windows/NTFS.
-DAO failed-write and rollback bookkeeping is checked separately from Rust's
-byte-exact refusal contract. Local and
-hosted DAO differential runs establish evidence for their recorded capabilities
-and source revisions. AutoIncrement comparisons include explicit IDs, negative
-IDs and signed-boundary wrap, with failed Rust requests preserving the source.
+## Repository layout
 
-See [remaining work](docs/plans/V1_SCOPE.md#remaining-work) and
-`docs/PROVENANCE.md` for exact evidence boundaries; GitHub issues track completion.
+| Path | Contents |
+| --- | --- |
+| `crates/jet3` | The library |
+| `crates/jet3-cli` | Command-line front end |
+| `crates/jet3-testkit` | Test fixtures and semantic snapshots |
+| `oracle/windows-dao` | DAO differential suites (Windows VM, optional) |
+| `docs/PROVENANCE.md` | Source of every format fact and DAO result |
+| `docs/validation` | Support matrix and release gates |
+
+## Development
+
+Tools are pinned in `mise.toml` (see [TOOLING.md](docs/TOOLING.md)).
+
+```sh
+mise install
+just          # list recipes
+just ready    # fmt, clippy, tests, docs and repository checks: run before a PR
+```
+
+Contributor rules are in [AGENTS.md](AGENTS.md). Work is tracked in
+[GitHub issues](https://github.com/oglassdev/jet3-rs/issues). DAO runs need a
+local Windows VM; see [LOCAL_WINDOWS_VM.md](docs/LOCAL_WINDOWS_VM.md).
+
+## License
+
+MIT OR Apache-2.0.
