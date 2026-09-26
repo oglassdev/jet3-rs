@@ -11,14 +11,15 @@ delivered in this order:
 1. **Reader** (`crates/jet3`): open a file, enumerate tables and columns,
    stream rows, decode every Jet 3 value type, traverse indexes. Malformed
    input yields structured errors with bounded work.
-2. **Writer**: create a new database, define tables/columns/indexes, and
-   insert rows that DAO opens and reads back identically.
-3. **Update**: insert, update, and delete rows in an existing database while
-   preserving all unrelated data (including objects we do not interpret).
-4. **DAO differential runs**: one per leg (read, write, update). Rust and
-   DAO each produce a canonical semantic snapshot for the shared scenario
-   inventory (`oracle/windows-dao/protocol/`); the snapshots are compared
-   and the result recorded in `docs/PROVENANCE.md`.
+2. **Writer**: create a new database, define tables/columns/indexes and
+   relationships, and insert rows that DAO opens and reads back identically.
+3. **Update**: insert, update, and delete rows and edit the schema of an
+   existing database while preserving all unrelated data (including objects
+   we do not interpret).
+4. **DAO differential runs**: one per leg (read, write, update). Rust
+   candidates and native DAO outputs for the same inputs are compared
+   through the suites in `oracle/windows-dao/`, and the results are recorded
+   in `docs/PROVENANCE.md`.
 5. **Support matrix** (`docs/validation/support-matrix.json`): per-capability
    status set from those runs. Nothing is called "supported" without one.
 
@@ -40,22 +41,18 @@ The release gates are listed in
 
 ## Remaining work
 
-The reader and its hosted differential are complete for the recorded inventory.
-The CLI (#104), creation module cleanup (#182) and the recorded relationship,
-six-locale schema and storage/preservation inventories (#367-#369) are done.
-Still open:
+The reader, creation and update inventories are implemented and recorded
+(#98, #100, #112, #367-#369), and the codebase cleanup is done (#380). Every
+unsupported request is refused with the file unchanged. Still open, under
+roadmap #75:
 
-- Creation (#100), updates (#112) and their broader DAO inventories
-  (#102/#113), under roadmap #75. Creation and updates remain partial: schema
-  combinations, index key types, allocation and relationship mutation are
-  restricted, and every unsupported request is refused with the file
-  unchanged.
-- Implementation simplification (#380), then release verification (#370):
-  cover the remaining integrity and DAO inventories and meet all three gates
-  on the resulting release commit.
+- Restore the `definition-chains` and `allocation-lifecycle` DAO suites,
+  which fail on main (#395).
+- Release verification (#370): finish the remaining integrity checks, produce
+  the read, write and update DAO differential bundles, and meet all three
+  gates on the release commit.
 - Valid multi-hop row growth stays refused until native observations exist;
   the EXP-0276 representation is rejected.
 
 Evidence establishes only its recorded revisions and finite recipes; no
-whole-v1 compatibility is claimed. EXP-0229 completed the practical Items/Notes
-lifecycle milestone, which is not a substitute for the full scope.
+whole-v1 compatibility is claimed.
